@@ -1,0 +1,16 @@
+[package]
+name = "rt-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Internal
+rt-core = { path = "../rt-core" }
+rt-tools = { path = "../rt-tools" }
