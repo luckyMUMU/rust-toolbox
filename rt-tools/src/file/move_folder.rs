@@ -13,7 +13,7 @@ struct MoveFolderInput {
     overwrite: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 struct MoveFolderOutput {
     success: bool,
     moved_files: usize,
@@ -27,6 +27,13 @@ impl Tool for MoveFolder {
         "file.move_folder"
     }
 
+    fn display_name(&self, locale: Locale) -> String {
+        match locale {
+            Locale::En => "Move Folder".to_string(),
+            Locale::Zh => "移动文件夹".to_string(),
+        }
+    }
+
     fn description(&self, locale: Locale) -> String {
         match locale {
             Locale::En => "Move or rename a folder".to_string(),
@@ -34,9 +41,40 @@ impl Tool for MoveFolder {
         }
     }
 
-    fn input_schema(&self) -> Value {
-        let schema = schemars::schema_for!(MoveFolderInput);
-        serde_json::to_value(schema).unwrap()
+    fn input_schema(&self, locale: Locale) -> Value {
+        let mut schema = serde_json::to_value(schemars::schema_for!(MoveFolderInput)).unwrap();
+        
+        if locale == Locale::Zh {
+            if let Some(props) = schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
+                if let Some(source) = props.get_mut("source") {
+                    source["title"] = serde_json::json!("源路径");
+                }
+                if let Some(destination) = props.get_mut("destination") {
+                    destination["title"] = serde_json::json!("目标路径");
+                }
+                if let Some(overwrite) = props.get_mut("overwrite") {
+                    overwrite["title"] = serde_json::json!("覆盖现有");
+                }
+            }
+        }
+        
+        schema
+    }
+
+    fn output_schema(&self, locale: Locale) -> Value {
+        let mut schema = serde_json::to_value(schemars::schema_for!(MoveFolderOutput)).unwrap();
+
+        if locale == Locale::Zh {
+             if let Some(props) = schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
+                if let Some(success) = props.get_mut("success") {
+                    success["title"] = serde_json::json!("是否成功");
+                }
+                if let Some(moved_files) = props.get_mut("moved_files") {
+                     moved_files["title"] = serde_json::json!("移动文件数");
+                }
+            }
+        }
+        schema
     }
 
     fn user_guide(&self, locale: Locale) -> String {
@@ -75,7 +113,7 @@ Move or rename a folder from one location to another.
             .map_err(|e| CoreError::InvalidInput(format!("Failed to parse input: {}", e)))?;
 
         let src = Path::new(&args.source);
-        let dst = Path::new(&args.destination);
+        let dst_root = Path::new(&args.destination);
 
         if !src.exists() {
             return Err(CoreError::InvalidInput(format!("Source path does not exist: {}", args.source)));
@@ -85,27 +123,40 @@ Move or rename a folder from one location to another.
             return Err(CoreError::InvalidInput(format!("Source path is not a directory: {}", args.source)));
         }
 
-        if dst.exists() {
+        // Calculate actual target path
+        // If dst_root exists and is a directory, move INTO it.
+        // Otherwise, rename src TO dst_root.
+        let target_path = if dst_root.exists() && dst_root.is_dir() {
+             let file_name = src.file_name().ok_or_else(|| CoreError::InvalidInput("Source path ends with ..".to_string()))?;
+             dst_root.join(file_name)
+        } else {
+             dst_root.to_path_buf()
+        };
+
+        // Check if target path exists
+        if target_path.exists() {
             if !args.overwrite {
-                return Err(CoreError::InvalidInput(format!("Destination path exists and overwrite is false: {}", args.destination)));
+                return Err(CoreError::InvalidInput(format!("Target path exists and overwrite is false: {:?}", target_path)));
             }
-            if dst.is_dir() {
-                tokio::fs::remove_dir_all(dst).await
-                    .map_err(|e| CoreError::ToolFailure(format!("Failed to remove existing destination: {}", e)))?;
+            // Remove existing target before moving
+            if target_path.is_dir() {
+                tokio::fs::remove_dir_all(&target_path).await
+                    .map_err(|e| CoreError::ToolFailure(format!("Failed to remove existing target directory: {}", e)))?;
             } else {
-                 tokio::fs::remove_file(dst).await
-                    .map_err(|e| CoreError::ToolFailure(format!("Failed to remove existing destination file: {}", e)))?;
+                 tokio::fs::remove_file(&target_path).await
+                    .map_err(|e| CoreError::ToolFailure(format!("Failed to remove existing target file: {}", e)))?;
             }
         }
-
-        if let Some(parent) = dst.parent() {
+        
+        // Ensure parent of target exists (if target was direct destination, it might not exist)
+        if let Some(parent) = target_path.parent() {
              if !parent.exists() {
                  tokio::fs::create_dir_all(parent).await
                     .map_err(|e| CoreError::ToolFailure(format!("Failed to create parent directory: {}", e)))?;
              }
         }
 
-        match tokio::fs::rename(src, dst).await {
+        match tokio::fs::rename(src, &target_path).await {
             Ok(_) => {
                 let output = MoveFolderOutput {
                     success: true,
@@ -151,8 +202,43 @@ mod tests {
         assert!(fs::try_exists(format!("{}/file.txt", dst)).await.unwrap());
 
         // Test Schema
-        let schema = tool.input_schema();
+        let schema = tool.input_schema(Locale::En);
         assert!(schema.get("properties").is_some());
+
+        fs::remove_dir_all(dst).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_move_into_existing_folder() {
+        let src = "./tmp/test_src_move_into";
+        let dst = "./tmp/test_dst_parent";
+        let expected_path = "./tmp/test_dst_parent/test_src_move_into";
+
+        // clean up
+        if fs::try_exists(src).await.unwrap() { fs::remove_dir_all(src).await.unwrap(); }
+        if fs::try_exists(dst).await.unwrap() { fs::remove_dir_all(dst).await.unwrap(); }
+
+        // Setup: Create src and dst
+        fs::create_dir_all(src).await.unwrap();
+        fs::write(format!("{}/file.txt", src), "content").await.unwrap();
+        fs::create_dir_all(dst).await.unwrap();
+
+        let tool = MoveFolder;
+        let input = json!({
+            "source": src,
+            "destination": dst,
+            "overwrite": true
+        });
+
+        let result = tool.run(input).await;
+        assert!(result.is_ok());
+
+        assert!(!fs::try_exists(src).await.unwrap());
+        // dst should still exist (it's the parent)
+        assert!(fs::try_exists(dst).await.unwrap());
+        // moved folder should be inside
+        assert!(fs::try_exists(expected_path).await.unwrap());
+        assert!(fs::try_exists(format!("{}/file.txt", expected_path)).await.unwrap());
 
         fs::remove_dir_all(dst).await.unwrap();
     }

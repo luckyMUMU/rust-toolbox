@@ -5,6 +5,11 @@ use std::sync::{Arc, mpsc};
 use serde_json::{Value, json};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 
+enum GuiMessage {
+    Output(Value),
+    Error(String),
+}
+
 struct ToolkitApp {
     tools: Arc<HashMap<String, Box<dyn Tool>>>,
     selected_tool_name: Option<String>,
@@ -13,7 +18,9 @@ struct ToolkitApp {
     input_value: Value,
     current_schema: Option<Value>,
 
-    output_text: String,
+    output_value: Option<Value>,
+    output_error: Option<String>,
+    output_schema: Option<Value>,
     
     // Help UI state
     show_help: bool,
@@ -23,8 +30,8 @@ struct ToolkitApp {
     locale: Locale,
 
     // Communication channel
-    tx: mpsc::Sender<String>,
-    rx: mpsc::Receiver<String>,
+    tx: mpsc::Sender<GuiMessage>,
+    rx: mpsc::Receiver<GuiMessage>,
     
     // Async runtime
     runtime: tokio::runtime::Runtime,
@@ -42,7 +49,9 @@ impl ToolkitApp {
             selected_tool_name: None,
             input_value: json!({}),
             current_schema: None,
-            output_text: "Ready.".to_string(),
+            output_value: None,
+            output_error: None,
+            output_schema: None,
             show_help: false,
             markdown_cache: CommonMarkCache::default(),
             locale: Locale::En, // Default En
@@ -80,18 +89,24 @@ impl ToolkitApp {
 }
 
 // Recursive Schema Renderer
-fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value) {
+fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only: bool) {
     if let Some(obj_type) = schema.get("type").and_then(|v| v.as_str()) {
         match obj_type {
             "object" => {
-                if !data.is_object() { *data = json!({}); }
+                if !data.is_object() && !read_only { *data = json!({}); }
                 
                 if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
                     for (key, prop_schema) in props {
                         ui.horizontal(|ui| {
-                            ui.label(key);
-                            // Ensure data has this key
-                            if data.get(key).is_none() {
+                            // Use title if available, otherwise key
+                            let label_text = prop_schema.get("title")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or(key);
+                                
+                            ui.label(label_text);
+                            
+                            // Ensure data has this key (only in edit mode)
+                            if !read_only && data.get(key).is_none() {
                                 // Initialize with safe default based on type
                                 let default = match prop_schema.get("type").and_then(|v| v.as_str()) {
                                     Some("string") => json!(""),
@@ -103,7 +118,9 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value) {
                             }
                             
                             if let Some(val) = data.get_mut(key) {
-                                render_schema(ui, prop_schema, val);
+                                render_schema(ui, prop_schema, val, read_only);
+                            } else if read_only {
+                                ui.weak("(null)");
                             }
                         });
                     }
@@ -112,27 +129,34 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value) {
             "string" => {
                 if let Some(s) = data.as_str() {
                     let mut text = s.to_string();
-                    if ui.text_edit_singleline(&mut text).changed() {
+                    if read_only {
+                         ui.label(text);
+                    } else if ui.text_edit_singleline(&mut text).changed() {
                         *data = json!(text);
                     }
                 } else {
                     // Force reset if type mismatch
-                    *data = json!("");
+                    if !read_only { *data = json!(""); }
+                    else { ui.label("Invalid Type"); }
                 }
             },
             "boolean" => {
                 if let Some(b) = data.as_bool() {
                     let mut val = b;
-                    if ui.checkbox(&mut val, "").changed() {
+                    if read_only {
+                         ui.add_enabled(false, egui::Checkbox::new(&mut val, ""));
+                    } else if ui.checkbox(&mut val, "").changed() {
                         *data = json!(val);
                     }
                 } else {
-                    *data = json!(false);
+                    if !read_only { *data = json!(false); }
                 }
             },
              "integer" | "number" => {
                  let mut num = data.as_f64().unwrap_or(0.0);
-                 if ui.add(egui::DragValue::new(&mut num)).changed() {
+                 if read_only {
+                     ui.label(num.to_string());
+                 } else if ui.add(egui::DragValue::new(&mut num)).changed() {
                      *data = json!(num); 
                  }
             }
@@ -148,9 +172,24 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value) {
 impl eframe::App for ToolkitApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         while let Ok(msg) = self.rx.try_recv() {
-            self.output_text = msg;
+            match msg {
+                GuiMessage::Output(val) => {
+                    self.output_value = Some(val);
+                    self.output_error = None;
+                    
+                    // Also fetch schema for output
+                     if let Some(name) = &self.selected_tool_name {
+                        if let Some(tool) = self.tools.get(name) {
+                            self.output_schema = Some(tool.output_schema(self.locale));
+                        }
+                    }
+                },
+                GuiMessage::Error(err) => {
+                     self.output_error = Some(err);
+                     self.output_value = None;
+                }
+            }
         }
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Rust Toolbox");
@@ -158,29 +197,46 @@ impl eframe::App for ToolkitApp {
                     egui::ComboBox::from_id_salt("locale_combo")
                         .selected_text(format!("{:?}", self.locale))
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.locale, Locale::En, "English");
-                            ui.selectable_value(&mut self.locale, Locale::Zh, "中文");
+                            let mut changed = false;
+                            if ui.selectable_value(&mut self.locale, Locale::En, "English").clicked() { changed = true; }
+                            if ui.selectable_value(&mut self.locale, Locale::Zh, "中文").clicked() { changed = true; }
+                            
+                            // If locale changed, we need to re-fetch the schema for current tool to update localized titles
+                            if changed {
+                                if let Some(name) = &self.selected_tool_name {
+                                    if let Some(tool) = self.tools.get(name) {
+                                        self.current_schema = Some(tool.input_schema(self.locale));
+                                        // Also update output schema if we have output
+                                        if self.output_value.is_some() {
+                                             self.output_schema = Some(tool.output_schema(self.locale));
+                                        }
+                                    }
+                                }
+                            }
                         });
                 });
             });
         });
-
         // Left Panel: Tool Selection
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
             ui.heading(self.tr("Tools"));
             ui.separator();
             
             for (name, tool) in self.tools.iter() {
-                if ui.selectable_label(self.selected_tool_name.as_deref() == Some(name), name).clicked() {
+                // Use display name for the list item
+                let display = tool.display_name(self.locale);
+                if ui.selectable_label(self.selected_tool_name.as_deref() == Some(name), display).clicked() {
                     self.selected_tool_name = Some(name.clone());
-                    self.current_schema = Some(tool.input_schema());
+                    self.current_schema = Some(tool.input_schema(self.locale));
                     self.input_value = json!({});
+                    self.output_value = None;
+                    self.output_error = None;
+                    self.output_schema = None;
                 }
                 ui.label(egui::RichText::new(tool.description(self.locale)).small().weak());
                 ui.separator();
             }
         });
-
         // Right Panel: Help (Collapsible)
         if self.show_help {
             egui::SidePanel::right("help_panel").min_width(300.0).show(ctx, |ui| {
@@ -220,11 +276,10 @@ impl eframe::App for ToolkitApp {
                      });
                  });
                 ui.separator();
-                
                 // Render Dynamic Form
                 if let Some(schema) = &self.current_schema {
-                    egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                         render_schema(ui, schema, &mut self.input_value);
+                    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                         render_schema(ui, schema, &mut self.input_value, false);
                     });
                 } else {
                     ui.label("No schema available.");
@@ -232,7 +287,7 @@ impl eframe::App for ToolkitApp {
 
                 ui.separator();
                 
-                // Debug View for actual JSON being sent
+                // Debug View
                 ui.collapsing(self.tr("Raw JSON"), |ui| {
                     ui.label(serde_json::to_string_pretty(&self.input_value).unwrap_or_default());
                 });
@@ -246,16 +301,17 @@ impl eframe::App for ToolkitApp {
                     let tx = self.tx.clone();
                     let ctx_clone = ctx.clone();
                     
-                    self.output_text = "Running...".to_string(); // Maybe localize this too? But it's transient.
-
+                    self.output_value = None;
+                    self.output_error = None;
+                    
                     self.runtime.spawn(async move {
                         let result_msg = if let Some(t) = tools_ref.get(&tool_name) {
                              match t.run(input_val).await {
-                                 Ok(res) => serde_json::to_string_pretty(&res).unwrap_or_else(|e| e.to_string()),
-                                 Err(e) => format!("Error: {}", e),
+                                 Ok(res) => GuiMessage::Output(res),
+                                 Err(e) => GuiMessage::Error(e.to_string()),
                              }
                         } else {
-                            "Tool not found internal error".to_string()
+                            GuiMessage::Error("Tool not found internal error".to_string())
                         };
 
                         let _ = tx.send(result_msg);
@@ -265,8 +321,21 @@ impl eframe::App for ToolkitApp {
 
                 ui.separator();
                 ui.heading(self.tr("Output"));
-                ui.add(egui::TextEdit::multiline(&mut self.output_text).interactive(false).font(egui::TextStyle::Monospace));
-
+                
+                if let Some(error) = &self.output_error {
+                    ui.colored_label(egui::Color32::RED, error);
+                } else if let Some(val) = &mut self.output_value {
+                    if let Some(schema) = &self.output_schema {
+                         egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                             render_schema(ui, schema, val, true);
+                         });
+                    } else {
+                         // Fallback to raw json if no schema
+                         ui.add(egui::TextEdit::multiline(&mut serde_json::to_string_pretty(val).unwrap()).interactive(false));
+                    }
+                } else {
+                     ui.label("Ready");
+                }
             } else {
                 ui.heading(self.tr("Select a tool"));
             }
@@ -300,6 +369,60 @@ fn main() -> eframe::Result {
     )
 }
 
-fn setup_custom_fonts(_ctx: &egui::Context) {
-    // Placeholder for future font setup
+fn setup_custom_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    // Attempt to load "Microsoft YaHei" (msyh.ttc)
+    // Note: msyh.ttc is a collection. setup_font_data usually takes raw bytes.
+    // If it fails, fallback to SimHei? Or just try specific paths.
+    
+    let font_path = "C:\\Windows\\Fonts\\msyh.ttc";
+    let font_name = "Microsoft YaHei";
+
+    // Read font file
+    match std::fs::read(font_path) {
+        Ok(font_data) => {
+             fonts.font_data.insert(
+                font_name.to_owned(),
+                egui::FontData::from_owned(font_data).tweak(
+                    egui::FontTweak {
+                        scale: 1.2, // Slightly larger for readability
+                        ..Default::default()
+                    }
+                ),
+            );
+
+            // Prioritize it for Proportional and Monospace
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                family.insert(0, font_name.to_owned());
+            }
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+                family.push(font_name.to_owned());
+            }
+            
+            ctx.set_fonts(fonts);
+            println!("Loaded font: {}", font_path);
+        },
+        Err(e) => {
+            eprintln!("Failed to load font {}: {}", font_path, e);
+            // Fallback to SimHei if YaHei fails
+             let font_path_alt = "C:\\Windows\\Fonts\\simhei.ttf";
+             if let Ok(font_data) = std::fs::read(font_path_alt) {
+                  fonts.font_data.insert(
+                    "SimHei".to_owned(),
+                    egui::FontData::from_owned(font_data),
+                );
+                 if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                    family.insert(0, "SimHei".to_owned());
+                }
+                 if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+                    family.push("SimHei".to_owned());
+                }
+                ctx.set_fonts(fonts);
+                println!("Loaded fallback font: {}", font_path_alt);
+             } else {
+                 eprintln!("Failed to load fallback font SimHei");
+             }
+        }
+    }
 }
