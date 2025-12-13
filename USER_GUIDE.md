@@ -14,12 +14,17 @@ Rust Toolbox (简称 `rt-box`) 是一个强大的工具流编排平台。
 #### 📂 移动文件夹 (`file.move_folder`)
 移动或重命名指定的文件夹。
 
+**行为说明 (Behavior):**
+1. **重命名/移动**: 如果 `destination` 不存在，源文件夹将被重命名或移动到该路径。
+2. **移动到内部**: 如果 `destination` 是一个已存在的目录，源文件夹将被移动到该目录**内部**。
+
 **输入参数 (Input):**
 ```json
 {
   "source": "path/to/source_folder",      // 源路径 (必填)
   "destination": "path/to/target_folder", // 目标路径 (必填)
-  "overwrite": false                      // 是否覆盖目标 (可选, 默认 false)
+  "overwrite": false                      // 是否覆盖 (可选, 默认 false)。
+                                          // 如果为 true 且目标路径(计算后)已存在，将先删除目标再移动。
 }
 ```
 

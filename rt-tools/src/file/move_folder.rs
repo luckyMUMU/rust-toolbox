@@ -81,7 +81,11 @@ impl Tool for MoveFolder {
         match locale {
             Locale::En => r#"# Move Folder
 
-Move or rename a folder from one location to another.
+Move or rename a folder.
+
+## Behavior
+1. **Rename/Move**: If `destination` does not exist, the source folder is renamed/moved to that path.
+2. **Move Into**: If `destination` is an existing directory, the source folder is moved *into* that directory.
 
 ## Inputs
 - **source**: Path to the folder to move.
@@ -89,20 +93,23 @@ Move or rename a folder from one location to another.
 - **overwrite**: If true, overwrite the destination if it exists.
 
 ## Notes
-- If overwrite is true and destination exists, the destination will be deleted before moving.
+- If `overwrite` is true and the calculated target path exists, it will be deleted before moving.
 - Cross-device moves may fail if simple rename is not supported (depends on OS).
 "#.to_string(),
             Locale::Zh => r#"# 移动文件夹 (Move Folder)
 
-将文件夹移动或重命名到新位置。
+移动或重命名指定的文件夹。
+
+## 行为说明
+1. **重命名/移动**: 如果 `destination` 不存在，源文件夹将被重命名或移动到该路径。
+2. **移动到内部**: 如果 `destination` 是一个已存在的目录，源文件夹将被移动到该目录**内部**。
 
 ## 输入参数
 - **source**: 源文件夹路径。
 - **destination**: 目标路径。
-- **overwrite**: 如果为 true，则在目标存在时覆盖。
+- **overwrite**: 是否覆盖。如果为 true 且目标路径(计算后)已存在，将先删除目标再移动。
 
 ## 注意事项
-- 如果 overwrite 为 true 且目标存在，移动前将删除目标路径内容。
 - 跨磁盘移动可能会因为系统不支持简单重命名而失败（取决于操作系统）。
 "#.to_string(),
         }
