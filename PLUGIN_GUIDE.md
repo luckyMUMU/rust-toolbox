@@ -1,201 +1,171 @@
 # Rust Toolbox 插件开发指南
 
-本文档详细说明了如何为 Rust Toolbox 开发外部插件。
+## 1. 概述
 
-## 1. 插件系统简介
+本指南旨在为 Rust Toolbox 的插件开发者提供一套标准的开发规范和文档格式。遵循这些规范，可以确保您的插件能够无缝集成到 Rust Toolbox 生态系统，并提供良好的用户体验，特别是多语言支持和 GUI 自动表单生成。
 
-Rust Toolbox 采用基于**独立进程**的插件系统。这意味着插件可以是任何语言编写的可执行文件（二进制文件、Shell 脚本等），只要它遵循特定的输入/输出协议。
+## 2. 核心原则
 
-- **发现机制**：系统启动时会自动扫描项目根目录下的 `plugins/` 文件夹。
-- **命名规则**：插件的可执行文件名必须以 `rt-plugin-` 开头（例如 `rt-plugin-echo.exe` 或 `rt-plugin-calculator`）。
+### 2.1 多语言支持 (Internationalization - i18n)
 
-## 2. 通信协议
+所有面向用户的文本，包括工具名称、描述、用户指南以及输入/输出字段的标题，都必须提供多语言版本。目前支持的语言包括英语 (`en`) 和简体中文 (`zh-CN`)。
 
-插件必须支持两个子命令：`spec` 和 `run`。
+### 2.2 结构化 Schema 定义 (JSON Schema)
 
-### 2.1 `spec` 命令 (元数据)
+插件的输入和输出参数必须通过 JSON Schema 进行定义。这些 Schema 不仅用于验证数据，更是 GUI 自动生成表单和结果展示的关键依据。通过在 Schema 中注入本地化的 `title` 字段，可以实现字段级别的多语言显示。
 
-系统在加载插件时会执行 `<plugin_executable> spec`。插件必须向 **STDOUT** 输出包含元数据的 JSON 字符串。
+## 3. 插件结构
 
-**JSON 结构 (`PluginMetadata`)**:
+建议插件项目采用以下结构：
+
+```
+my-plugin/
+├── Cargo.toml
+├── src/
+│   ├── main.rs       # 插件核心逻辑，实现 `plugin spec` 和 `plugin run` 命令
+│   └── i18n.rs       # 多语言资源文件 (可选，如果插件是 Rust 编写)
+└── README.md
+```
+
+## 4. `plugin spec` 命令规范
+
+插件必须实现 `plugin spec` 命令，该命令应向标准输出 (stdout) 返回一个 JSON 对象，其中包含工具的元数据。这个 JSON 对象必须遵循 `PluginMetadata` 结构。
+
+### 4.1 `PluginMetadata` 结构
 
 ```json
 {
-  "name": "category.tool_name",
-  "display_name": {
-    "en": "English Name",
-    "zh": "中文名称"
+  "name": "ext.my_tool",
+  "display_name": { "en": "My Tool", "zh-CN": "我的工具" },
+  "description": { "en": "A tool that does something.", "zh-CN": "一个做某事的工具。" },
+  "user_guide": { "en": "# My Tool User Guide\n\nThis is how to use my tool...", "zh-CN": "# 我的工具用户指南\n\n如何使用我的工具..." },
+  "input_schema": { ... }, // JSON Schema for input parameters
+  "output_schema": { ... }, // JSON Schema for output results
+  "input_fields": { // Optional: Field-level localization for GUI form generation
+    "param1": { "en": "Parameter 1", "zh-CN": "参数1" },
+    "param2": { "en": "Parameter 2", "zh-CN": "参数2" }
   },
-  "description": {
-    "en": "Description in English",
-    "zh": "中文描述"
-  },
-  "user_guide": {
-    "en": "Markdown guide...",
-    "zh": "Markdown 指南..."
-  },
-  "input_schema": {
-    "type": "object",
-    "properties": {
-      "field1": { "type": "string" }
-    }
-  },
-  "output_schema": {
-    "type": "object",
-    "properties": {
-      "result": { "type": "string" }
-    }
+  "output_fields": { // Optional: Field-level localization for GUI result display
+    "result1": { "en": "Result 1", "zh-CN": "结果1" }
   }
 }
 ```
 
-### 2.2 `run` 命令 (执行)
+### 4.2 字段说明
 
-当用户调用插件时，系统会执行 `<plugin_executable> run`。
+*   `name` (String): 工具的唯一标识符，格式为 `category.tool_name` (例如: `ext.my_tool`)。
+*   `display_name` (Object): 工具的显示名称，包含多语言键值对。
+    *   `en`: 英文显示名称。
+    *   `zh-CN`: 简体中文显示名称。
+*   `description` (Object): 工具的简短描述，包含多语言键值对。
+*   `user_guide` (Object): 工具的详细用户指南，支持 Markdown 格式，包含多语言键值对。
+*   `input_schema` (Object): 工具输入参数的 JSON Schema 定义。GUI 将根据此 Schema 自动生成输入表单。
+*   `output_schema` (Object): 工具输出结果的 JSON Schema 定义。GUI 将根据此 Schema 自动展示结果。
+*   `input_fields` (Object, 可选): 针对 `input_schema` 中定义的每个字段，提供其在 GUI 中显示的多语言标题。例如，如果 `input_schema` 中有一个字段名为 `param1`，则可以在 `input_fields` 中定义 `"param1": { "en": "Parameter 1", "zh-CN": "参数1" }`。
+*   `output_fields` (Object, 可选): 针对 `output_schema` 中定义的每个字段，提供其在 GUI 中显示的多语言标题。
 
-- **输入 (STDIN)**: JSON 格式的参数对象（符合 `input_schema`）。
-- **输出 (STDOUT)**: JSON 格式的执行结果（符合 `output_schema`）。
-- **日志/错误 (STDERR)**: 插件的日志或错误信息应输出到 STDERR，这些信息会被主程序捕获并显示在控制台，不影响 JSON 解析。
-- **退出码**: 0 表示成功，非 0 表示失败。
+### 4.3 JSON Schema 中的多语言标题注入
 
-## 3. 开发示例 (Rust)
+为了实现字段级别的多语言，Rust Toolbox 的核心库会在运行时根据当前语言环境，将 `input_fields` 和 `output_fields` 中定义的标题动态注入到 `input_schema` 和 `output_schema` 的 `properties` 字段的 `title` 属性中。因此，插件开发者无需在 `input_schema` 或 `output_schema` 中直接定义 `title`，只需在 `input_fields` 和 `output_fields` 中提供即可。
 
-### 3.1 创建项目
+**示例:**
 
-```bash
-cargo new --bin rt-plugin-demo
+如果您的 `input_schema` 如下：
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": { "type": "string" },
+    "tone": { "type": "boolean" }
+  }
+}
 ```
 
-### 3.2 实现代码 (`src/main.rs`)
+并且您的 `input_fields` 如下：
+
+```json
+{
+  "text": { "en": "Text", "zh-CN": "文本" },
+  "tone": { "en": "With Tone", "zh-CN": "包含声调" }
+}
+```
+
+在运行时，当语言环境为 `zh-CN` 时，GUI 接收到的有效 Schema 将类似于：
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": { "type": "string", "title": "文本" },
+    "tone": { "type": "boolean", "title": "包含声调" }
+  }
+}
+```
+
+## 5. `plugin run` 命令规范
+
+插件必须实现 `plugin run` 命令，该命令应从标准输入 (stdin) 读取 JSON 格式的输入数据，执行工具逻辑，并将 JSON 格式的结果输出到标准输出 (stdout)。
+
+*   **Command**: `path/to/plugin run`
+*   **Stdin**: JSON 字符串 (符合 `input_schema` 定义的输入值)
+*   **Stdout**: JSON 字符串 (符合 `output_schema` 定义的输出值)
+*   **Stderr**: 错误日志 (用于调试，非结构化)
+*   **Exit Code**: `0` 表示成功，非 `0` 表示失败。
+
+## 6. Rust 插件的多语言实现 (i18n.rs)
+
+对于使用 Rust 编写的插件，建议创建一个 `i18n.rs` 模块来集中管理多语言资源。该模块可以提供函数来根据 `Locale` 枚举返回对应的字符串。
+
+**示例 `i18n.rs`:**
 
 ```rust
-use serde_json::{json, Value};
-use std::env;
-use std::io::{self, Read};
+use rt_core::Locale;
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: rt-plugin-demo <spec|run>");
-        std::process::exit(1);
-    }
-
-    match args[1].as_str() {
-        "spec" => print_spec(),
-        "run" => run_tool(),
-        _ => {
-            eprintln!("Unknown command: {}", args[1]);
-            std::process::exit(1);
-        }
+pub fn display_name(locale: Locale) -> &'static str {
+    match locale {
+        Locale::En => "My Tool",
+        Locale::ZhCn => "我的工具",
     }
 }
 
-fn print_spec() {
-    let spec = json!({
-        "name": "demo.echo",
-        "display_name": {
-            "en": "Echo Tool",
-            "zh": "回声工具"
-        },
-        "description": {
-            "en": "Repeats the input text",
-            "zh": "重复输入的文本"
-        },
-        "user_guide": {
-            "en": "# Echo Tool\n\nReturns the input text exactly as is.",
-            "zh": "# 回声工具\n\n原样返回输入的文本。"
-        },
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "text": { "type": "string", "title": "Text to echo" }
-            },
-            "required": ["text"]
-        },
-        "output_schema": {
-            "type": "object",
-            "properties": {
-                "echo": { "type": "string" }
-            }
-        }
-    });
-    println!("{}", spec.to_string());
+pub fn description(locale: Locale) -> &'static str {
+    match locale {
+        Locale::En => "A tool that does something.",
+        Locale::ZhCn => "一个做某事的工具。",
+    }
 }
 
-fn run_tool() {
-    // 读取 STDIN
-    let mut buffer = String::new();
-    io::stdin().read_to_string(&mut buffer).expect("Failed to read stdin");
-    
-    // 解析输入
-    let input: Value = serde_json::from_str(&buffer).expect("Invalid JSON input");
-    
-    // 业务逻辑
-    let text = input.get("text").and_then(|v| v.as_str()).unwrap_or("");
-    
-    // 输出结果到 STDOUT
-    let output = json!({
-        "echo": text
-    });
-    println!("{}", output.to_string());
+pub fn user_guide(locale: Locale) -> &'static str {
+    match locale {
+        Locale::En => "# My Tool User Guide\n\nThis is how to use my tool...",
+        Locale::ZhCn => "# 我的工具用户指南\n\n如何使用我的工具...",
+    }
+}
+
+pub fn input_field_title(field: &str, locale: Locale) -> Option<&'static str> {
+    match field {
+        "param1" => match locale {
+            Locale::En => Some("Parameter 1"),
+            Locale::ZhCn => Some("参数1"),
+        },
+        "param2" => match locale {
+            Locale::En => Some("Parameter 2"),
+            Locale::ZhCn => Some("参数2"),
+        },
+        _ => None,
+    }
+}
+
+pub fn output_field_title(field: &str, locale: Locale) -> Option<&'static str> {
+    match field {
+        "result1" => match locale {
+            Locale::En => Some("Result 1"),
+            Locale::ZhCn => Some("结果1"),
+        },
+        _ => None,
+    }
 }
 ```
 
-## 4. 开发示例 (Python)
-
-如果是脚本语言，需要确保可执行文件能直接运行（在 Windows 上可能需要封装成 `.exe` 或 `.bat`）。
-
-如果使用 Python，可以使用 PyInstaller 打包：
-
-```python
-# main.py
-import sys
-import json
-
-def spec():
-    print(json.dumps({
-        "name": "python.adder",
-        "display_name": {"en": "Adder", "zh": "加法器"},
-        "description": {"en": "Adds two numbers", "zh": "计算两个数字之和"},
-        "user_guide": {"en": "Input a and b", "zh": "输入 a 和 b"},
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "number"}
-            },
-            "required": ["a", "b"]
-        },
-        "output_schema": {"type": "number"}
-    }))
-
-def run():
-    # 从 stdin 读取
-    input_str = sys.stdin.read()
-    if not input_str:
-        return
-        
-    input_data = json.loads(input_str)
-    a = input_data.get("a", 0)
-    b = input_data.get("b", 0)
-    
-    # 输出结果到 stdout
-    print(json.dumps(a + b))
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        cmd = sys.argv[1]
-        if cmd == "spec":
-            spec()
-        elif cmd == "run":
-            run()
-```
-
-打包命令：`pyinstaller --onefile --name rt-plugin-python-demo main.py`
-
-## 5. 部署与测试
-
-1.  在项目根目录创建 `plugins/` 文件夹。
-2.  将编译好的可执行文件（如 `rt-plugin-demo.exe`）放入该目录。
-3.  运行 `rt-cli list` 查看是否成功加载插件。
-4.  运行 `rt-cli run demo.echo -i '{"text": "Hello"}'` 测试运行。
+通过遵循这些规范，您可以创建功能强大、易于使用且支持多语言的 Rust Toolbox 插件。

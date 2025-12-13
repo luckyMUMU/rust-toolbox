@@ -114,3 +114,7 @@ src/
     - 启动时扫描 `plugins/` 目录。
     - 为发现的每个有效可执行文件创建一个 `PluginTool` 实例并注册。
 
+## 5. 插件开发指南
+
+有关插件开发的详细指南，请参阅 [PLUGIN_GUIDE.md](../../PLUGIN_GUIDE.md)。
+

@@ -50,3 +50,7 @@
 
 ## 4. 依赖 (Dependencies)
 - `ferrous-opencc`: 纯 Rust 实现的 OpenCC 绑定，无需 C++ 依赖。
+
+## 5. 插件开发规范参考
+
+有关插件开发的通用规范和多语言支持细节，请参阅 [PLUGIN_GUIDE.md](../../../../../PLUGIN_GUIDE.md)。
