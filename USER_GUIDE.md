@@ -51,6 +51,11 @@ cargo run --bin rt-cli -- run file.move_folder --input '{"source": "./tmp/a", "d
 ```
 *注意：在 PowerShell 中输入 JSON 字符串时，建议使用单引号包裹，避免转义问题。*
 
+#### 运行工作流
+```powershell
+cargo run --bin rt-cli -- workflow run ./my_workflow.json
+```
+
 ### 4.2 图形界面 (GUI) - `rt-gui`
 
 #### 启动界面

@@ -15,3 +15,10 @@ tokio = { workspace = true, features = ["process", "io-util", "fs"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["v4", "serde"] }
 regex = "1.12.2"
+confy = "2.0.0"
+moka = { version = "0.12.11", features = ["future"] }
+sled = "0.34.7"
+bincode = { version = "2.0.1", features = ["serde"] }
+tempfile = "3.23.0"
+zstd = "0.13.3"
+async-compression = { version = "0.4.36", features = ["tokio", "zstd"] }
