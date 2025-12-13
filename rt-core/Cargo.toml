@@ -22,3 +22,8 @@ bincode = { version = "2.0.1", features = ["serde"] }
 tempfile = "3.23.0"
 zstd = "0.13.3"
 async-compression = { version = "0.4.36", features = ["tokio", "zstd"] }
+wasmtime = "14.0.0"
+sha2 = "0.10.9"
+hex = "0.4.3"
+wasmtime-wasi = "14.0.0"
+wasi-common = "14.0.0"

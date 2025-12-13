@@ -309,3 +309,72 @@ async fn load_data_example(manager: &PersistenceManager, key: &str) -> Result<Op
     manager.get_data(key).await
 }
 ```
+
+## 8. 编译与加载 (Compilation and Loading)
+
+### 8.1 编译插件
+开发完成后，使用 Cargo 编译插件的 Release 版本以获得最佳性能：
+
+```bash
+cargo build --release
+```
+
+编译产物通常位于 `target/release/` 目录下。
+
+### 8.2 加载插件
+Rust Toolbox 的宿主程序 (`rt-cli` 或 `rt-gui`) 会自动扫描工作目录下的 `plugins` 文件夹。
+
+1.  确保宿主程序根目录下存在 `plugins` 文件夹。
+2.  将编译好的插件可执行文件 (如 `rt-plugin-mypinyin.exe`) 复制到 `plugins` 文件夹中。
+3.  文件名必须以 `rt-plugin-` 开头，否则将被忽略。
+
+### 8.3 调试建议
+在开发过程中，可以将 `plugins` 目录指向您的开发构建目录，或者使用符号链接将编译出的可执行文件链接到 `plugins` 目录，以便快速迭代。
+
+## 9. WebAssembly (Wasm) 插件 (实验性)
+
+除了原生可执行文件外，Rust Toolbox 还支持加载 WebAssembly (`.wasm`) 格式的插件。这提供了更强的安全性和跨平台能力。
+
+### 9.1 开发要求
+*   **Target**: `wasm32-wasi`
+*   **Dependencies**: 避免使用不支持 WASI 的库 (如 `tokio` 的网络/多线程功能)。建议使用同步 IO 或 `wasi-common` 支持的异步功能。
+
+### 9.2 编译
+```bash
+cargo build --target wasm32-wasi --release
+```
+
+### 9.3 部署
+将生成的 `.wasm` 文件复制到 `plugins` 目录。
+注意：文件名必须以 `rt-plugin-` 开头 (或者作为 `.wasm` 文件，扫描器会自动识别)。
+*当前扫描策略*: 加载所有以 `rt-plugin-` 开头的 `.exe`/二进制文件，以及所有 `.wasm` 文件。
+
+### 9.4 交互协议
+Wasm 插件的交互协议与原生插件完全一致 (通过 stdin/stdout 传递 JSON)。
+- `spec`: 传入参数 `spec`，输出 JSON Metadata。
+- `run`: 传入参数 `run`，通过 stdin 读取 Input JSON，向 stdout 输出 Output JSON。
+
+## 10. README.md 编写规范
+
+每个插件项目都应该包含一个 `README.md` 文件，用于提供插件的概述、功能、安装、使用、开发和许可证信息。
+
+### 9.1 推荐结构
+
+*   **插件名称**: 插件的名称，通常与项目名称一致。
+*   **概述**: 简要介绍插件的用途和核心功能。
+*   **功能 (Features)**: 列出插件的主要功能点。
+*   **安装 (Installation)**: 详细说明如何编译和部署插件。
+    *   克隆仓库
+    *   构建插件 (`cargo build --release --package <plugin-name>`)
+    *   部署插件 (复制到 `plugins` 文件夹)
+*   **使用 (Usage)**: 演示如何通过 `rt-cli` 或 `rt-gui` 使用插件。
+    *   命令行界面 (CLI) 示例：`spec` 和 `run` 命令的输入输出示例。
+    *   图形用户界面 (GUI) 描述。
+*   **开发 (Development)**: 介绍插件的开发相关信息。
+    *   国际化 (Internationalization)：说明多语言文件的位置和作用。
+    *   结构 (Structure)：简要说明项目的主要文件和目录结构。
+*   **许可证 (License)**: 插件的开源许可证信息。
+
+### 9.2 示例
+
+请参考 `rt-plugin-pinyin/README.md` 文件作为示例。

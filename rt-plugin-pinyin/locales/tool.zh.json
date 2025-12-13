@@ -1,0 +1,12 @@
+{
+  "display_name": "汉字转拼音",
+  "description": "将汉字转换为拼音，支持声调选项。",
+  "user_guide": "# 汉字转拼音工具\n\n将汉字文本转换为拼音。\n\n## 使用方法\n\n输入 JSON:\n```json\n{\n  \"text\": \"你好\",\n  \"tone\": true\n}\n```\n",
+  "input_schema": {
+    "text": { "title": "文本" },
+    "tone": { "title": "包含声调" }
+  },
+  "output_schema": {
+    "pinyin": { "title": "拼音结果" }
+  }
+}

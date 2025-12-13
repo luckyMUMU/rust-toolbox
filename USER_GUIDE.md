@@ -46,10 +46,18 @@ cargo run --bin rt-cli -- list
 ```
 
 #### 运行工具
+通过 `--input` 参数直接传递 JSON 字符串来运行工具。
+
+**示例 1: 运行 `file.move_folder` 工具**
 ```powershell
-cargo run --bin rt-cli -- run file.move_folder --input '{"source": "./tmp/a", "destination": "./tmp/b"}'
+cargo run --bin rt-cli -- run file.move_folder --input '{\"source\": \"./tmp/a\", \"destination\": \"./tmp/b\"}'
 ```
 *注意：在 PowerShell 中输入 JSON 字符串时，建议使用单引号包裹，避免转义问题。*
+
+**示例 2: 运行 `text.pinyin` 工具**
+```powershell
+cargo run --bin rt-cli -- run text.pinyin --input '{\"text\": \"你好世界\", \"tone\": true}'
+```
 
 #### 运行工作流
 ```powershell
@@ -76,3 +84,20 @@ cargo run --bin rt-gui
      ```
 3. **运行**: 点击 "Run" 按钮。
 4. **查看结果**: 底部面板将显示工具执行结果或错误信息。
+
+## 5. 插件管理 (Plugin Management)
+
+Rust Toolbox 支持通过外部插件扩展功能。
+
+### 5.1 安装插件
+1.  获取插件的可执行文件（例如 `rt-plugin-custom.exe`）。
+2.  在 `rt-cli` 或 `rt-gui` 的同级目录下创建一个名为 `plugins` 的文件夹。
+3.  将插件可执行文件放入 `plugins` 文件夹中。
+4.  重启 `rt-cli` 或 `rt-gui`，工具将自动扫描并加载以 `rt-plugin-` 开头的插件。
+
+### 5.2 验证安装
+使用 `list` 命令查看已加载的工具：
+```powershell
+cargo run --bin rt-cli -- list
+```
+如果插件加载成功，您将在列表中看到插件提供的工具。

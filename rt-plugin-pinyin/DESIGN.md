@@ -12,12 +12,8 @@
 
 ### 3.1 插件元数据 (Spec)
 - **Name**: `text.pinyin`
-- **Display Name**:
-    - `en`: "Chinese to Pinyin"
-    - `zh-CN`: "汉字转拼音"
-- **Description**:
-    - `en`: "Convert Chinese characters to Pinyin."
-    - `zh-CN`: "将中文字符转换为拼音。"
+- **Display Name**: 通过 `ToolI18n` 从 `locales` 目录加载，例如 `Chinese to Pinyin` (en) 或 `汉字转拼音` (zh)。
+- **Description**: 通过 `ToolI18n` 从 `locales` 目录加载，例如 `Convert Chinese characters to Pinyin.` (en) 或 `将中文字符转换为拼音。` (zh)。
 
 ### 3.2 输入/输出 (Schema)
 
@@ -58,17 +54,15 @@
 
 ## 4. 逻辑流程 (Logic Flow)
 1.  **Parse Args**: 解析命令行参数，识别 `spec` 或 `run` 命令。
-2.  **Spec Mode**:
-    - 输出上述 JSON 元数据到 stdout。
-3.  **Run Mode**:
-    - 从 stdin 读取 JSON 输入。
-    - 解析 `text` 和 `tone` 字段。
-    - 调用 `pinyin` 库进行转换：
-        - 遍历每个字符。
-        - 若是汉字，获取其拼音（处理多音字取第一个，或简单处理）。
-        - 若是非汉字，保留原样。
-        - 拼接结果，以空格分隔。
-    - 将结果封装为 JSON `{ "pinyin": "..." }` 输出到 stdout。
+2.  **Tool Trait 实现**:
+    - `PinyinTool` 结构体实现了 `rt_core::tool::Tool` trait。
+    - `name()` 方法：返回工具的唯一名称。
+    - `display_name(locale)` 方法：根据语言环境返回工具的显示名称。
+    - `description(locale)` 方法：根据语言环境返回工具的描述。
+    - `user_guide(locale)` 方法：根据语言环境返回工具的用户指南。
+    - `input_schema(locale)` 方法：返回工具输入参数的 JSON Schema。
+    - `output_schema(locale)` 方法：返回工具输出结果的 JSON Schema。
+    - `run(input)` 方法：异步执行工具的核心逻辑，将输入的 JSON 值转换为拼音，并返回 JSON 结果。
 
 ## 5. 错误处理 (Error Handling)
 - JSON 解析错误 -> 输出 stderr 并退出非 0。

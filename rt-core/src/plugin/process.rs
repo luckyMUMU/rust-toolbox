@@ -3,48 +3,17 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio::io::AsyncWriteExt;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::{Tool, Locale, Result, CoreError};
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct LocalizedString {
-    pub en: String,
-    #[serde(alias = "zh-CN")]
-    pub zh: Option<String>,
-}
-
-impl LocalizedString {
-    pub fn get(&self, locale: Locale) -> &str {
-        match locale {
-            Locale::En => &self.en,
-            Locale::Zh => self.zh.as_deref().unwrap_or(&self.en),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PluginMetadata {
-    pub name: String,
-    pub display_name: LocalizedString,
-    pub description: LocalizedString,
-    pub user_guide: LocalizedString,
-    pub input_schema: Value,
-    #[serde(default)]
-    pub output_schema: Option<Value>,
-    #[serde(default)]
-    pub input_fields: Option<std::collections::HashMap<String, LocalizedString>>,
-    #[serde(default)]
-    pub output_fields: Option<std::collections::HashMap<String, LocalizedString>>,
-}
+use super::manifest::PluginMetadata;
 
 #[derive(Debug)]
-pub struct PluginTool {
+pub struct ProcessPlugin {
     path: PathBuf,
     metadata: PluginMetadata,
 }
 
-impl PluginTool {
+impl ProcessPlugin {
     pub async fn new(path: PathBuf) -> Result<Self> {
         // Run `spec` command to get metadata
         let output = Command::new(&path)
@@ -71,7 +40,7 @@ impl PluginTool {
 }
 
 #[async_trait]
-impl Tool for PluginTool {
+impl Tool for ProcessPlugin {
     fn name(&self) -> &str {
         &self.metadata.name
     }
@@ -156,31 +125,4 @@ impl Tool for PluginTool {
 
         Ok(result)
     }
-}
-
-pub async fn load_plugins(plugin_dir: &std::path::Path) -> Vec<Box<dyn Tool>> {
-    let mut plugins = Vec::new();
-    
-    if let Ok(mut entries) = tokio::fs::read_dir(plugin_dir).await {
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let path = entry.path();
-            if path.is_file() {
-                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    // Filter by prefix "rt-plugin-"
-                    if file_name.starts_with("rt-plugin-") {
-                        match PluginTool::new(path.clone()).await {
-                            Ok(tool) => {
-                                tracing::info!("Loaded plugin: {}", tool.name());
-                                plugins.push(Box::new(tool) as Box<dyn Tool>);
-                            },
-                            Err(e) => {
-                                tracing::warn!("Failed to load plugin at {:?}: {}", path, e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    plugins
 }

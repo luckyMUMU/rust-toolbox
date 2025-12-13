@@ -1,0 +1,12 @@
+{
+  "display_name": "Chinese to Pinyin",
+  "description": "Convert Chinese characters to Pinyin with optional tone support.",
+  "user_guide": "# Chinese to Pinyin Tool\n\nConverts Chinese text to Pinyin.\n\n## Usage\n\nInput JSON:\n```json\n{\n  \"text\": \"你好\",\n  \"tone\": true\n}\n```\n",
+  "input_schema": {
+    "text": { "title": "Text" },
+    "tone": { "title": "With Tone" }
+  },
+  "output_schema": {
+    "pinyin": { "title": "Pinyin Result" }
+  }
+}
