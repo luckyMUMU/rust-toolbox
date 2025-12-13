@@ -53,7 +53,9 @@
 ```
 src/
 ├── lib.rs
-├── i18n_utils.rs       # i18n helper module
+├── utils/              # Common utilities module
+│   ├── mod.rs          # Re-exports core types and utils
+│   └── i18n.rs         # i18n helper implementation
 ├── file/
 │   ├── mod.rs
 │   └── move_folder/
@@ -70,10 +72,17 @@ src/
             └── tool.zh-CN.json
 ```
 
-## 4. 国际化 (Internationalization)
+## 4. 公共工具模块 (Utils Module)
+`rt-tools` 提供了一个公共的 `utils` 模块，用于：
+1.  **核心功能暴露**: 将 `rt-core` 中的常用类型 (如 `Tool`, `Locale`, `PersistenceManager`, `WorkflowEngine`) 重新导出，方便内部工具统一引用。
+2.  **通用辅助功能**: 提供如 `ToolI18n` 等辅助工具开发的功能。
+
+开发新工具时，建议通过 `use crate::utils::{...}` 引用所需的基础设施。
+
+## 5. 国际化 (Internationalization)
 工具的国际化现在通过 JSON 文件管理。每个工具目录下有一个 `locales` 文件夹，包含 `tool.en.json` 和 `tool.zh-CN.json`。
 
-`i18n_utils.rs` 提供了 `ToolI18n` 结构体，用于加载这些 JSON 文件并在运行时提供本地化字符串。
+`utils::i18n` 提供了 `ToolI18n` 结构体，用于加载这些 JSON 文件并在运行时提供本地化字符串。
 
 JSON 文件结构示例：
 ```json
@@ -93,11 +102,11 @@ JSON 文件结构示例：
 }
 ```
 
-## 5. 插件系统架构 (Plugin System Architecture)
+## 6. 插件系统架构 (Plugin System Architecture)
 
 为了支持扩展性，rt-box 支持通过外部可执行文件添加工具。
 
-### 5.1 协议定义 (Protocol Definition)
+### 6.1 协议定义 (Protocol Definition)
 
 插件必须是一个独立的可执行文件（如 `.exe`, `.py` 脚本等），并支持以下命令行交互：
 

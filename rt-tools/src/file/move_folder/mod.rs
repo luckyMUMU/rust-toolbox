@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
 use schemars::JsonSchema;
-use crate::i18n_utils::ToolI18n;
+use crate::utils::ToolI18n;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct MoveFolderInput {

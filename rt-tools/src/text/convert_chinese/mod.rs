@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use schemars::JsonSchema;
 use ferrous_opencc::{OpenCC, config::BuiltinConfig};
-use crate::i18n_utils::ToolI18n;
+use crate::utils::ToolI18n;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ConvertChineseInput {

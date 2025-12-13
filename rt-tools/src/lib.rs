@@ -1,6 +1,6 @@
 pub mod file;
 pub mod text;
-pub mod i18n_utils;
+pub mod utils;
 
 pub use file::move_folder::MoveFolder;
 pub use text::convert_chinese::ConvertChinese;

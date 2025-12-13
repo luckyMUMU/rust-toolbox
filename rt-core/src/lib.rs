@@ -9,5 +9,5 @@ pub use error::{CoreError, Result};
 pub use tool::Tool;
 pub use locale::Locale;
 pub use plugin::PluginTool;
-pub use workflow::{WorkflowEngine, InMemoryWorkflowEngine, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowStatus};
+pub use workflow::{WorkflowEngine, InMemoryWorkflowEngine, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowStatus, WorkflowInstance};
 pub use persistence::PersistenceManager;
