@@ -8,11 +8,33 @@
 
 ### 2.1 多语言支持 (Internationalization - i18n)
 
-所有面向用户的文本，包括工具名称、描述、用户指南以及输入/输出字段的标题，都必须提供多语言版本。目前支持的语言包括英语 (`en`) 和简体中文 (`zh-CN`)。
+所有面向用户的文本，包括工具名称、描述、用户指南以及输入/输出字段的标题，都必须提供多语言版本。目前支持的语言包括英语 (`en`) 和简体中文 (`zh`)。
 
 ### 2.2 结构化 Schema 定义 (JSON Schema)
 
 插件的输入和输出参数必须通过 JSON Schema 进行定义。这些 Schema 不仅用于验证数据，更是 GUI 自动生成表单和结果展示的关键依据。通过在 Schema 中注入本地化的 `title` 字段，可以实现字段级别的多语言显示。
+
+### 2.3 国际化文件结构
+
+工具的国际化现在通过 JSON 文件管理。每个工具目录下建议有一个 `locales` 文件夹，包含 `tool.en.json` 和 `tool.zh.json`。
+
+JSON 文件结构示例：
+```json
+{
+  "display_name": "Tool Name",
+  "description": "Tool Description",
+  "user_guide": "Markdown User Guide",
+  "input_schema": {
+    "field_name": { "title": "Field Title" }
+  },
+  "output_schema": {
+    "field_name": { "title": "Field Title" }
+  },
+  "extra": {
+    "key": "value"
+  }
+}
+```
 
 ## 3. 插件结构
 
@@ -22,8 +44,10 @@
 my-plugin/
 ├── Cargo.toml
 ├── src/
-│   ├── main.rs       # 插件核心逻辑，实现 `plugin spec` 和 `plugin run` 命令
-│   └── i18n.rs       # 多语言资源文件 (可选，如果插件是 Rust 编写)
+│   └── mod.rs       # 插件核心逻辑，实现 `plugin spec` 和 `plugin run` 命令
+├── locales/         # 国际化资源文件夹
+│   ├── tool.en.json # 英文翻译文件
+│   └── tool.zh.json # 中文翻译文件
 └── README.md
 ```
 
@@ -36,17 +60,17 @@ my-plugin/
 ```json
 {
   "name": "ext.my_tool",
-  "display_name": { "en": "My Tool", "zh-CN": "我的工具" },
-  "description": { "en": "A tool that does something.", "zh-CN": "一个做某事的工具。" },
-  "user_guide": { "en": "# My Tool User Guide\n\nThis is how to use my tool...", "zh-CN": "# 我的工具用户指南\n\n如何使用我的工具..." },
+  "display_name": { "en": "My Tool", "zh": "我的工具" },
+  "description": { "en": "A tool that does something.", "zh": "一个做某事的工具。" },
+  "user_guide": { "en": "# My Tool User Guide\n\nThis is how to use my tool...", "zh": "# 我的工具用户指南\n\n如何使用我的工具..." },
   "input_schema": { ... }, // JSON Schema for input parameters
   "output_schema": { ... }, // JSON Schema for output results
   "input_fields": { // Optional: Field-level localization for GUI form generation
-    "param1": { "en": "Parameter 1", "zh-CN": "参数1" },
-    "param2": { "en": "Parameter 2", "zh-CN": "参数2" }
+    "param1": { "en": "Parameter 1", "zh": "参数1" },
+    "param2": { "en": "Parameter 2", "zh": "参数2" }
   },
   "output_fields": { // Optional: Field-level localization for GUI result display
-    "result1": { "en": "Result 1", "zh-CN": "结果1" }
+    "result1": { "en": "Result 1", "zh": "结果1" }
   }
 }
 ```
@@ -56,12 +80,12 @@ my-plugin/
 *   `name` (String): 工具的唯一标识符，格式为 `category.tool_name` (例如: `ext.my_tool`)。
 *   `display_name` (Object): 工具的显示名称，包含多语言键值对。
     *   `en`: 英文显示名称。
-    *   `zh-CN`: 简体中文显示名称。
+    *   `zh`: 简体中文显示名称。
 *   `description` (Object): 工具的简短描述，包含多语言键值对。
 *   `user_guide` (Object): 工具的详细用户指南，支持 Markdown 格式，包含多语言键值对。
 *   `input_schema` (Object): 工具输入参数的 JSON Schema 定义。GUI 将根据此 Schema 自动生成输入表单。
 *   `output_schema` (Object): 工具输出结果的 JSON Schema 定义。GUI 将根据此 Schema 自动展示结果。
-*   `input_fields` (Object, 可选): 针对 `input_schema` 中定义的每个字段，提供其在 GUI 中显示的多语言标题。例如，如果 `input_schema` 中有一个字段名为 `param1`，则可以在 `input_fields` 中定义 `"param1": { "en": "Parameter 1", "zh-CN": "参数1" }`。
+*   `input_fields` (Object, 可选): 针对 `input_schema` 中定义的每个字段，提供其在 GUI 中显示的多语言标题。例如，如果 `input_schema` 中有一个字段名为 `param1`，则可以在 `input_fields` 中定义 `"param1": { "en": "Parameter 1", "zh": "参数1" }`。
 *   `output_fields` (Object, 可选): 针对 `output_schema` 中定义的每个字段，提供其在 GUI 中显示的多语言标题。
 
 ### 4.3 JSON Schema 中的多语言标题注入
@@ -86,12 +110,12 @@ my-plugin/
 
 ```json
 {
-  "text": { "en": "Text", "zh-CN": "文本" },
-  "tone": { "en": "With Tone", "zh-CN": "包含声调" }
+  "text": { "en": "Text", "zh": "文本" },
+  "tone": { "en": "With Tone", "zh": "包含声调" }
 }
 ```
 
-在运行时，当语言环境为 `zh-CN` 时，GUI 接收到的有效 Schema 将类似于：
+在运行时，当语言环境为 `zh` 时，GUI 接收到的有效 Schema 将类似于：
 
 ```json
 {
@@ -117,55 +141,171 @@ my-plugin/
 
 对于使用 Rust 编写的插件，建议创建一个 `i18n.rs` 模块来集中管理多语言资源。该模块可以提供函数来根据 `Locale` 枚举返回对应的字符串。
 
+### 6.1 `ToolI18n` 使用
+
+`rt-tools` 提供了 `ToolI18n` 结构体，用于加载工具目录下的 `locales` 文件夹中的 JSON 文件，并在运行时提供本地化字符串。
+
 **示例 `i18n.rs`:**
 
 ```rust
 use rt_core::Locale;
+use rt_tools::utils::ToolI18n; // 引入 ToolI18n
 
-pub fn display_name(locale: Locale) -> &'static str {
-    match locale {
-        Locale::En => "My Tool",
-        Locale::ZhCn => "我的工具",
-    }
+// 假设你的工具目录结构如下：
+// my-tool/
+// ├── src/
+// │   └── i18n.rs
+// └── locales/
+//     ├── tool.en.json
+//     └── tool.zh.json
+
+/// 获取本地化字符串的辅助函数
+///
+/// 该函数加载指定语言环境的 ToolI18n 实例。
+/// 如果加载失败，则返回一个默认的 ToolI18n 实例。
+///
+/// # 参数
+/// * `locale` - 目标语言环境。
+///
+/// # 返回值
+/// 返回一个包含本地化字符串的 `ToolI18n` 实例。
+pub fn get_localized_strings(locale: Locale) -> ToolI18n {
+    // ToolI18n::load 会自动查找当前工作目录下的 `locales` 文件夹
+    // 并根据传入的 Locale 加载对应的 JSON 文件
+    ToolI18n::load(locale).unwrap_or_else(|_| {
+        // 如果加载失败，可以提供一个默认的 ToolI18n 实例或处理错误
+        ToolI18n::default()
+    })
 }
 
-pub fn description(locale: Locale) -> &'static str {
-    match locale {
-        Locale::En => "A tool that does something.",
-        Locale::ZhCn => "一个做某事的工具。",
-    }
+/// 获取工具的显示名称。
+///
+/// # 参数
+/// * `locale` - 目标语言环境。
+///
+/// # 返回值
+/// 返回工具的本地化显示名称。
+pub fn display_name(locale: Locale) -> String {
+    get_localized_strings(locale).display_name
 }
 
-pub fn user_guide(locale: Locale) -> &'static str {
-    match locale {
-        Locale::En => "# My Tool User Guide\n\nThis is how to use my tool...",
-        Locale::ZhCn => "# 我的工具用户指南\n\n如何使用我的工具...",
-    }
+/// 获取工具的描述。
+///
+/// # 参数
+/// * `locale` - 目标语言环境。
+///
+/// # 返回值
+/// 返回工具的本地化描述。
+pub fn description(locale: Locale) -> String {
+    get_localized_strings(locale).description
 }
 
-pub fn input_field_title(field: &str, locale: Locale) -> Option<&'static str> {
-    match field {
-        "param1" => match locale {
-            Locale::En => Some("Parameter 1"),
-            Locale::ZhCn => Some("参数1"),
-        },
-        "param2" => match locale {
-            Locale::En => Some("Parameter 2"),
-            Locale::ZhCn => Some("参数2"),
-        },
-        _ => None,
-    }
+/// 获取工具的用户指南。
+///
+/// # 参数
+/// * `locale` - 目标语言环境。
+///
+/// # 返回值
+/// 返回工具的本地化用户指南。
+pub fn user_guide(locale: Locale) -> String {
+    get_localized_strings(locale).user_guide
 }
 
-pub fn output_field_title(field: &str, locale: Locale) -> Option<&'static str> {
-    match field {
-        "result1" => match locale {
-            Locale::En => Some("Result 1"),
-            Locale::ZhCn => Some("结果1"),
-        },
-        _ => None,
-    }
+/// 获取输入字段的本地化标题。
+///
+/// # 参数
+/// * `field` - 输入字段的名称。
+/// * `locale` - 目标语言环境。
+///
+/// # 返回值
+/// 如果找到，返回输入字段的本地化标题；否则返回 `None`。
+pub fn input_field_title(field: &str, locale: Locale) -> Option<String> {
+    get_localized_strings(locale).input_fields.get(field).cloned()
+}
+
+/// 获取输出字段的本地化标题。
+///
+/// # 参数
+/// * `field` - 输出字段的名称。
+/// * `locale` - 目标语言环境。
+///
+/// # 返回值
+/// 如果找到，返回输出字段的本地化标题；否则返回 `None`。
+pub fn output_field_title(field: &str, locale: Locale) -> Option<String> {
+    get_localized_strings(locale).output_fields.get(field).cloned()
 }
 ```
 
 通过遵循这些规范，您可以创建功能强大、易于使用且支持多语言的 Rust Toolbox 插件。
+
+## 7. 公共工具模块 (Utils Module)
+
+`rt-tools` 提供了一个公共的 `utils` 模块，旨在简化插件开发并统一核心功能的引用。
+
+### 7.1 目的
+
+1.  **核心功能暴露**: 将 `rt-core` 中的常用类型 (如 `Tool`, `Locale`, `PersistenceManager`, `WorkflowEngine`, `WorkflowDefinition`, `WorkflowStatus`, `WorkflowInstance`, `CoreError`, `Result`) 重新导出，方便内部工具和插件统一引用，避免重复导入 `rt-core`。
+2.  **通用辅助功能**: 提供如 `ToolI18n` 等辅助工具开发的功能。
+
+### 7.2 使用示例
+
+开发新工具或插件时，建议通过 `use rt_tools::utils::{...}` 引用所需的基础设施。
+
+```rust
+// 引入 rt-tools::utils 模块中的常用类型
+use rt_tools::utils::{Locale, Tool, PersistenceManager, WorkflowEngine, Result, CoreError};
+
+/// 定义一个名为 `MyTool` 的简单工具结构体。
+pub struct MyTool;
+
+impl Tool for MyTool {
+    /// 返回工具的唯一名称。
+    ///
+    /// # 返回值
+    /// 返回一个静态字符串切片，表示工具的名称。
+    fn name(&self) -> &'static str {
+        "my_category.my_tool"
+    }
+
+    /// 返回工具的本地化显示名称。
+    ///
+    /// # 参数
+    /// * `locale` - 目标语言环境。
+    ///
+    /// # 返回值
+    /// 返回工具的本地化显示名称字符串。
+    fn display_name(&self, locale: Locale) -> String {
+        // 使用 ToolI18n 获取本地化名称
+        let i18n = rt_tools::utils::ToolI18n::load(locale).unwrap_or_default();
+        i18n.display_name
+    }
+
+    // ... 其他 Tool trait 方法实现
+}
+
+/// 示例：使用 `PersistenceManager` 保存数据。
+///
+/// # 参数
+/// * `manager` - `PersistenceManager` 的引用，用于数据持久化。
+/// * `key` - 要保存数据的键。
+/// * `value` - 要保存的数据值。
+///
+/// # 返回值
+/// 如果操作成功，返回 `Ok(())`；否则返回 `Err(CoreError)`。
+async fn save_data_example(manager: &PersistenceManager, key: &str, value: &str) -> Result<()> {
+    manager.set_data(key, value).await?;
+    Ok(())
+}
+
+/// 示例：使用 `PersistenceManager` 加载数据。
+///
+/// # 参数
+/// * `manager` - `PersistenceManager` 的引用，用于数据持久化。
+/// * `key` - 要加载数据的键。
+///
+/// # 返回值
+/// 如果操作成功，返回 `Ok(Some(String))` 包含数据，如果键不存在则返回 `Ok(None)`；否则返回 `Err(CoreError)`。
+async fn load_data_example(manager: &PersistenceManager, key: &str) -> Result<Option<String>> {
+    manager.get_data(key).await
+}
+```
