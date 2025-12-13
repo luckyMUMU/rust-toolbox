@@ -71,3 +71,30 @@ pub fn output_title(field: &str, locale: Locale) -> Option<&'static str> {
         _ => None
     }
 }
+
+pub fn mode_title<'a>(mode: &'a str, locale: Locale) -> &'a str {
+    match (locale, mode) {
+        // English
+        (Locale::En, "s2t") => "Simplified to Traditional",
+        (Locale::En, "t2s") => "Traditional to Simplified",
+        (Locale::En, "s2tw") => "Simplified to Traditional (Taiwan)",
+        (Locale::En, "tw2s") => "Traditional (Taiwan) to Simplified",
+        (Locale::En, "s2hk") => "Simplified to Traditional (Hong Kong)",
+        (Locale::En, "hk2s") => "Traditional (Hong Kong) to Simplified",
+        (Locale::En, "s2twp") => "Simplified to Traditional (Taiwan, with phrases)",
+        (Locale::En, "tw2sp") => "Traditional (Taiwan) to Simplified (with phrases)",
+        
+        // Chinese
+        (Locale::Zh, "s2t") => "简体到繁体",
+        (Locale::Zh, "t2s") => "繁体到简体",
+        (Locale::Zh, "s2tw") => "简体到台湾繁体",
+        (Locale::Zh, "tw2s") => "台湾繁体到简体",
+        (Locale::Zh, "s2hk") => "简体到香港繁体",
+        (Locale::Zh, "hk2s") => "香港繁体到简体",
+        (Locale::Zh, "s2twp") => "简体到台湾繁体（含惯用语）",
+        (Locale::Zh, "tw2sp") => "台湾繁体到简体（含惯用语）",
+        
+        // Fallback
+        _ => mode,
+    }
+}

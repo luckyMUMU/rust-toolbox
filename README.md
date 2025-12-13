@@ -38,6 +38,19 @@ cargo run --bin rt-cli -- list
 cargo run --bin rt-gui
 ```
 
+### 打包 GUI 为可执行文件 (Build EXE)
+若要生成独立的 `.exe` 文件以便分发，请使用 release 模式进行构建：
+
+```powershell
+# 构建发布版本
+cargo build --release --bin rt-gui
+```
+
+构建完成后，可执行文件位于：
+`target/release/rt-gui.exe`
+
+> **注意**：由于字体文件已嵌入到程序中，生成的 exe 是完全独立的单文件，无需附带 `assets` 目录即可在其他 Windows 机器上运行。
+
 ## 开发规范
 请参考 [AI_WORK_PROTOCOL.md](AI_WORK_PROTOCOL.md)。
 

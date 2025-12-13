@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use rt_core::{Tool, CoreError, Result, Locale};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use schemars::JsonSchema;
 use ferrous_opencc::{OpenCC, config::BuiltinConfig};
 
@@ -42,6 +42,21 @@ impl Tool for ConvertChinese {
                 if let Some(title) = i18n::input_title(key, locale) {
                     val["title"] = serde_json::json!(title);
                 }
+            }
+            
+            // Add enum constraint for mode field
+            if let Some(mode_schema) = props.get_mut("mode") {
+                let modes = vec![
+                    "s2t", "t2s", "s2tw", "tw2s", 
+                    "s2hk", "hk2s", "s2twp", "tw2sp"
+                ];
+                mode_schema["enum"] = json!(modes);
+
+                let mut labels = serde_json::Map::new();
+                for mode in &modes {
+                    labels.insert(mode.to_string(), json!(i18n::mode_title(mode, locale)));
+                }
+                mode_schema["x-enum-labels"] = Value::Object(labels);
             }
         }
         

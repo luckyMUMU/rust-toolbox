@@ -15,13 +15,7 @@
 - **绝对准则**：严禁在没有设计文档的情况下直接编写实现代码。
 - **执行流程**：
     1.  **Task**: 接收开发任务。
-    2.  **Design**: 在对应模块目录下创建或更新 `DESIGN.md`。
-        - **必须包含设计文档的层级**：
-            - **根级 Crate**：(如 `rt-core`, `rt-tools`, `rt-cli`)
-            - **具体工具模块**：(如 `rt-tools/src/text/convert_chinese/`)
-            - **复杂子模块**：(任何包含复杂逻辑的独立子模块)
-            - **插件项目**：(所有开发的插件)
-        - **内容必须包含**：模块职责、公开 API (Traits/Structs) 定义、关键逻辑流程。
+    2.  **Design**: 在对应模块目录下创建或更新 `DESIGN.md`。内容必须包含：模块职责、公开 API (Traits/Structs) 定义、关键逻辑流程。
     3.  **Review**: 使用 `notify_user` 请求用户审查 `DESIGN.md`。
     4.  **Implement**: 只有在设计通过后，才开始编写 `src/*.rs` 代码。
 
@@ -65,7 +59,6 @@
 
 ```
 rt-tools/src/{category}/{tool_name}/
-├── DESIGN.md       # [必须] 工具详细设计文档
 ├── mod.rs          # 核心逻辑，实现 Tool trait
 └── i18n.rs         # 多语言资源 (display_name, description, user_guide, schema titles)
 ```
@@ -101,9 +94,7 @@ rt-tools/src/{category}/{tool_name}/
 - 对于复杂的重构，先创建新文件验证，再替换旧文件。
 
 ### 3.3 新工具开发流程
-1. **更新 DESIGN.md**: 
-   - 在 `rt-tools/DESIGN.md` 中添加工具规格。
-   - 在 `rt-tools/src/{category}/{tool_name}/` 下创建该工具专属的 `DESIGN.md`。
+1. **更新 DESIGN.md**: 在 `rt-tools/DESIGN.md` 中添加工具规格。
 2. **创建实施计划**: 编写 `implementation_plan.md`。
 3. **用户评审**: 使用 `notify_user` 请求审查。
 4. **实现代码**:
@@ -115,8 +106,7 @@ rt-tools/src/{category}/{tool_name}/
 ## 4. 插件系统 (Plugin System)
 
 ### 4.1 插件协议
-外部插件必须是可执行文件，且必须在源码库中包含 `DESIGN.md` 文档。
-支持以下命令：
+外部插件必须是可执行文件，支持以下命令：
 - `plugin spec`: 输出 JSON 格式的工具元数据
 - `plugin run`: 从 stdin 读取 JSON 输入，向 stdout 输出 JSON 结果
 

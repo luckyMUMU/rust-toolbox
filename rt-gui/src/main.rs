@@ -148,21 +148,71 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                 }
             },
             "string" => {
-                if let Some(s) = data.as_str() {
-                    let mut text = s.to_string();
-                    if read_only {
-                         ui.label(text);
-                    } else {
-                        ui.push_id(path, |ui| {
-                            if ui.text_edit_singleline(&mut text).changed() {
-                                *data = json!(text);
+                // Check if this field has enum constraint
+                if let Some(enum_values) = schema.get("enum").and_then(|v| v.as_array()) {
+                    // Try to get labels
+                    let labels = schema.get("x-enum-labels").and_then(|v| v.as_object());
+
+                    // Render as ComboBox for enum fields
+                    if let Some(s) = data.as_str() {
+                        let original = s.to_string();  // Clone before closure
+                        let mut selected = original.clone();
+                        
+                        let current_label = labels
+                            .and_then(|l| l.get(&selected))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| selected.clone());
+
+                        if read_only {
+                            ui.label(&current_label);
+                        } else {
+                            ui.push_id(path, |ui| {
+                                egui::ComboBox::from_id_salt(path)
+                                    .selected_text(&current_label)
+                                    .show_ui(ui, |ui| {
+                                        for enum_val in enum_values {
+                                            if let Some(val_str) = enum_val.as_str() {
+                                                let label = labels
+                                                    .and_then(|l| l.get(val_str))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or(val_str);
+                                                
+                                                ui.selectable_value(&mut selected, val_str.to_string(), label);
+                                            }
+                                        }
+                                    });
+                            });
+                            if selected != original {
+                                *data = json!(selected);
                             }
-                        });
+                        }
+                    } else {
+                        if !read_only { 
+                            // Initialize with first enum value
+                            if let Some(first) = enum_values.first().and_then(|v| v.as_str()) {
+                                *data = json!(first);
+                            }
+                        }
                     }
                 } else {
-                    // Force reset if type mismatch
-                    if !read_only { *data = json!(""); }
-                    else { ui.label("Invalid Type"); }
+                    // Regular text input for non-enum strings
+                    if let Some(s) = data.as_str() {
+                        let mut text = s.to_string();
+                        if read_only {
+                             ui.label(text);
+                        } else {
+                            ui.push_id(path, |ui| {
+                                if ui.text_edit_singleline(&mut text).changed() {
+                                    *data = json!(text);
+                                }
+                            });
+                        }
+                    } else {
+                        // Force reset if type mismatch
+                        if !read_only { *data = json!(""); }
+                        else { ui.label("Invalid Type"); }
+                    }
                 }
             },
             "boolean" => {
@@ -405,57 +455,31 @@ fn main() -> eframe::Result {
 fn setup_custom_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
 
-    // Attempt to load "Microsoft YaHei" (msyh.ttc)
-    // Note: msyh.ttc is a collection. setup_font_data usually takes raw bytes.
-    // If it fails, fallback to SimHei? Or just try specific paths.
-    
-    let font_path = "C:\\Windows\\Fonts\\msyh.ttc";
-    let font_name = "Microsoft YaHei";
+    // Embed font from assets
+    // Note: include_bytes! path is relative to the file it's in (src/main.rs), so we need to go up to root
+    const FONT_DATA: &[u8] = include_bytes!("../../assets/SimHei.ttf");
+    let font_name = "EmbeddedSimHei";
 
-    // Read font file
-    match std::fs::read(font_path) {
-        Ok(font_data) => {
-             fonts.font_data.insert(
-                font_name.to_owned(),
-                egui::FontData::from_owned(font_data).tweak(
-                    egui::FontTweak {
-                        scale: 1.2, // Slightly larger for readability
-                        ..Default::default()
-                    }
-                ),
-            );
+    fonts.font_data.insert(
+        font_name.to_owned(),
+        egui::FontData::from_static(FONT_DATA).tweak(
+            egui::FontTweak {
+                scale: 1.2,
+                ..Default::default()
+            }
+        ),
+    );
 
-            // Prioritize it for Proportional and Monospace
-            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-                family.insert(0, font_name.to_owned());
-            }
-            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
-                family.push(font_name.to_owned());
-            }
-            
-            ctx.set_fonts(fonts);
-            println!("Loaded font: {}", font_path);
-        },
-        Err(e) => {
-            eprintln!("Failed to load font {}: {}", font_path, e);
-            // Fallback to SimHei if YaHei fails
-             let font_path_alt = "C:\\Windows\\Fonts\\simhei.ttf";
-             if let Ok(font_data) = std::fs::read(font_path_alt) {
-                  fonts.font_data.insert(
-                    "SimHei".to_owned(),
-                    egui::FontData::from_owned(font_data),
-                );
-                 if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-                    family.insert(0, "SimHei".to_owned());
-                }
-                 if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
-                    family.push("SimHei".to_owned());
-                }
-                ctx.set_fonts(fonts);
-                println!("Loaded fallback font: {}", font_path_alt);
-             } else {
-                 eprintln!("Failed to load fallback font SimHei");
-             }
-        }
+    // Set as first priority for Proportional
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        family.insert(0, font_name.to_owned());
     }
+    
+    // Also add to Monospace as fallback
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+        family.push(font_name.to_owned());
+    }
+    
+    ctx.set_fonts(fonts);
+    println!("Loaded embedded font: {}", font_name);
 }

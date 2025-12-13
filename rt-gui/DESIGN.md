@@ -58,11 +58,20 @@ struct ToolkitApp {
 ### 4.2 动态表单渲染
 使用递归函数 `render_schema` 遍历 JSON Schema：
 - `type: object`: 递归渲染 properties。
-- `type: string`: 渲染文本框。
+- `type: string`: 
+    - 默认渲染文本框。
+    - 若包含 `enum`: 渲染下拉框 (ComboBox)。
+    - 若包含 `x-enum-labels`: 使用映射表显示本地化标签，而非原始值。
 - `type: boolean`: 渲染 Checkbox。
 - `title`: 优先显示 Schema 中的 `title` (支持 I18n 注入)。
 
-## 5. MVP 范围
+## 5. 字体配置 (Font Configuration)
+为了确保跨平台中文显示一致，GUI 嵌入了中文字体 `SimHei.ttf`。
+- **字体源**: `assets/SimHei.ttf`
+- **加载方式**: 编译时通过 `include_bytes!` 嵌入二进制。
+- **Egui 配置**: 将该字体注册为 `Proportional` 和 `Monospace` 的首选字体，缩放比例 `1.2` 以优化阅读体验。
+
+## 6. MVP 范围
 已实现：
 - 完整的工具动态发现。
 - 基于 JSON Schema 的动态表单生成。
