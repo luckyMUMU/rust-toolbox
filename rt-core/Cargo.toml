@@ -12,3 +12,6 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["process", "io-util", "fs"] }
+chrono = { version = "0.4.42", features = ["serde"] }
+uuid = { version = "1.19.0", features = ["v4", "serde"] }
+regex = "1.12.2"

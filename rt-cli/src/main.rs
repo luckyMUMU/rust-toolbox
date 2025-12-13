@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
-use rt_core::Tool;
+use rt_core::{Tool, WorkflowEngine, InMemoryWorkflowEngine, WorkflowDefinition, WorkflowStatus};
 use std::collections::HashMap;
-use std::sync:: Arc;
+use std::time::Duration;
 
 #[derive(Parser)]
 #[command(name = "rt-cli")]
@@ -22,6 +22,20 @@ enum Commands {
         /// Input arguments as JSON string
         #[arg(long, default_value = "{}")]
         input: String,
+    },
+    /// Manage workflows
+    Workflow {
+        #[command(subcommand)]
+        command: WorkflowCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum WorkflowCommands {
+    /// Run a workflow from a file
+    Run {
+        /// Path to workflow definition JSON file
+        file: String,
     },
 }
 
@@ -51,17 +65,25 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
-    let tools = Arc::new(register_tools().await);
-
+    // For workflow engine, we need ownership of tools map, but register_tools returns it.
+    // However, Cli::Run also needs tools.
+    // We can call register_tools() once.
+    let tools_map = register_tools().await;
+    // We need to clone keys or wrap tools in Arc if we want to share.
+    // Tool trait is Send+Sync.
+    // But Box<dyn Tool> is not Clone.
+    // So we can't easily share the SAME map between direct Run and WorkflowEngine if both consume it.
+    // But here we are in a CLI, we execute ONE command.
+    
     match &cli.command {
         Commands::List => {
             println!("Available Tools:");
-            for tool in tools.values() {
+            for tool in tools_map.values() {
                 println!("  - {}: {}", tool.name(), tool.description(rt_core::Locale::En));
             }
         }
         Commands::Run { tool_name, input } => {
-            if let Some(tool) = tools.get(tool_name) {
+            if let Some(tool) = tools_map.get(tool_name) {
                 let input_value: serde_json::Value = serde_json::from_str(input)
                     .map_err(|e| anyhow::anyhow!("Invalid JSON input: {}", e))?;
                 
@@ -77,6 +99,46 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 eprintln!("Error: Tool '{}' not found.", tool_name);
                 std::process::exit(1);
+            }
+        }
+        Commands::Workflow { command } => {
+            match command {
+                WorkflowCommands::Run { file } => {
+                    let content = std::fs::read_to_string(file)
+                        .map_err(|e| anyhow::anyhow!("Failed to read workflow file: {}", e))?;
+                    let def: WorkflowDefinition = serde_json::from_str(&content)
+                        .map_err(|e| anyhow::anyhow!("Invalid workflow definition: {}", e))?;
+                    
+                    let engine = InMemoryWorkflowEngine::new(tools_map);
+                    
+                    println!("Starting workflow: {} ({})", def.name, def.id);
+                    let instance_id = engine.start_workflow(def).await?;
+                    println!("Instance ID: {}", instance_id);
+                    
+                    // Poll status
+                    loop {
+                        let status = engine.get_status(&instance_id).await?;
+                        match status.status {
+                            WorkflowStatus::Completed => {
+                                println!("Workflow completed successfully.");
+                                println!("Context: {}", serde_json::to_string_pretty(&status.context)?);
+                                break;
+                            }
+                            WorkflowStatus::Failed(e) => {
+                                eprintln!("Workflow failed: {}", e);
+                                std::process::exit(1);
+                            }
+                            WorkflowStatus::Paused => {
+                                println!("Workflow paused.");
+                                break;
+                            }
+                            _ => {
+                                // Pending or Running
+                                tokio::time::sleep(Duration::from_millis(500)).await;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

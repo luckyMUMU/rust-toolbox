@@ -9,6 +9,7 @@
 - 定义 `Workflow` 结构：管理工具执行顺序和上下文传递。
 - 定义 `Context`：在工具间传递的数据载体。
 - 定义 `CoreError`：统一错误处理类型。
+- 定义 `Workflow Engine`：工作流编排与执行 (详见 `WORKFLOW_DESIGN.md`)。
 
 ## 3. 详细设计 (Detailed Design)
 
