@@ -40,7 +40,9 @@ struct ToolkitApp {
 impl ToolkitApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
-        tools.insert(rt_tools::MoveFolder.name().to_string(), Box::new(rt_tools::MoveFolder));
+        for tool in rt_tools::get_all_tools() {
+            tools.insert(tool.name().to_string(), tool);
+        }
         
         let (tx, rx) = mpsc::channel();
 

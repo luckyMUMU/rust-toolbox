@@ -28,13 +28,9 @@ enum Commands {
 fn register_tools() -> HashMap<String, Box<dyn Tool>> {
     let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
     
-    // Helper to register tool
-    let mut register = |tool: Box<dyn Tool>| {
+    for tool in rt_tools::get_all_tools() {
         tools.insert(tool.name().to_string(), tool);
-    };
-
-    // Register rt-tools
-    register(Box::new(rt_tools::MoveFolder));
+    }
 
     tools
 }
