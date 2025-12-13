@@ -55,4 +55,4 @@ cargo build --release --bin rt-gui
 请参考 [AI_WORK_PROTOCOL.md](AI_WORK_PROTOCOL.md)。
 
 ## 许可证
-MIT License
+	GNU Affero General Public License v3
