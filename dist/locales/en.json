@@ -1,0 +1,54 @@
+{
+  "Help": "Help",
+  "Hide Help": "Hide Help",
+  "Output": "Output",
+  "Raw JSON": "Raw JSON (Debug)",
+  "Ready": "Ready",
+  "Run": "Run",
+  "Running": "Running",
+  "Select a tool": "Select a tool to begin",
+  "Select a tool help": "Select a tool to view help.",
+  "Show Help": "Show Help",
+  "Tools": "Tools",
+  "description": "Move or rename a folder",
+  "display_name": "Move Folder",
+  "input_schema": {
+    "destination": {
+      "title": "Destination path"
+    },
+    "mode": {
+      "enum_labels": {
+        "hk2s": "Traditional (Hong Kong) to Simplified",
+        "s2hk": "Simplified to Traditional (Hong Kong)",
+        "s2t": "Simplified to Traditional",
+        "s2tw": "Simplified to Traditional (Taiwan)",
+        "s2twp": "Simplified to Traditional (Taiwan, with phrases)",
+        "t2s": "Traditional to Simplified",
+        "tw2s": "Traditional (Taiwan) to Simplified",
+        "tw2sp": "Traditional (Taiwan) to Simplified (with phrases)"
+      },
+      "title": "Conversion mode"
+    },
+    "overwrite": {
+      "title": "Overwrite existing"
+    },
+    "source": {
+      "title": "Source path"
+    },
+    "text": {
+      "title": "Text to convert"
+    }
+  },
+  "output_schema": {
+    "converted": {
+      "title": "Converted text"
+    },
+    "moved_files": {
+      "title": "Number of files moved"
+    },
+    "success": {
+      "title": "Success"
+    }
+  },
+  "user_guide": "# Move Folder\n\nMove or rename a folder.\n\n## Behavior\n1. **Rename/Move**: If `destination` does not exist, the source folder is renamed/moved to that path.\n2. **Move Into**: If `destination` is an existing directory, the source folder is moved *into* that directory.\n\n## Inputs\n- **source**: Path to the folder to move.\n- **destination**: Path to the new location.\n- **overwrite**: If true, overwrite the destination if it exists.\n\n## Notes\n- If `overwrite` is true and the calculated target path exists, it will be deleted before moving.\n- Cross-device moves may fail if simple rename is not supported (depends on OS).\n"
+}

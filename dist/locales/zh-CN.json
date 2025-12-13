@@ -1,0 +1,54 @@
+{
+  "Help": "帮助",
+  "Hide Help": "隐藏帮助",
+  "Output": "输出",
+  "Raw JSON": "原始 JSON (调试)",
+  "Ready": "就绪",
+  "Run": "运行",
+  "Running": "正在运行",
+  "Select a tool": "请选择一个工具开始",
+  "Select a tool help": "选择工具查看帮助文档",
+  "Show Help": "显示帮助",
+  "Tools": "工具箱",
+  "description": "移动或重命名文件夹",
+  "display_name": "移动文件夹",
+  "input_schema": {
+    "destination": {
+      "title": "目标路径"
+    },
+    "mode": {
+      "enum_labels": {
+        "hk2s": "香港繁体到简体",
+        "s2hk": "简体到香港繁体",
+        "s2t": "简体到繁体",
+        "s2tw": "简体到台湾繁体",
+        "s2twp": "简体到台湾繁体（含惯用语）",
+        "t2s": "繁体到简体",
+        "tw2s": "台湾繁体到简体",
+        "tw2sp": "台湾繁体到简体（含惯用语）"
+      },
+      "title": "模式"
+    },
+    "overwrite": {
+      "title": "覆盖现有"
+    },
+    "source": {
+      "title": "源路径"
+    },
+    "text": {
+      "title": "文本"
+    }
+  },
+  "output_schema": {
+    "converted": {
+      "title": "转换结果"
+    },
+    "moved_files": {
+      "title": "移动文件数"
+    },
+    "success": {
+      "title": "是否成功"
+    }
+  },
+  "user_guide": "# 移动文件夹 (Move Folder)\n\n移动或重命名指定的文件夹。\n\n## 行为说明\n1. **重命名/移动**: 如果 `destination` 不存在，源文件夹将被重命名或移动到该路径。\n2. **移动到内部**: 如果 `destination` 是一个已存在的目录，源文件夹将被移动到该目录**内部**。\n\n## 输入参数\n- **source**: 源文件夹路径。\n- **destination**: 目标路径。\n- **overwrite**: 是否覆盖。如果为 true 且目标路径(计算后)已存在，将先删除目标再移动。\n\n## 注意事项\n- 跨磁盘移动可能会因为系统不支持简单重命名而失败（取决于操作系统）。\n"
+}

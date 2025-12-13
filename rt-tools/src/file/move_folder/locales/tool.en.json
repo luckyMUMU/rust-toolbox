@@ -1,0 +1,24 @@
+{
+  "display_name": "Move Folder",
+  "description": "Move or rename a folder",
+  "user_guide": "# Move Folder\n\nMove or rename a folder.\n\n## Behavior\n1. **Rename/Move**: If `destination` does not exist, the source folder is renamed/moved to that path.\n2. **Move Into**: If `destination` is an existing directory, the source folder is moved *into* that directory.\n\n## Inputs\n- **source**: Path to the folder to move.\n- **destination**: Path to the new location.\n- **overwrite**: If true, overwrite the destination if it exists.\n\n## Notes\n- If `overwrite` is true and the calculated target path exists, it will be deleted before moving.\n- Cross-device moves may fail if simple rename is not supported (depends on OS).\n",
+  "input_schema": {
+    "source": {
+      "title": "Source path"
+    },
+    "destination": {
+      "title": "Destination path"
+    },
+    "overwrite": {
+      "title": "Overwrite existing"
+    }
+  },
+  "output_schema": {
+    "success": {
+      "title": "Success"
+    },
+    "moved_files": {
+      "title": "Number of files moved"
+    }
+  }
+}

@@ -31,10 +31,10 @@ Commands:
    不再硬编码工具列表，而是通过以下方式动态加载：
    - **Built-in**: 调用 `rt_tools::get_all_tools()` 获取内置工具。
    - **Plugins**: 调用 `rt_core::plugin::load_plugins("plugins")` 扫描并加载外部插件。
-   最后将所有工具注册到 `HashMap<String, Box<dyn Tool>>` 中。
+   - 最后将所有工具注册到 `HashMap<String, Box<dyn Tool>>` 中。
 
 2. **Command Handlers**:
-   - `handle_list(tools)`: 遍历注册的工具并打印名称和描述 (使用 En Locale).
+   - `handle_list(tools)`: 遍历注册的工具并打印名称和描述。默认使用当前系统语言或回退到 `En`。
    - `handle_run(tool_name, input_json)`: 
      - 查找工具。
      - 解析 JSON 输入。

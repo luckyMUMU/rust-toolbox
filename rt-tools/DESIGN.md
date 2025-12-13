@@ -53,27 +53,55 @@
 ```
 src/
 ├── lib.rs
+├── i18n_utils.rs       # i18n helper module
 ├── file/
 │   ├── mod.rs
 │   └── move_folder/
 │       ├── mod.rs
-│       └── i18n.rs
+│       └── locales/    # Localization files
+│           ├── tool.en.json
+│           └── tool.zh-CN.json
 └── text/
     ├── mod.rs
     └── convert_chinese/
         ├── mod.rs
-        └── i18n.rs
+        └── locales/    # Localization files
+            ├── tool.en.json
+            └── tool.zh-CN.json
 ```
 
-## 4. 插件系统架构 (Plugin System Architecture)
+## 4. 国际化 (Internationalization)
+工具的国际化现在通过 JSON 文件管理。每个工具目录下有一个 `locales` 文件夹，包含 `tool.en.json` 和 `tool.zh-CN.json`。
+
+`i18n_utils.rs` 提供了 `ToolI18n` 结构体，用于加载这些 JSON 文件并在运行时提供本地化字符串。
+
+JSON 文件结构示例：
+```json
+{
+  "display_name": "Tool Name",
+  "description": "Tool Description",
+  "user_guide": "Markdown User Guide",
+  "input_schema": {
+    "field_name": { "title": "Field Title" }
+  },
+  "output_schema": {
+    "field_name": { "title": "Field Title" }
+  },
+  "extra": {
+    "key": "value"
+  }
+}
+```
+
+## 5. 插件系统架构 (Plugin System Architecture)
 
 为了支持扩展性，rt-box 支持通过外部可执行文件添加工具。
 
-### 4.1 协议定义 (Protocol Definition)
+### 5.1 协议定义 (Protocol Definition)
 
 插件必须是一个独立的可执行文件（如 `.exe`, `.py` 脚本等），并支持以下命令行交互：
 
-#### 4.1.1 获取元数据 (Metadata)
+#### 5.1.1 获取元数据 (Metadata)
 - **Command**: `path/to/plugin spec`
 - **Stdin**: (无)
 - **Stdout**: JSON 对象，包含工具描述。
@@ -95,26 +123,6 @@ src/
   }
   ```
 
-#### 4.1.2 执行工具 (Execute)
+#### 5.1.2 执行工具 (Execute)
 - **Command**: `path/to/plugin run`
 - **Stdin**: JSON 字符串 (Input Value)
-- **Stdout**: JSON 字符串 (Output Value)
-- **Stderr**: 错误日志 (用于调试，非结构化)
-- **Exit Code**: 0 表示成功，非 0 表示失败。
-
-### 4.2 发现机制 (Discovery)
-- **路径**: 默认扫描应用根目录下的 `plugins/` 文件夹。
-- **命名**: 建议以 `rt-plugin-` 前缀命名，以便识别。
-
-### 4.3 核心实现 (Implementation)
-- **`rt-core`**:
-    - 新增 `PluginTool` 结构体，实现 `Tool` trait。
-    - 负责调用子进程、序列化/反序列化 JSON、处理超时与错误。
-- **`rt-cli` / `rt-gui`**:
-    - 启动时扫描 `plugins/` 目录。
-    - 为发现的每个有效可执行文件创建一个 `PluginTool` 实例并注册。
-
-## 5. 插件开发指南
-
-有关插件开发的详细指南，请参阅 [PLUGIN_GUIDE.md](../../PLUGIN_GUIDE.md)。
-

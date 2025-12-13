@@ -1,0 +1,22 @@
+{
+  "display_name": "Convert Chinese",
+  "description": "Convert between Simplified and Traditional Chinese",
+  "user_guide": "# Convert Chinese\n\nConvert between Simplified and Traditional Chinese using OpenCC.\n\n## Supported Modes\n- **s2t**: Simplified to Traditional\n- **t2s**: Traditional to Simplified\n- **s2tw**: Simplified to Traditional (Taiwan Standard)\n- **tw2s**: Traditional (Taiwan Standard) to Simplified\n- **s2hk**: Simplified to Traditional (Hong Kong Standard)\n- **hk2s**: Traditional (Hong Kong Standard) to Simplified\n- **s2twp**: Simplified to Traditional (Taiwan Standard) with Phrases\n- **tw2sp**: Traditional (Taiwan Standard) to Simplified with Phrases\n",
+  "input_schema": {
+    "text": { "title": "Text to convert" },
+    "mode": { "title": "Conversion Mode" }
+  },
+  "output_schema": {
+    "converted": { "title": "Converted Text" }
+  },
+  "extra": {
+    "s2t": "Simplified to Traditional",
+    "t2s": "Traditional to Simplified",
+    "s2tw": "Simplified to Traditional (Taiwan)",
+    "tw2s": "Traditional (Taiwan) to Simplified",
+    "s2hk": "Simplified to Traditional (Hong Kong)",
+    "hk2s": "Traditional (Hong Kong) to Simplified",
+    "s2twp": "Simplified to Traditional (Taiwan Phrased)",
+    "tw2sp": "Traditional (Taiwan Phrased) to Simplified"
+  }
+}

@@ -5,13 +5,28 @@
 
 ## 2. 核心职责 (Core Responsibilities)
 - 定义 `Tool` Trait：所有具体工具必须实现的接口。
+- 定义 `Locale` Enum：支持的多语言区域设置。
 - 定义 `Workflow` 结构：管理工具执行顺序和上下文传递。
 - 定义 `Context`：在工具间传递的数据载体。
 - 定义 `CoreError`：统一错误处理类型。
 
 ## 3. 详细设计 (Detailed Design)
 
-### 3.1 Tool Trait
+### 3.1 Locale (`locale.rs`)
+定义了支持的语言区域：
+```rust
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Locale {
+    #[serde(rename = "en")]
+    En,
+    #[serde(rename = "zh-CN")]
+    Zh,
+}
+```
+
+### 3.2 Tool Trait (`tool.rs`)
 ```rust
 use async_trait::async_trait;
 use serde_json::Value;
@@ -42,12 +57,12 @@ pub trait Tool: Send + Sync {
 }
 ```
 
-### 3.2 Plugin System (`plugin.rs`)
+### 3.3 Plugin System (`plugin.rs`)
 `rt-core` 提供了加载外部插件的能力。
 - **`PluginTool`**: 一个实现了 `Tool` Trait 的结构体，负责包装外部可执行文件。
 - **`load_plugins`**: 扫描指定目录，自动发现名为 `rt-plugin-*` 的可执行文件并加载。
 
-### 3.3 Workflow Engine
+### 3.4 Workflow Engine
 ```rust
 pub struct Workflow {
     pub name: String,
@@ -59,7 +74,7 @@ impl Workflow {
 }
 ```
 
-### 3.4 CoreError
+### 3.5 CoreError
 使用 `thiserror` 定义：
 ```rust
 #[derive(thiserror::Error, Debug)]
@@ -76,13 +91,12 @@ pub enum CoreError {
 ```
 
 ## 4. 依赖 (Dependencies)
-- `async-trait`:用于支持 async trait 方法。
+- `async-trait`: 用于支持 async trait 方法。
+- `serde`: 序列化/反序列化。
 - `serde_json`: 用于通用的输入输出数据交换。
 - `thiserror`: 错误定义。
 - `anyhow`: 通用错误捕获。
 - `tokio`: 异步运行时 (Features: `process`, `io-util`, `fs`)。
-- `thiserror`: 错误定义。
-- `anyhow`: 通用错误捕获。
 
 ## 5. 接口稳定性 (Stability)
 本模块接口变更将影响所有下游 crate (`rt-tools`, `rt-cli`, `rt-gui`)，需谨慎修改。

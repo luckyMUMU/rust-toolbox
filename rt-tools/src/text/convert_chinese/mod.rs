@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use schemars::JsonSchema;
 use ferrous_opencc::{OpenCC, config::BuiltinConfig};
-
-mod i18n;
+use crate::i18n_utils::ToolI18n;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ConvertChineseInput {
@@ -18,7 +17,20 @@ struct ConvertChineseOutput {
     converted: String,
 }
 
-pub struct ConvertChinese;
+pub struct ConvertChinese {
+    i18n: ToolI18n,
+}
+
+impl ConvertChinese {
+    pub fn new() -> Self {
+        Self {
+            i18n: ToolI18n::new(
+                include_str!("locales/tool.en.json"),
+                include_str!("locales/tool.zh-CN.json"),
+            ),
+        }
+    }
+}
 
 #[async_trait]
 impl Tool for ConvertChinese {
@@ -27,11 +39,11 @@ impl Tool for ConvertChinese {
     }
 
     fn display_name(&self, locale: Locale) -> String {
-        i18n::display_name(locale).to_string()
+        self.i18n.display_name(locale).to_string()
     }
 
     fn description(&self, locale: Locale) -> String {
-        i18n::description(locale).to_string()
+        self.i18n.description(locale).to_string()
     }
 
     fn input_schema(&self, locale: Locale) -> Value {
@@ -39,7 +51,7 @@ impl Tool for ConvertChinese {
         
         if let Some(props) = schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
             for (key, val) in props.iter_mut() {
-                if let Some(title) = i18n::input_title(key, locale) {
+                if let Some(title) = self.i18n.input_title(key, locale) {
                     val["title"] = serde_json::json!(title);
                 }
             }
@@ -54,7 +66,9 @@ impl Tool for ConvertChinese {
 
                 let mut labels = serde_json::Map::new();
                 for mode in &modes {
-                    labels.insert(mode.to_string(), json!(i18n::mode_title(mode, locale)));
+                    if let Some(label) = self.i18n.extra(mode, locale) {
+                         labels.insert(mode.to_string(), json!(label));
+                    }
                 }
                 mode_schema["x-enum-labels"] = Value::Object(labels);
             }
@@ -68,7 +82,7 @@ impl Tool for ConvertChinese {
 
         if let Some(props) = schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
             for (key, val) in props.iter_mut() {
-                if let Some(title) = i18n::output_title(key, locale) {
+                if let Some(title) = self.i18n.output_title(key, locale) {
                     val["title"] = serde_json::json!(title);
                 }
             }
@@ -77,7 +91,7 @@ impl Tool for ConvertChinese {
     }
 
     fn user_guide(&self, locale: Locale) -> String {
-        i18n::user_guide(locale).to_string()
+        self.i18n.user_guide(locale).to_string()
     }
 
     async fn run(&self, input: Value) -> Result<Value> {
