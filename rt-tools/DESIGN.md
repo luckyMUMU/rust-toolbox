@@ -30,6 +30,25 @@
   - Destination exists and overwrite is false.
   - Permission denied.
 
+### 2.2 Text Operations (`text`)
+
+#### Chinese Converter (`text.convert_chinese`)
+- **Name**: `text.convert_chinese`
+- **Description**: 简繁体中文转换。
+- **Input Schema**:
+  ```json
+  {
+    "text": "简体中文",
+    "mode": "s2t" // Enum: s2t, t2s, s2tw, tw2s, s2hk, hk2s, s2twp, tw2sp
+  }
+  ```
+- **Output Schema**:
+  ```json
+  {
+    "converted": "繁體中文"
+  }
+  ```
+
 ## 3. 结构 (Structure)
 ```
 src/
@@ -39,7 +58,11 @@ src/
 │   └── move_folder/
 │       ├── mod.rs
 │       └── i18n.rs
-└── text/ (Future)
+└── text/
+    ├── mod.rs
+    └── convert_chinese/
+        ├── mod.rs
+        └── i18n.rs
 ```
 
 ## 4. 插件系统架构 (Plugin System Architecture)

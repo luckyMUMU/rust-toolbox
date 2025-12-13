@@ -11,6 +11,7 @@ schemars = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["fs"] }
+ferrous-opencc = "0.2"
 
 # Internal
 rt-core = { path = "../rt-core" }

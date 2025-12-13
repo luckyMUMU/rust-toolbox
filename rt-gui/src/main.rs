@@ -109,7 +109,7 @@ impl ToolkitApp {
 }
 
 // Recursive Schema Renderer
-fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only: bool) {
+fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only: bool, path: &str) {
     if let Some(obj_type) = schema.get("type").and_then(|v| v.as_str()) {
         match obj_type {
             "object" => {
@@ -138,7 +138,8 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                             }
                             
                             if let Some(val) = data.get_mut(key) {
-                                render_schema(ui, prop_schema, val, read_only);
+                                let child_path = if path.is_empty() { key.clone() } else { format!("{}.{}", path, key) };
+                                render_schema(ui, prop_schema, val, read_only, &child_path);
                             } else if read_only {
                                 ui.weak("(null)");
                             }
@@ -151,8 +152,12 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                     let mut text = s.to_string();
                     if read_only {
                          ui.label(text);
-                    } else if ui.text_edit_singleline(&mut text).changed() {
-                        *data = json!(text);
+                    } else {
+                        ui.push_id(path, |ui| {
+                            if ui.text_edit_singleline(&mut text).changed() {
+                                *data = json!(text);
+                            }
+                        });
                     }
                 } else {
                     // Force reset if type mismatch
@@ -165,8 +170,12 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                     let mut val = b;
                     if read_only {
                          ui.add_enabled(false, egui::Checkbox::new(&mut val, ""));
-                    } else if ui.checkbox(&mut val, "").changed() {
-                        *data = json!(val);
+                    } else {
+                        ui.push_id(path, |ui| {
+                            if ui.checkbox(&mut val, "").changed() {
+                                *data = json!(val);
+                            }
+                        });
                     }
                 } else {
                     if !read_only { *data = json!(false); }
@@ -176,8 +185,12 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                  let mut num = data.as_f64().unwrap_or(0.0);
                  if read_only {
                      ui.label(num.to_string());
-                 } else if ui.add(egui::DragValue::new(&mut num)).changed() {
-                     *data = json!(num); 
+                 } else {
+                     ui.push_id(path, |ui| {
+                         if ui.add(egui::DragValue::new(&mut num)).changed() {
+                             *data = json!(num); 
+                         }
+                     });
                  }
             }
             _ => {
@@ -298,9 +311,9 @@ impl eframe::App for ToolkitApp {
                 ui.separator();
                 // Render Dynamic Form
                 if let Some(schema) = &self.current_schema {
-                    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                         render_schema(ui, schema, &mut self.input_value, false);
-                    });
+                     egui::ScrollArea::vertical().id_salt("input_scroll").max_height(200.0).show(ui, |ui| {
+                         render_schema(ui, schema, &mut self.input_value, false, "");
+                     });
                 } else {
                     ui.label("No schema available.");
                 }
@@ -346,8 +359,8 @@ impl eframe::App for ToolkitApp {
                     ui.colored_label(egui::Color32::RED, error);
                 } else if let Some(val) = &mut self.output_value {
                     if let Some(schema) = &self.output_schema {
-                         egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                             render_schema(ui, schema, val, true);
+                         egui::ScrollArea::vertical().id_salt("output_scroll").max_height(200.0).show(ui, |ui| {
+                             render_schema(ui, schema, val, true, "");
                          });
                     } else {
                          // Fallback to raw json if no schema
