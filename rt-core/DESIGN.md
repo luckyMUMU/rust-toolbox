@@ -15,23 +15,39 @@
 ```rust
 use async_trait::async_trait;
 use serde_json::Value;
+use crate::locale::Locale;
 
 #[async_trait]
 pub trait Tool: Send + Sync {
     /// 工具名称 (唯一标识)
     fn name(&self) -> &str;
     
+    /// 显示名称 (支持多语言)
+    fn display_name(&self, locale: Locale) -> String;
+
     /// 工具描述 (用于 UI 展示)
-    fn description(&self) -> &str;
+    fn description(&self, locale: Locale) -> String;
+    
+    /// 用户指南 (Markdown, 支持多语言)
+    fn user_guide(&self, locale: Locale) -> String;
+
+    /// 输入 Schema
+    fn input_schema(&self, locale: Locale) -> Value;
+
+    /// 输出 Schema
+    fn output_schema(&self, locale: Locale) -> Value;
     
     /// 执行逻辑
-    /// @param input: 上一个工具的输出或初始输入
-    /// @return: 工具执行结果 (JSON Value)
     async fn run(&self, input: Value) -> Result<Value, crate::CoreError>;
 }
 ```
 
-### 3.2 Workflow Engine
+### 3.2 Plugin System (`plugin.rs`)
+`rt-core` 提供了加载外部插件的能力。
+- **`PluginTool`**: 一个实现了 `Tool` Trait 的结构体，负责包装外部可执行文件。
+- **`load_plugins`**: 扫描指定目录，自动发现名为 `rt-plugin-*` 的可执行文件并加载。
+
+### 3.3 Workflow Engine
 ```rust
 pub struct Workflow {
     pub name: String,
@@ -43,7 +59,7 @@ impl Workflow {
 }
 ```
 
-### 3.3 CoreError
+### 3.4 CoreError
 使用 `thiserror` 定义：
 ```rust
 #[derive(thiserror::Error, Debug)]
@@ -62,6 +78,9 @@ pub enum CoreError {
 ## 4. 依赖 (Dependencies)
 - `async-trait`:用于支持 async trait 方法。
 - `serde_json`: 用于通用的输入输出数据交换。
+- `thiserror`: 错误定义。
+- `anyhow`: 通用错误捕获。
+- `tokio`: 异步运行时 (Features: `process`, `io-util`, `fs`)。
 - `thiserror`: 错误定义。
 - `anyhow`: 通用错误捕获。
 

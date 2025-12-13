@@ -39,8 +39,26 @@ struct ToolkitApp {
 
 impl ToolkitApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
         let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
+        
+        // Built-in tools
         for tool in rt_tools::get_all_tools() {
+            tools.insert(tool.name().to_string(), tool);
+        }
+
+        // Load plugins calling rt_core (blocking on UI thread for startup)
+        let plugins = runtime.block_on(async {
+            let plugin_dir = std::path::Path::new("plugins");
+            if plugin_dir.exists() {
+                 rt_core::plugin::load_plugins(plugin_dir).await
+            } else {
+                 Vec::new()
+            }
+        });
+
+        for tool in plugins {
             tools.insert(tool.name().to_string(), tool);
         }
         
@@ -59,7 +77,7 @@ impl ToolkitApp {
             locale: Locale::En, // Default En
             tx,
             rx,
-            runtime: tokio::runtime::Runtime::new().unwrap(),
+            runtime,
         }
     }
 

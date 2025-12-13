@@ -25,11 +25,21 @@ enum Commands {
     },
 }
 
-fn register_tools() -> HashMap<String, Box<dyn Tool>> {
+async fn register_tools() -> HashMap<String, Box<dyn Tool>> {
     let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
     
+    // Built-in tools
     for tool in rt_tools::get_all_tools() {
         tools.insert(tool.name().to_string(), tool);
+    }
+
+    // Plugins
+    let plugin_dir = std::path::Path::new("plugins");
+    if plugin_dir.exists() {
+         let plugins = rt_core::plugin::load_plugins(plugin_dir).await;
+         for tool in plugins {
+             tools.insert(tool.name().to_string(), tool);
+         }
     }
 
     tools
@@ -41,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
-    let tools = Arc::new(register_tools());
+    let tools = Arc::new(register_tools().await);
 
     match &cli.command {
         Commands::List => {

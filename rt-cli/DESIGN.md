@@ -28,18 +28,13 @@ Commands:
 ### 3.2 核心逻辑 (`main.rs`)
 
 1. **Tool Registry**:
-   需要一个简单的注册机制，将所有可用工具注册到一个 `HashMap<String, Box<dyn Tool>>` 中。
-   ```rust
-   fn register_tools() -> Vec<Box<dyn Tool>> {
-       vec![
-           Box::new(rt_tools::file::MoveFolder),
-           // Future tools...
-       ]
-   }
-   ```
+   不再硬编码工具列表，而是通过以下方式动态加载：
+   - **Built-in**: 调用 `rt_tools::get_all_tools()` 获取内置工具。
+   - **Plugins**: 调用 `rt_core::plugin::load_plugins("plugins")` 扫描并加载外部插件。
+   最后将所有工具注册到 `HashMap<String, Box<dyn Tool>>` 中。
 
 2. **Command Handlers**:
-   - `handle_list(tools)`: 遍历注册的工具并打印名称和描述。
+   - `handle_list(tools)`: 遍历注册的工具并打印名称和描述 (使用 En Locale).
    - `handle_run(tool_name, input_json)`: 
      - 查找工具。
      - 解析 JSON 输入。

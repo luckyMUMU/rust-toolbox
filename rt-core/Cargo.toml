@@ -11,3 +11,4 @@ schemars = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true, features = ["process", "io-util", "fs"] }
