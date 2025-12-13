@@ -10,6 +10,7 @@ use crate::{Tool, Locale, Result, CoreError};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LocalizedString {
     pub en: String,
+    #[serde(alias = "zh-CN")]
     pub zh: Option<String>,
 }
 
@@ -31,6 +32,10 @@ pub struct PluginMetadata {
     pub input_schema: Value,
     #[serde(default)]
     pub output_schema: Option<Value>,
+    #[serde(default)]
+    pub input_fields: Option<std::collections::HashMap<String, LocalizedString>>,
+    #[serde(default)]
+    pub output_fields: Option<std::collections::HashMap<String, LocalizedString>>,
 }
 
 #[derive(Debug)]
@@ -83,12 +88,40 @@ impl Tool for PluginTool {
         self.metadata.user_guide.get(locale).to_string()
     }
 
-    fn input_schema(&self, _locale: Locale) -> Value {
-        self.metadata.input_schema.clone()
+    fn input_schema(&self, locale: Locale) -> Value {
+        let mut schema = self.metadata.input_schema.clone();
+        
+        if let Some(fields) = &self.metadata.input_fields {
+             if let Some(props) = schema.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                 for (field_name, localized_title) in fields {
+                     if let Some(field_schema) = props.get_mut(field_name) {
+                         if let Some(field_obj) = field_schema.as_object_mut() {
+                             field_obj.insert("title".to_string(), Value::String(localized_title.get(locale).to_string()));
+                         }
+                     }
+                 }
+             }
+        }
+        
+        schema
     }
 
-    fn output_schema(&self, _locale: Locale) -> Value {
-        self.metadata.output_schema.clone().unwrap_or_else(|| serde_json::json!({ "type": "object" }))
+    fn output_schema(&self, locale: Locale) -> Value {
+        let mut schema = self.metadata.output_schema.clone().unwrap_or_else(|| serde_json::json!({ "type": "object" }));
+
+        if let Some(fields) = &self.metadata.output_fields {
+             if let Some(props) = schema.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                 for (field_name, localized_title) in fields {
+                     if let Some(field_schema) = props.get_mut(field_name) {
+                         if let Some(field_obj) = field_schema.as_object_mut() {
+                             field_obj.insert("title".to_string(), Value::String(localized_title.get(locale).to_string()));
+                         }
+                     }
+                 }
+             }
+        }
+        
+        schema
     }
 
     async fn run(&self, input: Value) -> Result<Value> {

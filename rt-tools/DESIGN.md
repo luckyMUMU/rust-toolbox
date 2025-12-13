@@ -80,11 +80,18 @@ src/
   ```json
   {
     "name": "ext.my_tool",
-    "display_name": { "en": "My Tool", "zh": "我的工具" },
-    "description": { "en": "...", "zh": "..." },
-    "user_guide": { "en": "...", "zh": "..." },
+    "display_name": { "en": "My Tool", "zh-CN": "我的工具" },
+    "description": { "en": "...", "zh-CN": "..." },
+    "user_guide": { "en": "...", "zh-CN": "..." },
     "input_schema": { ... }, // JSON Schema
-    "output_schema": { ... } // JSON Schema
+    "output_schema": { ... }, // JSON Schema
+    "input_fields": { // Optional: Field-level localization for GUI form generation
+      "field_name_1": { "en": "Field 1", "zh-CN": "字段1" },
+      "field_name_2": { "en": "Field 2", "zh-CN": "字段2" }
+    },
+    "output_fields": { // Optional: Field-level localization for GUI result display
+      "result_field_1": { "en": "Result 1", "zh-CN": "结果1" }
+    }
   }
   ```
 

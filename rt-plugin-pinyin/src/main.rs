@@ -61,6 +61,22 @@ fn main() -> anyhow::Result<()> {
                 },
                 "input_schema": schema_for!(Input),
                 "output_schema": schema_for!(Output),
+                "input_fields": {
+                    "text": {
+                        "en": "Text",
+                        "zh-CN": "文本"
+                    },
+                    "tone": {
+                        "en": "With Tone",
+                        "zh-CN": "包含声调"
+                    }
+                },
+                "output_fields": {
+                    "pinyin": {
+                        "en": "Pinyin",
+                        "zh-CN": "拼音"
+                    }
+                }
             });
             println!("{}", serde_json::to_string_pretty(&spec)?);
         }
