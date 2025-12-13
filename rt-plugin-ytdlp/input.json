@@ -1,0 +1,8 @@
+{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "format": "best",
+  "playlist": false,
+  "subtitles": false,
+  "output_dir": "./downloads",
+  "filename_template": "%(title)s.%(ext)s"
+}

@@ -1,0 +1,18 @@
+{
+  "display_name": "YouTube Downloader",
+  "description": "Download videos and audios from YouTube and other supported sites using yt-dlp",
+  "user_guide": "# YouTube Downloader Plugin\n\nThis plugin allows you to download videos and audios from YouTube and other supported sites using yt-dlp.\n\n## Features\n\n- Download single videos\n- Download entire playlists\n- Select specific formats\n- Download subtitles\n- Customize output directory and filename\n\n## Usage\n\n1. Enter the URL of the video or playlist you want to download\n2. Select the format you want to download (optional)\n3. Configure additional options if needed\n4. Click Run to start downloading\n\n## Input Parameters\n\n- **URL**: The URL of the video or playlist to download\n- **Format**: The format to download (e.g., 'best', 'bestvideo+bestaudio', 'bestaudio')\n- **Playlist**: Whether to download the entire playlist\n- **Subtitles**: Whether to download subtitles\n- **Output Directory**: The directory to save the downloaded files\n- **Filename Template**: The template for the output filename\n\n## Output\n\nThe plugin returns a JSON object with the following fields:\n\n- **success**: Whether the download was successful\n- **files**: An array of downloaded files with their paths and sizes\n- **message**: A message describing the result\n",
+  "input_schema": {
+    "url": { "title": "URL" },
+    "format": { "title": "Format" },
+    "playlist": { "title": "Playlist" },
+    "subtitles": { "title": "Subtitles" },
+    "output_dir": { "title": "Output Directory" },
+    "filename_template": { "title": "Filename Template" }
+  },
+  "output_schema": {
+    "success": { "title": "Success" },
+    "files": { "title": "Files" },
+    "message": { "title": "Message" }
+  }
+}

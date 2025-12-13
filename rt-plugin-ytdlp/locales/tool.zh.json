@@ -1,0 +1,18 @@
+{
+  "display_name": "YouTube下载器",
+  "description": "使用yt-dlp从YouTube和其他支持的网站下载视频和音频",
+  "user_guide": "# YouTube下载器插件\n\n这个插件允许您使用yt-dlp从YouTube和其他支持的网站下载视频和音频。\n\n## 功能\n\n- 下载单个视频\n- 下载整个播放列表\n- 选择特定格式\n- 下载字幕\n- 自定义输出目录和文件名\n\n## 使用方法\n\n1. 输入您要下载的视频或播放列表的URL\n2. 选择您想要下载的格式（可选）\n3. 根据需要配置其他选项\n4. 点击运行开始下载\n\n## 输入参数\n\n- **URL**: 要下载的视频或播放列表的URL\n- **Format**: 要下载的格式（例如：'best', 'bestvideo+bestaudio', 'bestaudio'）\n- **Playlist**: 是否下载整个播放列表\n- **Subtitles**: 是否下载字幕\n- **Output Directory**: 保存下载文件的目录\n- **Filename Template**: 输出文件名的模板\n\n## 输出\n\n插件返回一个包含以下字段的JSON对象：\n\n- **success**: 下载是否成功\n- **files**: 下载的文件数组，包含它们的路径和大小\n- **message**: 描述结果的消息\n",
+  "input_schema": {
+    "url": { "title": "URL" },
+    "format": { "title": "格式" },
+    "playlist": { "title": "播放列表" },
+    "subtitles": { "title": "字幕" },
+    "output_dir": { "title": "输出目录" },
+    "filename_template": { "title": "文件名模板" }
+  },
+  "output_schema": {
+    "success": { "title": "成功" },
+    "files": { "title": "文件" },
+    "message": { "title": "消息" }
+  }
+}
