@@ -246,16 +246,232 @@ pub fn output_field_title(field: &str, locale: Locale) -> Option<String> {
 
 通过遵循这些规范，您可以创建功能强大、易于使用且支持多语言的 Rust Toolbox 插件。
 
-## 7. 公共工具模块 (Utils Module)
+## 7. rt-core 工具开发能力
 
-`rt-tools` 提供了一个公共的 `utils` 模块，旨在简化插件开发并统一核心功能的引用。
+`rt-core` 是 Rust Toolbox 的核心库，为工具开发提供了统一的基础框架和丰富的辅助功能。以下是 `rt-core` 提供的主要工具开发能力：
 
-### 7.1 目的
+### 7.1 核心工具抽象
 
-1.  **核心功能暴露**: 将 `rt-core` 中的常用类型 (如 `Tool`, `Locale`, `PersistenceManager`, `WorkflowEngine`, `WorkflowDefinition`, `WorkflowStatus`, `WorkflowInstance`, `CoreError`, `Result`) 重新导出，方便内部工具和插件统一引用，避免重复导入 `rt-core`。
-2.  **通用辅助功能**: 提供如 `ToolI18n` 等辅助工具开发的功能。
+#### 7.1.1 `Tool` 特性
 
-### 7.2 使用示例
+`Tool` 是 `rt-core` 中所有工具的核心抽象，定义了工具的基本行为和接口。所有工具和插件都必须实现此特性。
+
+```rust
+#[async_trait]
+pub trait Tool: Send + Sync {
+    /// 工具名称 (唯一标识)
+    fn name(&self) -> &str;
+    
+    /// 显示名称 (支持多语言)
+    fn display_name(&self, _locale: Locale) -> String;
+    
+    /// 工具描述 (用于 UI 展示)
+    fn description(&self, locale: Locale) -> String;
+    
+    /// 用户指南 (Markdown 格式)
+    fn user_guide(&self, locale: Locale) -> String;
+    
+    /// 输入参数 Schema (JSON Schema)
+    fn input_schema(&self, locale: Locale) -> Value;
+    
+    /// 输出结果 Schema (JSON Schema)
+    fn output_schema(&self, _locale: Locale) -> Value;
+    
+    /// 执行逻辑
+    async fn run(&self, input: Value) -> Result<Value>;
+    
+    /// 是否支持 MCP
+    fn mcp_supported(&self) -> bool { false }
+    
+    /// 使用 MCP 上下文执行工具
+    async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
+}
+```
+
+#### 7.1.2 `McpTool` 扩展特性
+
+`McpTool` 是 `Tool` 的扩展，用于支持 Model Context Protocol (MCP)，为工具提供更高级的上下文交互能力。
+
+```rust
+#[async_trait]
+pub trait McpTool: Tool {
+    /// 获取 MCP 能力描述
+    fn get_mcp_capabilities(&self) -> Value;
+    
+    /// 获取 MCP 上下文验证规则
+    fn get_context_validation_rules(&self) -> Value;
+    
+    /// 是否需要完整上下文
+    fn requires_full_context(&self) -> bool;
+    
+    /// 执行逻辑（带 MCP 上下文）
+    async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
+}
+```
+
+### 7.2 工具注册与管理
+
+#### 7.2.1 工具注册宏
+
+`rt-core` 提供了方便的宏来注册工具，简化工具的注册过程：
+
+```rust
+// 注册工具的宏
+#[macro_export]
+macro_rules! register_tool {
+    ($tool:ty) => {
+        lazy_static::lazy_static! {
+            static ref _TOOL_REGISTRATION: () = {
+                $crate::register_tool_impl(|| Box::new(<$tool>::new()));
+            };
+        }
+    };
+}
+```
+
+### 7.3 国际化支持
+
+#### 7.3.1 `ToolI18n` 结构体
+
+`rt-core` 提供了 `ToolI18n` 结构体，用于加载和管理工具的国际化资源：
+
+```rust
+pub struct ToolI18n {
+    pub display_name: String,
+    pub description: String,
+    pub user_guide: String,
+    pub input_fields: HashMap<String, String>,
+    pub output_fields: HashMap<String, String>,
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+impl ToolI18n {
+    /// 从指定目录加载工具的国际化资源
+    pub fn load(locale: Locale) -> Result<Self> {
+        // 实现逻辑
+    }
+}
+```
+
+### 7.4 持久化支持
+
+#### 7.4.1 `PersistenceManager`
+
+`rt-core` 提供了 `PersistenceManager` 结构体，为工具提供统一的数据存储、缓存和配置管理服务：
+
+```rust
+pub struct PersistenceManager {
+    // 内部实现
+}
+
+impl PersistenceManager {
+    /// 获取 KV 数据 (优先查缓存，未命中查 DB)
+    pub async fn get_data<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>>;
+    
+    /// 保存 KV 数据 (同时更新缓存和 DB)
+    pub async fn set_data<T: Serialize>(&self, key: &str, value: &T) -> Result<()>;
+    
+    /// 加载配置 (应用级或工具级)
+    pub fn load_config<T: Serialize + DeserializeOwned + Default>(&self, app_name: &str) -> Result<T>;
+    
+    /// 保存配置
+    pub fn save_config<T: Serialize>(&self, app_name: &str, config: &T) -> Result<()>;
+    
+    /// 创建临时目录 (自动清理)
+    pub async fn create_temp_dir(&self) -> Result<TempDir>;
+}
+```
+
+### 7.5 工作流引擎支持
+
+#### 7.5.1 `WorkflowEngine` 特性
+
+`rt-core` 提供了 `WorkflowEngine` 特性，为工具提供工作流编排能力：
+
+```rust
+#[async_trait]
+pub trait WorkflowEngine: Send + Sync {
+    /// 验证工作流定义
+    fn validate(&self, def: &WorkflowDefinition) -> Result<(), CoreError>;
+
+    /// 启动工作流
+    async fn start_workflow(&self, def: WorkflowDefinition) -> Result<String>;
+
+    /// 获取工作流状态
+    async fn get_status(&self, instance_id: &str) -> Result<WorkflowInstance>;
+
+    /// 暂停/停止
+    async fn pause_workflow(&self, instance_id: &str) -> Result<()>;
+    async fn stop_workflow(&self, instance_id: &str) -> Result<()>;
+    
+    /// 获取执行日志
+    async fn get_logs(&self, instance_id: &str) -> Result<Vec<LogEntry>>;
+}
+```
+
+### 7.6 错误处理
+
+#### 7.6.1 `CoreError` 枚举
+
+`rt-core` 定义了统一的错误类型 `CoreError`，用于处理工具执行过程中的各种错误：
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum CoreError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    
+    #[error("JSON serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
+    
+    #[error("Tool error: {0}")]
+    ToolError(String),
+    
+    #[error("Plugin error: {0}")]
+    PluginError(String),
+    
+    // 更多错误类型...
+}
+```
+
+### 7.7 多语言支持
+
+#### 7.7.1 `Locale` 枚举
+
+`rt-core` 定义了 `Locale` 枚举，支持多语言环境：
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Locale {
+    #[serde(rename = "en")]
+    English,
+    
+    #[serde(rename = "zh-CN")]
+    ChineseSimplified,
+    
+    // 更多语言...
+}
+```
+
+### 7.8 日志系统
+
+`rt-core` 集成了 `tracing` 日志框架，为工具提供全面的日志记录能力：
+
+- 支持不同级别的日志输出：DEBUG、INFO、WARN、ERROR
+- 支持多种输出目标：控制台、文件
+- 支持结构化日志记录
+- 支持日志轮换和内存日志存储
+
+### 7.9 配置管理
+
+`rt-core` 提供了 `ConfigManager`，用于统一管理工具的配置：
+
+- 支持多源配置加载：文件、环境变量
+- 支持配置缓存和热重载
+- 支持配置项优先级管理
+- 支持类型安全的配置访问
+
+### 7.10 使用示例
 
 开发新工具或插件时，建议通过 `use rt_tools::utils::{...}` 引用所需的基础设施。
 
@@ -266,22 +482,19 @@ use rt_tools::utils::{Locale, Tool, PersistenceManager, WorkflowEngine, Result, 
 /// 定义一个名为 `MyTool` 的简单工具结构体。
 pub struct MyTool;
 
+impl MyTool {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl Tool for MyTool {
     /// 返回工具的唯一名称。
-    ///
-    /// # 返回值
-    /// 返回一个静态字符串切片，表示工具的名称。
     fn name(&self) -> &'static str {
         "my_category.my_tool"
     }
 
     /// 返回工具的本地化显示名称。
-    ///
-    /// # 参数
-    /// * `locale` - 目标语言环境。
-    ///
-    /// # 返回值
-    /// 返回工具的本地化显示名称字符串。
     fn display_name(&self, locale: Locale) -> String {
         // 使用 ToolI18n 获取本地化名称
         let i18n = rt_tools::utils::ToolI18n::load(locale).unwrap_or_default();
@@ -292,27 +505,12 @@ impl Tool for MyTool {
 }
 
 /// 示例：使用 `PersistenceManager` 保存数据。
-///
-/// # 参数
-/// * `manager` - `PersistenceManager` 的引用，用于数据持久化。
-/// * `key` - 要保存数据的键。
-/// * `value` - 要保存的数据值。
-///
-/// # 返回值
-/// 如果操作成功，返回 `Ok(())`；否则返回 `Err(CoreError)`。
 async fn save_data_example(manager: &PersistenceManager, key: &str, value: &str) -> Result<()> {
     manager.set_data(key, value).await?;
     Ok(())
 }
 
 /// 示例：使用 `PersistenceManager` 加载数据。
-///
-/// # 参数
-/// * `manager` - `PersistenceManager` 的引用，用于数据持久化。
-/// * `key` - 要加载数据的键。
-///
-/// # 返回值
-/// 如果操作成功，返回 `Ok(Some(String))` 包含数据，如果键不存在则返回 `Ok(None)`；否则返回 `Err(CoreError)`。
 async fn load_data_example(manager: &PersistenceManager, key: &str) -> Result<Option<String>> {
     manager.get_data(key).await
 }
