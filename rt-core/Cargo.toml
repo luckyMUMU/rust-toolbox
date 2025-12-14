@@ -12,7 +12,6 @@ schemars = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
-tokio = { workspace = true, features = ["process", "io-util", "fs"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["v4", "serde"] }
 regex = "1.12.2"
@@ -28,3 +27,8 @@ sha2 = "0.10.9"
 hex = "0.4.3"
 wasmtime-wasi = "14.0.0"
 wasi-common = "14.0.0"
+num_cpus = "1.16.0"
+rustc_version = "0.4.0"
+warp = "0.3.7"
+tokio = { workspace = true, features = ["process", "io-util", "fs", "sync", "time", "net"] }
+futures-util = "0.3.31"

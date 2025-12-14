@@ -125,4 +125,58 @@ impl Tool for ProcessPlugin {
 
         Ok(result)
     }
+    
+    fn mcp_supported(&self) -> bool {
+        self.metadata.mcp_supported
+    }
+    
+    async fn run_with_context(&self, request: crate::mcp::McpRequest) -> Result<crate::mcp::McpResponse> {
+        if self.metadata.mcp_supported {
+            // 使用 MCP 模式运行插件
+            let mut child = Command::new(&self.path)
+                .arg("run-with-context")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .map_err(|e| CoreError::ToolFailure(format!("Failed to spawn plugin: {}", e)))?;
+
+            let input_str = serde_json::to_string(&request)
+                .map_err(|e| CoreError::ToolFailure(format!("Failed to serialize MCP request: {}", e)))?;
+            
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(input_str.as_bytes()).await
+                    .map_err(|e| CoreError::ToolFailure(format!("Failed to write to plugin stdin: {}", e)))?;
+            }
+
+            let output = child.wait_with_output().await
+                .map_err(|e| CoreError::ToolFailure(format!("Failed to wait for plugin: {}", e)))?;
+
+            if !output.status.success() {
+                 return Err(CoreError::ToolFailure(format!(
+                    "Plugin execution failed with status: {}", 
+                    output.status
+                )));
+            }
+
+            let result: crate::mcp::McpResponse = serde_json::from_slice(&output.stdout)
+                .map_err(|e| CoreError::ToolFailure(format!("Failed to parse plugin MCP response: {}", e)))?;
+
+            Ok(result)
+        } else {
+            // 回退到默认实现 - 修复借用问题，先克隆需要的字段
+            let params = request.params.clone();
+            let request_copy = request.clone();
+            let context = request.context;
+            
+            let result = self.run(params).await?;
+            
+            Ok(crate::mcp::McpResponse::success_from_request(
+                &request_copy,
+                result,
+                context,
+                None,
+            ))
+        }
+    }
 }

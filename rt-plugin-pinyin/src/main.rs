@@ -154,6 +154,7 @@ async fn main() -> anyhow::Result<()> {
                 output_fields: Some(i18n::get_output_field_map()),
                 author: None,
                 version: None,
+                ..Default::default()
             };
             println!("{}", serde_json::to_string_pretty(&metadata)?);
         }

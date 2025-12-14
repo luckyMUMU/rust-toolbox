@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::error::{CoreError, Result};
 use crate::tool::Tool;
 use crate::Locale;
+
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use regex::Regex;
@@ -83,6 +84,7 @@ pub struct WorkflowInstance {
     pub status: WorkflowStatus,
     pub node_states: HashMap<String, NodeExecutionState>,
     pub context: HashMap<String, Value>,
+    pub mcp_context: Option<crate::mcp::McpContext>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -265,34 +267,80 @@ impl InMemoryWorkflowEngine {
                     }
                 }
 
-                // Prepare input (needs read lock for context)
-                let input_result = {
+                // Prepare input and MCP context (needs read lock for context)
+                let (input_result, mcp_context_opt) = {
                     let r = instance_lock.read().await;
-                    Self::resolve_inputs(&node, &r.context)
+                    let input = Self::resolve_inputs(&node, &r.context);
+                    let mcp_context = r.mcp_context.clone();
+                    (input, mcp_context)
                 };
 
+                let node_id = node.id.clone();
                 handles.push(tokio::spawn(async move {
                     let res = match input_result {
                         Ok(input) => {
-                             if let Some(tool) = tools_clone.get(&node.tool_name) {
-                                 tool.run(input).await
-                             } else {
-                                 Err(CoreError::ConfigError(format!("Tool not found: {}", node.tool_name)))
-                             }
+                            let tools_clone = tools_clone;
+                            let mcp_context_opt = mcp_context_opt;
+                            let node = node;
+                            async move {
+                                 if let Some(tool) = tools_clone.get(&node.tool_name) {
+                                     if tool.mcp_supported() && mcp_context_opt.is_some() {
+                                         // 使用 MCP 上下文执行工具
+                                         let mcp_context = mcp_context_opt.unwrap();
+                                         let service_context = crate::service::ServiceContext {
+                                             caller_id: "workflow_engine".to_string(),
+                                             caller_type: crate::service::CallerType::System,
+                                             permission_level: crate::service::PermissionLevel::Admin,
+                                             extra: serde_json::json!({}),
+                                         };
+                                          
+                                         let mcp_request = crate::mcp::McpRequest::new_tool_call(
+                                             node.tool_name.clone(),
+                                             input.clone(),
+                                             mcp_context,
+                                             crate::mcp::request::McpServiceContext {
+                                                 caller_id: service_context.caller_id.clone(),
+                                                 caller_type: service_context.caller_type,
+                                                 permission_level: service_context.permission_level,
+                                                 extra: service_context.extra,
+                                             }
+                                         );
+                                          
+                                         let mcp_response = tool.run_with_context(mcp_request).await;
+                                         match mcp_response {
+                                             Ok(resp) => Ok((resp.data.unwrap_or(serde_json::json!({})), Some(resp.context))),
+                                             Err(e) => Err(e)
+                                         }
+                                     } else {
+                                         // 普通执行模式
+                                         let output = tool.run(input.clone()).await;
+                                         match output {
+                                             Ok(out) => Ok((out, None)),
+                                             Err(e) => Err(e)
+                                         }
+                                     }
+                                 } else {
+                                     Err(CoreError::ConfigError(format!("Tool not found: {}", node.tool_name)))
+                                 }
+                            }.await
                         },
                         Err(e) => Err(e),
                     };
 
                     // Update state
                     let mut w = inst_lock_clone.write().await;
-                    if let Some(s) = w.node_states.get_mut(&node.id) {
+                    if let Some(s) = w.node_states.get_mut(&node_id) {
                         s.end_time = Some(Utc::now());
                         match res {
-                            Ok(output) => {
+                            Ok((output, updated_mcp_context)) => {
                                 s.status = NodeStatus::Completed;
                                 s.output = Some(output.clone());
                                 // Update context
-                                w.context.insert(node.id.clone(), output);
+                                w.context.insert(node_id.clone(), output);
+                                // Update MCP context if provided
+                                if let Some(mcp_context) = updated_mcp_context {
+                                    w.mcp_context = Some(mcp_context);
+                                }
                             }
                             Err(e) => {
                                 s.status = NodeStatus::Failed(e.to_string());
@@ -436,12 +484,16 @@ impl WorkflowEngine for InMemoryWorkflowEngine {
             node_states.insert(node.id.clone(), NodeExecutionState::default());
         }
 
+        // 初始化 MCP 上下文
+        let mcp_context = Some(crate::mcp::McpContext::new());
+
         let instance = WorkflowInstance {
             id: id.clone(),
             def,
             status: WorkflowStatus::Running,
             node_states,
             context: HashMap::new(),
+            mcp_context,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

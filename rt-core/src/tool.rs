@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use crate::error::Result;
 use crate::locale::Locale;
+use crate::mcp::{McpRequest, McpResponse};
 
 #[async_trait]
 pub trait Tool: Send + Sync {
@@ -29,4 +30,48 @@ pub trait Tool: Send + Sync {
 
     /// 执行逻辑
     async fn run(&self, input: Value) -> Result<Value>;
+    
+    /// 是否支持 MCP
+    fn mcp_supported(&self) -> bool {
+        false
+    }
+    
+    /// 使用 MCP 上下文执行工具
+    async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse> {
+        // 默认实现：不使用上下文，直接调用 run 方法
+        let params = request.params.clone();
+        let request_copy = request.clone();
+        let context = request.context;
+        
+        let result = self.run(params).await?;
+        
+        Ok(McpResponse::success_from_request(
+            &request_copy,
+            result,
+            context,
+            None,
+        ))
+    }
+}
+
+/// MCP 工具 trait，扩展 Tool trait，提供 MCP 特定功能
+#[async_trait]
+pub trait McpTool: Tool {
+    /// 获取 MCP 能力描述
+    fn get_mcp_capabilities(&self) -> Value {
+        serde_json::json!({})
+    }
+    
+    /// 获取 MCP 上下文验证规则
+    fn get_context_validation_rules(&self) -> Value {
+        serde_json::json!({})
+    }
+    
+    /// 是否需要完整上下文
+    fn requires_full_context(&self) -> bool {
+        false
+    }
+    
+    /// 执行逻辑（带 MCP 上下文）
+    async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
 }

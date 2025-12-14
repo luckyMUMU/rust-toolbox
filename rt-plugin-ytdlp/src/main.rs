@@ -237,6 +237,7 @@ fn print_spec(locale: &str) {
         output_fields: Some(i18n::get_output_field_map()),
         version: Some(env!("CARGO_PKG_VERSION").to_string()),
         author: Some(env!("CARGO_PKG_AUTHORS").to_string()),
+        ..Default::default()
     };
 
     let spec_json = serde_json::to_string_pretty(&metadata).unwrap();
