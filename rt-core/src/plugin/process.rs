@@ -14,6 +14,7 @@ pub struct ProcessPlugin {
 }
 
 impl ProcessPlugin {
+    /// 创建单个插件实例
     pub async fn new(path: PathBuf) -> Result<Self> {
         // Run `spec` command to get metadata
         let output = Command::new(&path)
@@ -29,13 +30,61 @@ impl ProcessPlugin {
             )));
         }
 
-        let metadata: PluginMetadata = serde_json::from_slice(&output.stdout)
-            .map_err(|e| CoreError::ToolFailure(format!("Failed to parse plugin metadata: {}", e)))?;
+        // 首先尝试解析为单个对象
+        match serde_json::from_slice::<PluginMetadata>(&output.stdout) {
+            Ok(metadata) => {
+                // 单个工具插件
+                Ok(Self {
+                    path,
+                    metadata,
+                })
+            },
+            Err(e) => {
+                // 如果单个对象解析失败，尝试解析为数组
+                let error_msg = format!("Failed to parse plugin metadata: {}", e);
+                Err(CoreError::ToolFailure(error_msg))
+            },
+        }
+    }
+    
+    /// 从插件输出中提取所有工具元数据
+    pub async fn extract_all_metadata(path: &PathBuf) -> Result<Vec<PluginMetadata>> {
+        // Run `spec` command to get metadata
+        let output = Command::new(path)
+            .arg("spec")
+            .output()
+            .await
+            .map_err(|e| CoreError::ToolFailure(format!("Failed to execute plugin spec for {:?}: {}", path, e)))?;
 
-        Ok(Self {
+        if !output.status.success() {
+             return Err(CoreError::ToolFailure(format!(
+                "Plugin spec failed for {:?} with status: {}", 
+                path, output.status
+            )));
+        }
+
+        // 首先尝试解析为数组
+        match serde_json::from_slice::<Vec<PluginMetadata>>(&output.stdout) {
+            Ok(metadata_list) => {
+                // 多个工具插件
+                Ok(metadata_list)
+            },
+            Err(_) => {
+                // 如果数组解析失败，尝试解析为单个对象
+                let metadata = serde_json::from_slice(&output.stdout)
+                    .map_err(|e| CoreError::ToolFailure(format!("Failed to parse plugin metadata: {}", e)))?;
+                // 返回包含单个工具的列表
+                Ok(vec![metadata])
+            },
+        }
+    }
+    
+    /// 根据元数据和插件路径创建插件实例
+    pub fn from_metadata(metadata: PluginMetadata, path: PathBuf) -> Self {
+        Self {
             path,
             metadata,
-        })
+        }
     }
 }
 

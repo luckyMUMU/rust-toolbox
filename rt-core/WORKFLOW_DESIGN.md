@@ -153,13 +153,114 @@ pub trait WorkflowEngine: Send + Sync {
 ### 4.2 MCP 支持
 工作流引擎支持 Model Context Protocol (MCP)，允许插件与工具通过标准化协议交互。插件只需实现 `rt-core::Tool` trait 并遵循标准协议，即可无缝集成到工作流中。
 
-### 4.3 最佳实践
-1.  **原子性**: 插件应只做一件事，便于在工作流中组合。
+### 4.3 多工具插件支持
+
+#### 4.3.1 概述
+插件系统支持单个插件提供多个工具，通过 `spec` 命令输出工具元数据列表来实现。
+
+#### 4.3.2 输出格式
+插件的 `spec` 命令支持两种输出格式：
+- **单个工具**（向后兼容）：单个 JSON 对象
+- **多个工具**：JSON 数组，包含多个工具元数据对象
+
+#### 4.3.3 工具元数据列表格式
+```json
+[
+  {
+    "name": "tool1.name",
+    "display_name": { "en": "Tool 1", "zh": "工具1" },
+    "description": { "en": "Tool 1 Description", "zh": "工具1描述" },
+    "user_guide": { "en": "Guide", "zh": "指南" },
+    "input_schema": {...},
+    "output_schema": {...},
+    "input_fields": {...},
+    "output_fields": {...},
+    "mcp_supported": false,
+    "mcp_capabilities": {},
+    "requires_full_context": false,
+    "context_validation_rules": {}
+  },
+  {
+    "name": "tool2.name",
+    "display_name": { "en": "Tool 2", "zh": "工具2" },
+    "description": { "en": "Tool 2 Description", "zh": "工具2描述" },
+    "user_guide": { "en": "Guide", "zh": "指南" },
+    "input_schema": {...},
+    "output_schema": {...},
+    "input_fields": {...},
+    "output_fields": {...},
+    "mcp_supported": false,
+    "mcp_capabilities": {},
+    "requires_full_context": false,
+    "context_validation_rules": {}
+  }
+]
+```
+
+### 4.4 最佳实践
+1.  **原子性**: 插件应只做一件事，便于在工作流中组合。对于相关工具，可考虑使用多工具插件模式。
 2.  **结构化输出**: 输出必须是扁平或层级清晰的 JSON，便于后续节点通过 JSON Path 引用。
 3.  **错误处理**: 插件失败应返回非零退出码，引擎会自动捕获并标记节点失败。
 4.  **MCP 兼容性**: 对于支持 MCP 的插件，确保输出格式符合 MCP 规范，便于上下文传递。
+5.  **工具分组**: 相关工具应放在同一插件中，便于维护和更新。
+6.  **命名规范**: 工具名使用 `category.tool` 格式，如 `file.duplicates`、`file.similar_images`。
+7.  **输出一致性**: 同一插件的工具输出格式应保持一致，便于用户理解。
 
-### 4.3 示例
+### 4.5 示例
+
+#### 4.5.1 单个工具插件输出
+```json
+{
+  "name": "http.get",
+  "display_name": { "en": "HTTP Get", "zh": "HTTP 获取" },
+  "description": { "en": "Send HTTP GET request", "zh": "发送 HTTP GET 请求" },
+  "user_guide": { "en": "Guide", "zh": "指南" },
+  "input_schema": {...},
+  "output_schema": {...},
+  "input_fields": {...},
+  "output_fields": {...},
+  "mcp_supported": false,
+  "mcp_capabilities": {},
+  "requires_full_context": false,
+  "context_validation_rules": {}
+}
+```
+
+#### 4.5.2 多工具插件输出
+```json
+[
+  {
+    "name": "file.duplicates",
+    "display_name": { "en": "Duplicate Files", "zh": "重复文件" },
+    "description": { "en": "Find duplicate files", "zh": "查找重复文件" },
+    "user_guide": { "en": "Guide", "zh": "指南" },
+    "input_schema": {...},
+    "output_schema": {...},
+    "input_fields": {...},
+    "output_fields": {...},
+    "mcp_supported": false,
+    "mcp_capabilities": {},
+    "requires_full_context": false,
+    "context_validation_rules": {}
+  },
+  {
+    "name": "file.similar_images",
+    "display_name": { "en": "Similar Images", "zh": "相似图片" },
+    "description": { "en": "Find similar images", "zh": "查找相似图片" },
+    "user_guide": { "en": "Guide", "zh": "指南" },
+    "input_schema": {...},
+    "output_schema": {...},
+    "input_fields": {...},
+    "output_fields": {...},
+    "mcp_supported": false,
+    "mcp_capabilities": {},
+    "requires_full_context": false,
+    "context_validation_rules": {}
+  }
+]
+```
+
+#### 4.5.3 工具引用示例
 假设有一个 `http.get` 插件：
 ```json
 // Output

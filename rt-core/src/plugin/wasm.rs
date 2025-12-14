@@ -26,9 +26,51 @@ impl WasmPlugin {
             return Err(CoreError::ToolFailure(format!("Plugin spec returned empty output for {:?}", path)));
         }
         
-        let metadata: PluginMetadata = serde_json::from_value(metadata_val)
-            .map_err(|e| CoreError::ToolFailure(format!("Failed to parse metadata: {}", e)))?;
-        Ok(Self { path, metadata })
+        // 首先尝试解析为单个对象
+        match serde_json::from_value::<PluginMetadata>(metadata_val.clone()) {
+            Ok(metadata) => {
+                // 单个工具插件
+                Ok(Self { path, metadata })
+            },
+            Err(e) => {
+                // 如果单个对象解析失败，尝试解析为数组
+                let error_msg = format!("Failed to parse plugin metadata: {}", e);
+                Err(CoreError::ToolFailure(error_msg))
+            },
+        }
+    }
+    
+    /// 从插件输出中提取所有工具元数据
+    pub async fn extract_all_metadata(path: &PathBuf) -> Result<Vec<PluginMetadata>> {
+        // Run spec
+        let metadata_val = Self::run_wasm(path, vec!["spec".to_string()], None).await?;
+        // If null (empty output), fail
+        if metadata_val == Value::Null {
+            return Err(CoreError::ToolFailure(format!("Plugin spec returned empty output for {:?}", path)));
+        }
+        
+        // 首先尝试解析为数组
+        match serde_json::from_value::<Vec<PluginMetadata>>(metadata_val.clone()) {
+            Ok(metadata_list) => {
+                // 多个工具插件
+                Ok(metadata_list)
+            },
+            Err(_) => {
+                // 如果数组解析失败，尝试解析为单个对象
+                let metadata: PluginMetadata = serde_json::from_value(metadata_val)
+                    .map_err(|e| CoreError::ToolFailure(format!("Failed to parse plugin metadata: {}", e)))?;
+                // 返回包含单个工具的列表
+                Ok(vec![metadata])
+            },
+        }
+    }
+    
+    /// 根据元数据和插件路径创建插件实例
+    pub fn from_metadata(metadata: PluginMetadata, path: PathBuf) -> Self {
+        Self {
+            path,
+            metadata,
+        }
     }
 
     async fn run_wasm(path: &PathBuf, args: Vec<String>, input: Option<String>) -> Result<Value> {

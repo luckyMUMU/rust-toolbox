@@ -83,38 +83,43 @@ impl PluginManager {
 }
 
 async fn load_plugins_internal(plugin_dir: &Path) -> Vec<Box<dyn Tool>> {
-    let mut plugins = Vec::new();
+    let mut plugins: Vec<Box<dyn Tool>> = Vec::new();
     
     if let Ok(mut entries) = tokio::fs::read_dir(plugin_dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             if path.is_file() {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    let tool: Option<Box<dyn Tool>> = if file_name.ends_with(".wasm") {
-                        match WasmPlugin::new(path.clone()).await {
-                            Ok(t) => Some(Box::new(t)),
-                            Err(e) => {
-                                warn!("Failed to load Wasm plugin {:?}: {}", path, e);
-                                None
+                    if file_name.ends_with(".wasm") {
+                    // 处理Wasm插件，支持多工具
+                    match WasmPlugin::extract_all_metadata(&path).await {
+                        Ok(metadata_list) => {
+                            // 为每个元数据创建一个插件实例
+                            for metadata in metadata_list {
+                                let plugin = WasmPlugin::from_metadata(metadata, path.clone());
+                                info!("Loaded plugin: {}, MCP supported: {}", plugin.name(), plugin.mcp_supported());
+                                plugins.push(Box::new(plugin));
                             }
+                        },
+                        Err(e) => {
+                            warn!("Failed to load Wasm plugin {:?}: {}", path, e);
                         }
-                    } else if file_name.starts_with("rt-plugin-") {
-                         match ProcessPlugin::new(path.clone()).await {
-                            Ok(t) => {
-                                info!("Loaded plugin: {}, MCP supported: {}", t.name(), t.mcp_supported());
-                                Some(Box::new(t))
+                    }
+                } else if file_name.starts_with("rt-plugin-") {
+                        // 处理进程插件，支持多工具
+                        match ProcessPlugin::extract_all_metadata(&path).await {
+                            Ok(metadata_list) => {
+                                // 为每个元数据创建一个插件实例
+                                for metadata in metadata_list {
+                                    let plugin = ProcessPlugin::from_metadata(metadata, path.clone());
+                                    info!("Loaded plugin: {}, MCP supported: {}", plugin.name(), plugin.mcp_supported());
+                                    plugins.push(Box::new(plugin));
+                                }
                             },
                             Err(e) => {
                                 warn!("Failed to load Process plugin {:?}: {}", path, e);
-                                None
                             }
                         }
-                    } else {
-                        None
-                    };
-
-                    if let Some(tool) = tool {
-                        plugins.push(tool);
                     }
                 }
             }
