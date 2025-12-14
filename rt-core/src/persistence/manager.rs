@@ -89,6 +89,56 @@ impl PersistenceManager {
     pub async fn create_temp_dir(&self) -> Result<TempDir> {
         tempfile::tempdir().map_err(|e| CoreError::ConfigError(format!("Failed to create temp dir: {}", e)))
     }
+    
+    /// 创建本地文件
+    /// 
+    /// # 参数
+    /// * `path` - 文件路径
+    /// * `content` - 初始内容（可选）
+    /// 
+    /// # 返回值
+    /// * `Ok(())` - 文件创建成功
+    /// * `Err(CoreError)` - 文件创建失败，包含具体错误信息
+    pub async fn create_file(&self, path: &std::path::Path, content: Option<&str>) -> Result<()> {
+        crate::persistence::file_ops::create_file(path, content).await
+    }
+    
+    /// 读取本地文件
+    /// 
+    /// # 参数
+    /// * `path` - 文件路径
+    /// 
+    /// # 返回值
+    /// * `Ok((String, String))` - 成功读取文件，返回文件内容和编码格式
+    /// * `Err(CoreError)` - 文件读取失败，包含具体错误信息
+    pub async fn read_file(&self, path: &std::path::Path) -> Result<(String, String)> {
+        crate::persistence::file_ops::read_file(path).await
+    }
+    
+    /// 更新本地文件（使用双缓冲区安全机制）
+    /// 
+    /// # 参数
+    /// * `path` - 文件路径
+    /// * `content` - 新内容
+    /// 
+    /// # 返回值
+    /// * `Ok(())` - 文件更新成功
+    /// * `Err(CoreError)` - 文件更新失败，包含具体错误信息
+    pub async fn update_file(&self, path: &std::path::Path, content: &str) -> Result<()> {
+        crate::persistence::file_ops::update_file(path, content).await
+    }
+    
+    /// 删除本地文件
+    /// 
+    /// # 参数
+    /// * `path` - 文件路径
+    /// 
+    /// # 返回值
+    /// * `Ok(())` - 文件删除成功
+    /// * `Err(CoreError)` - 文件删除失败，包含具体错误信息
+    pub async fn delete_file(&self, path: &std::path::Path) -> Result<()> {
+        crate::persistence::file_ops::delete_file(path).await
+    }
 }
 
 #[cfg(test)]

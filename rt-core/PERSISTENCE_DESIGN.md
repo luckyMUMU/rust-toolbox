@@ -1,8 +1,8 @@
 # Persistence Module Design Document
 
 ## 1. 模块概述 (Module Overview)
-持久化模块 (`rt-core::persistence`) 旨在为工具箱提供统一的数据存储、缓存和配置管理服务。
-该模块采用分层设计，结合了内存缓存 (`moka`) 和嵌入式 KV 数据库 (`sled`)，并支持数据压缩 (`zstd`) 和高效序列化 (`bincode`)。
+持久化模块 (`rt-core::persistence`) 旨在为工具箱提供统一的数据存储、缓存、配置管理和文件操作服务。
+该模块采用分层设计，结合了内存缓存 (`moka`) 和嵌入式 KV 数据库 (`sled`)，并支持数据压缩 (`zstd`) 和高效序列化 (`bincode`)，同时提供了安全可靠的本地文件操作功能。
 
 ## 2. 技术选型 (Tech Stack)
 - **配置管理**: `confy` (简化 TOML/YAML 配置文件的读写)
@@ -31,15 +31,17 @@ graph TD
         
         API -->|Config| ConfigMgr[Config Manager (confy)]
         API -->|Temp| TempMgr[Temp File Manager]
+        API -->|File Ops| FileOps[File Operations]
     end
 ```
 
 ### 3.1 核心组件
-1.  **PersistenceManager**: 对外暴露的统一入口，封装缓存、存储和配置逻辑。
+1.  **PersistenceManager**: 对外暴露的统一入口，封装缓存、存储、配置和文件操作逻辑。
 2.  **CacheLayer**: 基于 `moka` 的异步缓存，处理热点数据。
 3.  **StorageBackend**: 抽象存储接口，默认实现为 `SledBackend`。
 4.  **ConfigManager**: 封装 `confy`，提供类型安全的配置读写。
-5.  **MCP 支持**: 持久化模块支持 Model Context Protocol (MCP)，允许工具和插件通过标准化协议交互。
+5.  **FileOperations**: 提供安全可靠的本地文件操作功能，包括文件创建、读取、更新和删除。
+6.  **MCP 支持**: 持久化模块支持 Model Context Protocol (MCP)，允许工具和插件通过标准化协议交互。
 
 ## 4. 接口设计 (Interface Design)
 
@@ -75,6 +77,18 @@ impl PersistenceManager {
     
     /// 创建临时目录 (自动清理)
     pub async fn create_temp_dir(&self) -> Result<TempDir>;
+    
+    /// 创建本地文件
+    pub async fn create_file(&self, path: &std::path::Path, content: Option<&str>) -> Result<()>;
+    
+    /// 读取本地文件
+    pub async fn read_file(&self, path: &std::path::Path) -> Result<(String, String)>;
+    
+    /// 更新本地文件（使用双缓冲区安全机制）
+    pub async fn update_file(&self, path: &std::path::Path, content: &str) -> Result<()>;
+    
+    /// 删除本地文件
+    pub async fn delete_file(&self, path: &std::path::Path) -> Result<()>;
 }
 ```
 

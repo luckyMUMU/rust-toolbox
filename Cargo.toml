@@ -6,7 +6,7 @@ members = [
     "rt-cli",
     "rt-gui",
     "rt-plugin-pinyin",
-    "rt-plugin-ytdlp",
+    "rt-plugin-ytdlp", "rt-plugin-czkawka",
 ]
 
 [workspace.dependencies]

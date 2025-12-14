@@ -6,6 +6,14 @@ use serde_json::{Value, json};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use std::time::SystemTime;
 
+// 导入布局管理器
+mod layout_manager;
+use layout_manager::{LayoutType, LayoutManager, render_schema};
+
+// 导入设置模块
+mod settings;
+use settings::{Settings, Theme};
+
 enum GuiMessage {
     Output(Value),
     Error(String),
@@ -33,6 +41,10 @@ struct Tab {
     output_schema: Option<Value>,
     /// 是否显示帮助
     show_help: bool,
+    /// 当前布局类型
+    layout_type: LayoutType,
+    /// 是否未读
+    unread: bool,
 }
 
 /// 工具分类
@@ -76,6 +88,14 @@ struct ToolkitApp {
     #[allow(dead_code)]
     show_sidebar: bool,
     sidebar_width: f32,
+    
+    // Settings
+    /// 应用配置
+    settings: Settings,
+    /// 是否显示设置页面
+    show_settings: bool,
+    /// 设置操作状态信息
+    settings_status: Option<(bool, String)>,
 }
 
 impl ToolCategory {
@@ -152,7 +172,17 @@ impl ToolkitApp {
         });
         
         let tools_arc = Arc::new(tools);
-        let locale = Locale::En;
+        
+        // 加载设置
+        let settings = match Settings::load() {
+            Ok(settings) => settings,
+            Err(e) => {
+                eprintln!("Failed to load settings: {}", e);
+                Settings::default()
+            }
+        };
+        
+        let locale = settings.display.locale;
         let tool_categories = categorize_tools(tools_arc.clone(), locale);
         
         let (tx, rx) = mpsc::channel();
@@ -168,7 +198,10 @@ impl ToolkitApp {
             rx,
             runtime,
             show_sidebar: true,
-            sidebar_width: 250.0,
+            sidebar_width: settings.display.sidebar_width,
+            settings,
+            show_settings: false,
+            settings_status: None,
         }
     }
 
@@ -238,6 +271,8 @@ impl ToolkitApp {
                 output_error: None,
                 output_schema: None,
                 show_help: false,
+                layout_type: LayoutType::default(),
+                unread: false,
             };
             
             self.tabs.push(tab);
@@ -274,173 +309,7 @@ impl ToolkitApp {
     }
 }
 
-// Recursive Schema Renderer
-fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only: bool, path: &str) {
-    if let Some(obj_type) = schema.get("type").and_then(|v| v.as_str()) {
-        match obj_type {
-            "object" => {
-                // 确保数据是对象类型，无论是否只读
-                if !data.is_object() {
-                    *data = json!({});
-                }
-                
-                if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
-                    for (key, prop_schema) in props {
-                        ui.horizontal(|ui| {
-                            // Use title if available, otherwise key
-                            let label_text = prop_schema.get("title")
-                                .and_then(|t| t.as_str())
-                                .unwrap_or(key);
-                                
-                            ui.label(label_text);
-                            
-                            // Ensure data has this key (only in edit mode)
-                            if !read_only && data.get(key).is_none() {
-                                // Initialize with safe default based on type
-                                let default = match prop_schema.get("type").and_then(|v| v.as_str()) {
-                                    Some("string") => json!(""),
-                                    Some("boolean") => json!(false),
-                                    Some("integer") | Some("number") => json!(0),
-                                    Some("object") => json!({}),
-                                    Some("array") => json!([]),
-                                    _ => json!(null),
-                                };
-                                data.as_object_mut().unwrap().insert(key.clone(), default);
-                            }
-                            
-                            // 确保数据是对象类型，避免崩溃
-                            if let Some(val) = data.get_mut(key) {
-                                let child_path = if path.is_empty() { key.clone() } else { format!("{}.{}", path, key) };
-                                render_schema(ui, prop_schema, val, read_only, &child_path);
-                            } else {
-                                ui.weak("(null)");
-                            }
-                        });
-                    }
-                }
-            },
-            "string" => {
-                // Check if this field has enum constraint
-                if let Some(enum_values) = schema.get("enum").and_then(|v| v.as_array()) {
-                    // Try to get labels
-                    let labels = schema.get("x-enum-labels").and_then(|v| v.as_object());
 
-                    // Render as ComboBox for enum fields
-                    if let Some(s) = data.as_str() {
-                        let original = s.to_string();  // Clone before closure
-                        let mut selected = original.clone();
-                        
-                        let current_label = labels
-                            .and_then(|l| l.get(&selected))
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| selected.clone());
-
-                        if read_only {
-                            ui.label(&current_label);
-                        } else {
-                            ui.push_id(path, |ui| {
-                                egui::ComboBox::from_id_salt(path)
-                                    .selected_text(&current_label)
-                                    .show_ui(ui, |ui| {
-                                        for enum_val in enum_values {
-                                            if let Some(val_str) = enum_val.as_str() {
-                                                let label = labels
-                                                    .and_then(|l| l.get(val_str))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or(val_str);
-                                                
-                                                ui.selectable_value(&mut selected, val_str.to_string(), label);
-                                            }
-                                        }
-                                    });
-                            });
-                            if selected != original {
-                                *data = json!(selected);
-                            }
-                        }
-                    } else {
-                        if !read_only { 
-                            // Initialize with first enum value
-                            if let Some(first) = enum_values.first().and_then(|v| v.as_str()) {
-                                *data = json!(first);
-                            }
-                        }
-                    }
-                } else {
-                    // Regular text input for non-enum strings
-                    if let Some(s) = data.as_str() {
-                        let mut text = s.to_string();
-                        if read_only {
-                             ui.label(text);
-                        } else {
-                            ui.push_id(path, |ui| {
-                                if ui.text_edit_singleline(&mut text).changed() {
-                                    *data = json!(text);
-                                }
-                            });
-                        }
-                    } else {
-                        // Force reset if type mismatch
-                        if !read_only { *data = json!(""); }
-                        else { ui.label("Invalid Type"); }
-                    }
-                }
-            },
-            "boolean" => {
-                if let Some(b) = data.as_bool() {
-                    let mut val = b;
-                    if read_only {
-                         ui.add_enabled(false, egui::Checkbox::new(&mut val, ""));
-                    } else {
-                        ui.push_id(path, |ui| {
-                            if ui.checkbox(&mut val, "").changed() {
-                                *data = json!(val);
-                            }
-                        });
-                    }
-                } else {
-                    if !read_only { *data = json!(false); }
-                }
-            },
-             "integer" | "number" => {
-                 let mut num = data.as_f64().unwrap_or(0.0);
-                 if read_only {
-                     ui.label(num.to_string());
-                 } else {
-                     ui.push_id(path, |ui| {
-                         if ui.add(egui::DragValue::new(&mut num)).changed() {
-                             *data = json!(num); 
-                         }
-                     });
-                 }
-            },
-            "array" => {
-                if !data.is_array() && !read_only { *data = json!([]); }
-                
-                if read_only {
-                    if let Some(arr) = data.as_array() {
-                        ui.label(format!("[{} items]", arr.len()));
-                    } else {
-                        ui.label("[]");
-                    }
-                } else {
-                    // 对于数组类型，目前只显示数组长度，不提供编辑功能
-                    if let Some(arr) = data.as_array() {
-                        ui.label(format!("[{} items]", arr.len()));
-                    } else {
-                        ui.label("[]");
-                    }
-                }
-            }
-            _ => {
-                ui.label(format!("Unsupported type: {}", obj_type));
-            }
-        }
-    } else {
-        ui.label("Invalid Schema");
-    }
-}
 
 impl ToolkitApp {
     /// 渲染多级工具分类菜单
@@ -662,11 +531,17 @@ impl ToolkitApp {
                             if let Some(tool) = tools_clone.get(&tab.tool_name) {
                                 tab.output_schema = Some(tool.output_schema(locale));
                             }
+                            
+                            // 如果当前标签页不是活动标签页，将其标记为未读
+                            tab.unread = true;
                         },
                         GuiMessage::Error(err) => {
                             let tab = &mut self.tabs[index];
                             tab.output_error = Some(err);
                             tab.output_value = None;
+                            
+                            // 如果当前标签页不是活动标签页，将其标记为未读
+                            tab.unread = true;
                         }
                     }
                 }
@@ -680,6 +555,11 @@ impl ToolkitApp {
             ui.horizontal(|ui| {
                 ui.label("Rust Toolbox");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // 设置按钮
+                    if ui.button("⚙️").clicked() {
+                        self.show_settings = !self.show_settings;
+                    }
+                    
                     egui::ComboBox::from_id_salt("locale_combo")
                         .selected_text(format!("{:?}", self.locale))
                         .show_ui(ui, |ui| {
@@ -691,6 +571,7 @@ impl ToolkitApp {
                             // 如果语言改变，更新所有标签页的 schema
                             if changed {
                                 self.locale = new_locale;
+                                self.settings.display.locale = new_locale;
                                 for tab in &mut self.tabs {
                                     if let Some(tool) = self.tools.get(&tab.tool_name) {
                                         tab.current_schema = Some(tool.input_schema(self.locale));
@@ -704,6 +585,9 @@ impl ToolkitApp {
                 });
             });
         });
+        
+        // 渲染设置页面
+        self.render_settings(ctx);
     }
     
     /// 渲染左侧面板：多级导航菜单
@@ -795,13 +679,23 @@ impl ToolkitApp {
             // 标签页列表
             let mut tabs_to_close = Vec::new();
             let mut new_active_index = self.active_tab_index;
+            let mut tabs_to_mark_read = Vec::new();
             
             for (index, tab) in self.tabs.iter().enumerate() {
                 ui.horizontal(|ui| {
                     // 标签页标题
                     let is_active = self.active_tab_index == Some(index);
-                    if ui.selectable_label(is_active, &tab.title).clicked() {
+                    
+                    // 如果是未读状态，添加未读指示
+                    let mut label_text = tab.title.clone();
+                    if tab.unread && !is_active {
+                        label_text = format!("{} ⭕", label_text);
+                    }
+                    
+                    if ui.selectable_label(is_active, &label_text).clicked() {
                         new_active_index = Some(index);
+                        // 记录需要标记为已读的标签页索引
+                        tabs_to_mark_read.push(index);
                     }
                     
                     // 关闭按钮
@@ -812,7 +706,16 @@ impl ToolkitApp {
             }
             
             // 更新活动标签页索引
-            self.active_tab_index = new_active_index;
+            if let Some(index) = new_active_index {
+                self.active_tab_index = Some(index);
+            }
+            
+            // 标记需要标记为已读的标签页
+            for index in tabs_to_mark_read {
+                if index < self.tabs.len() {
+                    self.tabs[index].unread = false;
+                }
+            }
             
             // 关闭需要关闭的标签页
             for index in tabs_to_close.iter().rev() {
@@ -830,10 +733,21 @@ impl ToolkitApp {
         let tool_name = tab.tool_name.clone();
         let tool_guide = self.tools.get(&tool_name).map(|t| t.user_guide(locale));
         
-        // 1. 渲染工具名称和帮助按钮
+        // 1. 渲染工具名称、帮助按钮和布局切换按钮
         ui.horizontal(|ui| {
             ui.heading(format!("{}", tab.title));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // 布局切换按钮
+                let mut layout_manager = LayoutManager::new();
+                layout_manager.current_layout = tab.layout_type;
+                layout_manager.render_layout_switcher(ui);
+                
+                // 更新标签页的布局类型
+                if layout_manager.current_layout != tab.layout_type {
+                    tab.layout_type = layout_manager.current_layout;
+                }
+                
+                // 帮助按钮
                 let help_label = if tab.show_help { self.tr("Hide Help") } else { self.tr("Show Help") };
                 if ui.button(help_label).clicked() {
                     tab.show_help = !tab.show_help;
@@ -863,69 +777,75 @@ impl ToolkitApp {
         
         // 使用卡片组件包装内容区域
         ui.group(|ui| {
-            egui::Grid::new("tab_content_grid")
-                .num_columns(2)
-                .spacing([10.0, 10.0])
-                .show(ui, |ui| {
-                    // 左侧：输入表单
-                    ui.vertical(|ui| {
-                        ui.heading(self.tr("Input"));
-                        if let Some(schema) = &current_schema {
+            // 创建布局管理器
+            let mut layout_manager = LayoutManager::new();
+            layout_manager.current_layout = tab.layout_type;
+            
+            // 渲染输入区域的闭包
+            let render_input = |ui: &mut egui::Ui| {
+                ui.heading(self.tr("Input"));
+                if let Some(schema) = &current_schema {
+                    egui::ScrollArea::vertical()
+                        .id_salt(format!("input_scroll_{}", tab_index))
+                        .show(ui, |ui| {
+                            render_schema(ui, schema, &mut input_value, false, "");
+                        });
+                }
+                
+                // Run button
+                if ui.button(self.tr("Run")).clicked() {
+                    run_button_clicked = true;
+                }
+            };
+            
+            // 渲染输出区域的闭包
+            let render_output = |ui: &mut egui::Ui| {
+                ui.heading(self.tr("Output"));
+                
+                if let Some(error) = &tab.output_error {
+                    ui.colored_label(egui::Color32::RED, error);
+                } else if let Some(val) = &tab.output_value {
+                        if let Some(schema) = &tab.output_schema {
                             egui::ScrollArea::vertical()
-                                .id_salt(format!("input_scroll_{}", tab_index))
+                                .id_salt(format!("output_scroll_{}", tab_index))
                                 .show(ui, |ui| {
-                                    render_schema(ui, schema, &mut input_value, false, "");
+                                    // 明确类型为Value
+                                    let mut output_val: Value = val.clone();
+                                    render_schema(ui, schema, &mut output_val, true, "");
                                 });
+                        } else {
+                            // 如果没有 schema，显示原始 JSON
+                            ui.add(egui::TextEdit::multiline(&mut serde_json::to_string_pretty(val).unwrap()).interactive(false));
                         }
-                        
-                        // Run button - 使用自定义按钮样式
-                        if ui.button(self.tr("Run")).clicked() {
-                            run_button_clicked = true;
-                        }
-                    });
-                    
-                    ui.separator();
-                    
-                    // 右侧：输出结果
-                    ui.vertical(|ui| {
-                        ui.heading(self.tr("Output"));
-                        
-                        if let Some(error) = &tab.output_error {
-                            ui.colored_label(egui::Color32::RED, error);
-                        } else if let Some(val) = &tab.output_value {
-                                if let Some(schema) = &tab.output_schema {
-                                    egui::ScrollArea::vertical()
-                                        .id_salt(format!("output_scroll_{}", tab_index))
-                                        .show(ui, |ui| {
-                                            // 明确类型为Value
-                                            let mut output_val: Value = val.clone();
-                                            render_schema(ui, schema, &mut output_val, true, "");
-                                        });
-                                } else {
-                                    // 如果没有 schema，显示原始 JSON
-                                    ui.add(egui::TextEdit::multiline(&mut serde_json::to_string_pretty(val).unwrap()).interactive(false));
-                                }
-                            } else {
-                                ui.label(self.tr("Ready"));
-                            }
-                    });
-                    
-                    ui.end_row();
-                });
+                    } else {
+                        ui.label(self.tr("Ready"));
+                    }
+            };
+            
+            // 渲染预览区域的闭包（可选）
+            let render_preview = Some(|ui: &mut egui::Ui| {
+                ui.heading(self.tr("Preview"));
+                ui.label("预览功能开发中...");
+            });
+            
+            // 使用布局管理器渲染内容
+            layout_manager.render_content(ui, render_input, render_output, render_preview);
         });
             
-            // 4. 渲染 Debug View - 使用卡片组件包装
-            ui.collapsing(self.tr("Raw JSON"), |ui| {
-                ui.group(|ui| {
-                    ui.label(serde_json::to_string_pretty(&input_value).unwrap_or_default());
-                });
+        // 4. 渲染 Debug View - 使用卡片组件包装
+        ui.collapsing(self.tr("Raw JSON"), |ui| {
+            ui.group(|ui| {
+                ui.label(serde_json::to_string_pretty(&input_value).unwrap_or_default());
             });
+        });
         
         // 5. 更新状态
         // 更新帮助显示状态
         self.tabs[tab_index].show_help = tab.show_help;
         // 更新输入值
         self.tabs[tab_index].input_value = input_value;
+        // 更新布局类型
+        self.tabs[tab_index].layout_type = tab.layout_type;
         
         // 6. 如果 Run 按钮被点击，执行工具
         if run_button_clicked {
@@ -953,6 +873,177 @@ impl ToolkitApp {
                 let _ = tx.send(result_msg);
                 ctx_clone.request_repaint(); 
             });
+        }
+    }
+    
+    /// 渲染设置页面
+    fn render_settings(&mut self, ctx: &egui::Context) {
+        if self.show_settings {
+            // 创建一个模态窗口
+            egui::Window::new("设置")
+                .resizable(true)
+                .default_width(600.0)
+                .default_height(500.0)
+                .show(ctx, |ui| {
+                    // 设置一个滚动区域
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        // 显示状态信息
+                        if let Some((success, message)) = &self.settings_status {
+                            let color = if *success {
+                                egui::Color32::GREEN
+                            } else {
+                                egui::Color32::RED
+                            };
+                            ui.colored_label(color, message);
+                        }
+                        
+                        // 显示偏好设置
+                        ui.heading("显示偏好");
+                        ui.group(|ui| {
+                            // 主题选择
+                            ui.horizontal(|ui| {
+                                ui.label("主题：");
+                                egui::ComboBox::from_id_salt("theme_combo")
+                                    .selected_text(self.settings.display.theme.display_name())
+                                    .show_ui(ui, |ui| {
+                                        for theme in Theme::all() {
+                                            ui.selectable_value(
+                                                &mut self.settings.display.theme,
+                                                theme,
+                                                theme.display_name()
+                                            );
+                                        }
+                                    });
+                            });
+                            
+                            // 字体大小
+                            ui.horizontal(|ui| {
+                                ui.label("字体大小：");
+                                let font_size = self.settings.display.font_size;
+                                ui.add(egui::Slider::new(&mut self.settings.display.font_size, 8.0..=32.0)
+                                    .text(format!("{:.1} px", font_size)));
+                            });
+                            
+                            // 侧边栏宽度
+                            ui.horizontal(|ui| {
+                                ui.label("侧边栏宽度：");
+                                let sidebar_width = self.settings.display.sidebar_width;
+                                ui.add(egui::Slider::new(&mut self.settings.display.sidebar_width, 100.0..=500.0)
+                                    .text(format!("{:.0} px", sidebar_width)));
+                            });
+                        });
+                        
+                        ui.separator();
+                        
+                        // 通知设置
+                        ui.heading("通知设置");
+                        ui.group(|ui| {
+                            ui.checkbox(&mut self.settings.notifications.task_completed, "工具运行完成通知");
+                            ui.checkbox(&mut self.settings.notifications.errors, "错误通知");
+                            ui.checkbox(&mut self.settings.notifications.warnings, "警告通知");
+                        });
+                        
+                        ui.separator();
+                        
+                        // 数据存储设置
+                        ui.heading("数据存储");
+                        ui.group(|ui| {
+                            // 插件目录
+                            ui.horizontal(|ui| {
+                                ui.label("插件目录：");
+                                ui.text_edit_singleline(&mut format!("{}", self.settings.data.plugins_dir.display()));
+                                if ui.button("选择").clicked() {
+                                    // 这里可以添加文件选择对话框
+                                }
+                            });
+                            
+                            // 日志目录
+                            ui.horizontal(|ui| {
+                                ui.label("日志目录：");
+                                ui.text_edit_singleline(&mut format!("{}", self.settings.data.logs_dir.display()));
+                                if ui.button("选择").clicked() {
+                                    // 这里可以添加文件选择对话框
+                                }
+                            });
+                            
+                            // 临时文件目录
+                            ui.horizontal(|ui| {
+                                ui.label("临时文件目录：");
+                                ui.text_edit_singleline(&mut format!("{}", self.settings.data.temp_dir.display()));
+                                if ui.button("选择").clicked() {
+                                    // 这里可以添加文件选择对话框
+                                }
+                            });
+                        });
+                        
+                        ui.separator();
+                        
+                        // 快捷键配置
+                        ui.heading("快捷键配置");
+                        ui.group(|ui| {
+                            ui.label("提示：重启应用后生效");
+                            ui.horizontal(|ui| {
+                                ui.label("新建标签页：");
+                                ui.text_edit_singleline(&mut self.settings.shortcuts.new_tab);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("关闭标签页：");
+                                ui.text_edit_singleline(&mut self.settings.shortcuts.close_tab);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("运行工具：");
+                                ui.text_edit_singleline(&mut self.settings.shortcuts.run_tool);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("显示/隐藏帮助：");
+                                ui.text_edit_singleline(&mut self.settings.shortcuts.toggle_help);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("显示/隐藏设置：");
+                                ui.text_edit_singleline(&mut self.settings.shortcuts.toggle_settings);
+                            });
+                        });
+                        
+                        ui.separator();
+                        
+                        // 操作按钮
+                        ui.horizontal(|ui| {
+                            // 恢复默认值按钮
+                            if ui.button("恢复默认值").clicked() {
+                                self.settings.reset_to_default();
+                                self.settings_status = Some((true, "已恢复默认设置".to_string()));
+                            }
+                            
+                            ui.add_space(10.0);
+                            
+                            // 保存设置按钮
+                            if ui.button(egui::RichText::new("保存设置").strong()).clicked() {
+                                match self.settings.validate() {
+                                    Ok(_) => {
+                                        if let Err(e) = self.settings.save() {
+                                            self.settings_status = Some((false, format!("保存失败：{}", e)));
+                                        } else {
+                                            self.settings_status = Some((true, "设置已保存".to_string()));
+                                            // 更新应用状态
+                                            self.locale = self.settings.display.locale;
+                                            self.sidebar_width = self.settings.display.sidebar_width;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        self.settings_status = Some((false, format!("验证失败：{}", e)));
+                                    }
+                                }
+                            }
+                            
+                            ui.add_space(10.0);
+                            
+                            // 关闭按钮
+                            if ui.button("关闭").clicked() {
+                                self.show_settings = false;
+                            }
+                        });
+                    });
+                });
         }
     }
 }

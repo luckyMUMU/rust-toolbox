@@ -1,0 +1,94 @@
+use super::*;
+use serde_json::json;
+
+/// 测试重复文件查找工具
+#[tokio::test]
+async fn test_duplicate_files_tool() {
+    let tool = DuplicateFilesTool;
+    let input = json!({
+        "directories": ["./test_data"],
+        "min_size": 0
+    });
+    
+    // 这里我们只测试工具能够正常执行，不验证实际结果
+    // 因为实际结果依赖于测试数据
+    let result = tool.run(input).await;
+    assert!(result.is_ok());
+}
+
+/// 测试相似图片查找工具
+#[tokio::test]
+async fn test_similar_images_tool() {
+    let tool = SimilarImagesTool;
+    let input = json!(
+        {
+        "directories": ["./test_data"],
+        "threshold": 90
+    });
+    
+    let result = tool.run(input).await;
+    assert!(result.is_ok());
+}
+
+/// 测试空目录查找工具
+#[tokio::test]
+async fn test_empty_directories_tool() {
+    let tool = EmptyDirectoriesTool;
+    let input = json!(
+        {
+        "directories": ["./test_data"]
+    });
+    
+    let result = tool.run(input).await;
+    assert!(result.is_ok());
+}
+
+/// 测试临时文件查找工具
+#[tokio::test]
+async fn test_temporary_files_tool() {
+    let tool = TemporaryFilesTool;
+    let input = json!(
+        {
+        "directories": ["./test_data"]
+    });
+    
+    let result = tool.run(input).await;
+    assert!(result.is_ok());
+}
+
+/// 测试损坏的符号链接查找工具
+#[tokio::test]
+async fn test_broken_symlinks_tool() {
+    let tool = BrokenSymlinksTool;
+    let input = json!(
+        {
+        "directories": ["./test_data"]
+    });
+    
+    let result = tool.run(input).await;
+    assert!(result.is_ok());
+}
+
+/// 测试工具工厂
+#[test]
+fn test_get_tool_by_name() {
+    // 测试获取重复文件工具
+    let tool = get_tool_by_name("file.duplicates");
+    assert_eq!(tool.name(), "file.duplicates");
+    
+    // 测试获取相似图片工具
+    let tool = get_tool_by_name("file.similar_images");
+    assert_eq!(tool.name(), "file.similar_images");
+    
+    // 测试获取空目录工具
+    let tool = get_tool_by_name("file.empty_directories");
+    assert_eq!(tool.name(), "file.empty_directories");
+    
+    // 测试获取临时文件工具
+    let tool = get_tool_by_name("file.temporary_files");
+    assert_eq!(tool.name(), "file.temporary_files");
+    
+    // 测试获取损坏的符号链接工具
+    let tool = get_tool_by_name("file.broken_symlinks");
+    assert_eq!(tool.name(), "file.broken_symlinks");
+}

@@ -4,8 +4,10 @@ use crate::error::Result;
 pub mod cache;
 pub mod sled_backend;
 pub mod manager;
+pub mod file_ops;
 
 pub use manager::PersistenceManager;
+pub use file_ops::*;
 
 /// Abstract storage backend interface
 #[async_trait]

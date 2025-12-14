@@ -15,6 +15,11 @@ All notable changes to this project will be documented in this file.
   - Added support for data compression (`zstd`) and serialization (`bincode`).
   - Added configuration management via `confy`.
   - Added temporary file management via `tempfile`.
+  - Added local file operations with safety mechanisms:
+    - `create_file`: Create files with error handling and permission checks.
+    - `read_file`: Read files with encoding detection.
+    - `update_file`: Update files with dual-buffer safety mechanism.
+    - `delete_file`: Delete files with existence checks.
 - **Workflow Engine**: Added `rt-core::workflow` for DAG-based task orchestration.
   - Implemented `InMemoryWorkflowEngine` with Tokio async runtime.
   - Added `workflow run` command to `rt-cli`.

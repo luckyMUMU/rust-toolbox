@@ -36,9 +36,24 @@ Rust Toolbox 是一个模块化的工具集合项目，旨在通过统一的接�
 ## 快速开始 (Getting Started)
 
 ### 构建项目
+
+#### 完整构建
 ```powershell
 cargo build
 ```
+
+#### 不编译插件的构建
+如果您只想构建核心功能而不编译插件，可以使用 `--workspace --exclude` 参数排除特定的插件包：
+
+```powershell
+# 不编译任何插件
+cargo build --workspace --exclude rt-plugin-pinyin --exclude rt-plugin-ytdlp
+
+# 仅构建核心库和 CLI
+cargo build --package rt-core --package rt-tools --package rt-cli
+```
+
+不编译插件可以加快构建速度，特别是在开发核心功能时。
 
 ### 运行测试
 ```powershell

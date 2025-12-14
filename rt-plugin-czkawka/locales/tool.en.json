@@ -1,0 +1,33 @@
+{
+  "display_name": "Czkawka Tools",
+  "description": "A collection of file management tools based on Czkawka",
+  "user_guide": "# Czkawka Tools\n\nThis plugin provides a collection of file management tools based on Czkawka, including duplicate file detection, similar image search, empty directory detection, temporary file detection, and broken symbolic link detection.",
+  "input_schema": {
+    "directories": { "title": "Directories" },
+    "min_size": { "title": "Minimum File Size (bytes)" },
+    "threshold": { "title": "Similarity Threshold (0-100)" }
+  },
+  "output_schema": {
+    "duplicate_groups": { "title": "Duplicate Groups" },
+    "similar_groups": { "title": "Similar Groups" },
+    "empty_directories": { "title": "Empty Directories" },
+    "temporary_files": { "title": "Temporary Files" },
+    "broken_symlinks": { "title": "Broken Symbolic Links" }
+  },
+  "extra": {
+    "tool_names": {
+      "file.duplicates": "Duplicate Files",
+      "file.similar_images": "Similar Images",
+      "file.empty_directories": "Empty Directories",
+      "file.temporary_files": "Temporary Files",
+      "file.broken_symlinks": "Broken Symbolic Links"
+    },
+    "tool_descriptions": {
+      "file.duplicates": "Find duplicate files in specified directories",
+      "file.similar_images": "Find visually similar images",
+      "file.empty_directories": "Find empty directories",
+      "file.temporary_files": "Find temporary files",
+      "file.broken_symlinks": "Find broken symbolic links"
+    }
+  }
+}

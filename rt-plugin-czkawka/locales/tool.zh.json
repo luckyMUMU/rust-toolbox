@@ -1,0 +1,33 @@
+{
+  "display_name": "Czkawka 工具集",
+  "description": "基于 Czkawka 的文件管理工具集合",
+  "user_guide": "# Czkawka 工具集\n\n该插件提供了基于 Czkawka 的文件管理工具集合，包括重复文件检测、相似图片搜索、空目录检测、临时文件检测和损坏符号链接检测。",
+  "input_schema": {
+    "directories": { "title": "目录" },
+    "min_size": { "title": "最小文件大小（字节）" },
+    "threshold": { "title": "相似度阈值（0-100）" }
+  },
+  "output_schema": {
+    "duplicate_groups": { "title": "重复文件组" },
+    "similar_groups": { "title": "相似文件组" },
+    "empty_directories": { "title": "空目录" },
+    "temporary_files": { "title": "临时文件" },
+    "broken_symlinks": { "title": "损坏的符号链接" }
+  },
+  "extra": {
+    "tool_names": {
+      "file.duplicates": "重复文件",
+      "file.similar_images": "相似图片",
+      "file.empty_directories": "空目录",
+      "file.temporary_files": "临时文件",
+      "file.broken_symlinks": "损坏的符号链接"
+    },
+    "tool_descriptions": {
+      "file.duplicates": "在指定目录中查找重复文件",
+      "file.similar_images": "查找视觉相似的图片",
+      "file.empty_directories": "查找空目录",
+      "file.temporary_files": "查找临时文件",
+      "file.broken_symlinks": "查找损坏的符号链接"
+    }
+  }
+}
