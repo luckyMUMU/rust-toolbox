@@ -124,55 +124,159 @@ cargo run --bin rt-cli -- list
 
 **示例 1: 运行 `file.move_folder` 工具**
 ```powershell
-cargo run --bin rt-cli -- run file.move_folder --input '{\"source\": \"./tmp/a\", \"destination\": \"./tmp/b\"}'
+cargo run --bin rt-cli -- run file.move_folder --input '{"source": "./tmp/a", "destination": "./tmp/b"}'
 ```
 *注意：在 PowerShell 中输入 JSON 字符串时，建议使用单引号包裹，避免转义问题。*
 
 **示例 2: 运行 `text.pinyin` 工具**
 ```powershell
-cargo run --bin rt-cli -- run text.pinyin --input '{\"text\": \"你好世界\", \"tone\": true}'
+cargo run --bin rt-cli -- run text.pinyin --input '{"text": "你好世界", "tone": true}'
 ```
 
-#### 运行工作流
+#### 工作流管理
+
+##### 运行工作流
 ```powershell
 cargo run --bin rt-cli -- workflow run ./my_workflow.json
 ```
 
-**工作流示例 (my_workflow.json):**
+##### 查看工作流状态
+```powershell
+cargo run --bin rt-cli -- workflow status <instance_id>
+```
+
+##### 暂停工作流
+```powershell
+cargo run --bin rt-cli -- workflow pause <instance_id>
+```
+
+##### 停止工作流
+```powershell
+cargo run --bin rt-cli -- workflow stop <instance_id>
+```
+
+### 4.2 工作流定义
+
+工作流定义采用 JSON 格式，包含节点、边和元数据。每个节点代表一个工具调用，边定义了节点之间的依赖关系。
+
+#### 工作流定义示例
 ```json
 {
-  "name": "example_workflow",
+  "id": "example_workflow",
+  "name": "示例工作流",
   "description": "一个示例工作流，展示了工具链的编排",
-  "tasks": {
-    "task1": {
-      "tool": "text.pinyin",
-      "input": {
+  "nodes": [
+    {
+      "id": "task1",
+      "tool_name": "text.pinyin",
+      "label": "中文转拼音",
+      "input_mappings": {},
+      "static_inputs": {
         "text": "你好世界",
         "tone": false
       }
     },
-    "task2": {
-      "tool": "file.move_folder",
-      "input": {
-        "source": "./tmp/source",
+    {
+      "id": "task2",
+      "tool_name": "file.move_folder",
+      "label": "移动文件夹",
+      "input_mappings": {
+        "source": "{{ task1.output.pinyin }}"
+      },
+      "static_inputs": {
         "destination": "./tmp/destination",
         "overwrite": true
       }
     }
-  },
-  "dependencies": {
-    "task2": ["task1"]
-  }
+  ],
+  "edges": [
+    {
+      "from": "task1",
+      "to": "task2"
+    }
+  ]
 }
 ```
 
-这个工作流定义了两个任务：
-1. `task1`: 使用 `text.pinyin` 工具将中文文本转换为拼音
-2. `task2`: 使用 `file.move_folder` 工具移动文件夹
+#### 工作流定义字段说明
 
-依赖关系 `task2: ["task1"]` 表示 `task2` 将在 `task1` 完成后执行。
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `id` | 字符串 | 工作流唯一标识符 |
+| `name` | 字符串 | 工作流名称 |
+| `description` | 字符串 | 工作流描述 |
+| `nodes` | 数组 | 工作流节点列表 |
+| `edges` | 数组 | 工作流边列表，定义节点间依赖关系 |
 
-### 4.2 图形界面 (GUI) - `rt-gui`
+#### 节点字段说明
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `id` | 字符串 | 节点唯一标识符 |
+| `tool_name` | 字符串 | 要调用的工具名称（如 `text.pinyin`） |
+| `label` | 字符串 | 节点显示标签（可选） |
+| `input_mappings` | 对象 | 输入字段映射，键为输入字段名，值为表达式（如 `{{ task1.output.pinyin }}`） |
+| `static_inputs` | 对象 | 静态输入参数，直接传递给工具 |
+
+#### 边字段说明
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `from` | 字符串 | 源节点 ID |
+| `to` | 字符串 | 目标节点 ID |
+
+### 4.3 数据传递与表达式
+
+工作流引擎支持通过表达式在节点间传递数据。表达式使用 `{{ node_id.output.field_path }}` 格式，其中：
+- `node_id` 是源节点的 ID
+- `field_path` 是源节点输出 JSON 中的字段路径
+
+#### 示例：使用表达式传递数据
+
+```json
+{
+  "nodes": [
+    {
+      "id": "http_get",
+      "tool_name": "http.get",
+      "static_inputs": {
+        "url": "https://api.example.com/user/123"
+      }
+    },
+    {
+      "id": "file_write",
+      "tool_name": "file.write",
+      "input_mappings": {
+        "content": "{{ http_get.output.body.name }}"
+      },
+      "static_inputs": {
+        "path": "./user_name.txt"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "http_get",
+      "to": "file_write"
+    }
+  ]
+}
+```
+
+在这个示例中：
+1. `http_get` 节点调用 `http.get` 工具获取用户信息
+2. `file_write` 节点使用表达式 `{{ http_get.output.body.name }}` 从 `http_get` 节点的输出中提取用户名
+3. 最后将用户名写入文件
+
+### 4.4 工作流最佳实践
+
+1. **原子性**：每个节点只做一件事，便于调试和复用
+2. **清晰命名**：为节点和工作流使用清晰、描述性的名称
+3. **错误处理**：考虑添加错误处理节点，处理可能的失败情况
+4. **模块化**：将复杂工作流拆分为多个简单工作流
+5. **测试**：在生产环境中使用前，先在测试环境中验证工作流
+
+### 4.5 图形界面 (GUI) - `rt-gui`
 
 #### 启动界面
 ```powershell
@@ -192,6 +296,178 @@ cargo run --bin rt-gui
      ```
 3. **运行**: 点击 "Run" 按钮。
 4. **查看结果**: 底部面板将显示工具执行结果或错误信息。
+
+#### 工作流设计器
+1. **创建工作流**: 在 GUI 中打开工作流设计器
+2. **添加节点**: 从左侧工具箱拖拽工具到画布上
+3. **配置节点**: 点击节点，在右侧属性面板中配置输入参数和映射
+4. **连接节点**: 拖动节点间的连线，定义依赖关系
+5. **保存工作流**: 点击保存按钮，将工作流保存为 JSON 文件
+6. **运行工作流**: 点击运行按钮，启动工作流执行
+7. **监控执行**: 在监控面板中查看工作流执行状态和日志
+
+#### 工作流监控
+- **实时状态**: 显示工作流的当前状态（运行中、已完成、失败等）
+- **节点状态**: 显示每个节点的状态（待执行、运行中、成功、失败）
+- **执行日志**: 显示工作流执行过程中的详细日志
+- **结果查看**: 点击节点可查看其输入输出数据
+
+### 4.6 工作流示例
+
+#### 示例 1: 备份并转换文件
+
+```json
+{
+  "id": "backup_and_convert",
+  "name": "备份并转换文件",
+  "description": "备份文件并转换为不同格式",
+  "nodes": [
+    {
+      "id": "check_file",
+      "tool_name": "file.exists",
+      "label": "检查文件是否存在",
+      "static_inputs": {
+        "path": "./source.txt"
+      }
+    },
+    {
+      "id": "backup",
+      "tool_name": "file.copy",
+      "label": "备份文件",
+      "input_mappings": {
+        "source": "{{ check_file.output.path }}"
+      },
+      "static_inputs": {
+        "destination": "./backup.txt",
+        "overwrite": true
+      }
+    },
+    {
+      "id": "convert",
+      "tool_name": "text.convert_case",
+      "label": "转换文件内容",
+      "input_mappings": {
+        "text": "{{ backup.output.content }}"
+      },
+      "static_inputs": {
+        "case": "uppercase"
+      }
+    },
+    {
+      "id": "write_result",
+      "tool_name": "file.write",
+      "label": "写入结果",
+      "input_mappings": {
+        "content": "{{ convert.output.converted }}"
+      },
+      "static_inputs": {
+        "path": "./result.txt",
+        "overwrite": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "check_file",
+      "to": "backup"
+    },
+    {
+      "from": "backup",
+      "to": "convert"
+    },
+    {
+      "from": "convert",
+      "to": "write_result"
+    }
+  ]
+}
+```
+
+#### 示例 2: 批量下载并处理视频
+
+```json
+{
+  "id": "video_processing",
+  "name": "视频处理工作流",
+  "description": "批量下载 YouTube 视频并转换格式",
+  "nodes": [
+    {
+      "id": "download_list",
+      "tool_name": "http.get",
+      "label": "获取视频列表",
+      "static_inputs": {
+        "url": "https://api.example.com/videos"
+      }
+    },
+    {
+      "id": "download_video",
+      "tool_name": "media.ytdlp",
+      "label": "下载视频",
+      "input_mappings": {
+        "url": "{{ download_list.output.body.videos[0].url }}"
+      },
+      "static_inputs": {
+        "output_dir": "./videos",
+        "format": "best"
+      }
+    },
+    {
+      "id": "convert_format",
+      "tool_name": "media.ffmpeg",
+      "label": "转换视频格式",
+      "input_mappings": {
+        "input_path": "{{ download_video.output.files[0].path }}"
+      },
+      "static_inputs": {
+        "output_path": "./converted.mp4",
+        "output_format": "mp4"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "download_list",
+      "to": "download_video"
+    },
+    {
+      "from": "download_video",
+      "to": "convert_format"
+    }
+  ]
+}
+```
+
+### 4.7 工作流执行流程
+
+1. **解析定义**: 引擎解析工作流 JSON 定义，验证其完整性和正确性
+2. **构建依赖图**: 根据边定义构建有向无环图 (DAG)
+3. **初始化状态**: 创建工作流实例，初始化节点状态
+4. **执行节点**: 按照依赖顺序执行节点：
+   - 找出所有无依赖的节点，并行执行
+   - 当节点完成后，更新状态并触发依赖节点的执行
+   - 重复直到所有节点执行完成或某个节点失败
+5. **更新状态**: 更新工作流和节点状态
+6. **生成结果**: 收集所有节点的输出，生成最终结果
+
+### 4.8 工作流状态
+
+| 状态 | 描述 |
+|------|------|
+| `Pending` | 工作流已创建，但尚未开始执行 |
+| `Running` | 工作流正在执行中 |
+| `Paused` | 工作流已暂停，可通过命令恢复执行 |
+| `Completed` | 工作流已成功完成 |
+| `Failed` | 工作流执行失败，包含失败原因 |
+
+### 4.9 节点状态
+
+| 状态 | 描述 |
+|------|------|
+| `Pending` | 节点已准备好执行，但依赖节点尚未完成 |
+| `Running` | 节点正在执行中 |
+| `Completed` | 节点执行成功 |
+| `Failed` | 节点执行失败，包含失败原因 |
+| `Skipped` | 节点被跳过执行 |
 
 ## 5. 插件管理 (Plugin Management)
 
