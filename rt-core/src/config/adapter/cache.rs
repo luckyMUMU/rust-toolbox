@@ -49,7 +49,7 @@ impl ConfigCachePort for CacheAdapter {
         Ok(())
     }
     
-    async fn invalidate(&self, key: &str) -> Result<()> {
+    async fn invalidate(&self, _key: &str) -> Result<()> {
         // 注意：当前PersistenceManager没有提供删除数据的方法，所以这里暂时不实现
         // 可以考虑在PersistenceManager中添加delete_data方法来支持缓存失效
         Ok(())

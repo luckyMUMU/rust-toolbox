@@ -4,6 +4,7 @@ pub mod utils;
 
 pub use file::move_folder::MoveFolder;
 pub use text::convert_chinese::ConvertChinese;
+pub use text::ac_automaton::AcAutomatonTool;
 
 use rt_core::Tool;
 use std::sync::Mutex;
@@ -26,11 +27,18 @@ macro_rules! register_tool {
 }
 
 // 注册工具的实现
-fn register_tool_impl(factory: fn() -> Box<dyn Tool>) {
+#[allow(dead_code)]
+pub(crate) fn register_tool_impl(factory: fn() -> Box<dyn Tool>) {
     TOOL_REGISTRY.lock().unwrap().push(factory);
 }
 
 // 获取所有注册的工具
 pub fn get_all_tools() -> Vec<Box<dyn Tool>> {
-    TOOL_REGISTRY.lock().unwrap().iter().map(|factory| factory()).collect()
+    // 直接手动添加所有内置工具
+    // 这种方式确保所有内置工具都能被正确加载
+    vec![
+        Box::new(file::move_folder::MoveFolder::new()),
+        Box::new(text::convert_chinese::ConvertChinese::new()),
+        Box::new(text::ac_automaton::AcAutomatonTool::new()),
+    ]
 }

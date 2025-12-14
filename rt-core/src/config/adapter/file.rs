@@ -126,7 +126,7 @@ impl FileConfigAdapter {
                         format!("{}.{}", prefix, key)
                     };
                     
-                    let mut nested_map = self.flatten_json(&new_prefix, val)?;
+                    let nested_map = self.flatten_json(&new_prefix, val)?;
                     config_map.extend(nested_map);
                 }
             }
@@ -138,7 +138,7 @@ impl FileConfigAdapter {
                         format!("{}.[{}]", prefix, i)
                     };
                     
-                    let mut nested_map = self.flatten_json(&new_prefix, val)?;
+                    let nested_map = self.flatten_json(&new_prefix, val)?;
                     config_map.extend(nested_map);
                 }
             }
@@ -177,7 +177,7 @@ impl FileConfigAdapter {
                         format!("{}.{}", prefix, key_str)
                     };
                     
-                    let mut nested_map = self.flatten_yaml(&new_prefix, val)?;
+                    let nested_map = self.flatten_yaml(&new_prefix, val)?;
                     config_map.extend(nested_map);
                 }
             }
@@ -189,7 +189,7 @@ impl FileConfigAdapter {
                         format!("{}.[{}]", prefix, i)
                     };
                     
-                    let mut nested_map = self.flatten_yaml(&new_prefix, val)?;
+                    let nested_map = self.flatten_yaml(&new_prefix, val)?;
                     config_map.extend(nested_map);
                 }
             }

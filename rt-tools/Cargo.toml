@@ -13,6 +13,8 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["fs"] }
 lazy_static = "1.4"
 ferrous-opencc = "0.2"
+futures = "0.3"
+aho-corasick = "1.1"
 
 # Internal
 rt-core = { path = "../rt-core" }

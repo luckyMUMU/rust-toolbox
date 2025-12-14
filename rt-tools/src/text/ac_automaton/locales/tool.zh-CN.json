@@ -1,0 +1,28 @@
+{
+  "display_name": "AC自动机",
+  "description": "高效的多模式串匹配工具",
+  "user_guide": "AC自动机是一种强大的多模式串匹配工具，它可以在单次遍历文本的过程中匹配多个模式串，非常适合处理大规模文本数据。",
+  "input": {
+    "action": "操作类型",
+    "patterns": "模式串列表",
+    "texts": "待匹配文本列表",
+    "confirm": "确认删除",
+    "ignore_case": "忽略大小写",
+    "parallel": "并行匹配"
+  },
+  "output": {
+    "success": "是否成功",
+    "message": "消息",
+    "results": "匹配结果",
+    "patterns": "模式串列表",
+    "elapsed_ms": "耗时（毫秒）"
+  },
+  "extra": {
+    "add": "添加模式串",
+    "remove": "删除模式串",
+    "list": "列出模式串",
+    "match": "匹配文本",
+    "save": "保存模式串",
+    "load": "加载模式串"
+  }
+}

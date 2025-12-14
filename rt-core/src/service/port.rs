@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
-use crate::{error::Result, config::domain::ConfigItem, logger::domain::{LogLevel, LogRecord}};
+use crate::error::Result;
 
 /// 服务调用上下文，包含调用者信息、权限级别等
 #[derive(Debug, Serialize, Deserialize)]

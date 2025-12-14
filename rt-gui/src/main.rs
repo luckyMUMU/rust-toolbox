@@ -15,6 +15,7 @@ enum GuiMessage {
 #[derive(Clone)]
 struct Tab {
     /// Tab页ID
+    #[allow(dead_code)]
     id: String,
     /// 工具名称
     tool_name: String,
@@ -38,6 +39,7 @@ struct Tab {
 #[derive(Clone)]
 struct ToolCategory {
     /// 分类名称
+    #[allow(dead_code)]
     name: String,
     /// 分类显示名称
     display_name: String,
@@ -71,6 +73,7 @@ struct ToolkitApp {
     runtime: tokio::runtime::Runtime,
     
     // UI state
+    #[allow(dead_code)]
     show_sidebar: bool,
     sidebar_width: f32,
 }
@@ -87,6 +90,7 @@ impl ToolCategory {
     }
     
     /// 添加子分类
+    #[allow(dead_code)]
     fn add_subcategory(&mut self, category: ToolCategory) {
         self.subcategories.push(category);
     }
@@ -98,7 +102,7 @@ impl ToolCategory {
 }
 
 /// 工具分类辅助函数
-fn categorize_tools(tools: Arc<HashMap<String, Arc<dyn Tool>>>, locale: Locale) -> Vec<ToolCategory> {
+fn categorize_tools(tools: Arc<HashMap<String, Arc<dyn Tool>>>, _locale: Locale) -> Vec<ToolCategory> {
     let mut categories: HashMap<String, ToolCategory> = HashMap::new();
     
     // 创建默认分类
@@ -260,6 +264,7 @@ impl ToolkitApp {
     }
     
     /// 获取当前活动标签页
+    #[allow(dead_code)]
     fn active_tab(&mut self) -> Option<&mut Tab> {
         if let Some(index) = self.active_tab_index {
             self.tabs.get_mut(index)
@@ -274,7 +279,10 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
     if let Some(obj_type) = schema.get("type").and_then(|v| v.as_str()) {
         match obj_type {
             "object" => {
-                if !data.is_object() && !read_only { *data = json!({}); }
+                // 确保数据是对象类型，无论是否只读
+                if !data.is_object() {
+                    *data = json!({});
+                }
                 
                 if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
                     for (key, prop_schema) in props {
@@ -293,15 +301,18 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                                     Some("string") => json!(""),
                                     Some("boolean") => json!(false),
                                     Some("integer") | Some("number") => json!(0),
+                                    Some("object") => json!({}),
+                                    Some("array") => json!([]),
                                     _ => json!(null),
                                 };
                                 data.as_object_mut().unwrap().insert(key.clone(), default);
                             }
                             
+                            // 确保数据是对象类型，避免崩溃
                             if let Some(val) = data.get_mut(key) {
                                 let child_path = if path.is_empty() { key.clone() } else { format!("{}.{}", path, key) };
                                 render_schema(ui, prop_schema, val, read_only, &child_path);
-                            } else if read_only {
+                            } else {
                                 ui.weak("(null)");
                             }
                         });
@@ -403,6 +414,24 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
                          }
                      });
                  }
+            },
+            "array" => {
+                if !data.is_array() && !read_only { *data = json!([]); }
+                
+                if read_only {
+                    if let Some(arr) = data.as_array() {
+                        ui.label(format!("[{} items]", arr.len()));
+                    } else {
+                        ui.label("[]");
+                    }
+                } else {
+                    // 对于数组类型，目前只显示数组长度，不提供编辑功能
+                    if let Some(arr) = data.as_array() {
+                        ui.label(format!("[{} items]", arr.len()));
+                    } else {
+                        ui.label("[]");
+                    }
+                }
             }
             _ => {
                 ui.label(format!("Unsupported type: {}", obj_type));
@@ -415,6 +444,7 @@ fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only:
 
 impl ToolkitApp {
     /// 渲染多级工具分类菜单
+    #[allow(dead_code)]
     fn render_tool_categories(&self, ui: &mut egui::Ui, mut open_tool: impl FnMut(&str)) {
         for category in &self.tool_categories {
             self.render_category(ui, category, &self.tools, &self.locale, &mut open_tool);
@@ -422,6 +452,7 @@ impl ToolkitApp {
     }
     
     /// 递归渲染分类和子分类
+    #[allow(dead_code)]
     fn render_category(
         &self, 
         ui: &mut egui::Ui, 
@@ -454,6 +485,7 @@ impl ToolkitApp {
     }
     
     /// 渲染标签页栏
+    #[allow(dead_code)]
     fn render_tab_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             // 新建标签页按钮
@@ -486,6 +518,7 @@ impl ToolkitApp {
     }
     
     /// 渲染标签页内容，使用依赖注入避免借用规则冲突
+    #[allow(dead_code)]
     fn render_tab_content_with_deps(
         &mut self, 
         ui: &mut egui::Ui, 
@@ -801,7 +834,7 @@ impl ToolkitApp {
         ui.horizontal(|ui| {
             ui.heading(format!("{}", tab.title));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let help_label = if tab.show_help { "Hide Help" } else { "Show Help" };
+                let help_label = if tab.show_help { self.tr("Hide Help") } else { self.tr("Show Help") };
                 if ui.button(help_label).clicked() {
                     tab.show_help = !tab.show_help;
                 }
@@ -811,12 +844,14 @@ impl ToolkitApp {
         
         // 2. 渲染帮助面板（可折叠）
         if tab.show_help {
-            ui.collapsing("Help", |ui| {
+            ui.collapsing(self.tr("Help"), |ui| {
                 if let Some(guide) = tool_guide {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        CommonMarkViewer::new()
-                            .show(ui, &mut self.markdown_cache, &guide);
-                    });
+                    egui::ScrollArea::vertical()
+                        .id_salt(format!("help_scroll_{}", tab_index))
+                        .show(ui, |ui| {
+                            CommonMarkViewer::new()
+                                .show(ui, &mut self.markdown_cache, &guide);
+                        });
                 }
             });
         }
@@ -826,55 +861,64 @@ impl ToolkitApp {
         let mut input_value = tab.input_value.clone();
         let current_schema = tab.current_schema.clone();
         
-        egui::Grid::new("tab_content_grid")
-            .num_columns(2)
-            .spacing([10.0, 10.0])
-            .show(ui, |ui| {
-                // 左侧：输入表单
-                ui.vertical(|ui| {
-                    ui.heading("输入");
-                    if let Some(schema) = &current_schema {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            render_schema(ui, schema, &mut input_value, false, "");
-                        });
-                    }
-                    
-                    // Run button - 只记录是否点击，不直接执行
-                    if ui.button("Run").clicked() {
-                        run_button_clicked = true;
-                    }
-                });
-                
-                ui.separator();
-                
-                // 右侧：输出结果
-                ui.vertical(|ui| {
-                    ui.heading("Output");
-                    
-                    if let Some(error) = &tab.output_error {
-                        ui.colored_label(egui::Color32::RED, error);
-                    } else if let Some(val) = &tab.output_value {
-                            if let Some(schema) = &tab.output_schema {
-                                egui::ScrollArea::vertical().show(ui, |ui| {
-                                    // 明确类型为Value
-                                    let mut output_val: Value = val.clone();
-                                    render_schema(ui, schema, &mut output_val, true, "");
+        // 使用卡片组件包装内容区域
+        ui.group(|ui| {
+            egui::Grid::new("tab_content_grid")
+                .num_columns(2)
+                .spacing([10.0, 10.0])
+                .show(ui, |ui| {
+                    // 左侧：输入表单
+                    ui.vertical(|ui| {
+                        ui.heading(self.tr("Input"));
+                        if let Some(schema) = &current_schema {
+                            egui::ScrollArea::vertical()
+                                .id_salt(format!("input_scroll_{}", tab_index))
+                                .show(ui, |ui| {
+                                    render_schema(ui, schema, &mut input_value, false, "");
                                 });
-                            } else {
-                                // 如果没有 schema，显示原始 JSON
-                                ui.add(egui::TextEdit::multiline(&mut serde_json::to_string_pretty(val).unwrap()).interactive(false));
-                            }
-                        } else {
-                            ui.label("Ready");
                         }
+                        
+                        // Run button - 使用自定义按钮样式
+                        if ui.button(self.tr("Run")).clicked() {
+                            run_button_clicked = true;
+                        }
+                    });
+                    
+                    ui.separator();
+                    
+                    // 右侧：输出结果
+                    ui.vertical(|ui| {
+                        ui.heading(self.tr("Output"));
+                        
+                        if let Some(error) = &tab.output_error {
+                            ui.colored_label(egui::Color32::RED, error);
+                        } else if let Some(val) = &tab.output_value {
+                                if let Some(schema) = &tab.output_schema {
+                                    egui::ScrollArea::vertical()
+                                        .id_salt(format!("output_scroll_{}", tab_index))
+                                        .show(ui, |ui| {
+                                            // 明确类型为Value
+                                            let mut output_val: Value = val.clone();
+                                            render_schema(ui, schema, &mut output_val, true, "");
+                                        });
+                                } else {
+                                    // 如果没有 schema，显示原始 JSON
+                                    ui.add(egui::TextEdit::multiline(&mut serde_json::to_string_pretty(val).unwrap()).interactive(false));
+                                }
+                            } else {
+                                ui.label(self.tr("Ready"));
+                            }
+                    });
+                    
+                    ui.end_row();
                 });
-                
-                ui.end_row();
-            });
+        });
             
-            // 4. 渲染 Debug View
-            ui.collapsing("Raw JSON", |ui| {
-                ui.label(serde_json::to_string_pretty(&input_value).unwrap_or_default());
+            // 4. 渲染 Debug View - 使用卡片组件包装
+            ui.collapsing(self.tr("Raw JSON"), |ui| {
+                ui.group(|ui| {
+                    ui.label(serde_json::to_string_pretty(&input_value).unwrap_or_default());
+                });
             });
         
         // 5. 更新状态

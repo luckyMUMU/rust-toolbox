@@ -91,6 +91,7 @@ pub struct FileSink {
     name: String,
     
     /// 日志文件路径
+    #[allow(dead_code)]
     path: PathBuf,
     
     /// 输出流，使用 Mutex 确保线程安全

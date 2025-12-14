@@ -1,0 +1,28 @@
+{
+  "display_name": "AC Automaton",
+  "description": "Efficient multi-pattern matching tool",
+  "user_guide": "AC Automaton is a powerful tool for multi-pattern matching. It can match multiple patterns in a single pass through the text, making it highly efficient for large text processing tasks.",
+  "input": {
+    "action": "Action",
+    "patterns": "Patterns",
+    "texts": "Texts",
+    "confirm": "Confirm",
+    "ignore_case": "Ignore Case",
+    "parallel": "Parallel Matching"
+  },
+  "output": {
+    "success": "Success",
+    "message": "Message",
+    "results": "Results",
+    "patterns": "Patterns",
+    "elapsed_ms": "Elapsed Time (ms)"
+  },
+  "extra": {
+    "add": "Add Pattern",
+    "remove": "Remove Pattern",
+    "list": "List Patterns",
+    "match": "Match Texts",
+    "save": "Save Patterns",
+    "load": "Load Patterns"
+  }
+}

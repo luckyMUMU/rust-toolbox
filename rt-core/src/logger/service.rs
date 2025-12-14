@@ -258,7 +258,7 @@ impl LogManagerPort for LogManager {
         Ok(())
     }
     
-    async fn remove_sink(&self, sink_name: &str) -> Result<()> {
+    async fn remove_sink(&self, _sink_name: &str) -> Result<()> {
         // 注意：当前 LogService 没有提供移除日志输出目标的方法，所以这里暂时不实现
         // 可以考虑在 LogService 中添加 remove_sink 方法来支持移除日志输出目标
         Ok(())
