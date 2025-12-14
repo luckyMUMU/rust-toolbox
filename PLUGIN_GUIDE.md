@@ -362,7 +362,40 @@ Wasm 插件的交互协议与原生插件完全一致 (通过 stdin/stdout 传�
 - `spec`: 传入参数 `spec`，输出 JSON Metadata。
 - `run`: 传入参数 `run`，通过 stdin 读取 Input JSON，向 stdout 输出 Output JSON。
 
-## 10. README.md 编写规范
+## 10. MCP 支持
+
+Rust Toolbox 支持 Model Context Protocol (MCP)，允许插件与工具通过标准化协议交互。插件只需实现 `rt-core::Tool` trait 并遵循标准协议，即可无缝集成到工作流中。
+
+### 10.1 插件 MCP 实现
+插件可以通过 `rt-core::Tool` trait 与工具交互，**无需任何额外修改**。插件只需符合标准插件协议（JSON Input/Output），即可被工作流引擎调用。
+
+### 10.2 工具 MCP 支持
+对于 Rust 编写的工具，可以实现扩展的 `McpTool` trait 来提供 MCP 支持：
+
+```rust
+#[async_trait]
+pub trait McpTool: Tool {
+    /// 获取 MCP 能力描述
+    fn get_mcp_capabilities(&self) -> Value;
+    
+    /// 获取 MCP 上下文验证规则
+    fn get_context_validation_rules(&self) -> Value;
+    
+    /// 是否需要完整上下文
+    fn requires_full_context(&self) -> bool;
+    
+    /// 执行逻辑（带 MCP 上下文）
+    async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
+}
+```
+
+### 10.3 最佳实践
+1. **原子性**: 插件应只做一件事，便于在工作流中组合。
+2. **结构化输出**: 输出必须是扁平或层级清晰的 JSON，便于后续节点通过 JSON Path 引用。
+3. **错误处理**: 插件失败应返回非零退出码，引擎会自动捕获并标记节点失败。
+4. **MCP 兼容性**: 对于支持 MCP 的插件，确保输出格式符合 MCP 规范，便于上下文传递。
+
+## 11. README.md 编写规范
 
 每个插件项目都应该包含一个 `README.md` 文件，用于提供插件的概述、功能、安装、使用、开发和许可证信息。
 

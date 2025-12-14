@@ -15,7 +15,7 @@ Rust Toolbox 是一个模块化的工具集合项目，旨在通过统一的接�
 
 本项目采用 Cargo Workspace 结构，包含以下核心 Crate：
 
-- **`rt-core`**: 核心库。定义了 `Tool` Trait 以及通用数据结构、插件系统和持久化管理。
+- **`rt-core`**: 核心库。定义了 `Tool` Trait 以及通用数据结构、插件系统和持久化管理。支持 Model Context Protocol (MCP)。
 - **`rt-tools`**: 内置工具集。包含具体业务逻辑工具。
 - **`rt-cli`**: 命令行入口。提供基于命令行的工具列出与运行功能。
 - **`rt-gui`**: 图形界面入口。提供可视化的工具配置与运行界面。

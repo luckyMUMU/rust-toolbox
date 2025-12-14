@@ -80,6 +80,14 @@ rt-tools/src/{category}/{tool_name}/
 - `input_schema(locale)`: 使用 `ToolI18n` 为 schema 注入 localized title
 - `output_schema(locale)`: 使用 `ToolI18n` 为 schema 注入 localized title
 - `run(input)`: 异步执行逻辑
+- `mcp_supported()`: 返回工具是否支持 MCP (默认: false)
+- `run_with_context(request)`: 执行逻辑（带 MCP 上下文）
+
+**McpTool trait 扩展实现要求**（可选，适用于支持 MCP 的工具）：
+- `get_mcp_capabilities()`: 获取 MCP 能力描述
+- `get_context_validation_rules()`: 获取 MCP 上下文验证规则
+- `requires_full_context()`: 返回是否需要完整上下文
+- `run_with_context(request)`: 执行逻辑（带 MCP 上下文）
 
 **多语言资源文件 (JSON) 要求**：
 - 必须包含 `display_name`, `description`, `user_guide`。

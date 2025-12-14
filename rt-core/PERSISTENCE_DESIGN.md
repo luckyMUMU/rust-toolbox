@@ -39,6 +39,7 @@ graph TD
 2.  **CacheLayer**: 基于 `moka` 的异步缓存，处理热点数据。
 3.  **StorageBackend**: 抽象存储接口，默认实现为 `SledBackend`。
 4.  **ConfigManager**: 封装 `confy`，提供类型安全的配置读写。
+5.  **MCP 支持**: 持久化模块支持 Model Context Protocol (MCP)，允许工具和插件通过标准化协议交互。
 
 ## 4. 接口设计 (Interface Design)
 

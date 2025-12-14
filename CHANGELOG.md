@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **MCP Support**: Added Model Context Protocol (MCP) support to the core architecture.
+  - Added `McpTool` trait extension for MCP-enabled tools.
+  - Updated `Tool` trait with MCP-related methods.
+  - Added MCP API and MCP Server components to the architecture.
+  - Updated documentation to include MCP support across all modules.
 - **Persistence Module**: Introduced `rt-core::persistence` for unified data storage.
   - Implemented `PersistenceManager` with `sled` (DB) and `moka` (Cache).
   - Added support for data compression (`zstd`) and serialization (`bincode`).

@@ -469,17 +469,270 @@ cargo run --bin rt-gui
 | `Failed` | 节点执行失败，包含失败原因 |
 | `Skipped` | 节点被跳过执行 |
 
-## 5. 插件管理 (Plugin Management)
+## 5. Model Context Protocol (MCP) 支持
+
+Rust Toolbox 实现了 Model Context Protocol (MCP)，支持外部系统通过标准化接口调用工具和工作流。
+
+### 5.1 MCP 核心概念
+- **MCP 上下文**: 包含执行状态、历史记录和环境信息的上下文对象
+- **MCP 请求**: 标准化的工具调用格式
+- **MCP 响应**: 标准化的执行结果格式
+- **MCP 服务器**: 提供 REST API 和 WebSocket 端点
+
+### 5.2 启动 MCP 服务器
+
+#### 命令行方式
+```powershell
+cargo run --bin rt-cli -- mcp-server start --address 127.0.0.1 --port 8000
+```
+
+#### 配置选项
+- `--address`: 服务器监听地址（默认：127.0.0.1）
+- `--port`: 服务器监听端口（默认：8000）
+- `--max-request-size`: 最大请求大小（默认：10MB）
+- `--enable-websocket`: 启用 WebSocket 支持（默认：true）
+
+### 5.3 REST API 端点
+
+#### 健康检查
+```
+GET /health
+```
+**响应示例**:
+```json
+{ "status": "ok", "service": "mcp-server" }
+```
+
+#### 获取工具列表
+```
+GET /tools
+```
+**响应示例**:
+```json
+[
+  {
+    "name": "text.pinyin",
+    "display_name": "中文转拼音",
+    "description": "将中文文本转换为拼音",
+    "mcp_supported": true,
+    "type": "core"
+  }
+]
+```
+
+#### 获取 MCP 支持的工具列表
+```
+GET /tools/mcp
+```
+**响应示例**:
+```json
+[
+  {
+    "name": "text.pinyin",
+    "display_name": "中文转拼音",
+    "description": "将中文文本转换为拼音",
+    "mcp_supported": true,
+    "type": "core"
+  }
+]
+```
+
+#### 调用工具
+```
+POST /tools/{name}/call
+Content-Type: application/json
+```
+**请求示例**:
+```json
+{
+  "text": "你好世界",
+  "tone": true
+}
+```
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": { "pinyin": "nǐ hǎo shì jiè" }
+}
+```
+
+#### MCP 调用端点
+```
+POST /mcp/call
+Content-Type: application/json
+```
+**请求示例**:
+```json
+{
+  "id": "req-12345",
+  "component_type": "Tool",
+  "component_name": "text.pinyin",
+  "method": "run",
+  "params": {
+    "text": "你好世界",
+    "tone": true
+  },
+  "context": {
+    "id": "ctx-12345",
+    "parent_id": null,
+    "model_state": {},
+    "execution_history": [],
+    "environment_info": {},
+    "metadata": {}
+  },
+  "service_context": {
+    "caller_id": "test-caller",
+    "caller_type": "User",
+    "permission_level": "Standard",
+    "extra": {}
+  }
+}
+```
+**响应示例**:
+```json
+{
+  "id": "resp-67890",
+  "request_id": "req-12345",
+  "status": "Success",
+  "data": { "pinyin": "nǐ hǎo shì jiè" },
+  "error": null,
+  "context": {
+    "id": "ctx-12345",
+    "parent_id": null,
+    "model_state": {},
+    "execution_history": [
+      {
+        "id": "exec-54321",
+        "timestamp": "2025-12-14T08:00:00Z",
+        "component_type": "Tool",
+        "component_name": "text.pinyin",
+        "method": "run",
+        "input": { "text": "你好世界", "tone": true },
+        "output": { "pinyin": "nǐ hǎo shì jiè" },
+        "status": "Success",
+        "error": null,
+        "duration_ms": 123
+      }
+    ],
+    "environment_info": {},
+    "metadata": {}
+  },
+  "duration_ms": 123
+}
+```
+
+### 5.4 WebSocket 支持
+
+#### 连接 WebSocket
+```
+ws://localhost:8000/ws/mcp
+```
+
+#### WebSocket 消息格式
+- **请求消息**: 与 `/mcp/call` 端点的请求格式相同
+- **响应消息**: 与 `/mcp/call` 端点的响应格式相同
+
+#### WebSocket 示例
+```javascript
+// 使用 JavaScript 连接 WebSocket
+const socket = new WebSocket('ws://localhost:8000/ws/mcp');
+
+socket.onopen = () => {
+  console.log('WebSocket connected');
+  
+  // 发送 MCP 请求
+  const request = {
+    "id": "req-12345",
+    "component_type": "Tool",
+    "component_name": "text.pinyin",
+    "method": "run",
+    "params": {
+      "text": "你好世界",
+      "tone": true
+    },
+    "context": {
+      "id": "ctx-12345",
+      "parent_id": null,
+      "model_state": {},
+      "execution_history": [],
+      "environment_info": {},
+      "metadata": {}
+    },
+    "service_context": {
+      "caller_id": "js-client",
+      "caller_type": "User",
+      "permission_level": "Standard",
+      "extra": {}
+    }
+  };
+  
+  socket.send(JSON.stringify(request));
+};
+
+socket.onmessage = (event) => {
+  const response = JSON.parse(event.data);
+  console.log('WebSocket response:', response);
+};
+```
+
+### 5.5 MCP 客户端示例
+
+#### 使用 curl 调用 MCP API
+```bash
+curl -X POST http://localhost:8000/mcp/call \
+  -H "Content-Type: application/json" \
+  -d '{"id":"req-123","component_type":"Tool","component_name":"text.pinyin","method":"run","params":{"text":"你好世界","tone":true},"context":{"id":"ctx-123","parent_id":null,"model_state":{},"execution_history":[],"environment_info":{},"metadata":{}},"service_context":{"caller_id":"curl-client","caller_type":"User","permission_level":"Standard","extra":{}}}'
+```
+
+#### 使用 Python 调用 MCP API
+```python
+import requests
+import json
+
+url = "http://localhost:8000/mcp/call"
+headers = {"Content-Type": "application/json"}
+
+request_data = {
+    "id": "req-123",
+    "component_type": "Tool",
+    "component_name": "text.pinyin",
+    "method": "run",
+    "params": {
+        "text": "你好世界",
+        "tone": True
+    },
+    "context": {
+        "id": "ctx-123",
+        "parent_id": None,
+        "model_state": {},
+        "execution_history": [],
+        "environment_info": {},
+        "metadata": {}
+    },
+    "service_context": {
+        "caller_id": "python-client",
+        "caller_type": "User",
+        "permission_level": "Standard",
+        "extra": {}
+    }
+}
+
+response = requests.post(url, headers=headers, data=json.dumps(request_data))
+print(response.json())
+```
+
+## 6. 插件管理 (Plugin Management)
 
 Rust Toolbox 支持通过外部插件扩展功能。
 
-### 5.1 安装插件
+### 6.1 安装插件
 1.  获取插件的可执行文件（例如 `rt-plugin-custom.exe`）。
 2.  在 `rt-cli` 或 `rt-gui` 的同级目录下创建一个名为 `plugins` 的文件夹。
 3.  将插件可执行文件放入 `plugins` 文件夹中。
 4.  重启 `rt-cli` 或 `rt-gui`，工具将自动扫描并加载以 `rt-plugin-` 开头的插件。
 
-### 5.2 验证安装
+### 6.2 验证安装
 使用 `list` 命令查看已加载的工具：
 ```powershell
 cargo run --bin rt-cli -- list
