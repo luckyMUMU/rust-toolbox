@@ -2,6 +2,15 @@
 
 Rust Toolbox 是一个模块化的工具集合项目，旨在通过统一的接口和工作流引擎，提供可扩展的工具链支持。
 
+## 相关文档
+
+- [架构设计文档](ARCHITECTURE_DESIGN.md): 详细描述项目的架构设计、核心组件和部署架构
+- [设计文档](DESIGN.md): 项目的整体设计文档，包括技术选型和核心原则
+- [用户指南](USER_GUIDE.md): 详细的用户使用指南，包括工具库和使用方式
+- [插件开发指南](PLUGIN_GUIDE.md): 插件开发的规范和指南
+- [AI工作规范](AI_WORK_PROTOCOL.md): AI辅助开发的工作规范
+- [变更日志](CHANGELOG.md): 项目的变更历史
+
 ## 项目结构 (Project Structure)
 
 本项目采用 Cargo Workspace 结构，包含以下核心 Crate：

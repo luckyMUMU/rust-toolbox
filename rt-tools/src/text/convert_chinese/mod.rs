@@ -21,13 +21,16 @@ pub struct ConvertChinese {
     i18n: ToolI18n,
 }
 
+// 注册工具
+crate::register_tool!(ConvertChinese);
+
 impl ConvertChinese {
     pub fn new() -> Self {
         Self {
             i18n: ToolI18n::new(
                 include_str!("locales/tool.en.json"),
                 include_str!("locales/tool.zh-CN.json"),
-            ),
+            ).expect("Failed to load i18n resources for convert_chinese tool"),
         }
     }
 }

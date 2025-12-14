@@ -24,13 +24,16 @@ pub struct MoveFolder {
     i18n: ToolI18n,
 }
 
+// 注册工具
+crate::register_tool!(MoveFolder);
+
 impl MoveFolder {
     pub fn new() -> Self {
         Self {
             i18n: ToolI18n::new(
                 include_str!("locales/tool.en.json"),
                 include_str!("locales/tool.zh-CN.json"),
-            ),
+            ).expect("Failed to load i18n resources for move_folder tool"),
         }
     }
 }

@@ -13,8 +13,7 @@ use tokio::sync::RwLock;
 
 pub use manifest::{PluginMetadata, LocalizedString};
 
-// Backward compatibility
-pub type PluginTool = ProcessPlugin;
+
 
 pub struct PluginManager {
     plugin_dir: PathBuf,
@@ -88,6 +87,4 @@ async fn load_plugins_internal(plugin_dir: &Path) -> Vec<Box<dyn Tool>> {
     plugins
 }
 
-pub async fn load_plugins(plugin_dir: &Path) -> Vec<Box<dyn Tool>> {
-    load_plugins_internal(plugin_dir).await
-}
+

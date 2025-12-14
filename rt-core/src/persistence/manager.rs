@@ -55,7 +55,7 @@ impl PersistenceManager {
     }
 
     /// 保存 KV 数据 (同时更新缓存和 DB)
-    pub async fn set_data<T: Serialize>(&self, key: &str, value: &T) -> Result<()> {
+    pub async fn set_data<T: Serialize + ?Sized>(&self, key: &str, value: &T) -> Result<()> {
         // Serialize
         let bytes = bincode::serde::encode_to_vec(value, bincode::config::standard())
             .map_err(|e| CoreError::ConfigError(format!("Serialization failed: {}", e)))?;

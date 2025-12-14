@@ -11,6 +11,15 @@ pub enum CoreError {
     #[error("Configuration error: {0}")]
     ConfigError(String),
     
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    
+    #[error("JSON serialization error: {0}")]
+    JsonError(#[from] serde_json::Error),
+    
+    #[error("YAML serialization error: {0}")]
+    YamlError(#[from] serde_yaml::Error),
+    
     #[error(transparent)]
     Unknown(#[from] anyhow::Error),
 }

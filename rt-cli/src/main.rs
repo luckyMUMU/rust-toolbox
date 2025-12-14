@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
-use rt_core::{Tool, WorkflowEngine, InMemoryWorkflowEngine, WorkflowDefinition, WorkflowStatus};
+use rt_core::{Tool, WorkflowEngine, WorkflowDefinition, WorkflowStatus};
+use rt_core::workflow::InMemoryWorkflowEngine;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Parser)]
@@ -39,20 +41,22 @@ enum WorkflowCommands {
     },
 }
 
-async fn register_tools() -> HashMap<String, Box<dyn Tool>> {
-    let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
+async fn register_tools() -> HashMap<String, Arc<dyn Tool>> {
+    let mut tools: HashMap<String, Arc<dyn Tool>> = HashMap::new();
     
     // Built-in tools
     for tool in rt_tools::get_all_tools() {
-        tools.insert(tool.name().to_string(), tool);
+        tools.insert(tool.name().to_string(), Arc::from(tool));
     }
 
     // Plugins
     let plugin_dir = std::path::Path::new("plugins");
     if plugin_dir.exists() {
-         let plugins = rt_core::plugin::load_plugins(plugin_dir).await;
-         for tool in plugins {
-             tools.insert(tool.name().to_string(), tool);
+         let plugin_manager = rt_core::plugin::PluginManager::new(plugin_dir.to_path_buf());
+         if let Ok(()) = plugin_manager.load_all().await {
+             for tool in plugin_manager.list_tools().await {
+                 tools.insert(tool.name().to_string(), tool.clone());
+             }
          }
     }
 
@@ -109,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
                     let def: WorkflowDefinition = serde_json::from_str(&content)
                         .map_err(|e| anyhow::anyhow!("Invalid workflow definition: {}", e))?;
                     
-                    let engine = InMemoryWorkflowEngine::new(tools_map);
+                    let engine = InMemoryWorkflowEngine::new_with_arc(tools_map);
                     
                     println!("Starting workflow: {} ({})", def.name, def.id);
                     let instance_id = engine.start_workflow(def).await?;

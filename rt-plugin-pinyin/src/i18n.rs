@@ -6,7 +6,7 @@ pub fn get_i18n() -> ToolI18n {
     ToolI18n::new(
         include_str!("../locales/tool.en.json"),
         include_str!("../locales/tool.zh.json"),
-    )
+    ).expect("Failed to load i18n resources for pinyin plugin")
 }
 
 pub fn display_name(locale: Locale) -> String {

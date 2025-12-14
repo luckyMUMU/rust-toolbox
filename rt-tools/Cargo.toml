@@ -11,6 +11,7 @@ schemars = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["fs"] }
+lazy_static = "1.4"
 ferrous-opencc = "0.2"
 
 # Internal

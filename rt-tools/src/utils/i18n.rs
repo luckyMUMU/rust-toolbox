@@ -29,10 +29,10 @@ pub struct ToolI18n {
 
 impl ToolI18n {
     /// 从 JSON 字符串加载多语言数据
-    pub fn new(en_json: &str, zh_json: &str) -> Self {
-        let en: ToolLocale = serde_json::from_str(en_json).expect("Failed to parse en locale");
-        let zh: ToolLocale = serde_json::from_str(zh_json).expect("Failed to parse zh locale");
-        Self { en, zh }
+    pub fn new(en_json: &str, zh_json: &str) -> Result<Self, serde_json::Error> {
+        let en: ToolLocale = serde_json::from_str(en_json)?;
+        let zh: ToolLocale = serde_json::from_str(zh_json)?;
+        Ok(Self { en, zh })
     }
 
     pub fn get(&self, locale: Locale) -> &ToolLocale {

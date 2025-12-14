@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 use crate::error::{CoreError, Result};
 use crate::tool::Tool;
+use crate::Locale;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use regex::Regex;
@@ -98,7 +99,41 @@ pub trait WorkflowEngine: Send + Sync {
     // async fn get_logs(&self, instance_id: &str) -> Result<Vec<LogEntry>>; // Todo
 }
 
-// --- Engine Implementation ---
+// --- Engine Implementation --- 
+
+/// Arc<Tool> 适配器，用于将 Arc<dyn Tool> 转换为 Box<dyn Tool>
+struct ArcToolAdapter(Arc<dyn Tool>);
+
+#[async_trait]
+impl Tool for ArcToolAdapter {
+    fn name(&self) -> &str {
+        self.0.name()
+    }
+    
+    fn display_name(&self, locale: Locale) -> String {
+        self.0.display_name(locale)
+    }
+    
+    fn description(&self, locale: Locale) -> String {
+        self.0.description(locale)
+    }
+    
+    fn user_guide(&self, locale: Locale) -> String {
+        self.0.user_guide(locale)
+    }
+    
+    fn input_schema(&self, locale: Locale) -> Value {
+        self.0.input_schema(locale)
+    }
+    
+    fn output_schema(&self, locale: Locale) -> Value {
+        self.0.output_schema(locale)
+    }
+    
+    async fn run(&self, input: Value) -> Result<Value> {
+        self.0.run(input).await
+    }
+}
 
 pub struct InMemoryWorkflowEngine {
     tools: Arc<HashMap<String, Box<dyn Tool>>>,
@@ -111,6 +146,16 @@ impl InMemoryWorkflowEngine {
             tools: Arc::new(tools),
             instances: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+    
+    /// 创建工作流引擎实例，接受 Arc<Tool> 类型的工具
+    pub fn new_with_arc(tools: HashMap<String, Arc<dyn Tool>>) -> Self {
+        let mut box_tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
+        for (name, tool) in tools {
+            // 使用适配器将 Arc<dyn Tool> 转换为 Box<dyn Tool>
+            box_tools.insert(name, Box::new(ArcToolAdapter(tool)));
+        }
+        Self::new(box_tools)
     }
 
     async fn execute_workflow_loop(
