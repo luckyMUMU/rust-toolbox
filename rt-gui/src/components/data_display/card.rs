@@ -16,7 +16,7 @@ pub enum CardStyle {
 }
 
 /// 卡片组件配置
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CardConfig {
     /// 卡片标题
     pub title: Option<String>,
@@ -43,7 +43,7 @@ pub struct CardConfig {
 }
 
 /// 卡片操作按钮
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CardAction {
     /// 操作按钮文本
     pub text: String,
@@ -183,20 +183,29 @@ impl CardBuilder {
         // 开始布局
         let response = if config.collapsible {
             // 创建可折叠卡片
-            CollapsingHeader::new(move |ui| {
-                render_card_header(ui, &config);
-            })
-            .default_open(!config.default_collapsed)
-            .show(ui, |ui| {
-                render_card_content(ui, &config);
-            })
-            .response
+            let header_title = config.title.clone().unwrap_or_else(|| "".to_string());
+            let collapsing_response = CollapsingHeader::new(header_title)
+                .default_open(!config.default_collapsed)
+                .show(ui, |ui| {
+                    render_card_content(ui, &config);
+                });
+            
+            // 处理折叠状态变化
+            if collapsing_response.openness.changed() {
+                let new_state = collapsing_response.openness.is_open();
+                if let Some(callback) = config.on_collapse_change {
+                    callback(new_state);
+                }
+            }
+            
+            collapsing_response.header_response
         } else {
             // 创建普通卡片
-            ui.group(|ui| {
+            let group_response = ui.group(|ui| {
                 render_card_header(ui, &config);
                 render_card_content(ui, &config);
-            }).response
+            });
+            group_response.response
         };
         
         // 处理点击事件

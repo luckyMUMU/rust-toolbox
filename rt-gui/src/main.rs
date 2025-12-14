@@ -1,10 +1,12 @@
 use eframe::egui;
 use rt_core::{Tool, Locale};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, mpsc};
 use serde_json::{Value, json};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use std::time::SystemTime;
+use rfd::FileDialog;
 
 // 导入布局管理器
 mod layout_manager;
@@ -246,6 +248,53 @@ impl ToolkitApp {
             (Locale::Zh, "Settings") => "设置".to_string(),
             (Locale::En, "About") => "About".to_string(),
             (Locale::Zh, "About") => "关于".to_string(),
+            
+            // Settings
+            (Locale::En, "Display Preferences") => "Display Preferences".to_string(),
+            (Locale::Zh, "Display Preferences") => "显示偏好".to_string(),
+            (Locale::En, "Theme") => "Theme".to_string(),
+            (Locale::Zh, "Theme") => "主题".to_string(),
+            (Locale::En, "Font Size") => "Font Size".to_string(),
+            (Locale::Zh, "Font Size") => "字体大小".to_string(),
+            (Locale::En, "Sidebar Width") => "Sidebar Width".to_string(),
+            (Locale::Zh, "Sidebar Width") => "侧边栏宽度".to_string(),
+            (Locale::En, "Notification Settings") => "Notification Settings".to_string(),
+            (Locale::Zh, "Notification Settings") => "通知设置".to_string(),
+            (Locale::En, "Task Completed") => "Task Completed".to_string(),
+            (Locale::Zh, "Task Completed") => "工具运行完成通知".to_string(),
+            (Locale::En, "Errors") => "Errors".to_string(),
+            (Locale::Zh, "Errors") => "错误通知".to_string(),
+            (Locale::En, "Warnings") => "Warnings".to_string(),
+            (Locale::Zh, "Warnings") => "警告通知".to_string(),
+            (Locale::En, "Data Storage") => "Data Storage".to_string(),
+            (Locale::Zh, "Data Storage") => "数据存储".to_string(),
+            (Locale::En, "Plugins Directory") => "Plugins Directory".to_string(),
+            (Locale::Zh, "Plugins Directory") => "插件目录".to_string(),
+            (Locale::En, "Logs Directory") => "Logs Directory".to_string(),
+            (Locale::Zh, "Logs Directory") => "日志目录".to_string(),
+            (Locale::Zh, "Temp Directory") => "临时文件目录".to_string(),
+            (Locale::En, "Temp Directory") => "Temp Directory".to_string(),
+            (Locale::En, "Select") => "Select".to_string(),
+            (Locale::Zh, "Select") => "选择".to_string(),
+            (Locale::En, "Keyboard Shortcuts") => "Keyboard Shortcuts".to_string(),
+            (Locale::Zh, "Keyboard Shortcuts") => "快捷键配置".to_string(),
+            (Locale::En, "Note: Restart required") => "Note: Restart required".to_string(),
+            (Locale::Zh, "Note: Restart required") => "提示：重启应用后生效".to_string(),
+            (Locale::En, "Reset to Defaults") => "Reset to Defaults".to_string(),
+            (Locale::Zh, "Reset to Defaults") => "恢复默认值".to_string(),
+            (Locale::En, "Save Settings") => "Save Settings".to_string(),
+            (Locale::Zh, "Save Settings") => "保存设置".to_string(),
+            (Locale::En, "Close") => "Close".to_string(),
+            (Locale::Zh, "Close") => "关闭".to_string(),
+            (Locale::En, "Defaults Restored") => "Defaults Restored".to_string(),
+            (Locale::Zh, "Defaults Restored") => "已恢复默认设置".to_string(),
+            (Locale::En, "Settings Saved") => "Settings Saved".to_string(),
+            (Locale::Zh, "Settings Saved") => "设置已保存".to_string(),
+            (Locale::En, "Save Failed") => "Save Failed".to_string(),
+            (Locale::Zh, "Save Failed") => "保存失败：".to_string(),
+            (Locale::En, "Validation Failed") => "Validation Failed".to_string(),
+            (Locale::Zh, "Validation Failed") => "验证失败：".to_string(),
+            
             _ => key.to_string(),
         }
     }
@@ -357,11 +406,6 @@ impl ToolkitApp {
     #[allow(dead_code)]
     fn render_tab_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            // 新建标签页按钮
-            if ui.button(self.tr("New Tab")).clicked() {
-                // 这里可以添加默认打开的工具，或者显示工具选择界面
-            }
-            
             // 标签页列表
             // 使用迭代器索引而不是iter_mut来避免可变借用冲突
             for index in 0..self.tabs.len() {
@@ -671,11 +715,6 @@ impl ToolkitApp {
     /// 简化版的标签页栏渲染
     fn render_tab_bar_simple(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            // 新建标签页按钮
-            if ui.button(self.tr("New Tab")).clicked() {
-                // 这里可以添加默认打开的工具，或者显示工具选择界面
-            }
-            
             // 标签页列表
             let mut tabs_to_close = Vec::new();
             let mut new_active_index = self.active_tab_index;
@@ -880,7 +919,7 @@ impl ToolkitApp {
     fn render_settings(&mut self, ctx: &egui::Context) {
         if self.show_settings {
             // 创建一个模态窗口
-            egui::Window::new("设置")
+            egui::Window::new(self.tr("Settings"))
                 .resizable(true)
                 .default_width(600.0)
                 .default_height(500.0)
@@ -898,11 +937,11 @@ impl ToolkitApp {
                         }
                         
                         // 显示偏好设置
-                        ui.heading("显示偏好");
+                        ui.heading(self.tr("Display Preferences"));
                         ui.group(|ui| {
                             // 主题选择
                             ui.horizontal(|ui| {
-                                ui.label("主题：");
+                                ui.label(format!("{}：", self.tr("Theme")));
                                 egui::ComboBox::from_id_salt("theme_combo")
                                     .selected_text(self.settings.display.theme.display_name())
                                     .show_ui(ui, |ui| {
@@ -918,7 +957,7 @@ impl ToolkitApp {
                             
                             // 字体大小
                             ui.horizontal(|ui| {
-                                ui.label("字体大小：");
+                                ui.label(format!("{}：", self.tr("Font Size")));
                                 let font_size = self.settings.display.font_size;
                                 ui.add(egui::Slider::new(&mut self.settings.display.font_size, 8.0..=32.0)
                                     .text(format!("{:.1} px", font_size)));
@@ -926,7 +965,7 @@ impl ToolkitApp {
                             
                             // 侧边栏宽度
                             ui.horizontal(|ui| {
-                                ui.label("侧边栏宽度：");
+                                ui.label(format!("{}：", self.tr("Sidebar Width")));
                                 let sidebar_width = self.settings.display.sidebar_width;
                                 ui.add(egui::Slider::new(&mut self.settings.display.sidebar_width, 100.0..=500.0)
                                     .text(format!("{:.0} px", sidebar_width)));
@@ -936,42 +975,77 @@ impl ToolkitApp {
                         ui.separator();
                         
                         // 通知设置
-                        ui.heading("通知设置");
+                        ui.heading(self.tr("Notification Settings"));
                         ui.group(|ui| {
-                            ui.checkbox(&mut self.settings.notifications.task_completed, "工具运行完成通知");
-                            ui.checkbox(&mut self.settings.notifications.errors, "错误通知");
-                            ui.checkbox(&mut self.settings.notifications.warnings, "警告通知");
+                            // 复制翻译后的字符串，避免borrow冲突
+                            let task_completed_text = self.tr("Task Completed");
+                            let errors_text = self.tr("Errors");
+                            let warnings_text = self.tr("Warnings");
+                            
+                            ui.checkbox(&mut self.settings.notifications.task_completed, task_completed_text);
+                            ui.checkbox(&mut self.settings.notifications.errors, errors_text);
+                            ui.checkbox(&mut self.settings.notifications.warnings, warnings_text);
                         });
                         
                         ui.separator();
                         
                         // 数据存储设置
-                        ui.heading("数据存储");
+                        ui.heading(self.tr("Data Storage"));
                         ui.group(|ui| {
                             // 插件目录
                             ui.horizontal(|ui| {
-                                ui.label("插件目录：");
-                                ui.text_edit_singleline(&mut format!("{}", self.settings.data.plugins_dir.display()));
-                                if ui.button("选择").clicked() {
-                                    // 这里可以添加文件选择对话框
+                                ui.label(format!("{}：", self.tr("Plugins Directory")));
+                                
+                                // 转换为可编辑的字符串
+                                let mut plugins_dir_str = format!("{}", self.settings.data.plugins_dir.display());
+                                if ui.text_edit_singleline(&mut plugins_dir_str).changed() {
+                                    // 更新实际路径
+                                    self.settings.data.plugins_dir = PathBuf::from(plugins_dir_str);
+                                }
+                                
+                                if ui.button(self.tr("Select")).clicked() {
+                                    // 显示文件夹选择对话框
+                                    if let Some(path) = FileDialog::new().pick_folder() {
+                                        self.settings.data.plugins_dir = path;
+                                    }
                                 }
                             });
                             
                             // 日志目录
                             ui.horizontal(|ui| {
-                                ui.label("日志目录：");
-                                ui.text_edit_singleline(&mut format!("{}", self.settings.data.logs_dir.display()));
-                                if ui.button("选择").clicked() {
-                                    // 这里可以添加文件选择对话框
+                                ui.label(format!("{}：", self.tr("Logs Directory")));
+                                
+                                // 转换为可编辑的字符串
+                                let mut logs_dir_str = format!("{}", self.settings.data.logs_dir.display());
+                                if ui.text_edit_singleline(&mut logs_dir_str).changed() {
+                                    // 更新实际路径
+                                    self.settings.data.logs_dir = PathBuf::from(logs_dir_str);
+                                }
+                                
+                                if ui.button(self.tr("Select")).clicked() {
+                                    // 显示文件夹选择对话框
+                                    if let Some(path) = FileDialog::new().pick_folder() {
+                                        self.settings.data.logs_dir = path;
+                                    }
                                 }
                             });
                             
                             // 临时文件目录
                             ui.horizontal(|ui| {
-                                ui.label("临时文件目录：");
-                                ui.text_edit_singleline(&mut format!("{}", self.settings.data.temp_dir.display()));
-                                if ui.button("选择").clicked() {
-                                    // 这里可以添加文件选择对话框
+                                ui.label(format!("{}：", self.tr("Temp Directory")));
+                                
+                                // 转换为可编辑的字符串
+                                let mut temp_dir_str = format!("{}", self.settings.data.temp_dir.display());
+                                if ui.text_edit_singleline(&mut temp_dir_str).changed() {
+                                    // 更新实际路径
+                                    self.settings.data.temp_dir = PathBuf::from(temp_dir_str);
+                                }
+                                
+                                if ui.button(self.tr("Select")).clicked() {
+                                    // 显示文件夹选择对话框
+                                    if let Some(path) = FileDialog::new().pick_folder() {
+                                        self.settings.data.temp_dir = path;
+                                    }
                                 }
                             });
                         });
@@ -979,27 +1053,27 @@ impl ToolkitApp {
                         ui.separator();
                         
                         // 快捷键配置
-                        ui.heading("快捷键配置");
+                        ui.heading(self.tr("Keyboard Shortcuts"));
                         ui.group(|ui| {
-                            ui.label("提示：重启应用后生效");
+                            ui.label(self.tr("Note: Restart required"));
                             ui.horizontal(|ui| {
-                                ui.label("新建标签页：");
+                                ui.label(format!("{}：", self.tr("New Tab")));
                                 ui.text_edit_singleline(&mut self.settings.shortcuts.new_tab);
                             });
                             ui.horizontal(|ui| {
-                                ui.label("关闭标签页：");
+                                ui.label(format!("{}：", self.tr("Close Tab")));
                                 ui.text_edit_singleline(&mut self.settings.shortcuts.close_tab);
                             });
                             ui.horizontal(|ui| {
-                                ui.label("运行工具：");
+                                ui.label(format!("{}：", self.tr("Run")));
                                 ui.text_edit_singleline(&mut self.settings.shortcuts.run_tool);
                             });
                             ui.horizontal(|ui| {
-                                ui.label("显示/隐藏帮助：");
+                                ui.label(format!("{}：", self.tr("Show Help")));
                                 ui.text_edit_singleline(&mut self.settings.shortcuts.toggle_help);
                             });
                             ui.horizontal(|ui| {
-                                ui.label("显示/隐藏设置：");
+                                ui.label(format!("{}：", self.tr("Settings")));
                                 ui.text_edit_singleline(&mut self.settings.shortcuts.toggle_settings);
                             });
                         });
@@ -1009,28 +1083,57 @@ impl ToolkitApp {
                         // 操作按钮
                         ui.horizontal(|ui| {
                             // 恢复默认值按钮
-                            if ui.button("恢复默认值").clicked() {
+                            if ui.button(self.tr("Reset to Defaults")).clicked() {
                                 self.settings.reset_to_default();
-                                self.settings_status = Some((true, "已恢复默认设置".to_string()));
+                                self.settings_status = Some((true, self.tr("Defaults Restored")));
                             }
                             
                             ui.add_space(10.0);
                             
                             // 保存设置按钮
-                            if ui.button(egui::RichText::new("保存设置").strong()).clicked() {
+                            if ui.button(egui::RichText::new(self.tr("Save Settings")).strong()).clicked() {
                                 match self.settings.validate() {
                                     Ok(_) => {
                                         if let Err(e) = self.settings.save() {
-                                            self.settings_status = Some((false, format!("保存失败：{}", e)));
+                                            self.settings_status = Some((false, format!("{}{}", self.tr("Save Failed"), e)));
                                         } else {
-                                            self.settings_status = Some((true, "设置已保存".to_string()));
+                                            self.settings_status = Some((true, self.tr("Settings Saved")));
+                                            
                                             // 更新应用状态
                                             self.locale = self.settings.display.locale;
                                             self.sidebar_width = self.settings.display.sidebar_width;
+                                            
+                                            // 更新egui上下文
+                                            // 设置主题
+                                            match self.settings.display.theme {
+                                                Theme::Light => ctx.set_visuals(egui::Visuals::light()),
+                                                Theme::Dark => ctx.set_visuals(egui::Visuals::dark()),
+                                                Theme::System => {
+                                                    // 跟随系统主题，这里简单处理为使用dark主题
+                                                    ctx.set_visuals(egui::Visuals::dark());
+                                                }
+                                            }
+                                            
+                                            // 设置字体大小
+                                            let mut style = (*ctx.style()).clone();
+                                            style.text_styles.get_mut(&egui::TextStyle::Body).unwrap().size = self.settings.display.font_size;
+                                            style.text_styles.get_mut(&egui::TextStyle::Button).unwrap().size = self.settings.display.font_size;
+                                            style.text_styles.get_mut(&egui::TextStyle::Heading).unwrap().size = self.settings.display.font_size * 1.5;
+                                            ctx.set_style(style);
+                                            
+                                            // 更新所有标签页的schema
+                                            for tab in &mut self.tabs {
+                                                if let Some(tool) = self.tools.get(&tab.tool_name) {
+                                                    tab.current_schema = Some(tool.input_schema(self.locale));
+                                                    if tab.output_value.is_some() {
+                                                        tab.output_schema = Some(tool.output_schema(self.locale));
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                     Err(e) => {
-                                        self.settings_status = Some((false, format!("验证失败：{}", e)));
+                                        self.settings_status = Some((false, format!("{}{}", self.tr("Validation Failed"), e)));
                                     }
                                 }
                             }
@@ -1038,7 +1141,7 @@ impl ToolkitApp {
                             ui.add_space(10.0);
                             
                             // 关闭按钮
-                            if ui.button("关闭").clicked() {
+                            if ui.button(self.tr("Close")).clicked() {
                                 self.show_settings = false;
                             }
                         });
@@ -1058,20 +1161,40 @@ fn main() -> eframe::Result {
     // If we need custom fonts, we need to configure ctx.set_fonts.
     // Let's first implementation simply and check if we need font config via task.
 
+    // 加载设置
+        let settings = match Settings::load() {
+            Ok(settings) => settings,
+            Err(e) => {
+                eprintln!("Failed to load settings: {}", e);
+                Settings::default()
+            }
+        };
+        
+        // 根据设置创建eframe选项
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1000.0, 600.0]),
+        // eframe::NativeOptions没有default_theme字段，主题将在应用内部处理
         ..Default::default()
     };
-    eframe::run_native(
-        "Rust Toolbox",
-        options,
-        Box::new(|cc| {
-            // Setup fonts
-            setup_custom_fonts(&cc.egui_ctx);
-            Ok(Box::new(ToolkitApp::new(cc)))
-        }),
-    )
+        
+        eframe::run_native(
+            "Rust Toolbox",
+            options,
+            Box::new(|cc| {
+                // Setup fonts
+                setup_custom_fonts(&cc.egui_ctx);
+                
+                // 设置字体大小
+                let mut style = (*cc.egui_ctx.style()).clone();
+                style.text_styles.get_mut(&egui::TextStyle::Body).unwrap().size = settings.display.font_size;
+                style.text_styles.get_mut(&egui::TextStyle::Button).unwrap().size = settings.display.font_size;
+                style.text_styles.get_mut(&egui::TextStyle::Heading).unwrap().size = settings.display.font_size * 1.5;
+                cc.egui_ctx.set_style(style);
+                
+                Ok(Box::new(ToolkitApp::new(cc)))
+            }),
+        )
 }
 
 fn setup_custom_fonts(ctx: &egui::Context) {

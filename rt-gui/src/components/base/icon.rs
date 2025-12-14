@@ -1,4 +1,6 @@
-use eframe::egui::{Ui, Response, RichText, Color32, TextStyle, Widget};use std::fmt::Display;
+use eframe::egui::{Ui, Response, RichText, Color32, TextStyle, Widget, Vec2};use std::fmt::Display;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 /// 图标类型
 enum IconType {
@@ -20,6 +22,10 @@ struct IconConfig {
     clickable: bool,
     /// 点击回调
     on_click: Option<Box<dyn FnMut()>>,
+    /// 图标缩放比例
+    scale: f32,
+    /// 图标旋转角度（度）
+    rotation: f32,
 }
 
 impl Default for IconConfig {
@@ -30,7 +36,98 @@ impl Default for IconConfig {
             color: Color32::BLACK,
             clickable: false,
             on_click: None,
+            scale: 1.0,
+            rotation: 0.0,
         }
+    }
+}
+
+/// 图标渲染缓存项
+#[derive(Clone, Debug)]
+struct IconCacheItem {
+    /// 图标字符串
+    icon_str: String,
+    /// 图标大小
+    size: f32,
+    /// 图标颜色
+    color: Color32,
+    /// 图标缩放比例
+    scale: f32,
+    /// 图标旋转角度
+    rotation: f32,
+    /// 预渲染的RichText
+    rich_text: RichText,
+}
+
+/// 图标渲染缓存
+pub struct IconCache {
+    /// 缓存项集合
+    items: HashMap<u64, IconCacheItem>,
+    /// 缓存大小限制
+    max_size: usize,
+}
+
+impl IconCache {
+    /// 创建新的图标缓存
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            items: HashMap::with_capacity(max_size),
+            max_size,
+        }
+    }
+    
+    /// 获取或创建缓存项
+    pub fn get_or_create(&mut self, icon_str: &str, size: f32, color: Color32, scale: f32, rotation: f32) -> RichText {
+        // 生成缓存键
+        let key = self.generate_key(icon_str, size, color, scale, rotation);
+        
+        // 检查缓存中是否存在
+        if let Some(item) = self.items.get(&key) {
+            return item.rich_text.clone();
+        }
+        
+        // 如果缓存已满，清理最旧的项
+        if self.items.len() >= self.max_size {
+            self.items.clear();
+        }
+        
+        // 创建新的缓存项
+        let rich_text = RichText::new(icon_str)
+            .size(size * scale)
+            .color(color);
+        
+        let item = IconCacheItem {
+            icon_str: icon_str.to_string(),
+            size,
+            color,
+            scale,
+            rotation,
+            rich_text: rich_text.clone(),
+        };
+        
+        // 添加到缓存
+        self.items.insert(key, item);
+        
+        rich_text
+    }
+    
+    /// 生成缓存键
+    fn generate_key(&self, icon_str: &str, size: f32, color: Color32, scale: f32, rotation: f32) -> u64 {
+        // 使用简单的哈希算法生成缓存键
+        let mut hash = 0u64;
+        for c in icon_str.chars() {
+            hash = hash.wrapping_mul(31).wrapping_add(c as u64);
+        }
+        hash = hash.wrapping_mul(31).wrapping_add(size as u64);
+        hash = hash.wrapping_mul(31).wrapping_add(color.to_rgba_premultiplied().0 as u64);
+        hash = hash.wrapping_mul(31).wrapping_add(scale as u64);
+        hash = hash.wrapping_mul(31).wrapping_add(rotation as u64);
+        hash
+    }
+    
+    /// 清空缓存
+    pub fn clear(&mut self) {
+        self.items.clear();
     }
 }
 
@@ -38,6 +135,8 @@ impl Default for IconConfig {
 pub struct Icon {
     /// 图标配置
     config: IconConfig,
+    /// 图标缓存引用
+    cache: Option<Arc<std::sync::Mutex<IconCache>>>,
 }
 
 impl Icon {
@@ -48,6 +147,7 @@ impl Icon {
                 icon_type: IconType::BuiltIn(icon),
                 ..Default::default()
             },
+            cache: None,
         }
     }
     
@@ -58,6 +158,7 @@ impl Icon {
                 icon_type: IconType::Custom(path.to_string()),
                 ..Default::default()
             },
+            cache: None,
         }
     }
     
@@ -70,6 +171,18 @@ impl Icon {
     /// 设置图标颜色
     pub fn color(mut self, color: Color32) -> Self {
         self.config.color = color;
+        self
+    }
+    
+    /// 设置图标缩放比例
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.config.scale = scale;
+        self
+    }
+    
+    /// 设置图标旋转角度
+    pub fn rotation(mut self, rotation: f32) -> Self {
+        self.config.rotation = rotation;
         self
     }
     
@@ -89,6 +202,12 @@ impl Icon {
         self
     }
     
+    /// 设置图标缓存
+    pub fn with_cache(mut self, cache: Arc<std::sync::Mutex<IconCache>>) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+    
     /// 渲染图标
     pub fn render(&mut self, ui: &mut Ui) -> Response {
         let IconConfig {
@@ -97,21 +216,36 @@ impl Icon {
             color,
             clickable,
             ref mut on_click,
+            scale,
+            rotation,
         } = &mut self.config;
         
         // 渲染内置图标
         match icon_type {
             IconType::BuiltIn(icon_str) => {
-                let rich_text = RichText::new(icon_str)
-                    .size(*size)
-                    .color(*color);
+                // 尝试从缓存中获取预渲染的RichText
+                let rich_text = if let Some(cache) = &self.cache {
+                    cache.lock().unwrap().get_or_create(
+                        icon_str, 
+                        *size, 
+                        *color, 
+                        *scale, 
+                        *rotation
+                    )
+                } else {
+                    // 直接创建RichText
+                    RichText::new(icon_str)
+                        .size(*size * *scale)
+                        .color(*color)
+                };
                 
                 if *clickable {
                     // 可点击图标
                     let response = ui.add(egui::Button::new(rich_text)
                         .fill(egui::Color32::TRANSPARENT)
                         .hover_fill(egui::Color32::from_rgba_premultiplied(0, 0, 0, 20))
-                        .frame(false));
+                        .frame(false)
+                        .min_size(Vec2::new(size * *scale + 4.0, size * *scale + 4.0)));
                     
                     if response.clicked() {
                         if let Some(callback) = on_click.as_mut() {
@@ -126,10 +260,20 @@ impl Icon {
                 }
             },
             IconType::Custom(path) => {
-                // 自定义图标（暂时使用占位符）
-                let rich_text = RichText::new("📁")
-                    .size(*size)
-                    .color(*color);
+                // 自定义图标（暂时使用占位符，未来可扩展支持真实图片图标）
+                let rich_text = if let Some(cache) = &self.cache {
+                    cache.lock().unwrap().get_or_create(
+                        "📁", 
+                        *size, 
+                        *color, 
+                        *scale, 
+                        *rotation
+                    )
+                } else {
+                    RichText::new("📁")
+                        .size(*size * *scale)
+                        .color(*color)
+                };
                 
                 ui.label(rich_text)
             },
@@ -141,6 +285,8 @@ impl Icon {
 pub struct IconBuilder {
     /// 图标配置
     config: IconConfig,
+    /// 图标缓存引用
+    cache: Option<Arc<std::sync::Mutex<IconCache>>>,
 }
 
 impl IconBuilder {
@@ -151,6 +297,7 @@ impl IconBuilder {
                 icon_type: IconType::BuiltIn(icon),
                 ..Default::default()
             },
+            cache: None,
         }
     }
     
@@ -161,6 +308,7 @@ impl IconBuilder {
                 icon_type: IconType::Custom(path.to_string()),
                 ..Default::default()
             },
+            cache: None,
         }
     }
     
@@ -173,6 +321,18 @@ impl IconBuilder {
     /// 设置图标颜色
     pub fn color(mut self, color: Color32) -> Self {
         self.config.color = color;
+        self
+    }
+    
+    /// 设置图标缩放比例
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.config.scale = scale;
+        self
+    }
+    
+    /// 设置图标旋转角度
+    pub fn rotation(mut self, rotation: f32) -> Self {
+        self.config.rotation = rotation;
         self
     }
     
@@ -192,10 +352,17 @@ impl IconBuilder {
         self
     }
     
+    /// 设置图标缓存
+    pub fn with_cache(mut self, cache: Arc<std::sync::Mutex<IconCache>>) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+    
     /// 构建图标
     pub fn build(self) -> Icon {
         Icon {
             config: self.config,
+            cache: self.cache,
         }
     }
 }

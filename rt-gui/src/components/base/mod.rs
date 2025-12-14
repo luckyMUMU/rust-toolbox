@@ -1,5 +1,5 @@
-// 基础组件导出
+/// 基础组件模块
 pub mod button;
-pub mod label;
 pub mod icon;
+pub mod label;
 pub mod progress;

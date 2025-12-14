@@ -619,16 +619,16 @@ impl Sidebar {
             item.visible = item.title.to_lowercase().contains(&query.to_lowercase());
             
             // 递归搜索子菜单项
-            self.search_subitems(&mut item.children, query);
+            search_subitems(&mut item.children, query);
         }
     }
-    
-    /// 递归搜索子菜单项
-    fn search_subitems(&mut self, items: &mut [MenuItemConfig], query: &str) {
-        for item in items {
-            item.visible = item.title.to_lowercase().contains(&query.to_lowercase());
-            self.search_subitems(&mut item.children, query);
-        }
+}
+
+/// 递归搜索子菜单项的辅助函数
+fn search_subitems(items: &mut [MenuItemConfig], query: &str) {
+    for item in items {
+        item.visible = item.title.to_lowercase().contains(&query.to_lowercase());
+        search_subitems(&mut item.children, query);
     }
 }
 

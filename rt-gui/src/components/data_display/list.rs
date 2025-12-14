@@ -91,7 +91,7 @@ pub enum ListStyle {
 }
 
 /// 列表组件配置
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ListConfig {
     /// 列表项
     pub items: Vec<ListItem>,
@@ -321,13 +321,13 @@ impl ListBuilder {
                 });
         });
         
-        response.outer
+        response.response
     }
 }
 
 /// 渲染单个列表项
 fn render_list_item(ui: &mut Ui, item: &ListItem, style: ListStyle, selectable: bool, is_selected: &mut bool) -> Response {
-    ui.horizontal(|ui| {
+    let response = ui.horizontal(|ui| {
         // 显示选择框
         if selectable {
             ui.checkbox(is_selected, "");
@@ -348,22 +348,28 @@ fn render_list_item(ui: &mut Ui, item: &ListItem, style: ListStyle, selectable: 
         // 显示主要内容
         let content_response = ui.vertical(|ui| {
             // 显示标题
+            let text_color = if item.disabled {
+                // 使用灰色作为禁用颜色
+                egui::Color32::GRAY
+            } else {
+                ui.visuals().text_color()
+            };
+            
             ui.label(egui::RichText::new(&item.title)
-                .color(if item.disabled {
-                    ui.visuals().disabled_text_color()
-                } else {
-                    ui.visuals().text_color()
-                })
+                .color(text_color)
                 .strong());
             
             // 显示描述
             if let Some(description) = &item.description {
+                let desc_color = if item.disabled {
+                    // 使用浅灰色作为禁用描述颜色
+                    egui::Color32::LIGHT_GRAY
+                } else {
+                    ui.visuals().weak_text_color()
+                };
+                
                 ui.label(egui::RichText::new(description)
-                    .color(if item.disabled {
-                        ui.visuals().disabled_text_color()
-                    } else {
-                        ui.visuals().weak_text_color()
-                    })
+                    .color(desc_color)
                     .small());
             }
             
@@ -371,12 +377,15 @@ fn render_list_item(ui: &mut Ui, item: &ListItem, style: ListStyle, selectable: 
             if let Some(metadata) = &item.metadata {
                 ui.horizontal(|ui| {
                     for (key, value) in metadata {
+                        let meta_color = if item.disabled {
+                            // 使用浅灰色作为禁用元数据颜色
+                            egui::Color32::LIGHT_GRAY
+                        } else {
+                            ui.visuals().weak_text_color()
+                        };
+                        
                         ui.label(egui::RichText::new(format!("{}: {}", key, value))
-                            .color(if item.disabled {
-                                ui.visuals().disabled_text_color()
-                            } else {
-                                ui.visuals().weak_text_color()
-                            })
+                            .color(meta_color)
                             .small());
                         ui.add_space(8.0);
                     }
@@ -386,18 +395,23 @@ fn render_list_item(ui: &mut Ui, item: &ListItem, style: ListStyle, selectable: 
         
         // 显示右侧内容
         if let Some(right_content) = &item.right_content {
+            let right_color = if item.disabled {
+                // 使用灰色作为禁用右侧内容颜色
+                egui::Color32::GRAY
+            } else {
+                ui.visuals().text_color()
+            };
+            
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(egui::RichText::new(right_content)
-                    .color(if item.disabled {
-                        ui.visuals().disabled_text_color()
-                    } else {
-                        ui.visuals().text_color()
-                    }));
+                    .color(right_color));
             });
         }
         
         content_response
-    })
+    });
+    
+    response.response
 }
 
 /// 列表组件
@@ -415,7 +429,7 @@ impl List {
 impl Widget for List {
     fn ui(self, ui: &mut Ui) -> Response {
         let mut selected_items = self.config.selected_items.clone();
-        self.builder()
+        List::builder()
             .items(self.config.items.clone())
             .style(self.config.style)
             .selectable(self.config.selectable)

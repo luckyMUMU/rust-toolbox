@@ -59,6 +59,7 @@ impl LayoutManager {
     }
     
     /// 切换布局类型
+    #[allow(dead_code)]
     pub fn switch_layout(&mut self, layout_type: LayoutType) {
         self.current_layout = layout_type;
     }
@@ -184,168 +185,219 @@ impl LayoutManager {
 
 /// 渲染JSON Schema表单的辅助函数
 pub fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_only: bool, path: &str) {
-    if let Some(obj_type) = schema.get("type").and_then(|v| v.as_str()) {
-        match obj_type {
-            "object" => {
-                // 确保数据是对象类型
-                if !data.is_object() {
-                    *data = serde_json::json!({});
-                }
-                
-                if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
-                    for (key, prop_schema) in props {
-                        ui.horizontal(|ui| {
-                            // 使用title（如果有），否则使用key
+    // 确保schema有type字段
+    let obj_type = schema.get("type").and_then(|v| v.as_str()).unwrap_or("object");
+    
+    match obj_type {
+        "object" => {
+            // 确保数据是对象类型
+            if !data.is_object() {
+                *data = serde_json::json!({});
+            }
+            
+            if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
+                for (key, prop_schema) in props {
+                    // 使用垂直布局代替水平布局，避免表单内容被截断
+                    ui.vertical(|ui| {
+                        // 确保数据有这个键（仅在编辑模式下）
+                        if !read_only && data.get(key).is_none() {
+                            // 根据类型初始化安全默认值
+                            let default = match prop_schema.get("type").and_then(|v| v.as_str()) {
+                                Some("string") => serde_json::json!(""),
+                                Some("boolean") => serde_json::json!(false),
+                                Some("integer") | Some("number") => serde_json::json!(0),
+                                Some("object") => serde_json::json!({}),
+                                Some("array") => serde_json::json!([]),
+                                _ => serde_json::json!(null),
+                            };
+                            data.as_object_mut().unwrap().insert(key.clone(), default);
+                        }
+                        
+                        // 确保数据是对象类型，避免崩溃
+                        if let Some(val) = data.get_mut(key) {
+                            // 使用标题（如果有），否则使用key
                             let label_text = prop_schema.get("title")
                                 .and_then(|t| t.as_str())
                                 .unwrap_or(key);
-                                
+                            
                             ui.label(label_text);
                             
-                            // 确保数据有这个键（仅在编辑模式下）
-                            if !read_only && data.get(key).is_none() {
-                                // 根据类型初始化安全默认值
-                                let default = match prop_schema.get("type").and_then(|v| v.as_str()) {
-                                    Some("string") => serde_json::json!(""),
-                                    Some("boolean") => serde_json::json!(false),
-                                    Some("integer") | Some("number") => serde_json::json!(0),
-                                    Some("object") => serde_json::json!({}),
-                                    Some("array") => serde_json::json!([]),
-                                    _ => serde_json::json!(null),
-                                };
-                                data.as_object_mut().unwrap().insert(key.clone(), default);
-                            }
-                            
-                            // 确保数据是对象类型，避免崩溃
-                            if let Some(val) = data.get_mut(key) {
-                                let child_path = if path.is_empty() { key.clone() } else { format!("{}.{}", path, key) };
+                            let child_path = if path.is_empty() { key.clone() } else { format!("{}.{}", path, key) };
+                            // 使用缩进和分组来提升表单的可读性
+                            ui.group(|ui| {
                                 render_schema(ui, prop_schema, val, read_only, &child_path);
-                            } else {
-                                ui.weak("(null)");
-                            }
-                        });
-                    }
-                }
-            },
-            "string" => {
-                // 检查该字段是否有枚举约束
-                if let Some(enum_values) = schema.get("enum").and_then(|v| v.as_array()) {
-                    // 尝试获取标签
-                    let labels = schema.get("x-enum-labels").and_then(|v| v.as_object());
-
-                    // 对于枚举字段，渲染为组合框
-                    if let Some(s) = data.as_str() {
-                        let original = s.to_string();  // 在闭包前克隆
-                        let mut selected = original.clone();
-                        
-                        let current_label = labels
-                            .and_then(|l| l.get(&selected))
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| selected.clone());
-
-                        if read_only {
-                            ui.label(&current_label);
-                        } else {
-                            ui.push_id(path, |ui| {
-                                egui::ComboBox::from_id_salt(path)
-                                    .selected_text(&current_label)
-                                    .show_ui(ui, |ui| {
-                                        for enum_val in enum_values {
-                                            if let Some(val_str) = enum_val.as_str() {
-                                                let label = labels
-                                                    .and_then(|l| l.get(val_str))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or(val_str);
-                                                
-                                                ui.selectable_value(&mut selected, val_str.to_string(), label);
-                                            }
-                                        }
-                                    });
                             });
-                            if selected != original {
-                                *data = serde_json::json!(selected);
-                            }
-                        }
-                    } else {
-                        if !read_only { 
-                            // 使用第一个枚举值初始化
-                            if let Some(first) = enum_values.first().and_then(|v| v.as_str()) {
-                                *data = serde_json::json!(first);
-                            }
-                        }
-                    }
-                } else {
-                    // 对于非枚举字符串，使用常规文本输入
-                    if let Some(s) = data.as_str() {
-                        let mut text = s.to_string();
-                        if read_only {
-                             ui.label(text);
                         } else {
-                            ui.push_id(path, |ui| {
-                                if ui.text_edit_singleline(&mut text).changed() {
-                                    *data = serde_json::json!(text);
-                                }
-                            });
+                            ui.weak("(null)");
                         }
-                    } else {
-                        // 如果类型不匹配，强制重置
-                        if !read_only { *data = serde_json::json!(""); }
-                        else { ui.label("Invalid Type"); }
-                    }
+                    });
                 }
-            },
-            "boolean" => {
-                if let Some(b) = data.as_bool() {
-                    let mut val = b;
+            }
+        },
+        "string" => {
+            // 检查该字段是否有枚举约束
+            if let Some(enum_values) = schema.get("enum").and_then(|v| v.as_array()) {
+                // 尝试获取标签
+                let labels = schema.get("x-enum-labels").and_then(|v| v.as_object());
+
+                // 对于枚举字段，渲染为组合框
+                if let Some(s) = data.as_str() {
+                    let original = s.to_string();  // 在闭包前克隆
+                    let mut selected = original.clone();
+                    
+                    let current_label = labels
+                        .and_then(|l| l.get(&selected))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| selected.clone());
+
                     if read_only {
-                         ui.add_enabled(false, egui::Checkbox::new(&mut val, ""));
+                        ui.label(&current_label);
                     } else {
                         ui.push_id(path, |ui| {
-                            if ui.checkbox(&mut val, "").changed() {
-                                *data = serde_json::json!(val);
+                            egui::ComboBox::from_id_salt(path)
+                                .selected_text(&current_label)
+                                .show_ui(ui, |ui| {
+                                    for enum_val in enum_values {
+                                        if let Some(val_str) = enum_val.as_str() {
+                                            let label = labels
+                                                .and_then(|l| l.get(val_str))
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or(val_str);
+                                            
+                                            ui.selectable_value(&mut selected, val_str.to_string(), label);
+                                        }
+                                    }
+                                });
+                        });
+                        if selected != original {
+                            *data = serde_json::json!(selected);
+                        }
+                    }
+                } else {
+                    if !read_only { 
+                        // 使用第一个枚举值初始化
+                        if let Some(first) = enum_values.first().and_then(|v| v.as_str()) {
+                            *data = serde_json::json!(first);
+                        }
+                    }
+                }
+            } else {
+                // 对于非枚举字符串，使用常规文本输入
+                if let Some(s) = data.as_str() {
+                    let mut text = s.to_string();
+                    if read_only {
+                         ui.label(text);
+                    } else {
+                        ui.push_id(path, |ui| {
+                            if ui.text_edit_multiline(&mut text).changed() {
+                                *data = serde_json::json!(text);
                             }
                         });
                     }
                 } else {
-                    if !read_only { *data = serde_json::json!(false); }
-                }
-            },
-             "integer" | "number" => {
-                 let mut num = data.as_f64().unwrap_or(0.0);
-                 if read_only {
-                     ui.label(num.to_string());
-                 } else {
-                     ui.push_id(path, |ui| {
-                         if ui.add(egui::DragValue::new(&mut num)).changed() {
-                             *data = serde_json::json!(num); 
-                         }
-                     });
-                 }
-            },
-            "array" => {
-                if !data.is_array() && !read_only { *data = serde_json::json!([]); }
-                
-                if read_only {
-                    if let Some(arr) = data.as_array() {
-                        ui.label(format!("[{} items]", arr.len()));
-                    } else {
-                        ui.label("[]");
-                    }
-                } else {
-                    // 对于数组类型，目前只显示数组长度，不提供编辑功能
-                    if let Some(arr) = data.as_array() {
-                        ui.label(format!("[{} items]", arr.len()));
-                    } else {
-                        ui.label("[]");
-                    }
+                    // 如果类型不匹配，强制重置
+                    if !read_only { *data = serde_json::json!(""); }
+                    else { ui.label("Invalid Type"); }
                 }
             }
-            _ => {
-                ui.label(format!("Unsupported type: {}", obj_type));
+        },
+        "boolean" => {
+            if let Some(b) = data.as_bool() {
+                let mut val = b;
+                if read_only {
+                     ui.add_enabled(false, egui::Checkbox::new(&mut val, ""));
+                } else {
+                    ui.push_id(path, |ui| {
+                        if ui.checkbox(&mut val, "").changed() {
+                            *data = serde_json::json!(val);
+                        }
+                    });
+                }
+            } else {
+                if !read_only { *data = serde_json::json!(false); }
+            }
+        },
+         "integer" | "number" => {
+             let mut num = data.as_f64().unwrap_or(0.0);
+             if read_only {
+                 ui.label(num.to_string());
+             } else {
+                 ui.push_id(path, |ui| {
+                     if ui.add(egui::DragValue::new(&mut num)).changed() {
+                         *data = serde_json::json!(num); 
+                     }
+                 });
+             }
+        },
+        "array" => {
+            if !data.is_array() && !read_only { *data = serde_json::json!([]); }
+            
+            if read_only {
+                if let Some(arr) = data.as_array() {
+                    ui.label(format!("[{} items]", arr.len()));
+                } else {
+                    ui.label("[]");
+                }
+            } else {
+                // 先获取数组的长度，避免借用冲突
+                let array_length = data.as_array().map(|arr| arr.len()).unwrap_or(0);
+                
+                // 显示数组长度和添加按钮
+                ui.horizontal(|ui| {
+                    ui.label(format!("[{} items]", array_length));
+                    // 添加简单的添加按钮
+                    if ui.button("+").clicked() {
+                        // 添加一个默认值到数组
+                        let item_default = serde_json::json!("");
+                        data.as_array_mut().unwrap().push(item_default);
+                    }
+                });
+                
+                // 处理数组项的编辑和删除
+                let mut remove_indices = Vec::new();
+                
+                // 使用索引访问数组项，避免可变借用冲突
+                let mut index = 0;
+                while index < data.as_array().map(|arr| arr.len()).unwrap_or(0) {
+                    let mut item_changed = false;
+                    let mut item_value = data.as_array_mut().unwrap()[index].clone();
+                    
+                    ui.horizontal(|ui| {
+                        ui.label(format!("Item {}", index + 1));
+                        
+                        // 对于字符串类型的数组项，允许编辑
+                        if let Some(s) = item_value.as_str() {
+                            let mut text = s.to_string();
+                            if ui.text_edit_singleline(&mut text).changed() {
+                                item_value = serde_json::json!(text);
+                                item_changed = true;
+                            }
+                        }
+                        
+                        // 添加删除按钮
+                        if ui.button("✕").clicked() {
+                            remove_indices.push(index);
+                        }
+                    });
+                    
+                    // 更新数组项
+                    if item_changed {
+                        data.as_array_mut().unwrap()[index] = item_value;
+                    }
+                    
+                    index += 1;
+                }
+                
+                // 在循环外执行删除操作，从后往前删除避免索引问题
+                remove_indices.sort_by(|a, b| b.cmp(a));
+                for i in remove_indices {
+                    data.as_array_mut().unwrap().remove(i);
+                }
             }
         }
-    } else {
-        ui.label("Invalid Schema");
+        _ => {
+            ui.label(format!("Unsupported type: {}", obj_type));
+        }
     }
 }

@@ -119,36 +119,37 @@ async fn main() -> anyhow::Result<()> {
                 _ => anyhow::bail!("Unsupported locale: {}", locale),
             };
 
-            // 为每个工具生成元数据
-            for tool in ALL_TOOLS {
-                let metadata = PluginMetadata {
-                    name: tool.name.to_string(),
-                    display_name: LocalizedString {
-                        en: tool.display_name_en.to_string(),
-                        zh: Some(tool.display_name_zh.to_string()),
-                    },
-                    description: LocalizedString {
-                        en: tool.description_en.to_string(),
-                        zh: Some(tool.description_zh.to_string()),
-                    },
-                    user_guide: LocalizedString {
-                        en: i18n::get_tool_user_guide(tool.name, Locale::En),
-                        zh: Some(i18n::get_tool_user_guide(tool.name, Locale::Zh)),
-                    },
-                    input_schema: get_input_schema(tool.name),
-                    output_schema: Some(get_output_schema(tool.name)),
-                    input_fields: Some(i18n::get_input_field_map()),
-                    output_fields: Some(i18n::get_output_field_map()),
-                    author: None,
-                    version: None,
-                    // 添加缺少的字段
-                    mcp_supported: false,
-                    mcp_capabilities: json!({}),
-                    requires_full_context: false,
-                    context_validation_rules: json!({}),
-                };
-                println!("{}", serde_json::to_string_pretty(&metadata)?);
-            }
+            // 仅输出第一个工具的元数据，因为插件加载器只支持一个插件对应一个工具
+            let tool = &ALL_TOOLS[0];
+            let metadata = PluginMetadata {
+                name: tool.name.to_string(),
+                display_name: LocalizedString {
+                    en: tool.display_name_en.to_string(),
+                    zh: Some(tool.display_name_zh.to_string()),
+                },
+                description: LocalizedString {
+                    en: tool.description_en.to_string(),
+                    zh: Some(tool.description_zh.to_string()),
+                },
+                user_guide: LocalizedString {
+                    en: i18n::get_tool_user_guide(tool.name, Locale::En),
+                    zh: Some(i18n::get_tool_user_guide(tool.name, Locale::Zh)),
+                },
+                input_schema: get_input_schema(tool.name),
+                output_schema: Some(get_output_schema(tool.name)),
+                input_fields: Some(i18n::get_input_field_map()),
+                output_fields: Some(i18n::get_output_field_map()),
+                author: None,
+                version: None,
+                // 添加缺少的字段
+                mcp_supported: false,
+                mcp_capabilities: json!({}),
+                requires_full_context: false,
+                context_validation_rules: json!({}),
+            };
+            
+            // 输出单个JSON对象
+            println!("{}", serde_json::to_string_pretty(&metadata)?);
         }
         Commands::Run => {
             // 从标准输入读取输入数据
