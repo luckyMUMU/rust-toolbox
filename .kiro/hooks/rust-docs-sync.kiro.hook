@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Rust Documentation Sync",
+  "description": "Monitors all Rust source files (.rs), Cargo.toml files, and design documents for changes, then asks the agent to update project documentation in README.md and .trae/documents/ folder to keep docs synchronized with code changes",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.rs",
+      "**/Cargo.toml",
+      "**/*.md",
+      "**/*.json"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source file has been modified in the Rust project. Please review the changes and update the project documentation accordingly:\n\n1. Update README.md if the changes affect:\n   - Project overview or features\n   - Installation or usage instructions\n   - API changes or new functionality\n\n2. Update relevant documentation in .trae/documents/ folder if the changes involve:\n   - Architecture or design modifications\n   - New tools or plugins\n   - Configuration or workflow changes\n   - Plugin system updates\n\n3. Ensure documentation reflects:\n   - Current project structure\n   - Updated feature descriptions\n   - Accurate code examples\n   - Proper cross-references between components\n\nFocus on keeping the documentation accurate, comprehensive, and aligned with the actual codebase state."
+  }
+}

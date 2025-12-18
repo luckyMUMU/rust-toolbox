@@ -1,45 +1,121 @@
 # rt-tools Design Document
 
-## 1. 模块概述 (Module Overview)
-`rt-tools` 包含具体的工具实现。所有工具必须实现 `rt-core::Tool` trait。
+## 1. Module Overview
+`rt-tools` contains concrete tool implementations that provide the built-in functionality for the Rust Toolbox platform. All tools must implement the `rt-core::Tool` trait and follow the established patterns for internationalization, schema definition, and error handling.
 
-## 2. 工具列表 (Tool List)
+The module is organized into functional categories (file operations, text processing) with each tool having its own subdirectory containing implementation, localization resources, and documentation.
 
-### 2.1 File Operations (`file`)
+## 2. Architecture
+
+### 2.1 Tool Registration System
+Tools are automatically registered using the `register_tool!` macro, which handles:
+- Tool discovery and instantiation
+- Integration with the core tool registry
+- Automatic schema generation and validation
+
+### 2.2 Internationalization Framework
+All tools use the unified `ToolI18n` system that provides:
+- JSON-based localization resources
+- Runtime locale switching
+- Schema field title injection for dynamic UI generation
+- Consistent user guide formatting
+
+### 2.3 Utils Module
+The `utils` module provides shared infrastructure for tool development:
+- **Core Type Re-exports**: Common types from `rt-core` (Tool, Locale, PersistenceManager, etc.)
+- **I18n Helper**: `ToolI18n` struct for loading and managing localization resources
+- **Consistent API**: Unified interface for tool development
+
+## 3. Available Tools
+
+### 3.1 File Operations (`file`)
 
 #### Move Folder (`file.move_folder`)
 - **Name**: `file.move_folder`
-- **Description**: 移动或重命名文件夹。
+- **Description**: Move or rename folders with collision handling and validation
+- **Features**:
+  - Source and destination path validation
+  - Overwrite protection with confirmation
+  - Recursive directory moving
+  - File count reporting
 - **Input Schema**:
   ```json
   {
     "source": "path/to/source",
     "destination": "path/to/dest",
-    "overwrite": false // Optional, default false
+    "overwrite": false
   }
   ```
 - **Output Schema**:
   ```json
   {
     "success": true,
-    "moved_files": 10 // Count of moved files/items
+    "moved_files": 10
   }
   ```
 - **Error Conditions**:
-  - Source path does not exist.
-  - Destination exists and overwrite is false.
-  - Permission denied.
+  - Source path does not exist
+  - Destination exists and overwrite is false
+  - Permission denied
+  - Invalid path format
 
-### 2.2 Text Operations (`text`)
+### 3.2 Text Operations (`text`)
+
+#### AC Automaton (`text.ac_automaton`)
+- **Name**: `text.ac_automaton`
+- **Description**: Aho-Corasick pattern matching with multi-pattern support
+- **Features**:
+  - Multi-pattern string matching using Aho-Corasick algorithm
+  - Pattern management (add, remove, list operations)
+  - Case-sensitive and case-insensitive matching
+  - Parallel text processing support
+  - Performance timing and statistics
+- **Input Schema**:
+  ```json
+  {
+    "action": "match",
+    "patterns": ["pattern1", "pattern2"],
+    "texts": ["text to search"],
+    "ignore_case": false,
+    "parallel": false,
+    "confirm": false
+  }
+  ```
+- **Output Schema**:
+  ```json
+  {
+    "success": true,
+    "message": "操作成功",
+    "results": [
+      {
+        "pattern": "pattern1",
+        "start": 0,
+        "end": 8
+      }
+    ],
+    "patterns": ["pattern1", "pattern2"],
+    "elapsed_ms": 15
+  }
+  ```
+- **Supported Actions**:
+  - `add`: Add patterns to the automaton
+  - `remove`: Remove patterns (requires confirmation)
+  - `list`: List current patterns
+  - `match`: Perform pattern matching on texts
+  - `save`/`load`: Persistence operations (planned)
 
 #### Chinese Converter (`text.convert_chinese`)
 - **Name**: `text.convert_chinese`
-- **Description**: 简繁体中文转换。
+- **Description**: Traditional/Simplified Chinese text conversion
+- **Features**:
+  - Multiple conversion modes (Simplified ↔ Traditional)
+  - Regional variants support (Taiwan, Hong Kong)
+  - Phrase-level conversion accuracy
 - **Input Schema**:
   ```json
   {
     "text": "简体中文",
-    "mode": "s2t" // Enum: s2t, t2s, s2tw, tw2s, s2hk, hk2s, s2twp, tw2sp
+    "mode": "s2t"
   }
   ```
 - **Output Schema**:
@@ -48,90 +124,144 @@
     "converted": "繁體中文"
   }
   ```
+- **Conversion Modes**:
+  - `s2t`: Simplified to Traditional
+  - `t2s`: Traditional to Simplified
+  - `s2tw`: Simplified to Taiwan Traditional
+  - `tw2s`: Taiwan Traditional to Simplified
+  - `s2hk`: Simplified to Hong Kong Traditional
+  - `hk2s`: Hong Kong Traditional to Simplified
+  - `s2twp`: Simplified to Taiwan Traditional with phrases
+  - `tw2sp`: Taiwan Traditional to Simplified with phrases
 
-## 3. 结构 (Structure)
+## 4. Project Structure
+
 ```
-src/
-├── lib.rs
-├── utils/              # Common utilities module
-│   ├── mod.rs          # Re-exports core types and utils
-│   └── i18n.rs         # i18n helper implementation
-├── file/
-│   ├── mod.rs
-│   └── move_folder/
-│       ├── mod.rs
-│       └── locales/    # Localization files
-│           ├── tool.en.json
-│           └── tool.zh-CN.json
-└── text/
-    ├── mod.rs
-    └── convert_chinese/
-        ├── mod.rs
-        └── locales/    # Localization files
-            ├── tool.en.json
-            └── tool.zh-CN.json
+rt-tools/
+├── Cargo.toml                    # Dependencies and metadata
+├── DESIGN.md                     # This architecture document
+├── PUBLIC_TOOLS.md               # Public API documentation
+└── src/
+    ├── lib.rs                    # Tool registration and exports
+    ├── utils/                    # Shared utilities module
+    │   ├── mod.rs                # Core type re-exports
+    │   └── i18n.rs               # Internationalization helper
+    ├── file/                     # File operation tools
+    │   ├── mod.rs                # File category module
+    │   └── move_folder/          # Move folder tool
+    │       ├── DESIGN.md         # Tool-specific design
+    │       ├── mod.rs            # Implementation
+    │       └── locales/          # Localization resources
+    │           ├── tool.en.json  # English translations
+    │           └── tool.zh-CN.json # Chinese translations
+    └── text/                     # Text processing tools
+        ├── mod.rs                # Text category module
+        ├── ac_automaton/         # AC automaton tool
+        │   ├── mod.rs            # Implementation
+        │   ├── tests.rs          # Unit tests
+        │   └── locales/          # Localization resources
+        │       ├── tool.en.json  # English translations
+        │       └── tool.zh-CN.json # Chinese translations
+        └── convert_chinese/      # Chinese converter tool
+            ├── DESIGN.md         # Tool-specific design
+            ├── mod.rs            # Implementation
+            └── locales/          # Localization resources
+                ├── tool.en.json  # English translations
+                └── tool.zh-CN.json # Chinese translations
 ```
 
-## 4. 公共工具模块 (Utils Module)
-`rt-tools` 提供了一个公共的 `utils` 模块，用于：
-1.  **核心功能暴露**: 将 `rt-core` 中的常用类型 (如 `Tool`, `Locale`, `PersistenceManager`, `WorkflowEngine`) 重新导出，方便内部工具统一引用。
-2.  **通用辅助功能**: 提供如 `ToolI18n` 等辅助工具开发的功能。
+## 5. Utils Module Architecture
 
-开发新工具时，建议通过 `use crate::utils::{...}` 引用所需的基础设施。
+The `utils` module provides essential infrastructure for tool development:
 
-## 5. 国际化 (Internationalization)
-工具的国际化现在通过 JSON 文件管理。每个工具目录下有一个 `locales` 文件夹，包含 `tool.en.json` 和 `tool.zh-CN.json`。
+### 5.1 Core Type Re-exports
+Provides unified access to commonly used types from `rt-core`:
+- `Tool`: Core tool trait
+- `Locale`: Language enumeration
+- `Result`, `CoreError`: Error handling types
+- `PersistenceManager`: Data storage interface
+- `WorkflowEngine`: Workflow execution engine
+- `WorkflowDefinition`, `WorkflowStatus`, `WorkflowInstance`: Workflow types
 
-`utils::i18n` 提供了 `ToolI18n` 结构体，用于加载这些 JSON 文件并在运行时提供本地化字符串。
+### 5.2 Internationalization Helper (`ToolI18n`)
+Manages localization resources for tools:
+- **JSON-based Configuration**: Loads translations from embedded JSON files
+- **Runtime Locale Switching**: Supports dynamic language changes
+- **Schema Integration**: Injects localized field titles into JSON schemas
+- **Structured Data**: Handles display names, descriptions, user guides, and field titles
 
-JSON 文件结构示例：
+### 5.3 Usage Pattern
+Tools should import utilities through the unified interface:
+```rust
+use crate::utils::{Tool, Locale, ToolI18n, Result, CoreError};
+```
+
+## 6. Internationalization System
+
+### 6.1 JSON Structure
+Each tool maintains localization files with the following structure:
 ```json
 {
-  "display_name": "Tool Name",
-  "description": "Tool Description",
-  "user_guide": "Markdown User Guide",
+  "display_name": "Tool Display Name",
+  "description": "Tool description for users",
+  "user_guide": "Markdown-formatted user guide",
   "input_schema": {
-    "field_name": { "title": "Field Title" }
+    "field_name": { "title": "Localized Field Title" }
   },
   "output_schema": {
-    "field_name": { "title": "Field Title" }
+    "field_name": { "title": "Localized Output Title" }
   },
   "extra": {
-    "key": "value"
+    "custom_key": "Custom localized value"
   }
 }
 ```
 
-## 6. 插件系统架构 (Plugin System Architecture)
+### 6.2 Schema Integration
+The `ToolI18n` system automatically:
+- Injects localized titles into JSON schemas
+- Provides enum label translations for dropdown fields
+- Supports custom field mappings through the `extra` section
+- Maintains consistency across CLI and GUI interfaces
 
-为了支持扩展性，rt-box 支持通过外部可执行文件添加工具。
+### 6.3 Supported Locales
+- **English (`en`)**: Primary language for development and documentation
+- **Chinese (`zh-CN`)**: Simplified Chinese for Chinese users
 
-### 6.1 协议定义 (Protocol Definition)
+## 7. Tool Development Guidelines
 
-插件必须是一个独立的可执行文件（如 `.exe`, `.py` 脚本等），并支持以下命令行交互：
+### 7.1 Implementation Requirements
+1. **Trait Implementation**: All tools must implement `rt_core::Tool`
+2. **Registration**: Use `register_tool!` macro for automatic discovery
+3. **Async Support**: All tool execution must be async-compatible
+4. **Error Handling**: Use `rt_core::Result` and `CoreError` types
+5. **Schema Validation**: Input/output must use `schemars::JsonSchema`
 
-#### 5.1.1 获取元数据 (Metadata)
-- **Command**: `path/to/plugin spec`
-- **Stdin**: (无)
-- **Stdout**: JSON 对象，包含工具描述。
-  ```json
-  {
-    "name": "ext.my_tool",
-    "display_name": { "en": "My Tool", "zh-CN": "我的工具" },
-    "description": { "en": "...", "zh-CN": "..." },
-    "user_guide": { "en": "...", "zh-CN": "..." },
-    "input_schema": { ... }, // JSON Schema
-    "output_schema": { ... }, // JSON Schema
-    "input_fields": { // Optional: Field-level localization for GUI form generation
-      "field_name_1": { "en": "Field 1", "zh-CN": "字段1" },
-      "field_name_2": { "en": "Field 2", "zh-CN": "字段2" }
-    },
-    "output_fields": { // Optional: Field-level localization for GUI result display
-      "result_field_1": { "en": "Result 1", "zh-CN": "结果1" }
-    }
-  }
-  ```
+### 7.2 Testing Standards
+- **Unit Tests**: Each tool should have comprehensive unit tests
+- **Integration Tests**: Test tool registration and execution flow
+- **Schema Validation**: Verify input/output schema correctness
+- **Localization Tests**: Ensure all locales load correctly
 
-#### 5.1.2 执行工具 (Execute)
-- **Command**: `path/to/plugin run`
-- **Stdin**: JSON 字符串 (Input Value)
+### 7.3 Documentation Requirements
+- **Tool-specific DESIGN.md**: For complex tools with multiple features
+- **Inline Documentation**: Comprehensive rustdoc comments
+- **User Guides**: Markdown-formatted guides in localization files
+- **Example Usage**: Include practical examples in documentation
+
+## 8. Performance Considerations
+
+### 8.1 Lazy Loading
+- Tools are instantiated only when needed
+- Localization resources are loaded once per tool instance
+- Schema generation is cached where possible
+
+### 8.2 Async Execution
+- All tools support async execution for non-blocking operations
+- Parallel processing is available for applicable tools (e.g., AC automaton)
+- Resource cleanup is handled automatically
+
+### 8.3 Memory Management
+- Tools use minimal memory footprint
+- Large data structures are processed in streaming fashion where possible
+- Temporary resources are properly cleaned up after execution

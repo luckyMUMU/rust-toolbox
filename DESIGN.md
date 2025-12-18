@@ -1,29 +1,33 @@
-# Rust Toolbox 项目整体设计文档
+# Rust Toolbox Project Design Document
 
-## 1. 概述
+## 1. Overview
 
-本文档旨在记录 Rust Toolbox 项目的整体架构设计、技术选型和核心原则，为项目开发提供指导和参考。
+This document records the overall architectural design, technology selection, and core principles of the Rust Toolbox project, providing guidance and reference for project development.
 
-## 1.1 相关文档
+## 1.1 Related Documentation
 
-- [架构设计文档](ARCHITECTURE_DESIGN.md): 详细描述项目的架构设计、核心组件和部署架构
-- [持久化设计文档](rt-core/PERSISTENCE_DESIGN.md): 详细描述项目的持久化设计
-- [工作流设计文档](rt-core/WORKFLOW_DESIGN.md): 详细描述项目的工作流设计
+- [Architecture Design Document](ARCHITECTURE_DESIGN.md): Detailed description of project architecture design, core components and deployment architecture
+- [Persistence Design Document](rt-core/PERSISTENCE_DESIGN.md): Detailed description of project persistence design
+- [Workflow Design Document](rt-core/WORKFLOW_DESIGN.md): Detailed description of project workflow design
 
-## 2. 核心原则
+## 2. Core Principles
 
-*   **模块化与解耦**: 强调核心逻辑与 UI 层的分离，确保各组件职责单一，易于维护和扩展。
-*   **可扩展性**: 通过插件系统支持外部工具的动态集成，提高项目的灵活性和生命力。
-*   **多语言支持**: 所有面向用户的文本均支持多语言，提升用户体验。
-*   **持久化管理**: 提供统一的数据存储、缓存和配置管理服务，支持模块化和高性能读写 (详见 `rt-core/PERSISTENCE_DESIGN.md`)。
-*   **工作流编排**: 支持通过 DAG (有向无环图) 编排多个工具，实现自动化任务处理 (详见 `rt-core/WORKFLOW_DESIGN.md`)。
-*   **Model Context Protocol (MCP) 支持**: 实现标准化的上下文管理和工具调用协议，支持外部系统集成。
-*   **设计优先**: 任何新功能或重大改动都需先进行设计，并形成文档。
-*   **文档闭环**: 代码变更与文档同步更新，确保文档的准确性和时效性。
+*   **Modularity and Decoupling**: Emphasizes separation of core logic from UI layer, ensuring single responsibility for each component, easy maintenance and extension.
+*   **Extensibility**: Supports dynamic integration of external tools through plugin system, improving project flexibility and vitality.
+*   **Multi-language Support**: All user-facing text supports multiple languages, enhancing user experience.
+*   **Persistence Management**: Provides unified data storage, caching, and configuration management services, supporting modularity and high-performance read/write operations (see `rt-core/PERSISTENCE_DESIGN.md`).
+*   **Workflow Orchestration**: Supports orchestrating multiple tools through DAG (Directed Acyclic Graph) for automated task processing (see `rt-core/WORKFLOW_DESIGN.md`).
+*   **Model Context Protocol (MCP) Support**: Implements standardized context management and tool calling protocol, supporting external system integration.
+*   **Service-Oriented Architecture**: Provides unified service layer with role-based access control and standardized error handling.
+*   **Configuration-Driven Design**: Supports multi-source configuration loading with caching, hot reload, and priority management.
+*   **Comprehensive Logging**: Implements structured logging with multiple output targets and hierarchical log levels.
+*   **Multi-Tool Plugin Architecture**: Supports both single-tool and multi-tool plugins through array-based metadata format.
+*   **Design-First Approach**: Any new features or major changes require design documentation first.
+*   **Documentation Consistency**: Code changes are synchronized with documentation updates to ensure accuracy and timeliness.
 
-## 3. 项目结构 (Cargo Workspace)
+## 3. Project Structure (Cargo Workspace)
 
-项目采用 Cargo Workspace 结构，将不同功能模块组织为独立的 crate，便于管理和复用。详细的架构设计请参考 [架构设计文档](ARCHITECTURE_DESIGN.md)。
+The project adopts Cargo Workspace structure, organizing different functional modules as independent crates for easy management and reuse. For detailed architectural design, please refer to [Architecture Design Document](ARCHITECTURE_DESIGN.md).
 
 ```
 / (Root)
@@ -32,142 +36,215 @@
 ├── README.md
 ├── USER_GUIDE.md
 ├── PLUGIN_GUIDE.md
-├── ARCHITECTURE_DESIGN.md  (架构设计文档)
-├── plugins/          (插件目录)
-├── rt-core/          (核心库: Tool trait, Plugin system)
-├── rt-tools/         (内置工具集)
-├── rt-cli/           (命令行入口)
-└── rt-gui/           (图形界面入口)
+├── ARCHITECTURE_DESIGN.md  (Architecture design document)
+├── plugins/          (Plugin directory)
+├── rt-core/          (Core library: Tool trait, Plugin system, MCP, Services)
+├── rt-tools/         (Built-in tool collection)
+├── rt-cli/           (Command-line interface)
+├── rt-gui/           (Graphical interface)
+├── rt-plugin-pinyin/ (Single-tool plugin: Chinese to Pinyin)
+├── rt-plugin-ytdlp/  (Single-tool plugin: Video downloader)
+└── rt-plugin-czkawka/(Multi-tool plugin: File system utilities)
 ```
 
-## 4. 技术选型
+## 4. Technology Selection
 
-### 4.1 编程语言
+### 4.1 Programming Language
 
-*   **Rust**: 作为主要的开发语言，利用其高性能、内存安全和并发优势。
+*   **Rust 2021 Edition**: Primary development language, leveraging its high performance, memory safety, and concurrency advantages.
 
-### 4.2 核心库 (`rt-core`)
+### 4.2 Core Library (`rt-core`)
 
-*   **职责**: 定义 `Tool` trait、`Plugin` 系统、`Locale` 枚举、错误处理机制、持久化管理 (`PersistenceManager`)、配置管理、日志记录和公共服务层等核心抽象。详细的架构设计请参考 [架构设计文档](ARCHITECTURE_DESIGN.md)。
-*   **关键技术**: `serde` 用于序列化/反序列化 JSON 数据；`thiserror` 用于统一错误处理；`sled` + `moka` 实现高性能持久化；`chrono` 用于时间处理；`uuid` 用于生成唯一标识符。
+*   **Responsibilities**: Defines `Tool` trait, `Plugin` system, `Locale` enumeration, error handling mechanisms, persistence management (`PersistenceManager`), configuration management, logging, MCP support, and service layer core abstractions. For detailed architectural design, please refer to [Architecture Design Document](ARCHITECTURE_DESIGN.md).
+*   **Key Technologies**: 
+    *   `serde` for JSON/YAML serialization/deserialization
+    *   `thiserror` + `anyhow` for unified error handling
+    *   `sled` + `moka` for high-performance persistence and caching
+    *   `chrono` for time handling
+    *   `uuid` for unique identifier generation
+    *   `tokio` for async runtime
+    *   `warp` for web framework (MCP server)
+    *   `tokio-tungstenite` for WebSocket support
 
-### 4.3 Model Context Protocol (MCP) 支持
+### 4.3 Model Context Protocol (MCP) Support
 
-*   **设计目标**: 实现标准化的上下文管理和工具调用协议，支持外部系统集成，确保工具执行的上下文一致性和可追踪性。
-*   **核心组件**:
-    *   **McpContext**: MCP 上下文，包含执行状态和历史记录
-    *   **McpRequest**: MCP 请求，定义标准化的工具调用格式
-    *   **McpResponse**: MCP 响应，定义标准化的执行结果格式
-    *   **ContextManager**: 上下文管理器，负责上下文的创建、更新和传播
-    *   **McpServer**: MCP 服务器，提供 REST API 和 WebSocket 端点
-*   **技术选型**:
-    *   REST API: 使用 `warp` 框架实现
-    *   WebSocket: 基于 `warp` 和 `tokio-tungstenite` 实现
-    *   JSON: 作为 MCP 协议的数据交换格式
-    *   UUID: 用于上下文和请求的唯一标识
-*   **设计特点**:
-    *   上下文的层级关系管理
-    *   执行历史记录
-    *   支持同步和异步调用
-    *   标准化的错误处理
-    *   支持 WebSocket 实时通信
+*   **Design Goals**: Implement standardized context management and tool calling protocol, support external system integration, ensure context consistency and traceability of tool execution.
+*   **Core Components**:
+    *   **McpContext**: MCP context containing execution state and history
+    *   **McpRequest**: MCP request defining standardized tool invocation format
+    *   **McpResponse**: MCP response defining standardized execution result format
+    *   **ContextManager**: Context manager responsible for context creation, updates, and propagation
+    *   **McpServer**: MCP server providing REST API and WebSocket endpoints
+*   **Technology Selection**:
+    *   REST API: Implemented using `warp` framework
+    *   WebSocket: Based on `warp` and `tokio-tungstenite`
+    *   JSON: Data exchange format for MCP protocol
+    *   UUID: For unique identification of contexts and requests
+*   **Design Features**:
+    *   Hierarchical context relationship management
+    *   Execution history tracking
+    *   Support for synchronous and asynchronous calls
+    *   Standardized error handling
+    *   WebSocket real-time communication support
 
-### 4.4 配置管理模块 (`rt-core::config`)
+### 4.4 Configuration Management Module (`rt-core::config`)
 
-*   **设计目标**: 提供统一的配置管理服务，支持多来源配置加载、缓存和热重载，确保配置的一致性和可靠性。
-*   **核心组件**:
-    *   **ConfigService**: 配置服务核心逻辑，负责配置加载、合并和管理
-    *   **ConfigManager**: 配置管理器，提供外部访问接口
-    *   **ConfigSourcePort**: 配置源端口，定义配置加载接口
-    *   **ConfigCachePort**: 配置缓存端口，定义配置缓存接口
-*   **技术选型**:
-    *   支持 JSON 和 YAML 格式配置文件
-    *   支持环境变量配置
-    *   使用 `serde` 进行配置序列化/反序列化
-*   **设计特点**:
-    *   多来源配置优先级管理
-    *   配置项类型安全访问
-    *   配置缓存和热重载支持
+*   **Design Goals**: Provide unified configuration management services, support multi-source configuration loading, caching, and hot reload, ensuring configuration consistency and reliability.
+*   **Core Components**:
+    *   **ConfigService**: Configuration service core logic for loading, merging, and managing configurations
+    *   **ConfigManager**: Configuration manager providing external access interface
+    *   **ConfigSourcePort**: Configuration source port defining configuration loading interface
+    *   **ConfigCachePort**: Configuration cache port defining configuration caching interface
+*   **Technology Selection**:
+    *   Support for JSON and YAML format configuration files
+    *   Support for environment variable configuration
+    *   Use `serde` for configuration serialization/deserialization
+*   **Design Features**:
+    *   Multi-source configuration priority management
+    *   Type-safe configuration item access
+    *   Configuration caching and hot reload support
 
-### 4.5 日志记录模块 (`rt-core::logger`)
+### 4.5 Logging System Module (`rt-core::logger`)
 
-*   **设计目标**: 提供全面的日志记录服务，支持分级日志、多输出目标和结构化日志，便于系统监控和故障排查。
-*   **核心组件**:
-    *   **LogService**: 日志服务核心逻辑，负责日志处理和分发
-    *   **LogManager**: 日志管理器，提供外部访问接口
-    *   **LogWriterPort**: 日志写入端口，定义日志写入接口
-    *   **LogSinkPort**: 日志输出端口，定义日志输出接口
-    *   **LogFormatterPort**: 日志格式化端口，定义日志格式化接口
-*   **技术选型**:
-    *   分级日志：DEBUG、INFO、WARN、ERROR
-    *   支持控制台和文件输出
-    *   支持文本和 JSON 格式化
-    *   使用 `chrono` 进行时间戳处理
-*   **设计特点**:
-    *   日志轮转支持
-    *   内存日志存储
-    *   结构化日志支持
-    *   可扩展的日志输出目标
+*   **Design Goals**: Provide comprehensive logging services, support hierarchical logging, multiple output targets, and structured logging for system monitoring and troubleshooting.
+*   **Core Components**:
+    *   **LogService**: Logging service core logic for log processing and distribution
+    *   **LogManager**: Log manager providing external access interface
+    *   **LogWriterPort**: Log writer port defining log writing interface
+    *   **LogSinkPort**: Log sink port defining log output interface
+    *   **LogFormatterPort**: Log formatter port defining log formatting interface
+*   **Technology Selection**:
+    *   Hierarchical logging: DEBUG, INFO, WARN, ERROR
+    *   Support for console and file output
+    *   Support for text and JSON formatting
+    *   Use `chrono` for timestamp processing
+*   **Design Features**:
+    *   Log rotation support
+    *   In-memory log storage
+    *   Structured logging support
+    *   Extensible log output targets
 
-### 4.5 公共服务层 (`rt-core::service`)
+### 4.6 Service Layer (`rt-core::service`)
 
-*   **设计目标**: 提供标准化的服务调用接口，支持权限控制和错误处理，确保工具和插件调用的安全性和高效性。
-*   **核心组件**:
-    *   **ServiceManager**: 服务管理器，负责服务注册和调用
-    *   **ServicePort**: 服务端口，定义服务调用接口
-    *   **ServiceRequest**: 服务请求，包含请求参数和上下文
-    *   **ServiceResponse**: 服务响应，包含响应数据和状态
-*   **技术选型**:
-    *   基于 JSON 的服务调用协议
-    *   支持异步服务调用
-    *   使用 `uuid` 生成请求跟踪ID
-*   **设计特点**:
-    *   基于角色的权限控制
-    *   标准化的错误处理
-    *   统一的服务调用入口
-    *   支持工具和插件的统一调用
+*   **Design Goals**: Provide standardized service invocation interfaces with permission control and error handling, ensuring security and efficiency of tool and plugin calls.
+*   **Core Components**:
+    *   **ServiceManager**: Service manager for service registration and invocation
+    *   **ServicePort**: Service port defining service invocation interface
+    *   **ServiceRequest**: Service request containing parameters and context
+    *   **ServiceResponse**: Service response containing data and status
+*   **Technology Selection**:
+    *   JSON-based service invocation protocol
+    *   Support for asynchronous service calls
+    *   Use `uuid` for request tracking IDs
+*   **Design Features**:
+    *   Role-based access control
+    *   Standardized error handling
+    *   Unified service invocation entry point
+    *   Support for unified tool and plugin calls
 
-### 4.6 内置工具集 (`rt-tools`)
+### 4.7 Enhanced Plugin System
 
-*   **职责**: 实现具体的工具逻辑，如文件操作、文本处理等。
-*   **指导原则**: 每个工具都应实现 `rt-core::Tool` trait，并提供多语言支持的元数据和 JSON Schema。
-*   **依赖选择**: 优先选择纯 Rust 实现的库，避免引入复杂的 C/C++ 依赖。
+*   **Multi-Tool Plugin Support**: Supports both single-tool and multi-tool plugins through array-based metadata format
+*   **Plugin Types**:
+    *   **Process Plugins**: External executables (single-tool and multi-tool)
+    *   **WASM Plugins**: WebAssembly modules with WASI support
+*   **Technology Selection**:
+    *   `wasmtime` for WebAssembly runtime
+    *   `wasmtime-wasi` for WASI support
+    *   JSON-based metadata and communication protocol
+*   **Design Features**:
+    *   Dynamic plugin discovery and loading
+    *   Array-based metadata for multi-tool plugins
+    *   Unified tool interface regardless of plugin type
+    *   Plugin isolation and error handling
 
-### 4.7 命令行界面 (`rt-cli`)
+### 4.8 Built-in Tool Collection (`rt-tools`)
 
-*   **职责**: 提供命令行接口，用于发现、运行和管理工具。
-*   **关键技术**: `clap` 用于命令行参数解析。
+*   **Responsibilities**: Implement specific tool logic such as file operations, text processing, etc.
+*   **Guiding Principles**: Each tool should implement the `rt-core::Tool` trait and provide multi-language metadata and JSON Schema.
+*   **Dependency Selection**: Prioritize pure Rust implementations to avoid complex C/C++ dependencies.
+*   **Current Tools**:
+    *   **File Operations**: `file.move_folder` - Move/rename folders with collision handling
+    *   **Text Processing**: `text.ac_automaton` - Aho-Corasick pattern matching, `text.convert_chinese` - Traditional/Simplified Chinese conversion
 
-### 4.8 图形用户界面 (`rt-gui`)
+### 4.9 Command Line Interface (`rt-cli`)
 
-*   **职责**: 提供图形化界面，用于展示工具列表、自动生成表单、显示工具运行结果。
-*   **关键技术**: `egui` 作为 GUI 框架，利用其轻量级和跨平台特性；通过 JSON Schema 动态生成 UI。
+*   **Responsibilities**: Provide command-line interface for discovering, running, and managing tools, including MCP server functionality.
+*   **Key Technologies**: `clap` v4 with derive macros for command-line argument parsing.
+*   **Features**:
+    *   Tool listing and execution
+    *   Plugin management
+    *   Workflow execution
+    *   MCP server startup
 
-### 4.9 插件系统
+### 4.10 Graphical User Interface (`rt-gui`)
 
-*   **架构**: 基于外部可执行文件的协议，通过 `plugin spec` 获取元数据，`plugin run` 执行工具逻辑。详细的插件系统设计请参考 [架构设计文档](ARCHITECTURE_DESIGN.md)。
-*   **协议**: JSON 格式的元数据和输入/输出数据，确保跨语言和跨平台兼容性。
-*   **多语言**: 插件元数据（`display_name`, `description`, `user_guide`, `input_fields`, `output_fields`）支持多语言，由 `rt-core` 统一处理。
+*   **Responsibilities**: Provide graphical interface for displaying tool lists, auto-generating forms, and showing tool execution results.
+*   **Key Technologies**: `egui` as GUI framework, leveraging its lightweight and cross-platform characteristics; dynamic UI generation through JSON Schema.
+*   **Features**:
+    *   Dynamic form generation from JSON Schema
+    *   Multi-language UI support
+    *   Real-time tool execution feedback
+    *   Plugin management interface
 
-### 4.10 数据交换与配置
+### 4.11 Enhanced Plugin System
 
-*   **JSON**: 作为主要的数据交换格式，用于插件协议和 Schema 定义。
-*   **JSON Schema**: 用于定义工具的输入和输出结构，实现数据验证和 GUI 自动生成。
+*   **Architecture**: Based on external executable protocol with enhanced support for multi-tool plugins. Uses `plugin spec` to get metadata (array or object format), `plugin run` to execute tool logic.
+*   **Protocol**: JSON format metadata and input/output data ensuring cross-language and cross-platform compatibility.
+*   **Multi-Tool Support**: Plugins can provide multiple tools through array-based metadata format.
+*   **Multi-language**: Plugin metadata (`display_name`, `description`, `user_guide`, `input_fields`, `output_fields`) supports multiple languages, handled uniformly by `rt-core`.
 
-### 4.11 错误处理
+### 4.12 Data Exchange and Configuration
 
-*   **统一错误类型**: 使用 `thiserror` 库来创建和管理项目中的错误类型，确保错误信息清晰且易于传播。
-*   **避免 `unwrap()`/`expect()`**: 在生产代码中严格禁止使用，强制进行错误处理。
+*   **JSON**: Primary data exchange format for plugin protocols and Schema definitions.
+*   **JSON Schema**: Used to define tool input and output structures, enabling data validation and automatic GUI generation.
+*   **YAML**: Supported for configuration files alongside JSON.
 
-## 5. 开发工具与流程
+### 4.13 Error Handling
 
-*   **代码格式化**: `rustfmt` 确保代码风格一致性。
-*   **静态分析**: `clippy` 检查代码潜在问题和风格建议。
-*   **版本控制**: `Git` 进行版本管理。
-*   **任务管理**: `task.md` 跟踪开发进度。
+*   **Unified Error Types**: Use `thiserror` + `anyhow` libraries to create and manage error types in the project, ensuring clear and easily propagated error information.
+*   **Avoid `unwrap()`/`expect()`**: Strictly prohibited in production code, enforcing proper error handling.
+*   **Structured Error Responses**: All APIs return structured error information with error codes and context.
 
-## 6. 未来展望
+## 5. Development Tools and Workflow
 
-*   考虑引入更高级的插件管理机制，如版本控制、依赖管理等。
-*   探索更多 GUI 框架的可能性，以提供更丰富的用户体验。
-*   持续优化性能和内存占用。
+*   **Code Formatting**: `rustfmt` ensures consistent code style.
+*   **Static Analysis**: `clippy` checks for potential code issues and style suggestions.
+*   **Version Control**: `Git` for version management.
+*   **Task Management**: `tasks.md` for tracking development progress.
+*   **Testing**: Comprehensive unit and integration testing with `cargo test`.
+*   **Documentation**: Inline documentation with `rustdoc` and external documentation files.
+
+## 6. Architectural Patterns
+
+### 6.1 Hexagonal Architecture
+- **Core**: Business logic in `rt-core`
+- **Ports**: Trait definitions for external interfaces
+- **Adapters**: Concrete implementations (CLI, GUI, plugins, MCP server)
+
+### 6.2 Plugin Protocol
+- **Process Plugins**: External executables communicating via stdin/stdout JSON
+- **WASM Plugins**: WebAssembly modules with WASI support
+- **Multi-Tool Plugins**: Single executable providing multiple tools via array metadata
+- **Discovery**: Auto-scan `plugins/` directory for files prefixed with `rt-plugin-`
+
+### 6.3 Service-Oriented Design
+- **Unified Service Layer**: Standardized service invocation with role-based access control
+- **MCP Integration**: Context-aware tool execution with standardized protocols
+- **Configuration Management**: Multi-source configuration with priority and caching
+- **Comprehensive Logging**: Structured logging with multiple output targets
+
+### 6.4 Internationalization
+- JSON-based i18n resources in `locales/` directories
+- Runtime locale switching
+- Schema title injection for dynamic UI generation
+
+## 7. Future Roadmap
+
+*   **Advanced Plugin Management**: Version control, dependency management, and plugin marketplace.
+*   **Enhanced GUI Framework**: Explore additional GUI frameworks for richer user experiences.
+*   **Performance Optimization**: Continuous optimization of performance and memory usage.
+*   **Distributed Execution**: Support for cross-node tool and workflow execution.
+*   **Web Interface**: Browser-based interface for remote access and management.
+*   **Advanced MCP Features**: Enhanced context management and external system integrations.
+*   **AI Integration**: Native support for AI-powered tool suggestions and workflow optimization.

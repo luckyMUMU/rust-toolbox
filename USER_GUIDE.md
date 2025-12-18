@@ -1,77 +1,182 @@
-# 用户指南 (User Guide)
+# Rust Toolbox User Guide
 
-## 1. 简介
-Rust Toolbox (简称 `rt-box`) 是一个强大的工具流编排平台。
+## 1. Introduction
 
-## 1.1 相关文档
+Rust Toolbox (rt-box) is a powerful modular tool integration platform built in Rust that provides unified management and orchestration of various tools through a workflow engine. The platform features a plugin-based architecture supporting dynamic loading and extension, with both CLI and GUI interfaces.
 
-- [设计文档](DESIGN.md): 项目的整体设计文档，包括技术选型和核心原则
-- [架构设计文档](ARCHITECTURE_DESIGN.md): 详细描述项目的架构设计、核心组件和部署架构
-- [插件开发指南](PLUGIN_GUIDE.md): 插件开发的规范和指南
-- [AI工作规范](AI_WORK_PROTOCOL.md): AI辅助开发的工作规范
-- [变更日志](CHANGELOG.md): 项目的变更历史
+### 1.1 Core Features
 
-## 2. 核心概念
-- **工具 (Tool)**: 执行单一任务的原子单元。
-- **工作流 (Workflow)**: 串联执行的工具序列。
+- **Unified Tool Management**: Centralized tool discovery, execution, and management
+- **Plugin Architecture**: Dynamic loading of external tools as plugins (executable files and WebAssembly)
+- **Workflow Engine**: DAG-based workflow orchestration for automated task processing
+- **Multi-language Support**: Full internationalization (i18n) for English and Chinese
+- **Dual Interface**: Both command-line (rt-cli) and graphical (rt-gui) interfaces
+- **Model Context Protocol (MCP)**: Standardized context management and tool calling protocol
+- **Persistence Layer**: Unified data storage, caching, and configuration management
 
-## 3. 工具库 (Tool Library)
+### 1.2 Related Documentation
 
-### 3.1 文件操作 (File Operations)
+- [Design Document](DESIGN.md): Overall project design, technology stack and core principles
+- [Architecture Design](ARCHITECTURE_DESIGN.md): Detailed architecture design, core components and deployment architecture
+- [Plugin Development Guide](PLUGIN_GUIDE.md): Plugin development standards and guidelines
+- [AI Work Protocol](AI_WORK_PROTOCOL.md): AI-assisted development workflow standards
+- [Changelog](CHANGELOG.md): Project change history
 
-#### 📂 移动文件夹 (`file.move_folder`)
-移动或重命名指定的文件夹。
+## 2. Core Concepts
 
-### 3.2 文本操作 (Text Operations)
+- **Tool**: An atomic unit that performs a single task, implementing the Tool trait
+- **Plugin**: External executable that provides tools through a standardized protocol
+- **Workflow**: A sequence of tools executed in a defined order with data flow
+- **MCP Context**: Context object containing execution state, history and environment information
+- **Persistence Layer**: Unified data storage, caching, and configuration management system
 
-#### 🔤 中文转拼音 (`text.pinyin`)
-将中文文本转换为带声调或不带声调的拼音。
+## 3. Tool Library
 
-**行为说明 (Behavior):**
-1. **拼音转换**: 将中文文本转换为对应的拼音。
-2. **声调控制**: 可选择是否保留声调。
-3. **混合文本**: 支持中英文混合文本，只转换中文部分。
+### 3.1 Built-in Tools
 
-**输入参数 (Input):**
+#### 3.1.1 File Operations
+
+##### 📂 Move Folder (`file.move_folder`)
+Move or rename a specified folder with collision handling.
+
+**Behavior:**
+1. **Rename/Move**: If `destination` doesn't exist, the source folder will be renamed or moved to that path
+2. **Move Into**: If `destination` is an existing directory, the source folder will be moved **inside** that directory
+3. **Overwrite Protection**: Prevents accidental overwrites unless explicitly enabled
+
+**Input Schema:**
 ```json
 {
-  "text": "你好世界",      // 要转换的中文文本 (必填)
-  "tone": true             // 是否包含声调 (可选, 默认 true)
+  "source": "path/to/source_folder",
+  "destination": "path/to/target_folder",
+  "overwrite": false
 }
 ```
 
-**输出 (Output):**
+**Output Schema:**
 ```json
 {
-  "pinyin": "nǐ hǎo shì jiè" // 转换后的拼音
+  "success": true,
+  "moved_files": 0
+}
 }
 ```
 
-### 3.3 媒体操作 (Media Operations)
+#### 3.1.2 Text Processing
 
-#### 📹 YouTube 下载器 (`media.ytdlp`)
-从 YouTube 和其他支持的网站下载视频和音频内容。
+##### 🔤 AC Automaton (`text.ac_automaton`)
+Aho-Corasick pattern matching with multi-pattern support for efficient string searching.
 
-**行为说明 (Behavior):**
-1. **单个视频**: 支持下载单个视频。
-2. **播放列表**: 支持下载整个播放列表。
-3. **格式选择**: 支持多种格式选择。
-4. **字幕下载**: 支持字幕下载（包括自动生成字幕）。
-5. **自定义输出**: 支持自定义输出目录和文件名。
+**Behavior:**
+1. **Pattern Management**: Add, remove, and list pattern strings
+2. **Multi-text Matching**: Match patterns across multiple text inputs
+3. **Parallel Processing**: Optional parallel matching for improved performance
+4. **Case Sensitivity**: Configurable case-sensitive or case-insensitive matching
 
-**输入参数 (Input):**
+**Input Schema:**
 ```json
 {
-  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", // 要下载的视频或播放列表的URL (必填)
-  "format": "best",                                  // 要下载的格式 (可选, 默认 best)
-  "playlist": false,                                  // 是否下载整个播放列表 (可选, 默认 false)
-  "subtitles": false,                                 // 是否下载字幕 (可选, 默认 false)
-  "output_dir": ".",                                  // 保存下载文件的目录 (可选, 默认当前目录)
-  "filename_template": "%(title)s.%(ext)s"            // 输出文件名的模板 (可选, 默认 %(title)s.%(ext)s)
+  "action": "match",
+  "patterns": ["pattern1", "pattern2"],
+  "texts": ["text1", "text2"],
+  "confirm": true,
+  "ignore_case": false,
+  "parallel": false
 }
 ```
 
-**输出 (Output):**
+**Output Schema:**
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully"
+  "results": [                          // Match results (for match action)
+    {
+      "pattern": "pattern1",
+      "start": 0,
+      "end": 8
+    }
+  ],
+  "patterns": ["pattern1", "pattern2"], // Current patterns (for list action)
+  "elapsed_ms": 123                     // Operation duration in milliseconds
+}
+```
+
+##### 🈳 Chinese Converter (`text.convert_chinese`)
+Convert between Traditional and Simplified Chinese with multiple regional variants.
+
+**Behavior:**
+1. **Bidirectional Conversion**: Convert between Traditional and Simplified Chinese
+2. **Regional Variants**: Support for Taiwan, Hong Kong, and other regional variants
+3. **Phrase Conversion**: Handles both character and phrase-level conversions
+
+**Input Schema:**
+```json
+{
+  "text": "你好世界",
+  "mode": "s2t"
+}
+```
+
+**Output Schema:**
+```json
+{
+  "converted": "你好世界"
+}
+```
+
+### 3.2 Plugin Tools
+
+#### 3.2.1 Text Processing Plugins
+
+##### 🔤 Chinese to Pinyin (`text.pinyin`)
+Convert Chinese text to Pinyin with optional tone marks.
+
+**Behavior:**
+1. **Pinyin Conversion**: Convert Chinese characters to corresponding Pinyin
+2. **Tone Control**: Optional tone marks for pronunciation guidance
+3. **Mixed Text**: Support for mixed Chinese-English text, converting only Chinese parts
+
+**Input Schema:**
+```json
+{
+  "text": "你好世界",
+  "tone": true
+}
+```
+
+**Output Schema:**
+```json
+{
+  "pinyin": "nǐ hǎo shì jiè"
+}
+```
+
+#### 3.2.2 Media Operations
+
+##### 📹 YouTube Downloader (`media.ytdlp`)
+Download videos and audio content from YouTube and other supported websites.
+
+**Behavior:**
+1. **Single Video**: Download individual videos
+2. **Playlist Support**: Download entire playlists
+3. **Format Selection**: Multiple format options for different quality/size needs
+4. **Subtitle Download**: Download subtitles including auto-generated ones
+5. **Custom Output**: Configurable output directory and filename templates
+
+**Input Schema:**
+```json
+{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "format": "best",
+  "playlist": false,
+  "subtitles": false,
+  "output_dir": ".",
+  "filename_template": "%(title)s.%(ext)s"
+}
+```
+
+**Output Schema:**
 ```json
 {
   "success": true,
@@ -81,475 +186,614 @@ Rust Toolbox (简称 `rt-box`) 是一个强大的工具流编排平台。
       "size": 123456789
     }
   ],
-  "message": "成功下载了 1 个文件"
+  "message": "Successfully downloaded 1 file"
 }
 ```
 
-#### 📂 移动文件夹 (`file.move_folder`)
-移动或重命名指定的文件夹。
+#### 3.2.3 System Utilities (Czkawka Integration)
 
-**行为说明 (Behavior):**
-1. **重命名/移动**: 如果 `destination` 不存在，源文件夹将被重命名或移动到该路径。
-2. **移动到内部**: 如果 `destination` 是一个已存在的目录，源文件夹将被移动到该目录**内部**。
+The Czkawka plugin provides multiple file management tools:
 
-**输入参数 (Input):**
+##### 🔍 Duplicate Files (`file.duplicates`)
+Find duplicate files in specified directories based on content comparison.
+
+**Input Schema:**
 ```json
 {
-  "source": "path/to/source_folder",      // 源路径 (必填)
-  "destination": "path/to/target_folder", // 目标路径 (必填)
-  "overwrite": false                      // 是否覆盖 (可选, 默认 false)。
-                                          // 如果为 true 且目标路径(计算后)已存在，将先删除目标再移动。
+  "directories": ["/path/to/search"],
+  "min_size": 1024,
+  "excluded_directories": [],
+  "allowed_extensions": []
 }
 ```
 
-**输出 (Output):**
+##### 🖼️ Similar Images (`file.similar_images`)
+Find visually similar images using perceptual hashing.
+
+**Input Schema:**
 ```json
 {
-  "success": true,
-  "moved_files": 0 // 移动的文件/项目数量
+  "directories": ["/path/to/images"],
+  "threshold": 10,
+  "hash_size": 8
 }
 ```
 
-## 4. 使用方式 (Usage)
+##### 📁 Empty Directories (`file.empty_directories`)
+Find and optionally remove empty directories.
 
-### 4.1 命令行 (CLI) - `rt-cli`
+**Input Schema:**
+```json
+{
+  "directories": ["/path/to/search"]
+}
+```
 
-#### 列出所有工具
-```powershell
+##### 🗑️ Temporary Files (`file.temporary_files`)
+Find temporary files that can be safely removed.
+
+**Input Schema:**
+```json
+{
+  "directories": ["/path/to/search"]
+}
+```
+
+##### 🔗 Broken Symbolic Links (`file.broken_symlinks`)
+Find symbolic links that point to non-existent targets.
+
+**Input Schema:**
+```json
+{
+  "directories": ["/path/to/search"]
+}
+```
+
+## 4. Usage Guide
+
+### 4.1 Command Line Interface (CLI) - `rt-cli`
+
+#### 4.1.1 Basic Tool Operations
+
+##### List All Available Tools
+```bash
 cargo run --bin rt-cli -- list
 ```
 
-#### 运行工具
-通过 `--input` 参数直接传递 JSON 字符串来运行工具。
+This command displays all available tools including:
+- Built-in tools from rt-tools
+- Plugin tools from the plugins directory
+- Tool descriptions and capabilities
 
-**示例 1: 运行 `file.move_folder` 工具**
-```powershell
-cargo run --bin rt-cli -- run file.move_folder --input '{"source": "./tmp/a", "destination": "./tmp/b"}'
+##### Run Individual Tools
+Use the `--input` parameter to pass JSON input directly to tools.
+
+**Example 1: Move Folder Tool**
+```bash
+cargo run --bin rt-cli -- run file.move_folder --input '{"source": "./tmp/source", "destination": "./tmp/target"}'
 ```
-*注意：在 PowerShell 中输入 JSON 字符串时，建议使用单引号包裹，避免转义问题。*
 
-**示例 2: 运行 `text.pinyin` 工具**
-```powershell
+**Example 2: Chinese to Pinyin Conversion**
+```bash
 cargo run --bin rt-cli -- run text.pinyin --input '{"text": "你好世界", "tone": true}'
 ```
 
-#### 工作流管理
+**Example 3: AC Automaton Pattern Matching**
+```bash
+# Add patterns
+cargo run --bin rt-cli -- run text.ac_automaton --input '{"action": "add", "patterns": ["hello", "world"]}'
 
-##### 运行工作流
-```powershell
+# Match patterns in text
+cargo run --bin rt-cli -- run text.ac_automaton --input '{"action": "match", "texts": ["hello world", "goodbye world"]}'
+```
+
+**Example 4: Chinese Text Conversion**
+```bash
+cargo run --bin rt-cli -- run text.convert_chinese --input '{"text": "你好世界", "mode": "s2t"}'
+```
+
+#### 4.1.2 Workflow Management
+
+##### Run Workflow
+```bash
 cargo run --bin rt-cli -- workflow run ./my_workflow.json
 ```
 
-##### 查看工作流状态
-```powershell
+##### Check Workflow Status
+```bash
 cargo run --bin rt-cli -- workflow status <instance_id>
 ```
 
-##### 暂停工作流
-```powershell
+##### Pause Workflow
+```bash
 cargo run --bin rt-cli -- workflow pause <instance_id>
 ```
 
-##### 停止工作流
-```powershell
+##### Stop Workflow
+```bash
 cargo run --bin rt-cli -- workflow stop <instance_id>
 ```
 
-### 4.2 工作流定义
+#### 4.1.3 MCP Server Management
 
-工作流定义采用 JSON 格式，包含节点、边和元数据。每个节点代表一个工具调用，边定义了节点之间的依赖关系。
-
-#### 工作流定义示例
-```json
-{
-  "id": "example_workflow",
-  "name": "示例工作流",
-  "description": "一个示例工作流，展示了工具链的编排",
-  "nodes": [
-    {
-      "id": "task1",
-      "tool_name": "text.pinyin",
-      "label": "中文转拼音",
-      "input_mappings": {},
-      "static_inputs": {
-        "text": "你好世界",
-        "tone": false
-      }
-    },
-    {
-      "id": "task2",
-      "tool_name": "file.move_folder",
-      "label": "移动文件夹",
-      "input_mappings": {
-        "source": "{{ task1.output.pinyin }}"
-      },
-      "static_inputs": {
-        "destination": "./tmp/destination",
-        "overwrite": true
-      }
-    }
-  ],
-  "edges": [
-    {
-      "from": "task1",
-      "to": "task2"
-    }
-  ]
-}
-```
-
-#### 工作流定义字段说明
-
-| 字段 | 类型 | 描述 |
-|------|------|------|
-| `id` | 字符串 | 工作流唯一标识符 |
-| `name` | 字符串 | 工作流名称 |
-| `description` | 字符串 | 工作流描述 |
-| `nodes` | 数组 | 工作流节点列表 |
-| `edges` | 数组 | 工作流边列表，定义节点间依赖关系 |
-
-#### 节点字段说明
-
-| 字段 | 类型 | 描述 |
-|------|------|------|
-| `id` | 字符串 | 节点唯一标识符 |
-| `tool_name` | 字符串 | 要调用的工具名称（如 `text.pinyin`） |
-| `label` | 字符串 | 节点显示标签（可选） |
-| `input_mappings` | 对象 | 输入字段映射，键为输入字段名，值为表达式（如 `{{ task1.output.pinyin }}`） |
-| `static_inputs` | 对象 | 静态输入参数，直接传递给工具 |
-
-#### 边字段说明
-
-| 字段 | 类型 | 描述 |
-|------|------|------|
-| `from` | 字符串 | 源节点 ID |
-| `to` | 字符串 | 目标节点 ID |
-
-### 4.3 数据传递与表达式
-
-工作流引擎支持通过表达式在节点间传递数据。表达式使用 `{{ node_id.output.field_path }}` 格式，其中：
-- `node_id` 是源节点的 ID
-- `field_path` 是源节点输出 JSON 中的字段路径
-
-#### 示例：使用表达式传递数据
-
-```json
-{
-  "nodes": [
-    {
-      "id": "http_get",
-      "tool_name": "http.get",
-      "static_inputs": {
-        "url": "https://api.example.com/user/123"
-      }
-    },
-    {
-      "id": "file_write",
-      "tool_name": "file.write",
-      "input_mappings": {
-        "content": "{{ http_get.output.body.name }}"
-      },
-      "static_inputs": {
-        "path": "./user_name.txt"
-      }
-    }
-  ],
-  "edges": [
-    {
-      "from": "http_get",
-      "to": "file_write"
-    }
-  ]
-}
-```
-
-在这个示例中：
-1. `http_get` 节点调用 `http.get` 工具获取用户信息
-2. `file_write` 节点使用表达式 `{{ http_get.output.body.name }}` 从 `http_get` 节点的输出中提取用户名
-3. 最后将用户名写入文件
-
-### 4.4 工作流最佳实践
-
-1. **原子性**：每个节点只做一件事，便于调试和复用
-2. **清晰命名**：为节点和工作流使用清晰、描述性的名称
-3. **错误处理**：考虑添加错误处理节点，处理可能的失败情况
-4. **模块化**：将复杂工作流拆分为多个简单工作流
-5. **测试**：在生产环境中使用前，先在测试环境中验证工作流
-
-### 4.5 图形界面 (GUI) - `rt-gui`
-
-#### 启动界面
-```powershell
-cargo run --bin rt-gui
-```
-
-#### 界面操作
-1. **左侧列表**: 点击选择要使用的工具（如 `file.move_folder`）。
-2. **中间面板**: 
-   - 在 "Input (JSON)" 文本框中输入参数。例如：
-     ```json
-     {
-       "source": "D:/tmp/test_src",
-       "destination": "D:/tmp/test_dst",
-       "overwrite": true
-     }
-     ```
-3. **运行**: 点击 "Run" 按钮。
-4. **查看结果**: 底部面板将显示工具执行结果或错误信息。
-
-#### 工作流设计器
-1. **创建工作流**: 在 GUI 中打开工作流设计器
-2. **添加节点**: 从左侧工具箱拖拽工具到画布上
-3. **配置节点**: 点击节点，在右侧属性面板中配置输入参数和映射
-4. **连接节点**: 拖动节点间的连线，定义依赖关系
-5. **保存工作流**: 点击保存按钮，将工作流保存为 JSON 文件
-6. **运行工作流**: 点击运行按钮，启动工作流执行
-7. **监控执行**: 在监控面板中查看工作流执行状态和日志
-
-#### 工作流监控
-- **实时状态**: 显示工作流的当前状态（运行中、已完成、失败等）
-- **节点状态**: 显示每个节点的状态（待执行、运行中、成功、失败）
-- **执行日志**: 显示工作流执行过程中的详细日志
-- **结果查看**: 点击节点可查看其输入输出数据
-
-### 4.6 工作流示例
-
-#### 示例 1: 备份并转换文件
-
-```json
-{
-  "id": "backup_and_convert",
-  "name": "备份并转换文件",
-  "description": "备份文件并转换为不同格式",
-  "nodes": [
-    {
-      "id": "check_file",
-      "tool_name": "file.exists",
-      "label": "检查文件是否存在",
-      "static_inputs": {
-        "path": "./source.txt"
-      }
-    },
-    {
-      "id": "backup",
-      "tool_name": "file.copy",
-      "label": "备份文件",
-      "input_mappings": {
-        "source": "{{ check_file.output.path }}"
-      },
-      "static_inputs": {
-        "destination": "./backup.txt",
-        "overwrite": true
-      }
-    },
-    {
-      "id": "convert",
-      "tool_name": "text.convert_case",
-      "label": "转换文件内容",
-      "input_mappings": {
-        "text": "{{ backup.output.content }}"
-      },
-      "static_inputs": {
-        "case": "uppercase"
-      }
-    },
-    {
-      "id": "write_result",
-      "tool_name": "file.write",
-      "label": "写入结果",
-      "input_mappings": {
-        "content": "{{ convert.output.converted }}"
-      },
-      "static_inputs": {
-        "path": "./result.txt",
-        "overwrite": true
-      }
-    }
-  ],
-  "edges": [
-    {
-      "from": "check_file",
-      "to": "backup"
-    },
-    {
-      "from": "backup",
-      "to": "convert"
-    },
-    {
-      "from": "convert",
-      "to": "write_result"
-    }
-  ]
-}
-```
-
-#### 示例 2: 批量下载并处理视频
-
-```json
-{
-  "id": "video_processing",
-  "name": "视频处理工作流",
-  "description": "批量下载 YouTube 视频并转换格式",
-  "nodes": [
-    {
-      "id": "download_list",
-      "tool_name": "http.get",
-      "label": "获取视频列表",
-      "static_inputs": {
-        "url": "https://api.example.com/videos"
-      }
-    },
-    {
-      "id": "download_video",
-      "tool_name": "media.ytdlp",
-      "label": "下载视频",
-      "input_mappings": {
-        "url": "{{ download_list.output.body.videos[0].url }}"
-      },
-      "static_inputs": {
-        "output_dir": "./videos",
-        "format": "best"
-      }
-    },
-    {
-      "id": "convert_format",
-      "tool_name": "media.ffmpeg",
-      "label": "转换视频格式",
-      "input_mappings": {
-        "input_path": "{{ download_video.output.files[0].path }}"
-      },
-      "static_inputs": {
-        "output_path": "./converted.mp4",
-        "output_format": "mp4"
-      }
-    }
-  ],
-  "edges": [
-    {
-      "from": "download_list",
-      "to": "download_video"
-    },
-    {
-      "from": "download_video",
-      "to": "convert_format"
-    }
-  ]
-}
-```
-
-### 4.7 工作流执行流程
-
-1. **解析定义**: 引擎解析工作流 JSON 定义，验证其完整性和正确性
-2. **构建依赖图**: 根据边定义构建有向无环图 (DAG)
-3. **初始化状态**: 创建工作流实例，初始化节点状态
-4. **执行节点**: 按照依赖顺序执行节点：
-   - 找出所有无依赖的节点，并行执行
-   - 当节点完成后，更新状态并触发依赖节点的执行
-   - 重复直到所有节点执行完成或某个节点失败
-5. **更新状态**: 更新工作流和节点状态
-6. **生成结果**: 收集所有节点的输出，生成最终结果
-
-### 4.8 工作流状态
-
-| 状态 | 描述 |
-|------|------|
-| `Pending` | 工作流已创建，但尚未开始执行 |
-| `Running` | 工作流正在执行中 |
-| `Paused` | 工作流已暂停，可通过命令恢复执行 |
-| `Completed` | 工作流已成功完成 |
-| `Failed` | 工作流执行失败，包含失败原因 |
-
-### 4.9 节点状态
-
-| 状态 | 描述 |
-|------|------|
-| `Pending` | 节点已准备好执行，但依赖节点尚未完成 |
-| `Running` | 节点正在执行中 |
-| `Completed` | 节点执行成功 |
-| `Failed` | 节点执行失败，包含失败原因 |
-| `Skipped` | 节点被跳过执行 |
-
-## 5. Model Context Protocol (MCP) 支持
-
-Rust Toolbox 实现了 Model Context Protocol (MCP)，支持外部系统通过标准化接口调用工具和工作流。
-
-### 5.1 MCP 核心概念
-- **MCP 上下文**: 包含执行状态、历史记录和环境信息的上下文对象
-- **MCP 请求**: 标准化的工具调用格式
-- **MCP 响应**: 标准化的执行结果格式
-- **MCP 服务器**: 提供 REST API 和 WebSocket 端点
-
-### 5.2 启动 MCP 服务器
-
-#### 命令行方式
-```powershell
+##### Start MCP Server
+```bash
 cargo run --bin rt-cli -- mcp-server start --address 127.0.0.1 --port 8000
 ```
 
-#### 配置选项
-- `--address`: 服务器监听地址（默认：127.0.0.1）
-- `--port`: 服务器监听端口（默认：8000）
-- `--max-request-size`: 最大请求大小（默认：10MB）
-- `--enable-websocket`: 启用 WebSocket 支持（默认：true）
+**Configuration Options:**
+- `--address`: Server listening address (default: 127.0.0.1)
+- `--port`: Server listening port (default: 8000)
+- `--max-request-size`: Maximum request size (default: 10MB)
+- `--enable-websocket`: Enable WebSocket support (default: true)
 
-### 5.3 REST API 端点
+### 4.2 Workflow Definition
 
-#### 健康检查
+Workflows are defined in JSON format, containing nodes, edges, and metadata. Each node represents a tool invocation, and edges define dependencies between nodes.
+
+#### Workflow Definition Example
+```json
+{
+  "id": "text_processing_workflow",
+  "name": "Text Processing Workflow",
+  "description": "A sample workflow demonstrating tool chaining for text processing",
+  "nodes": [
+    {
+      "id": "convert_chinese",
+      "tool_name": "text.convert_chinese",
+      "label": "Convert to Traditional Chinese",
+      "input_mappings": {},
+      "static_inputs": {
+        "text": "你好世界",
+        "mode": "s2t"
+      }
+    },
+    {
+      "id": "convert_pinyin",
+      "tool_name": "text.pinyin",
+      "label": "Convert to Pinyin",
+      "input_mappings": {
+        "text": "{{ convert_chinese.output.converted }}"
+      },
+      "static_inputs": {
+        "tone": true
+      }
+    },
+    {
+      "id": "pattern_match",
+      "tool_name": "text.ac_automaton",
+      "label": "Pattern Matching",
+      "input_mappings": {
+        "texts": ["{{ convert_pinyin.output.pinyin }}"]
+      },
+      "static_inputs": {
+        "action": "match",
+        "patterns": ["nǐ", "hǎo"]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "convert_chinese",
+      "to": "convert_pinyin"
+    },
+    {
+      "from": "convert_pinyin",
+      "to": "pattern_match"
+    }
+  ]
+}
+```
+
+#### Workflow Definition Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | String | Unique workflow identifier |
+| `name` | String | Workflow display name |
+| `description` | String | Workflow description |
+| `nodes` | Array | List of workflow nodes |
+| `edges` | Array | List of workflow edges defining dependencies |
+
+#### Node Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | String | Unique node identifier |
+| `tool_name` | String | Tool name to invoke (e.g., `text.pinyin`) |
+| `label` | String | Node display label (optional) |
+| `input_mappings` | Object | Input field mappings, key is input field name, value is expression (e.g., `{{ task1.output.pinyin }}`) |
+| `static_inputs` | Object | Static input parameters passed directly to the tool |
+
+#### Edge Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | String | Source node ID |
+| `to` | String | Target node ID |
+
+### 4.3 Data Flow and Expressions
+
+The workflow engine supports data passing between nodes through expressions. Expressions use the format `{{ node_id.output.field_path }}`, where:
+- `node_id` is the source node ID
+- `field_path` is the field path in the source node's output JSON
+
+#### Example: Using Expressions for Data Flow
+
+```json
+{
+  "nodes": [
+    {
+      "id": "find_duplicates",
+      "tool_name": "file.duplicates",
+      "static_inputs": {
+        "directories": ["/home/user/documents"],
+        "min_size": 1024
+      }
+    },
+    {
+      "id": "convert_results",
+      "tool_name": "text.convert_chinese",
+      "input_mappings": {
+        "text": "{{ find_duplicates.output.summary }}"
+      },
+      "static_inputs": {
+        "mode": "s2t"
+      }
+    },
+    {
+      "id": "generate_pinyin",
+      "tool_name": "text.pinyin",
+      "input_mappings": {
+        "text": "{{ convert_results.output.converted }}"
+      },
+      "static_inputs": {
+        "tone": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "find_duplicates",
+      "to": "convert_results"
+    },
+    {
+      "from": "convert_results",
+      "to": "generate_pinyin"
+    }
+  ]
+}
+```
+
+In this example:
+1. `find_duplicates` node calls the duplicate files tool to scan directories
+2. `convert_results` node uses expression `{{ find_duplicates.output.summary }}` to extract the summary from the duplicate scan
+3. `generate_pinyin` node converts the Chinese text to Pinyin for further processing
+
+### 4.4 Workflow Best Practices
+
+1. **Atomicity**: Each node should perform a single task for easier debugging and reuse
+2. **Clear Naming**: Use descriptive names for nodes and workflows
+3. **Error Handling**: Consider adding error handling nodes for potential failure scenarios
+4. **Modularity**: Break complex workflows into simpler, manageable components
+5. **Testing**: Validate workflows in a test environment before production use
+6. **Documentation**: Document complex workflows with clear descriptions and comments
+
+### 4.5 Graphical User Interface (GUI) - `rt-gui`
+
+#### Starting the GUI
+```bash
+cargo run --bin rt-gui
+```
+
+#### Interface Operations
+
+##### Tool Execution Panel
+1. **Tool Selection**: Click on tools in the left sidebar (e.g., `file.move_folder`)
+2. **Input Configuration**: 
+   - Enter parameters in the "Input (JSON)" text area:
+     ```json
+     {
+       "source": "/path/to/source",
+       "destination": "/path/to/destination",
+       "overwrite": true
+     }
+     ```
+3. **Execution**: Click the "Run" button to execute the tool
+4. **Results**: View execution results or error messages in the bottom panel
+
+##### Workflow Designer
+1. **Create Workflow**: Open the workflow designer from the main interface
+2. **Add Nodes**: Drag tools from the toolbox to the canvas
+3. **Configure Nodes**: Click nodes to configure input parameters and mappings in the properties panel
+4. **Connect Nodes**: Draw connections between nodes to define dependencies
+5. **Save Workflow**: Save the workflow as a JSON file
+6. **Execute Workflow**: Run the workflow and monitor execution
+7. **Monitor Progress**: View real-time execution status and logs
+
+##### Workflow Monitoring
+- **Real-time Status**: Display current workflow state (running, completed, failed)
+- **Node Status**: Show individual node states (pending, running, success, failed)
+- **Execution Logs**: Display detailed execution logs and progress information
+- **Result Inspection**: Click nodes to view input/output data and execution details
+
+### 4.6 Workflow Examples
+
+#### Example 1: File Cleanup and Organization
+
+```json
+{
+  "id": "file_cleanup_workflow",
+  "name": "File Cleanup and Organization",
+  "description": "Find duplicate files and organize them by moving to appropriate directories",
+  "nodes": [
+    {
+      "id": "find_duplicates",
+      "tool_name": "file.duplicates",
+      "label": "Find Duplicate Files",
+      "static_inputs": {
+        "directories": ["/home/user/downloads"],
+        "min_size": 1024
+      }
+    },
+    {
+      "id": "find_empty_dirs",
+      "tool_name": "file.empty_directories",
+      "label": "Find Empty Directories",
+      "static_inputs": {
+        "directories": ["/home/user/downloads"]
+      }
+    },
+    {
+      "id": "move_duplicates",
+      "tool_name": "file.move_folder",
+      "label": "Move Duplicate Files",
+      "input_mappings": {
+        "source": "{{ find_duplicates.output.duplicate_groups[0].files[1].path }}"
+      },
+      "static_inputs": {
+        "destination": "/home/user/duplicates",
+        "overwrite": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "find_duplicates",
+      "to": "move_duplicates"
+    }
+  ]
+}
+```
+
+#### Example 2: Multi-language Text Processing
+
+```json
+{
+  "id": "multilingual_text_processing",
+  "name": "Multi-language Text Processing",
+  "description": "Process Chinese text through conversion and pattern matching",
+  "nodes": [
+    {
+      "id": "convert_to_traditional",
+      "tool_name": "text.convert_chinese",
+      "label": "Convert to Traditional Chinese",
+      "static_inputs": {
+        "text": "你好世界，欢迎使用工具箱",
+        "mode": "s2t"
+      }
+    },
+    {
+      "id": "generate_pinyin",
+      "tool_name": "text.pinyin",
+      "label": "Generate Pinyin",
+      "input_mappings": {
+        "text": "{{ convert_to_traditional.output.converted }}"
+      },
+      "static_inputs": {
+        "tone": true
+      }
+    },
+    {
+      "id": "setup_patterns",
+      "tool_name": "text.ac_automaton",
+      "label": "Setup Pattern Matching",
+      "static_inputs": {
+        "action": "add",
+        "patterns": ["你好", "世界", "工具"]
+      }
+    },
+    {
+      "id": "match_patterns",
+      "tool_name": "text.ac_automaton",
+      "label": "Match Patterns",
+      "input_mappings": {
+        "texts": ["{{ convert_to_traditional.output.converted }}"]
+      },
+      "static_inputs": {
+        "action": "match"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "convert_to_traditional",
+      "to": "generate_pinyin"
+    },
+    {
+      "from": "setup_patterns",
+      "to": "match_patterns"
+    },
+    {
+      "from": "convert_to_traditional",
+      "to": "match_patterns"
+    }
+  ]
+}
+```
+
+#### Example 3: Media Download and Processing
+
+```json
+{
+  "id": "media_download_workflow",
+  "name": "Media Download and Processing",
+  "description": "Download YouTube videos and organize output files",
+  "nodes": [
+    {
+      "id": "download_video",
+      "tool_name": "media.ytdlp",
+      "label": "Download Video",
+      "static_inputs": {
+        "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "output_dir": "./downloads",
+        "format": "best",
+        "subtitles": true
+      }
+    },
+    {
+      "id": "organize_files",
+      "tool_name": "file.move_folder",
+      "label": "Organize Downloaded Files",
+      "input_mappings": {
+        "source": "{{ download_video.output.files[0].path }}"
+      },
+      "static_inputs": {
+        "destination": "./media/videos",
+        "overwrite": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "download_video",
+      "to": "organize_files"
+    }
+  ]
+}
+```
+
+### 4.7 Workflow Execution Process
+
+1. **Definition Parsing**: Engine parses workflow JSON definition and validates completeness and correctness
+2. **Dependency Graph Construction**: Build directed acyclic graph (DAG) based on edge definitions
+3. **State Initialization**: Create workflow instance and initialize node states
+4. **Node Execution**: Execute nodes according to dependency order:
+   - Identify all nodes with no dependencies and execute in parallel
+   - Update states and trigger dependent node execution upon completion
+   - Repeat until all nodes complete or a node fails
+5. **State Updates**: Update workflow and node states throughout execution
+6. **Result Generation**: Collect outputs from all nodes and generate final results
+
+### 4.8 Workflow States
+
+| State | Description |
+|-------|-------------|
+| `Pending` | Workflow created but not yet started |
+| `Running` | Workflow currently executing |
+| `Paused` | Workflow paused, can be resumed via command |
+| `Completed` | Workflow successfully completed |
+| `Failed` | Workflow execution failed with error details |
+
+### 4.9 Node States
+
+| State | Description |
+|-------|-------------|
+| `Pending` | Node ready for execution but dependencies not yet completed |
+| `Running` | Node currently executing |
+| `Completed` | Node executed successfully |
+| `Failed` | Node execution failed with error details |
+| `Skipped` | Node execution was skipped |
+
+## 5. Model Context Protocol (MCP) Support
+
+Rust Toolbox implements the Model Context Protocol (MCP), enabling external systems to call tools and workflows through a standardized interface.
+
+### 5.1 MCP Core Concepts
+
+- **MCP Context**: Context object containing execution state, history, and environment information
+- **MCP Request**: Standardized tool invocation format
+- **MCP Response**: Standardized execution result format
+- **MCP Server**: Provides REST API and WebSocket endpoints for external integration
+
+### 5.2 Starting the MCP Server
+
+#### Command Line
+```bash
+cargo run --bin rt-cli -- mcp-server start --address 127.0.0.1 --port 8000
+```
+
+#### Configuration Options
+- `--address`: Server listening address (default: 127.0.0.1)
+- `--port`: Server listening port (default: 8000)
+- `--max-request-size`: Maximum request size (default: 10MB)
+- `--enable-websocket`: Enable WebSocket support (default: true)
+
+### 5.3 REST API Endpoints
+
+#### Health Check
 ```
 GET /health
 ```
-**响应示例**:
+**Response Example:**
 ```json
 { "status": "ok", "service": "mcp-server" }
 ```
 
-#### 获取工具列表
+#### List All Tools
 ```
 GET /tools
 ```
-**响应示例**:
+**Response Example:**
 ```json
 [
   {
     "name": "text.pinyin",
-    "display_name": "中文转拼音",
-    "description": "将中文文本转换为拼音",
+    "display_name": "Chinese to Pinyin",
+    "description": "Convert Chinese text to Pinyin",
     "mcp_supported": true,
+    "type": "plugin"
+  },
+  {
+    "name": "text.ac_automaton",
+    "display_name": "AC Automaton",
+    "description": "Aho-Corasick pattern matching",
+    "mcp_supported": false,
     "type": "core"
   }
 ]
 ```
 
-#### 获取 MCP 支持的工具列表
+#### List MCP-Supported Tools
 ```
 GET /tools/mcp
 ```
-**响应示例**:
+**Response Example:**
 ```json
 [
   {
     "name": "text.pinyin",
-    "display_name": "中文转拼音",
-    "description": "将中文文本转换为拼音",
+    "display_name": "Chinese to Pinyin",
+    "description": "Convert Chinese text to Pinyin",
     "mcp_supported": true,
-    "type": "core"
+    "type": "plugin"
   }
 ]
 ```
 
-#### 调用工具
+#### Direct Tool Call
 ```
-POST /tools/{name}/call
+POST /tools/{tool_name}/call
 Content-Type: application/json
 ```
-**请求示例**:
+**Request Example:**
 ```json
 {
   "text": "你好世界",
   "tone": true
 }
 ```
-**响应示例**:
+**Response Example:**
 ```json
 {
   "success": true,
@@ -557,12 +801,12 @@ Content-Type: application/json
 }
 ```
 
-#### MCP 调用端点
+#### MCP Protocol Call
 ```
 POST /mcp/call
 Content-Type: application/json
 ```
-**请求示例**:
+**Request Example:**
 ```json
 {
   "id": "req-12345",
@@ -589,7 +833,7 @@ Content-Type: application/json
   }
 }
 ```
-**响应示例**:
+**Response Example:**
 ```json
 {
   "id": "resp-67890",
@@ -604,7 +848,7 @@ Content-Type: application/json
     "execution_history": [
       {
         "id": "exec-54321",
-        "timestamp": "2025-12-14T08:00:00Z",
+        "timestamp": "2025-12-16T08:00:00Z",
         "component_type": "Tool",
         "component_name": "text.pinyin",
         "method": "run",
@@ -622,34 +866,34 @@ Content-Type: application/json
 }
 ```
 
-### 5.4 WebSocket 支持
+### 5.4 WebSocket Support
 
-#### 连接 WebSocket
+#### WebSocket Connection
 ```
 ws://localhost:8000/ws/mcp
 ```
 
-#### WebSocket 消息格式
-- **请求消息**: 与 `/mcp/call` 端点的请求格式相同
-- **响应消息**: 与 `/mcp/call` 端点的响应格式相同
+#### Message Format
+- **Request Messages**: Same format as `/mcp/call` endpoint requests
+- **Response Messages**: Same format as `/mcp/call` endpoint responses
 
-#### WebSocket 示例
+#### WebSocket Example (JavaScript)
 ```javascript
-// 使用 JavaScript 连接 WebSocket
+// Connect to WebSocket
 const socket = new WebSocket('ws://localhost:8000/ws/mcp');
 
 socket.onopen = () => {
   console.log('WebSocket connected');
   
-  // 发送 MCP 请求
+  // Send MCP request
   const request = {
     "id": "req-12345",
     "component_type": "Tool",
-    "component_name": "text.pinyin",
+    "component_name": "text.convert_chinese",
     "method": "run",
     "params": {
       "text": "你好世界",
-      "tone": true
+      "mode": "s2t"
     },
     "context": {
       "id": "ctx-12345",
@@ -674,18 +918,50 @@ socket.onmessage = (event) => {
   const response = JSON.parse(event.data);
   console.log('WebSocket response:', response);
 };
+
+socket.onerror = (error) => {
+  console.error('WebSocket error:', error);
+};
+
+socket.onclose = () => {
+  console.log('WebSocket connection closed');
+};
 ```
 
-### 5.5 MCP 客户端示例
+### 5.5 MCP Client Examples
 
-#### 使用 curl 调用 MCP API
+#### Using curl
 ```bash
 curl -X POST http://localhost:8000/mcp/call \
   -H "Content-Type: application/json" \
-  -d '{"id":"req-123","component_type":"Tool","component_name":"text.pinyin","method":"run","params":{"text":"你好世界","tone":true},"context":{"id":"ctx-123","parent_id":null,"model_state":{},"execution_history":[],"environment_info":{},"metadata":{}},"service_context":{"caller_id":"curl-client","caller_type":"User","permission_level":"Standard","extra":{}}}'
+  -d '{
+    "id": "req-123",
+    "component_type": "Tool",
+    "component_name": "text.ac_automaton",
+    "method": "run",
+    "params": {
+      "action": "match",
+      "patterns": ["hello", "world"],
+      "texts": ["hello world", "goodbye world"]
+    },
+    "context": {
+      "id": "ctx-123",
+      "parent_id": null,
+      "model_state": {},
+      "execution_history": [],
+      "environment_info": {},
+      "metadata": {}
+    },
+    "service_context": {
+      "caller_id": "curl-client",
+      "caller_type": "User",
+      "permission_level": "Standard",
+      "extra": {}
+    }
+  }'
 ```
 
-#### 使用 Python 调用 MCP API
+#### Using Python
 ```python
 import requests
 import json
@@ -693,17 +969,18 @@ import json
 url = "http://localhost:8000/mcp/call"
 headers = {"Content-Type": "application/json"}
 
+# Example: Chinese text conversion
 request_data = {
-    "id": "req-123",
+    "id": "req-456",
     "component_type": "Tool",
-    "component_name": "text.pinyin",
+    "component_name": "text.convert_chinese",
     "method": "run",
     "params": {
         "text": "你好世界",
-        "tone": True
+        "mode": "s2t"
     },
     "context": {
-        "id": "ctx-123",
+        "id": "ctx-456",
         "parent_id": None,
         "model_state": {},
         "execution_history": [],
@@ -719,22 +996,215 @@ request_data = {
 }
 
 response = requests.post(url, headers=headers, data=json.dumps(request_data))
-print(response.json())
+result = response.json()
+print(f"Converted text: {result['data']['converted']}")
 ```
 
-## 6. 插件管理 (Plugin Management)
+#### Using Node.js
+```javascript
+const axios = require('axios');
 
-Rust Toolbox 支持通过外部插件扩展功能。
+async function callMcpTool() {
+  const url = 'http://localhost:8000/mcp/call';
+  
+  const requestData = {
+    id: 'req-789',
+    component_type: 'Tool',
+    component_name: 'file.duplicates',
+    method: 'run',
+    params: {
+      directories: ['/home/user/documents'],
+      min_size: 1024
+    },
+    context: {
+      id: 'ctx-789',
+      parent_id: null,
+      model_state: {},
+      execution_history: [],
+      environment_info: {},
+      metadata: {}
+    },
+    service_context: {
+      caller_id: 'nodejs-client',
+      caller_type: 'User',
+      permission_level: 'Standard',
+      extra: {}
+    }
+  };
+  
+  try {
+    const response = await axios.post(url, requestData, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    console.log('Duplicate files found:', response.data.data);
+  } catch (error) {
+    console.error('Error calling MCP tool:', error.response?.data || error.message);
+  }
+}
 
-### 6.1 安装插件
-1.  获取插件的可执行文件（例如 `rt-plugin-custom.exe`）。
-2.  在 `rt-cli` 或 `rt-gui` 的同级目录下创建一个名为 `plugins` 的文件夹。
-3.  将插件可执行文件放入 `plugins` 文件夹中。
-4.  重启 `rt-cli` 或 `rt-gui`，工具将自动扫描并加载以 `rt-plugin-` 开头的插件。
+callMcpTool();
+```
 
-### 6.2 验证安装
-使用 `list` 命令查看已加载的工具：
-```powershell
+## 6. Plugin Management
+
+Rust Toolbox supports extending functionality through external plugins with both executable and WebAssembly formats.
+
+### 6.1 Plugin Installation
+
+#### Installing Executable Plugins
+1. Obtain the plugin executable file (e.g., `rt-plugin-custom.exe`)
+2. Create a `plugins` folder in the same directory as `rt-cli` or `rt-gui`
+3. Place the plugin executable in the `plugins` folder
+4. Restart `rt-cli` or `rt-gui` - tools will automatically scan and load plugins prefixed with `rt-plugin-`
+
+#### Installing WebAssembly Plugins
+1. Obtain the plugin WASM file (e.g., `rt-plugin-custom.wasm`)
+2. Place the WASM file in the `plugins` folder
+3. Ensure the plugin follows the WASI interface specification
+4. Restart the application to load the new plugin
+
+### 6.2 Plugin Discovery and Loading
+
+The plugin system automatically discovers plugins by:
+- Scanning the `plugins/` directory for files prefixed with `rt-plugin-`
+- Supporting both executable (.exe, no extension) and WebAssembly (.wasm) formats
+- Loading plugin metadata through the `spec` command
+- Registering tools provided by each plugin
+
+### 6.3 Plugin Verification
+
+#### List All Tools
+```bash
 cargo run --bin rt-cli -- list
 ```
-如果插件加载成功，您将在列表中看到插件提供的工具。
+
+This command shows all available tools including:
+- Tool name and display name
+- Tool description
+- Tool type (core, plugin)
+- MCP support status
+
+#### Test Plugin Functionality
+```bash
+# Test a plugin tool
+cargo run --bin rt-cli -- run text.pinyin --input '{"text": "测试", "tone": true}'
+```
+
+### 6.4 Multi-Tool Plugins
+
+Some plugins provide multiple tools (like the Czkawka plugin):
+- `file.duplicates` - Find duplicate files
+- `file.similar_images` - Find similar images
+- `file.empty_directories` - Find empty directories
+- `file.temporary_files` - Find temporary files
+- `file.broken_symlinks` - Find broken symbolic links
+
+### 6.5 Plugin Configuration
+
+#### Plugin Metadata
+Each plugin exposes metadata through the `spec` command:
+```bash
+./plugins/rt-plugin-pinyin.exe spec --locale en
+```
+
+#### Plugin Capabilities
+- **Input/Output Schemas**: JSON Schema definitions for validation
+- **Internationalization**: Multi-language support (English, Chinese)
+- **MCP Support**: Optional Model Context Protocol integration
+- **Error Handling**: Standardized error reporting
+
+## 7. Troubleshooting
+
+### 7.1 Common Issues
+
+#### Tool Not Found
+**Problem**: Tool not appearing in the list or "Tool not found" error
+**Solutions**:
+- Verify plugin files are in the `plugins/` directory
+- Check plugin file naming (must start with `rt-plugin-`)
+- Ensure plugin executable has proper permissions
+- Restart the application after adding plugins
+
+#### Plugin Loading Errors
+**Problem**: Plugin fails to load or crashes
+**Solutions**:
+- Check plugin compatibility with current rt-box version
+- Verify plugin dependencies are installed
+- Review error logs for specific error messages
+- Test plugin independently using `plugin spec` command
+
+#### MCP Server Connection Issues
+**Problem**: Cannot connect to MCP server or API calls fail
+**Solutions**:
+- Verify server is running: `curl http://localhost:8000/health`
+- Check firewall settings and port availability
+- Ensure correct server address and port configuration
+- Review server logs for error details
+
+#### Workflow Execution Failures
+**Problem**: Workflow fails to execute or nodes fail
+**Solutions**:
+- Validate workflow JSON syntax and structure
+- Check tool input parameters match expected schemas
+- Verify all referenced tools are available
+- Review node dependencies and execution order
+- Check for circular dependencies in workflow graph
+
+#### Performance Issues
+**Problem**: Slow tool execution or high memory usage
+**Solutions**:
+- Enable parallel execution for independent workflow nodes
+- Use appropriate batch sizes for bulk operations
+- Monitor system resources during execution
+- Consider breaking large workflows into smaller components
+
+### 7.2 Debugging Tools
+
+#### Verbose Logging
+Enable detailed logging for troubleshooting:
+```bash
+RUST_LOG=debug cargo run --bin rt-cli -- list
+```
+
+#### Tool Schema Validation
+Verify tool input against schema:
+```bash
+cargo run --bin rt-cli -- run text.pinyin --input '{"invalid": "input"}' --validate
+```
+
+#### Plugin Testing
+Test plugin independently:
+```bash
+./plugins/rt-plugin-pinyin.exe spec
+./plugins/rt-plugin-pinyin.exe run < input.json
+```
+
+### 7.3 Error Codes and Messages
+
+#### Common Error Types
+- `InvalidInput`: Input parameters don't match tool schema
+- `ToolFailure`: Tool execution failed with specific error
+- `PluginError`: Plugin communication or execution error
+- `ConfigError`: Configuration file or parameter error
+- `NetworkError`: MCP server or network communication error
+
+#### Error Resolution Steps
+1. Read the complete error message and error code
+2. Check input parameters against tool documentation
+3. Verify tool and plugin availability
+4. Review system logs for additional context
+5. Consult plugin-specific documentation
+
+### 7.4 Getting Help
+
+#### Documentation Resources
+- [Plugin Development Guide](PLUGIN_GUIDE.md) - Plugin development standards
+- [Architecture Design](ARCHITECTURE_DESIGN.md) - System architecture details
+- [Design Document](DESIGN.md) - Overall design principles
+
+#### Community Support
+- Check existing issues in the project repository
+- Review plugin-specific documentation and examples
+- Test with minimal reproduction cases
+- Provide detailed error logs and system information when reporting issues

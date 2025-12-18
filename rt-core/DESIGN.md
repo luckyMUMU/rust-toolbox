@@ -1,24 +1,86 @@
 # rt-core Design Document
 
-## 1. 模块概述 (Module Overview)
-`rt-core` 是 Rust Toolbox 的核心库，定义了所有工具和工作流必须遵循的基础接口 (Traits) 以及通用数据结构。它不包含具体的业务逻辑工具（这些在 `rt-tools` 中），只提供“骨架”和核心功能支持。
+## 1. Module Overview
+`rt-core` is the foundational library of the Rust Toolbox, defining the core interfaces (Traits) and common data structures that all tools and workflows must follow. It provides the architectural "skeleton" and core functionality support without containing specific business logic tools (which are in `rt-tools`).
 
-## 2. 核心职责 (Core Responsibilities)
-- 定义 `Tool` Trait：所有具体工具必须实现的接口，支持同步和 MCP 上下文执行。
-- 定义 `Locale` Enum：支持的多语言区域设置。
-- 定义工作流相关结构：管理工具执行顺序和上下文传递。
-- 实现 Model Context Protocol (MCP) 支持：提供上下文管理、请求/响应处理。
-- 定义 `CoreError`：统一错误处理类型。
-- 实现插件系统：支持外部插件的加载和管理。
-- 实现工作流引擎：工作流编排与执行 (详见 `WORKFLOW_DESIGN.md`)。
-- 实现 MCP 服务器：提供 REST API 和 WebSocket 端点，用于外部工具调用。
+## 2. Core Responsibilities
+- **Tool Interface Definition**: Define the `Tool` trait that all concrete tools must implement, supporting both synchronous and MCP context execution
+- **Locale Support**: Define the `Locale` enum for multi-language region settings
+- **Workflow Management**: Define workflow-related structures for managing tool execution order and context passing
+- **Model Context Protocol (MCP) Support**: Provide context management, request/response handling, and standardized tool calling protocol
+- **Error Handling**: Define unified `CoreError` type for consistent error handling across the system
+- **Plugin System**: Implement external plugin loading and management with support for both process-based and WebAssembly plugins
+- **Service Layer**: Provide a unified service management layer with permission control and standardized service interfaces
+- **Configuration Management**: Implement hexagonal architecture-based configuration system with multiple adapters
+- **Logging System**: Provide structured logging with configurable formatters and sinks
+- **Persistence Layer**: Unified data storage, caching, and file operations (detailed in `PERSISTENCE_DESIGN.md`)
+- **Workflow Engine**: Workflow orchestration and execution engine (detailed in `WORKFLOW_DESIGN.md`)
+- **MCP Server**: Provide REST API and WebSocket endpoints for external tool invocation
 
-## 3. 详细设计 (Detailed Design)
+## 3. Architecture Overview
 
-### 3.1 Locale (`locale.rs`)
-定义了支持的语言区域：
+The rt-core module follows a hexagonal architecture pattern with clear separation of concerns:
+
+```mermaid
+graph TB
+    subgraph "External Adapters"
+        CLI[rt-cli]
+        GUI[rt-gui]
+        REST[REST API]
+        WS[WebSocket]
+    end
+    
+    subgraph "rt-core"
+        subgraph "Ports (Interfaces)"
+            ToolPort[Tool Trait]
+            ServicePort[Service Ports]
+            ConfigPort[Config Ports]
+            LogPort[Log Ports]
+        end
+        
+        subgraph "Domain Layer"
+            Engine[Workflow Engine]
+            Context[MCP Context]
+            Manager[Service Manager]
+        end
+        
+        subgraph "Infrastructure"
+            PluginMgr[Plugin Manager]
+            PersistMgr[Persistence Manager]
+            ConfigMgr[Config Manager]
+            LogMgr[Log Manager]
+        end
+    end
+    
+    subgraph "External Tools"
+        Native[Native Tools]
+        Process[Process Plugins]
+        WASM[WASM Plugins]
+    end
+    
+    CLI --> ServicePort
+    GUI --> ServicePort
+    REST --> ServicePort
+    WS --> ServicePort
+    
+    ServicePort --> Manager
+    Manager --> Engine
+    Engine --> ToolPort
+    
+    ToolPort --> Native
+    ToolPort --> PluginMgr
+    PluginMgr --> Process
+    PluginMgr --> WASM
+```
+
+## 4. Core Components
+
+### 4.1 Locale Support (`locale.rs`)
+Defines supported language regions with serialization support:
+
 ```rust
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Locale {
@@ -27,123 +89,250 @@ pub enum Locale {
     #[serde(rename = "zh-CN")]
     Zh,
 }
+
+impl fmt::Display for Locale {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Locale::En => write!(f, "en"),
+            Locale::Zh => write!(f, "zh-CN"),
+        }
+    }
+}
+
+impl Default for Locale {
+    fn default() -> Self {
+        Locale::En
+    }
+}
 ```
 
-### 3.2 Tool Trait (`tool.rs`)
-所有工具必须实现的核心接口，支持 MCP 上下文执行：
+### 4.2 Tool Interface (`tool.rs`)
+The core interface that all tools must implement, with MCP context support:
+
 ```rust
 use async_trait::async_trait;
 use serde_json::Value;
+use crate::error::Result;
 use crate::locale::Locale;
 use crate::mcp::{McpRequest, McpResponse};
 
 #[async_trait]
 pub trait Tool: Send + Sync {
-    /// 工具名称 (唯一标识)
+    /// Tool name (unique identifier)
     fn name(&self) -> &str;
-    
-    /// 显示名称 (支持多语言)
+
+    /// Display name (multi-language support)
     fn display_name(&self, _locale: Locale) -> String {
         self.name().to_string()
     }
     
-    /// 工具描述 (用于 UI 展示)
+    /// Tool description (for UI display)
     fn description(&self, locale: Locale) -> String;
     
-    /// 用户指南 (Markdown, 支持多语言)
+    /// User guide (Markdown format)
     fn user_guide(&self, locale: Locale) -> String;
 
-    /// 输入 Schema (JSON Schema)
+    /// Input parameter schema (JSON Schema)
     fn input_schema(&self, locale: Locale) -> Value;
 
-    /// 输出结果 Schema (JSON Schema)
+    /// Output result schema (JSON Schema)
     fn output_schema(&self, _locale: Locale) -> Value {
         serde_json::json!({ "type": "object" })
     }
-    
-    /// 执行逻辑
+
+    /// Execution logic
     async fn run(&self, input: Value) -> Result<Value>;
     
-    /// 是否支持 MCP
+    /// Whether MCP is supported
     fn mcp_supported(&self) -> bool {
         false
     }
     
-    /// 使用 MCP 上下文执行工具
+    /// Execute tool with MCP context
     async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
 }
-```
 
-### 3.3 McpTool Trait (`tool.rs`)
-扩展 `Tool` Trait，提供 MCP 特定功能：
-```rust
+/// MCP Tool trait, extends Tool trait with MCP-specific functionality
 #[async_trait]
 pub trait McpTool: Tool {
-    /// 获取 MCP 能力描述
+    /// Get MCP capability description
     fn get_mcp_capabilities(&self) -> Value;
     
-    /// 获取 MCP 上下文验证规则
+    /// Get MCP context validation rules
     fn get_context_validation_rules(&self) -> Value;
     
-    /// 是否需要完整上下文
+    /// Whether full context is required
     fn requires_full_context(&self) -> bool;
     
-    /// 执行逻辑（带 MCP 上下文）
+    /// Execute with MCP context
     async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
 }
 ```
 
-### 3.4 Model Context Protocol (MCP) 支持 (`mcp/`)
+### 4.3 Service Layer Architecture
 
-#### 3.4.1 McpContext (`mcp/context.rs`)
-MCP 上下文，包含执行状态和历史记录：
+#### 4.3.1 Service Manager (`service/manager.rs`)
+The service manager provides a unified entry point for all service calls with permission control:
+
+```rust
+pub struct ServiceManager {
+    /// Service registry storing all registered service instances
+    services: RwLock<HashMap<String, Arc<dyn ServicePort>>>,
+    
+    /// Default permission policy
+    default_permission_policy: PermissionPolicy,
+}
+
+impl ServiceManager {
+    /// Register service instance
+    pub async fn register_service(&self, service: Arc<dyn ServicePort>);
+    
+    /// Call service method with permission checking
+    pub async fn call_service(&self, request: ServiceRequest) -> Result<ServiceResponse>;
+    
+    /// List all registered services
+    pub async fn list_services(&self) -> Vec<String>;
+}
+```
+
+#### 4.3.2 Service Ports (`service/port.rs`)
+Standardized service interfaces with context and permission support:
+
+```rust
+/// Service calling context with caller information and permission levels
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServiceContext {
+    pub caller_id: String,
+    pub caller_type: CallerType,
+    pub permission_level: PermissionLevel,
+    pub extra: Value,
+}
+
+/// Caller types
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CallerType {
+    System,     // System components
+    CoreTool,   // Core tools
+    Plugin,     // External plugins
+    User,       // Direct user calls
+}
+
+/// Permission levels
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PermissionLevel {
+    ReadOnly,   // Read-only access
+    Standard,   // Standard permissions
+    Admin,      // Administrator permissions
+}
+
+/// Service port trait defining standard service call interface
+#[async_trait]
+pub trait ServicePort: Send + Sync {
+    fn name(&self) -> &str;
+    async fn call(&self, method: &str, params: &Value, context: &ServiceContext) -> Result<ServiceResponse>;
+}
+```
+
+### 4.4 Configuration Management (`config/`)
+
+The configuration system follows hexagonal architecture with multiple adapters:
+
+#### 4.4.1 Domain Layer (`config/domain.rs`)
+- `ConfigItem`: Represents configuration items with metadata
+- `ConfigSource`: Enumeration of configuration sources (file, environment, cache)
+
+#### 4.4.2 Port Layer (`config/port.rs`)
+- `ConfigManagerPort`: Main configuration management interface
+- `ConfigSourcePort`: Configuration source interface
+- `ConfigCachePort`: Configuration caching interface
+- `ConfigRepositoryPort`: Configuration persistence interface
+
+#### 4.4.3 Service Layer (`config/service.rs`)
+- `ConfigService`: Business logic for configuration operations
+- `ConfigManager`: Orchestrates configuration operations across adapters
+
+#### 4.4.4 Adapter Layer (`config/adapter/`)
+- `FileAdapter`: File-based configuration storage
+- `EnvAdapter`: Environment variable configuration source
+- `CacheAdapter`: In-memory configuration caching
+
+### 4.5 Logging System (`logger/`)
+
+Structured logging system with configurable output:
+
+#### 4.5.1 Domain Layer (`logger/domain.rs`)
+- `LogLevel`: Log level enumeration (Debug, Info, Warn, Error)
+- `LogRecord`: Individual log record structure
+- `LogEntry`: Complete log entry with metadata
+
+#### 4.5.2 Port Layer (`logger/port.rs`)
+- `LogManagerPort`: Main logging management interface
+- `LogWriterPort`: Log writing interface
+- `LogSinkPort`: Log output destination interface
+- `LogFormatterPort`: Log formatting interface
+
+#### 4.5.3 Service Layer (`logger/service.rs`)
+- `LogService`: Business logic for logging operations
+- `LogManager`: Orchestrates logging across components
+- `LogWriter`: Handles log writing operations
+
+#### 4.5.4 Adapter Layer (`logger/adapter/`)
+- `FormatterAdapter`: Log message formatting
+- `SinkAdapter`: Log output destinations (console, file, etc.)
+
+### 4.6 Model Context Protocol (MCP) Support (`mcp/`)
+
+#### 4.6.1 MCP Context (`mcp/context.rs`)
+MCP context containing execution state and history:
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpContext {
-    pub id: String,                 // 上下文唯一标识
-    pub parent_id: Option<String>,  // 父上下文 ID
-    pub model_state: ModelState,    // 模型状态
-    pub execution_history: Vec<ExecutionRecord>, // 执行历史
-    pub environment_info: EnvironmentInfo, // 环境信息
-    pub metadata: Value,            // 元数据
+    pub id: String,                 // Context unique identifier
+    pub parent_id: Option<String>,  // Parent context ID
+    pub model_state: ModelState,    // Model state
+    pub execution_history: Vec<ExecutionRecord>, // Execution history
+    pub environment_info: EnvironmentInfo, // Environment information
+    pub metadata: Value,            // Metadata
 }
 ```
 
-#### 3.4.2 McpRequest 和 McpResponse (`mcp/request.rs`, `mcp/response.rs`)
-标准化的 MCP 请求和响应格式：
+#### 4.6.2 MCP Request and Response (`mcp/request.rs`, `mcp/response.rs`)
+Standardized MCP request and response formats:
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpRequest {
-    pub id: String,                  // 请求唯一标识
-    pub component_type: ComponentType, // 组件类型 (Tool/Plugin/Workflow)
-    pub component_name: String,      // 组件名称
-    pub method: String,              // 调用方法
-    pub params: Value,               // 参数
-    pub context: McpContext,         // 请求上下文
-    pub service_context: McpServiceContext, // 服务上下文
+    pub id: String,                  // Request unique identifier
+    pub component_type: ComponentType, // Component type (Tool/Plugin/Workflow)
+    pub component_name: String,      // Component name
+    pub method: String,              // Call method
+    pub params: Value,               // Parameters
+    pub context: McpContext,         // Request context
+    pub service_context: McpServiceContext, // Service context
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpResponse {
-    pub id: String,                  // 响应唯一标识
-    pub request_id: String,          // 关联的请求 ID
-    pub status: ResponseStatus,      // 响应状态
-    pub data: Option<Value>,         // 响应数据
-    pub error: Option<McpError>,     // 错误信息
-    pub context: McpContext,         // 响应上下文
-    pub duration_ms: Option<u64>,    // 执行时长
+    pub id: String,                  // Response unique identifier
+    pub request_id: String,          // Associated request ID
+    pub status: ResponseStatus,      // Response status
+    pub data: Option<Value>,         // Response data
+    pub error: Option<McpError>,     // Error information
+    pub context: McpContext,         // Response context
+    pub duration_ms: Option<u64>,    // Execution duration
 }
 ```
 
-#### 3.4.3 ContextManager (`mcp/manager.rs`)
-管理 MCP 上下文的创建、更新和传播：
+#### 4.6.3 Context Manager (`mcp/manager.rs`)
+Manages MCP context creation, updates, and propagation:
+
 ```rust
 pub struct ContextManager {
-    contexts: RwLock<HashMap<String, McpContext>>, // 上下文存储
+    contexts: RwLock<HashMap<String, McpContext>>, // Context storage
 }
 
 impl ContextManager {
-    pub fn new() -> Self;
     pub async fn create_context(&self) -> McpContext;
     pub async fn create_child_context(&self, parent_id: &str) -> Result<McpContext>;
     pub async fn get_context(&self, context_id: &str) -> Result<McpContext>;
@@ -152,40 +341,48 @@ impl ContextManager {
 }
 ```
 
-### 3.5 插件系统 (`plugin/`)
+### 4.7 Plugin System (`plugin/`)
 
-#### 3.5.1 PluginMetadata (`plugin/manifest.rs`)
-插件元数据，包含 MCP 支持信息：
+#### 4.7.1 Plugin Metadata (`plugin/manifest.rs`)
+Plugin metadata with MCP support and multi-tool capabilities:
+
 ```rust
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct PluginMetadata {
-    pub name: String,                      // 插件名称
-    pub display_name: LocalizedString,     // 显示名称
-    pub description: LocalizedString,      // 描述
-    pub user_guide: LocalizedString,       // 用户指南
-    pub input_schema: Value,               // 输入 Schema
-    pub output_schema: Option<Value>,      // 输出 Schema
-    pub input_fields: Option<HashMap<String, LocalizedString>>, // 输入字段
-    pub output_fields: Option<HashMap<String, LocalizedString>>, // 输出字段
-    pub version: Option<String>,           // 版本
-    pub author: Option<String>,            // 作者
-    pub mcp_supported: bool,               // 是否支持 MCP
-    pub mcp_capabilities: Value,           // MCP 能力
-    pub requires_full_context: bool,       // 是否需要完整上下文
-    pub context_validation_rules: Value,   // 上下文验证规则
+    pub name: String,                      // Plugin name
+    pub display_name: LocalizedString,     // Display name
+    pub description: LocalizedString,      // Description
+    pub user_guide: LocalizedString,       // User guide
+    pub input_schema: Value,               // Input schema
+    pub output_schema: Option<Value>,      // Output schema
+    pub input_fields: Option<HashMap<String, LocalizedString>>, // Input fields
+    pub output_fields: Option<HashMap<String, LocalizedString>>, // Output fields
+    pub version: Option<String>,           // Version
+    pub author: Option<String>,            // Author
+    pub mcp_supported: bool,               // MCP support
+    pub mcp_capabilities: Value,           // MCP capabilities
+    pub requires_full_context: bool,       // Full context requirement
+    pub context_validation_rules: Value,   // Context validation rules
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct LocalizedString {
+    pub en: String,
+    #[serde(alias = "zh-CN")]
+    pub zh: Option<String>,
 }
 ```
 
-#### 3.5.2 PluginManager (`plugin/mod.rs`)
-管理插件的加载和访问：
+#### 4.7.2 Plugin Manager (`plugin/mod.rs`)
+Manages plugin loading and access with multi-tool support:
+
 ```rust
 pub struct PluginManager {
-    plugin_dir: PathBuf,                  // 插件目录
-    plugins: RwLock<HashMap<String, Arc<dyn Tool>>>, // 加载的插件
+    plugin_dir: PathBuf,                  // Plugin directory
+    plugins: RwLock<HashMap<String, Arc<dyn Tool>>>, // Loaded plugins
 }
 
 impl PluginManager {
-    pub fn new(plugin_dir: PathBuf) -> Self;
     pub async fn load_all(&self) -> Result<()>;
     pub async fn get_tool(&self, name: &str) -> Option<Arc<dyn Tool>>;
     pub async fn list_tools(&self) -> Vec<Arc<dyn Tool>>;
@@ -194,157 +391,191 @@ impl PluginManager {
 }
 ```
 
-### 3.6 工作流相关结构 (`workflow.rs`)
+#### 4.7.3 Multi-Tool Plugin Support
+The plugin system supports single plugins providing multiple tools:
 
-#### 3.6.1 WorkflowNode
-工作流节点，代表一个工具执行步骤：
+- **Single Tool Plugin**: Returns single JSON object from `spec` command
+- **Multi-Tool Plugin**: Returns JSON array of tool metadata objects
+- **Tool Discovery**: Plugins are scanned for `rt-plugin-*` prefix
+- **Tool Registration**: Each tool from multi-tool plugins is registered separately
+
+### 4.8 Workflow Integration (`workflow.rs`)
+
+#### 4.8.1 Workflow Structures
+Core workflow data structures for tool orchestration:
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowNode {
-    pub id: String,                         // 节点 ID
-    pub tool_name: String,                  // 工具名称
-    pub label: Option<String>,              // 节点标签
-    pub input_mappings: HashMap<String, String>, // 输入映射
-    pub static_inputs: Value,               // 静态输入
+    pub id: String,                         // Node ID
+    pub tool_name: String,                  // Tool name
+    pub label: Option<String>,              // Node label
+    pub input_mappings: HashMap<String, String>, // Input mappings
+    pub static_inputs: Value,               // Static inputs
 }
-```
 
-#### 3.6.2 WorkflowDefinition
-工作流定义，包含节点和边的配置：
-```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowDefinition {
-    pub id: String,                         // 工作流 ID
-    pub name: String,                       // 工作流名称
-    pub description: String,                // 工作流描述
-    pub nodes: Vec<WorkflowNode>,           // 节点列表
-    pub edges: Vec<WorkflowEdge>,           // 边列表
+    pub id: String,                         // Workflow ID
+    pub name: String,                       // Workflow name
+    pub description: String,                // Workflow description
+    pub nodes: Vec<WorkflowNode>,           // Node list
+    pub edges: Vec<WorkflowEdge>,           // Edge list
 }
 ```
 
-### 3.7 MCP 工作流扩展 (`mcp/node.rs`, `mcp/workflow.rs`)
+#### 4.8.2 MCP Workflow Extensions (`mcp/node.rs`, `mcp/workflow.rs`)
+Extended workflow structures with MCP context support:
 
-#### 3.7.1 McpNode
-扩展 `WorkflowNode`，添加 MCP 配置：
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpNode {
-    pub base: WorkflowNode,                 // 基础节点
-    pub mcp_config: McpNodeConfig,          // MCP 配置
-    pub context_mappings: HashMap<String, String>, // 上下文映射
-    pub output_context_updates: HashMap<String, String>, // 输出上下文更新
+    pub base: WorkflowNode,                 // Base node
+    pub mcp_config: McpNodeConfig,          // MCP configuration
+    pub context_mappings: HashMap<String, String>, // Context mappings
+    pub output_context_updates: HashMap<String, String>, // Output context updates
 }
-```
 
-#### 3.7.2 McpWorkflow
-扩展 `WorkflowDefinition`，支持 MCP 上下文：
-```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpWorkflow {
-    pub base: WorkflowDefinition,           // 基础工作流
-    pub mcp_config: McpWorkflowConfig,     // MCP 配置
-    pub mcp_nodes: Vec<McpNode>,           // MCP 节点列表
+    pub base: WorkflowDefinition,           // Base workflow
+    pub mcp_config: McpWorkflowConfig,     // MCP configuration
+    pub mcp_nodes: Vec<McpNode>,           // MCP node list
 }
 ```
 
-### 3.8 MCP 服务器 (`server/mcp.rs`)
-基于 Warp 框架实现的 MCP 服务器，提供 REST API 和 WebSocket 端点：
+### 4.9 Error Handling (`error.rs`)
+Unified error handling with comprehensive error types:
 
-#### 3.8.1 REST API 端点
-- `GET /health`：健康检查
-- `GET /tools`：获取工具列表
-- `GET /tools/mcp`：获取 MCP 支持的工具列表
-- `POST /tools/{name}/call`：调用工具
-- `POST /mcp/call`：MCP 调用端点
-
-#### 3.8.2 WebSocket 支持
-- `ws://{address}/ws/mcp`：WebSocket 端点，用于实时通信
-
-### 3.9 CoreError (`error.rs`)
-统一错误处理类型：
 ```rust
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum CoreError {
     #[error("Tool execution failed: {0}")]
     ToolFailure(String),
+    
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+    
     #[error("Configuration error: {0}")]
     ConfigError(String),
-    #[error("Plugin error: {0}")]
-    PluginError(String),
-    #[error("Workflow error: {0}")]
-    WorkflowError(String),
-    #[error("MCP error: {0}")]
-    McpError(String),
-    #[error(transparent)]
+    
+    #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    #[error(transparent)]
+    
+    #[error("JSON serialization error: {0}")]
     JsonError(#[from] serde_json::Error),
-    #[error(transparent)]
+    
+    #[error("YAML serialization error: {0}")]
     YamlError(#[from] serde_yaml::Error),
+    
     #[error(transparent)]
-    AnyhowError(#[from] anyhow::Error),
+    Unknown(#[from] anyhow::Error),
 }
+
+pub type Result<T> = std::result::Result<T, CoreError>;
 ```
 
-## 4. 依赖 (Dependencies)
-- `async-trait`: 用于支持 async trait 方法。
-- `serde`: 序列化/反序列化。
-- `serde_json`: 用于通用的输入输出数据交换。
-- `serde_yaml`: 用于 YAML 配置文件解析。
-- `thiserror`: 错误定义。
-- `anyhow`: 通用错误捕获。
-- `tokio`: 异步运行时 (Features: `process`, `io-util`, `fs`, `sync`, `time`, `net`).
-- `tracing`: 日志记录。
-- `chrono`: 时间处理。
-- `uuid`: 生成唯一标识。
-- `warp`: Web 服务器框架。
-- `futures-util`: 异步流处理。
-- `moka`: 缓存支持。
-- `sled`: 嵌入式数据库，用于持久化。
+### 4.10 MCP Server (`server/`)
 
-## 5. 接口稳定性 (Stability)
-本模块接口变更将影响所有下游 crate (`rt-tools`, `rt-cli`, `rt-gui`)，需谨慎修改。所有公共接口遵循语义化版本控制原则。
+#### 4.10.1 REST API Endpoints (`server/api.rs`)
+- `GET /health`: Health check
+- `GET /tools`: Get tool list
+- `GET /tools/mcp`: Get MCP-supported tool list
+- `POST /tools/{name}/call`: Call tool
+- `POST /mcp/call`: MCP call endpoint
 
-## 6. 公共工具能力说明
+#### 4.10.2 WebSocket Support (`server/websocket.rs`)
+- `ws://{address}/ws/mcp`: WebSocket endpoint for real-time communication
 
-### 6.1 Tool 接口
-`rt-core` 提供的 `Tool` 接口是所有工具和插件必须实现的核心接口。通过这个接口，工具可以：
-- 定义自己的元数据（名称、描述、用户指南）
-- 提供输入输出 Schema
-- 实现执行逻辑
-- 支持 MCP 上下文执行
+#### 4.10.3 MCP Protocol Handlers (`server/mcp.rs`)
+Warp-based MCP server implementation providing REST API and WebSocket endpoints
 
-### 6.2 插件加载与管理
-`PluginManager` 提供了以下能力：
-- 自动扫描指定目录加载插件
-- 管理核心工具和插件工具
-- 支持按名称获取工具
-- 支持获取 MCP 支持的工具列表
+## 5. Dependencies
 
-### 6.3 MCP 上下文管理
-`ContextManager` 提供了：
-- 上下文的创建、获取、更新和删除
-- 父子上下文关系管理
-- 上下文传播支持
+### 5.1 Core Dependencies
+- `async-trait`: Support for async trait methods
+- `serde`: Serialization/deserialization with derive macros
+- `serde_json`: JSON data exchange
+- `serde_yaml`: YAML configuration file parsing
+- `thiserror`: Structured error definitions
+- `anyhow`: General error handling
+- `tokio`: Async runtime with features: `process`, `io-util`, `fs`, `sync`, `time`, `net`
 
-### 6.4 工作流引擎
-工作流引擎支持：
-- 工作流定义的解析和执行
-- 节点间的上下文传递
-- 支持 MCP 上下文的工作流执行
-- 工作流状态管理
+### 5.2 Logging and Monitoring
+- `tracing`: Structured logging and instrumentation
+- `chrono`: Date/time handling with serde support
+- `uuid`: Unique identifier generation
 
-### 6.5 MCP 服务器
-MCP 服务器提供了标准化的外部接口：
-- REST API 用于工具调用和状态查询
-- WebSocket 用于实时通信
-- 支持 MCP 标准请求和响应格式
+### 5.3 Web and Network
+- `warp`: Web server framework for MCP server
+- `futures-util`: Async stream processing
+- `tokio-tungstenite`: WebSocket support
 
-## 7. 使用示例
+### 5.4 Storage and Caching
+- `moka`: In-memory caching with async support
+- `sled`: Embedded key-value database for persistence
+- `bincode`: Binary serialization for storage
+- `zstd + async-compression`: Data compression
 
-### 7.1 创建和使用 Tool
+### 5.5 Plugin System
+- `wasmtime`: WebAssembly runtime for WASM plugins
+- `wasmtime-wasi`: WASI support for WASM plugins
+
+### 5.6 Utilities
+- `regex`: Pattern matching
+- `sha2 + hex`: Cryptographic hashing
+- `tempfile`: Temporary file/directory management
+
+## 6. Interface Stability
+This module's interface changes will affect all downstream crates (`rt-tools`, `rt-cli`, `rt-gui`), requiring careful modification. All public interfaces follow semantic versioning principles.
+
+## 7. Public Tool Capabilities
+
+### 7.1 Tool Interface
+The `Tool` interface provided by `rt-core` is the core interface that all tools and plugins must implement:
+- Define metadata (name, description, user guide)
+- Provide input/output schemas
+- Implement execution logic
+- Support MCP context execution
+
+### 7.2 Plugin Loading and Management
+`PluginManager` provides:
+- Automatic plugin scanning and loading from specified directories
+- Management of core tools and plugin tools
+- Tool retrieval by name
+- MCP-supported tool list retrieval
+- Multi-tool plugin support
+
+### 7.3 MCP Context Management
+`ContextManager` provides:
+- Context creation, retrieval, update, and deletion
+- Parent-child context relationship management
+- Context propagation support
+
+### 7.4 Service Layer
+The service layer provides:
+- Unified service registration and discovery
+- Permission-based access control
+- Standardized service call interface
+- Service lifecycle management
+
+### 7.5 Configuration Management
+The configuration system provides:
+- Multi-source configuration loading (file, environment, cache)
+- Type-safe configuration access
+- Configuration change notification
+- Hierarchical configuration support
+
+### 7.6 Logging System
+The logging system provides:
+- Structured logging with multiple levels
+- Configurable log formatting
+- Multiple output destinations
+- Async logging support
+
+## 8. Usage Examples
+
+### 8.1 Creating and Using a Tool
 ```rust
 use rt_core::{Tool, Locale, Result, CoreError};
 use async_trait::async_trait;
@@ -356,22 +587,58 @@ struct MyTool;
 impl Tool for MyTool {
     fn name(&self) -> &str { "my-tool" }
     
-    fn description(&self, _locale: Locale) -> String { "My test tool" }
+    fn description(&self, _locale: Locale) -> String { "My test tool".to_string() }
     
-    fn user_guide(&self, _locale: Locale) -> String { "# My Tool Guide" }
+    fn user_guide(&self, _locale: Locale) -> String { "# My Tool Guide".to_string() }
     
     fn input_schema(&self, _locale: Locale) -> Value { 
-        serde_json::json!({ "type": "object", "properties": { "input": { "type": "string" } } })
+        serde_json::json!({ 
+            "type": "object", 
+            "properties": { 
+                "input": { "type": "string" } 
+            } 
+        })
     }
     
     async fn run(&self, input: Value) -> Result<Value> {
-        let input_str = input["input"].as_str().ok_or(CoreError::InvalidInput("Missing input"))?;
+        let input_str = input["input"].as_str()
+            .ok_or(CoreError::InvalidInput("Missing input".to_string()))?;
         Ok(Value::String(format!("Hello, {}!", input_str)))
     }
 }
 ```
 
-### 7.2 使用 PluginManager
+### 8.2 Using Service Manager
+```rust
+use rt_core::{ServiceManager, ServiceRequest, ServiceContext, CallerType, PermissionLevel};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() {
+    let manager = ServiceManager::new();
+    
+    // Register services
+    // manager.register_service(config_service).await;
+    
+    // Call service
+    let request = ServiceRequest {
+        service_name: "config".to_string(),
+        method: "get_config".to_string(),
+        params: json!({"key": "app.name"}),
+        context: ServiceContext {
+            caller_id: "my-tool".to_string(),
+            caller_type: CallerType::CoreTool,
+            permission_level: PermissionLevel::Standard,
+            extra: json!({}),
+        },
+    };
+    
+    let response = manager.call_service(request).await.unwrap();
+    println!("Response: {:?}", response);
+}
+```
+
+### 8.3 Using Plugin Manager
 ```rust
 use rt_core::PluginManager;
 use std::path::PathBuf;
@@ -381,109 +648,120 @@ async fn main() {
     let plugin_dir = PathBuf::from("./plugins");
     let manager = PluginManager::new(plugin_dir);
     
-    // 加载所有插件
+    // Load all plugins
     manager.load_all().await.unwrap();
     
-    // 获取工具列表
+    // Get tool list
     let tools = manager.list_tools().await;
     println!("Loaded {} tools", tools.len());
     
-    // 获取 MCP 工具列表
+    // Get MCP tool list
     let mcp_tools = manager.list_mcp_tools().await;
     println!("Loaded {} MCP tools", mcp_tools.len());
 }
 ```
 
-## 8. 扩展指南
+## 9. Extension Guide
 
-### 8.1 添加新的 Tool
-1. 实现 `Tool` Trait
-2. 可选：实现 `McpTool` Trait 以支持 MCP
-3. 在工具库中注册该工具
+### 9.1 Adding New Tools
+1. Implement the `Tool` trait
+2. Optionally implement the `McpTool` trait for MCP support
+3. Register the tool in the tool library
 
-### 8.2 创建插件
-1. 实现 `Tool` Trait
-2. 使用 `PluginMetadata` 定义插件元数据
-3. 构建可执行文件，命名遵循 `rt-plugin-*` 模式
-4. 将插件放在指定目录中
+### 9.2 Creating Plugins
+1. Implement the `Tool` trait
+2. Use `PluginMetadata` to define plugin metadata
+3. Build executable file following `rt-plugin-*` naming pattern
+4. Place plugin in specified directory
 
-### 8.3 扩展 MCP 功能
-1. 修改 `McpContext` 添加新的上下文字段
-2. 更新 `McpRequest` 和 `McpResponse` 支持新的字段
-3. 扩展 `ContextManager` 支持新的上下文操作
+### 9.3 Adding New Services
+1. Implement the `ServicePort` trait
+2. Register service with `ServiceManager`
+3. Define appropriate permission requirements
 
-## 9. 性能和安全性考虑
+### 9.4 Extending MCP Functionality
+1. Modify `McpContext` to add new context fields
+2. Update `McpRequest` and `McpResponse` to support new fields
+3. Extend `ContextManager` to support new context operations
 
-### 9.1 性能
-- 使用异步编程模型，提高并发处理能力
-- 上下文使用 Arc 进行共享，减少复制
-- 插件加载使用异步 IO，提高启动速度
-- 工作流执行支持并行处理
+## 10. Performance and Security Considerations
 
-### 9.2 安全性
-- 插件执行使用沙箱机制（Wasm 插件）
-- 外部命令执行使用安全参数传递
-- 输入输出 Schema 验证，防止恶意输入
-- MCP 上下文隔离，防止上下文泄露
+### 10.1 Performance
+- Uses async programming model for improved concurrent processing
+- Context sharing using Arc to reduce copying
+- Async IO for plugin loading to improve startup speed
+- Workflow execution supports parallel processing
+- Service layer uses efficient routing and caching
 
-## 10. 测试策略
+### 10.2 Security
+- Plugin execution uses sandboxing mechanisms (WASM plugins)
+- External command execution uses secure parameter passing
+- Input/output schema validation prevents malicious input
+- MCP context isolation prevents context leakage
+- Service layer implements permission-based access control
 
-### 10.1 单元测试
-- 对核心组件进行单元测试
-- 测试 Tool 接口的各种实现
-- 测试 MCP 上下文管理
-- 测试插件加载和管理
+## 11. Testing Strategy
 
-### 10.2 集成测试
-- 测试工作流引擎的完整执行
-- 测试 MCP 服务器的 API 端点
-- 测试插件与核心系统的集成
+### 11.1 Unit Testing
+- Core component unit testing
+- Various Tool interface implementations testing
+- MCP context management testing
+- Plugin loading and management testing
+- Service layer functionality testing
 
-### 10.3 性能测试
-- 测试大量工具和插件的加载性能
-- 测试工作流执行的性能
-- 测试 MCP 服务器的并发处理能力
+### 11.2 Integration Testing
+- Complete workflow engine execution testing
+- MCP server API endpoint testing
+- Plugin integration with core system testing
+- Service integration testing
 
-## 11. 版本控制和发布
+### 11.3 Performance Testing
+- Large-scale tool and plugin loading performance testing
+- Workflow execution performance testing
+- MCP server concurrent processing capability testing
 
-- 遵循语义化版本控制 (SemVer)
-- 每个版本包含详细的 CHANGELOG
-- 发布前运行完整的测试套件
-- 向下兼容原则，除非是重大版本变更
+## 12. Version Control and Release
 
-## 12. 贡献指南
+- Follows semantic versioning (SemVer)
+- Each version includes detailed CHANGELOG
+- Complete test suite run before release
+- Backward compatibility principle, except for major version changes
 
-### 12.1 代码风格
-- 遵循 Rust 官方代码风格
-- 使用 `cargo fmt` 格式化代码
-- 使用 `cargo clippy` 检查代码质量
+## 13. Future Roadmap
 
-### 12.2 文档要求
-- 所有公共接口必须有文档注释
-- 添加适当的示例代码
-- 更新相关设计文档
+- Support for more MCP standard features
+- Enhanced workflow visualization support
+- More plugin type support
+- Enhanced security and sandboxing mechanisms
+- Distributed workflow execution support
+- Additional monitoring and logging features
+- Performance optimization and scalability improvements
+- Enhanced error handling and recovery mechanisms
 
-### 12.3 测试要求
-- 新增功能必须添加单元测试
-- 修复 bug 必须添加回归测试
-- 测试覆盖率目标：80% 以上
+## 14. Contributing Guidelines
 
-## 13. 未来规划
+### 14.1 Code Style
+- Follow official Rust code style
+- Use `cargo fmt` for code formatting
+- Use `cargo clippy` for code quality checks
 
-- 支持更多 MCP 标准功能
-- 增强工作流可视化支持
-- 提供更多插件类型支持
-- 增强安全性和沙箱机制
-- 支持分布式工作流执行
-- 添加更多监控和日志功能
+### 14.2 Documentation Requirements
+- All public interfaces must have documentation comments
+- Add appropriate example code
+- Update related design documents
 
-## 14. 联系方式
+### 14.3 Testing Requirements
+- New features must add unit tests
+- Bug fixes must add regression tests
+- Test coverage target: 80%+
 
-- 项目地址：[GitHub Repository]
-- 问题跟踪：[GitHub Issues]
-- 讨论区：[GitHub Discussions]
-- 贡献指南：CONTRIBUTING.md
+## 15. Contact Information
 
-## 15. 许可证
+- Project Repository: [GitHub Repository]
+- Issue Tracking: [GitHub Issues]
+- Discussion Forum: [GitHub Discussions]
+- Contributing Guide: CONTRIBUTING.md
 
-本项目采用 [MIT License] 许可证。
+## 16. License
+
+This project is licensed under the GNU AGPL v3 License.
