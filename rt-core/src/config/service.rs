@@ -68,24 +68,29 @@ impl ConfigService {
     /// * `Err(CoreError)` - 加载配置失败
     pub async fn load_config(&self) -> Result<()> {
         // 1. 克隆所有配置源，避免在异步调用中持有锁
-        let sources = {
+        let sources: Vec<Arc<Box<dyn ConfigSourcePort>>> = {
             let sources_lock = self.sources.lock().unwrap();
             // 使用 Vec<Arc<Box<dyn ConfigSourcePort>>> 来存储配置源的引用
             sources_lock.iter().cloned().collect()
         };
         
         // 2. 从每个配置源加载配置，保存到临时变量
-        let mut all_configs = Vec::new();
+        let mut all_configs: Vec<(std::collections::HashMap<String, String>, ConfigSource, u8)> = Vec::new();
         for source in sources {
-            let config_map: std::collections::HashMap<String, String> = source.load_config().await?;
-            let source_type = source.get_source_type();
-            let source_priority = source.get_priority();
+            // 显式指定 source 的类型
+            let source: &Arc<Box<dyn ConfigSourcePort>> = &source;
             
+            // 获取配置源类型和优先级
+            let source_type: ConfigSource = source.get_source_type();
+            let source_priority: u8 = source.get_priority();
+            
+            // 显式指定 load_config 的返回类型
+            let config_map: std::collections::HashMap<String, String> = source.load_config().await?;
             all_configs.push((config_map, source_type, source_priority));
         }
         
         // 3. 更新内存配置
-        let mut all_keys_to_invalidate = Vec::new();
+        let mut all_keys_to_invalidate: Vec<String> = Vec::new();
         let items = {
             let mut config_items = self.config_items.lock().unwrap();
             
@@ -96,13 +101,14 @@ impl ConfigService {
             for (config_map, source_type, source_priority) in all_configs {
                 for (key, value) in config_map {
                     // 直接插入，因为配置源已经按优先级排序
-                    config_items.insert(key.clone(), ConfigItem {
+                    let config_item = ConfigItem {
                         key: key.clone(),
                         value: value.clone(),
                         source: source_type,
                         priority: source_priority,
                         updated_at: Utc::now(),
-                    });
+                    };
+                    config_items.insert(key.clone(), config_item);
                     
                     // 记录需要清除缓存的键（保存为 String）
                     all_keys_to_invalidate.push(key.clone());
@@ -110,7 +116,7 @@ impl ConfigService {
             }
             
             // 返回所有配置项，用于持久化
-            config_items.values().cloned().collect()
+            config_items.values().cloned().collect::<Vec<ConfigItem>>()
         };
         
         // 4. 清除所有缓存

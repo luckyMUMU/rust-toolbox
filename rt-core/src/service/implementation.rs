@@ -94,7 +94,7 @@ impl ConfigServiceImpl {
                 Ok(ServiceResponse {
                     status: ResponseStatus::Failure,
                     data: None,
-                    error: Some(e.to_string()),
+                    error: Some(format!("{}", e)),
                     trace_id: uuid::Uuid::new_v4().to_string(),
                 })
             }
@@ -116,7 +116,7 @@ impl ConfigServiceImpl {
                 Ok(ServiceResponse {
                     status: ResponseStatus::Failure,
                     data: None,
-                    error: Some(e.to_string()),
+                    error: Some(format!("{}", e)),
                     trace_id: uuid::Uuid::new_v4().to_string(),
                 })
             }
@@ -138,7 +138,7 @@ impl ConfigServiceImpl {
                 Ok(ServiceResponse {
                     status: ResponseStatus::Failure,
                     data: None,
-                    error: Some(e.to_string()),
+                    error: Some(format!("{}", e)),
                     trace_id: uuid::Uuid::new_v4().to_string(),
                 })
             }
@@ -275,7 +275,7 @@ impl LogServiceImpl {
                 Ok(ServiceResponse {
                     status: ResponseStatus::Failure,
                     data: None,
-                    error: Some(e.to_string()),
+                    error: Some(format!("{}", e)),
                     trace_id: uuid::Uuid::new_v4().to_string(),
                 })
             }
@@ -299,7 +299,7 @@ impl LogServiceImpl {
                 Ok(ServiceResponse {
                     status: ResponseStatus::Failure,
                     data: None,
-                    error: Some(e.to_string()),
+                    error: Some(format!("{}", e)),
                     trace_id: uuid::Uuid::new_v4().to_string(),
                 })
             }
@@ -438,7 +438,7 @@ impl ToolServiceImpl {
                         Ok(ServiceResponse {
                             status: ResponseStatus::Failure,
                             data: None,
-                            error: Some(e.to_string()),
+                            error: Some(format!("{}", e)),
                             trace_id: uuid::Uuid::new_v4().to_string(),
                         })
                     }

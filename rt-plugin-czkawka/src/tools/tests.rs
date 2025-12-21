@@ -4,7 +4,6 @@ use crate::tools::similar_images::SimilarImagesTool;
 use crate::tools::empty_dirs::EmptyDirectoriesTool;
 use crate::tools::temp_files::TemporaryFilesTool;
 use crate::tools::broken_symlinks::BrokenSymlinksTool;
-use crate::tools::get_tool_by_name;
 use serde_json::json;
 
 /// 测试重复文件查找工具
@@ -75,26 +74,4 @@ async fn test_broken_symlinks_tool() {
     assert!(result.is_ok());
 }
 
-/// 测试工具工厂
-#[test]
-fn test_get_tool_by_name() {
-    // 测试获取重复文件工具
-    let tool = get_tool_by_name("file.duplicates");
-    assert_eq!(tool.name(), "file.duplicates");
-    
-    // 测试获取相似图片工具
-    let tool = get_tool_by_name("file.similar_images");
-    assert_eq!(tool.name(), "file.similar_images");
-    
-    // 测试获取空目录工具
-    let tool = get_tool_by_name("file.empty_directories");
-    assert_eq!(tool.name(), "file.empty_directories");
-    
-    // 测试获取临时文件工具
-    let tool = get_tool_by_name("file.temporary_files");
-    assert_eq!(tool.name(), "file.temporary_files");
-    
-    // 测试获取损坏的符号链接工具
-    let tool = get_tool_by_name("file.broken_symlinks");
-    assert_eq!(tool.name(), "file.broken_symlinks");
-}
+

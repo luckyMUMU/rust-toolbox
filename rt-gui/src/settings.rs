@@ -134,16 +134,7 @@ impl Default for ShortcutSettings {
     }
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            display: DisplaySettings::default(),
-            notifications: NotificationSettings::default(),
-            data: DataSettings::default(),
-            shortcuts: ShortcutSettings::default(),
-        }
-    }
-}
+
 
 impl Settings {
     /// 加载配置文件
