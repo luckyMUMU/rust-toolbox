@@ -49,6 +49,33 @@
   }
   ```
 
+#### AC Automaton (`text.ac_automaton`)
+- **Name**: `text.ac_automaton`
+- **Description**: Aho-Corasick 多模式匹配工具。
+- **Input Schema**:
+  ```json
+  {
+    "action": "match", // Enum: add, remove, list, match, save, load
+    "patterns": ["pattern1", "pattern2"],
+    "texts": ["text to match"],
+    "confirm": false,
+    "ignore_case": true,
+    "parallel": false
+  }
+  ```
+- **Output Schema**:
+  ```json
+  {
+    "success": true,
+    "message": "...",
+    "results": [
+      { "pattern": "...", "start": 0, "end": 5 }
+    ],
+    "patterns": ["..."],
+    "elapsed_ms": 10
+  }
+  ```
+
 ## 3. 结构 (Structure)
 ```
 src/

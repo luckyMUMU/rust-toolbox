@@ -21,14 +21,20 @@ Rust Toolbox 是一个模块化的工具集合项目，旨在通过统一的接�
 - **`rt-gui`**: 图形界面入口。提供可视化的工具配置与运行界面。
 - **`rt-plugin-pinyin`**: 插件。提供中文转拼音功能。
 - **`rt-plugin-ytdlp`**: 插件。提供视频下载功能。
+- **`rt-plugin-czkawka`**: 插件。集成 Czkawka 核心功能，提供重复文件查找、相似图片识别等功能。
 
 ## 可用工具 (Available Tools)
 
 ### File Operations (`file`)
 - **`file.move_folder`**: 移动或重命名文件夹（支持移动到现有目录内部）。
+- **`file.duplicates`**: 查找重复文件 (czkawka 插件)。
+- **`file.similar_images`**: 查找相似图片 (czkawka 插件)。
+- **`file.empty_directories`**: 查找空目录 (czkawka 插件)。
 
 ### Text Operations (`text`)
 - **`text.pinyin`**: 将中文文本转换为带声调或不带声调的拼音。
+- **`text.convert_chinese`**: 简繁体中文转换。
+- **`text.ac_automaton`**: Aho-Corasick 多模式串匹配工具。
 
 ### Media Operations (`media`)
 - **`media.ytdlp`**: 从 YouTube 和其他支持的网站下载视频和音频内容（通过插件实现）。

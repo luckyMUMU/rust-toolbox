@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Documentation Refresh**: Synchronized all project documentation with the latest code implementation.
+  - Added documentation for `text.ac_automaton` and `text.convert_chinese` tools.
+  - Added documentation for `rt-plugin-czkawka` and its associated tools.
+  - Updated `README.md`, `USER_GUIDE.md`, and `DESIGN.md` to reflect current project state.
 - **MCP Support**: Added Model Context Protocol (MCP) support to the core architecture.
   - Added `McpTool` trait extension for MCP-enabled tools.
   - Updated `Tool` trait with MCP-related methods.

@@ -337,6 +337,9 @@ pub struct PluginManager {
 - **workflow**: 工作流引擎实现
 - **persistence**: 持久化实现
 - **locale**: 多语言支持
+- **config**: 统一配置管理系统，支持多源加载和热更新
+- **logger**: 结构化日志系统，支持多端输出和日志轮转
+- **service**: 标准化服务调用层，提供统一的工具和插件访问接口
 - **error**: 错误处理
 
 ### 4.2 rt-tools
@@ -375,6 +378,7 @@ YouTube 下载插件，基于 yt-dlp 实现视频下载功能。
 | rt-gui       | rt-core| 使用核心模块的接口实现图形界面功能           |
 | rt-plugin-pinyin | rt-core | 实现核心模块定义的插件接口             |
 | rt-plugin-ytdlp | rt-core | 实现核心模块定义的插件接口             |
+| rt-plugin-czkawka | rt-core | 实现核心模块定义的插件接口             |
 | rt-tools     | rt-core | 实现核心模块定义的工具接口             |
 
 ## 6. 部署架构

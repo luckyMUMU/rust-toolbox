@@ -14,7 +14,7 @@ struct MoveFolderInput {
     overwrite: bool,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct MoveFolderOutput {
     success: bool,
     moved_files: usize,
@@ -139,3 +139,6 @@ impl Tool for MoveFolder {
         Ok(serde_json::to_value(output).unwrap())
     }
 }
+
+#[cfg(test)]
+mod tests;

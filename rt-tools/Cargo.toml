@@ -18,3 +18,6 @@ aho-corasick = "1.1"
 
 # Internal
 rt-core = { path = "../rt-core" }
+
+[dev-dependencies]
+tempfile = "3"

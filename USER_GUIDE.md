@@ -22,6 +22,21 @@ Rust Toolbox (简称 `rt-box`) 是一个强大的工具流编排平台。
 #### 📂 移动文件夹 (`file.move_folder`)
 移动或重命名指定的文件夹。
 
+#### 🔍 重复文件查找 (`file.duplicates`)
+在指定目录中查找重复文件。
+
+#### 🖼️ 相似图片查找 (`file.similar_images`)
+查找视觉上相似的图片。
+
+#### 📁 空目录清理 (`file.empty_directories`)
+查找并清理指定的空目录。
+
+#### 🧹 临时文件清理 (`file.temporary_files`)
+查找系统或应用产生的临时文件。
+
+#### 🔗 损坏链接检查 (`file.broken_symlinks`)
+查找并清理损坏的符号链接。
+
 ### 3.2 文本操作 (Text Operations)
 
 #### 🔤 中文转拼音 (`text.pinyin`)
@@ -44,6 +59,62 @@ Rust Toolbox (简称 `rt-box`) 是一个强大的工具流编排平台。
 ```json
 {
   "pinyin": "nǐ hǎo shì jiè" // 转换后的拼音
+}
+```
+
+#### 🔣 简繁体转换 (`text.convert_chinese`)
+转换简体和繁体中文。
+
+**行为说明 (Behavior):**
+1. **模式多样**: 支持简体转繁体 (s2t)、繁体转简体 (t2s) 等多种模式。
+2. **地区适配**: 支持台湾、香港地区的习惯用词转换。
+
+**输入参数 (Input):**
+```json
+{
+  "text": "简体中文", // 要转换的文本 (必填)
+  "mode": "s2t"      // 转换模式 (必填)
+}
+```
+
+**输出 (Output):**
+```json
+{
+  "converted": "繁體中文"
+}
+```
+
+#### 🧠 AC 自动机 (`text.ac_automaton`)
+高效的多模式匹配工具，适用于关键词过滤、敏感词检测等场景。
+
+**行为说明 (Behavior):**
+1. **多模式匹配**: 一次遍历文本即可找到所有匹配的模式串。
+2. **状态管理**: 支持添加、删除模式串，并能动态重建。
+3. **性能**: 支持并行处理，适合大规模文本匹配。
+
+**输入参数 (Input):**
+```json
+{
+  "action": "match",                  // 操作类型 (必填: add, remove, list, match, save, load)
+  "patterns": ["关键词1", "关键词2"], // 模式串列表
+  "texts": ["待匹配的长文本..."],     // 待匹配文本列表
+  "ignore_case": true,                // 是否忽略大小写 (可选, 默认 false)
+  "parallel": false                   // 是否并行匹配 (可选, 默认 false)
+}
+```
+
+**输出 (Output):**
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "pattern": "关键词1",
+      "start": 10,
+      "end": 13
+    }
+  ],
+  "elapsed_ms": 15
 }
 ```
 
@@ -85,30 +156,6 @@ Rust Toolbox (简称 `rt-box`) 是一个强大的工具流编排平台。
 }
 ```
 
-#### 📂 移动文件夹 (`file.move_folder`)
-移动或重命名指定的文件夹。
-
-**行为说明 (Behavior):**
-1. **重命名/移动**: 如果 `destination` 不存在，源文件夹将被重命名或移动到该路径。
-2. **移动到内部**: 如果 `destination` 是一个已存在的目录，源文件夹将被移动到该目录**内部**。
-
-**输入参数 (Input):**
-```json
-{
-  "source": "path/to/source_folder",      // 源路径 (必填)
-  "destination": "path/to/target_folder", // 目标路径 (必填)
-  "overwrite": false                      // 是否覆盖 (可选, 默认 false)。
-                                          // 如果为 true 且目标路径(计算后)已存在，将先删除目标再移动。
-}
-```
-
-**输出 (Output):**
-```json
-{
-  "success": true,
-  "moved_files": 0 // 移动的文件/项目数量
-}
-```
 
 ## 4. 使用方式 (Usage)
 

@@ -16,4 +16,4 @@ async-trait = "0.1"
 anyhow = "1.0"
 
 # Czkawka dependencies
-czkawka_core = { version = "^10.0.0", default-features = false }
+czkawka_core = { version = "8.0.0", default-features = false }

@@ -12,7 +12,7 @@ struct ConvertChineseInput {
     mode: String, // s2t, t2s, s2tw, tw2s, s2hk, hk2s, s2twp, tw2sp
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ConvertChineseOutput {
     converted: String,
 }
@@ -123,3 +123,6 @@ impl Tool for ConvertChinese {
             .map_err(|e| CoreError::ToolFailure(e.to_string()))?)
     }
 }
+
+#[cfg(test)]
+mod tests;
