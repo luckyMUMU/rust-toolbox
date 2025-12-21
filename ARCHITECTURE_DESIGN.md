@@ -1,252 +1,585 @@
-# Rust Tool 架构设计文档
+# Rust Toolbox Architecture Design Document
 
-## 1. 项目概述
+## 1. Project Overview
 
-Rust Tool 是一个基于 Rust 语言开发的工具集成平台，支持多种工具的统一管理和调度，提供工作流引擎实现工具间的协同工作。该平台采用插件化架构，支持动态加载和扩展，同时提供 CLI 和 GUI 两种交互方式。
+Rust Toolbox is a modular tool integration platform built in Rust that provides unified management and orchestration of various tools through a workflow engine. The platform features a plugin-based architecture supporting dynamic loading and extension, with both CLI and GUI interfaces. The system implements Model Context Protocol (MCP) for standardized context management and external system integration.
 
-## 1.1 相关文档
+## 1.1 Related Documentation
 
-- [设计文档](DESIGN.md): 项目的整体设计文档，包括技术选型和核心原则
-- [用户指南](USER_GUIDE.md): 详细的用户使用指南，包括工具库和使用方式
-- [插件开发指南](PLUGIN_GUIDE.md): 插件开发的规范和指南
-- [AI工作规范](AI_WORK_PROTOCOL.md): AI辅助开发的工作规范
-- [变更日志](CHANGELOG.md): 项目的变更历史
-- [持久化设计文档](rt-core/PERSISTENCE_DESIGN.md): 详细描述项目的持久化设计
-- [工作流设计文档](rt-core/WORKFLOW_DESIGN.md): 详细描述项目的工作流设计
+- [Design Document](DESIGN.md): Overall project design document, including technology stack and core principles
+- [User Guide](USER_GUIDE.md): Detailed user guide, including tool library and usage methods
+- [Plugin Development Guide](PLUGIN_GUIDE.md): Plugin development specifications and guidelines
+- [AI Work Protocol](AI_WORK_PROTOCOL.md): AI-assisted development work specifications
+- [Changelog](CHANGELOG.md): Project change history
+- [Persistence Design Document](rt-core/PERSISTENCE_DESIGN.md): Detailed description of project persistence design
+- [Workflow Design Document](rt-core/WORKFLOW_DESIGN.md): Detailed description of project workflow design
 
-## 1.2 核心功能
+## 1.2 Core Features
 
-- 工具统一管理和调度
-- 插件化架构，支持动态扩展
-- 工作流引擎，实现工具间协同
-- 多语言支持
-- 持久化存储
-- CLI 和 GUI 双界面支持
-- **Model Context Protocol (MCP) 支持**: 实现标准化的上下文管理和工具调用协议
-- **MCP 服务器**: 提供 REST API 和 WebSocket 端点，支持外部系统集成
+- **Unified Tool Management**: Centralized tool discovery, execution, and management
+- **Plugin Architecture**: Dynamic loading of external tools as plugins (executable files and WebAssembly)
+- **Workflow Engine**: DAG-based workflow orchestration for automated task processing
+- **Multi-language Support**: Full internationalization (i18n) for English and Chinese
+- **Persistence Layer**: Unified data storage, caching, and configuration management
+- **Dual Interface**: Both command-line (rt-cli) and graphical (rt-gui) interfaces
+- **Model Context Protocol (MCP)**: Standardized context management and tool calling protocol
+- **MCP Server**: REST API and WebSocket endpoints for external system integration
+- **Service Layer**: Unified service management with role-based access control
+- **Configuration Management**: Multi-source configuration loading with caching and hot reload
+- **Logging System**: Comprehensive logging with multiple output targets and structured logging
 
-### 1.2 技术栈
+## 1.3 Technology Stack
 
-- **语言**: Rust
-- **构建工具**: Cargo
-- **异步运行时**: Tokio
-- **序列化**: Serde
-- **日志系统**: Tracing
-- **命令行解析**: Clap
-- **Web框架**: Warp (用于 MCP 服务器)
-- **WebSocket**: tokio-tungstenite (用于 MCP WebSocket 支持)
+- **Language**: Rust 2021 Edition
+- **Build System**: Cargo Workspace
+- **Async Runtime**: Tokio
+- **Serialization**: Serde (JSON/YAML)
+- **Error Handling**: thiserror + anyhow
+- **CLI Framework**: Clap v4 with derive macros
+- **GUI Framework**: egui (cross-platform, immediate mode)
+- **Web Framework**: Warp (for MCP server REST API)
+- **WebSocket**: tokio-tungstenite (for MCP WebSocket support)
+- **Storage**: Sled embedded database
+- **Caching**: moka (async in-memory cache)
+- **Compression**: zstd + async-compression
+- **Plugin System**: wasmtime (WebAssembly runtime) + process-based plugins
 
 ## 2. 架构设计
 
-### 2.1 整体架构
+### 2.1 Overall Architecture
 
-Rust Tool 采用模块化架构设计，基于工作区（workspace）结构组织代码，各模块之间通过明确的依赖关系进行通信。核心逻辑集中在 `rt-core` 模块中，其他模块则基于核心模块构建特定功能。
+Rust Toolbox adopts a modular architecture design based on Cargo workspace structure. The core logic is centralized in the `rt-core` module, while other modules build specific functionality on top of the core module.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                                 应用层                                    │
+│                            Application Layer                              │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-│  │    rt-cli       │  │    rt-gui       │  │    其他应用     │            │
+│  │    rt-cli       │  │    rt-gui       │  │ External Apps   │            │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
 └───────────────────────────────────────────────────────────────────────────┘
                                   │
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                                 核心层                                    │
+│                              Core Layer                                   │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
 │  │   Tool API      │  │ Workflow Engine │  │ Plugin Manager  │            │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-│  │ Persistence API │  │  Config System  │  │  Locale System  │            │
+│  │ Persistence API │  │ Config Manager  │  │ Service Layer   │            │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
+│  │    MCP API      │  │   MCP Server    │  │ Logger System   │            │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
+└───────────────────────────────────────────────────────────────────────────┘
+                                  │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                             Plugin Layer                                  │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
+│  │ Process Plugin  │  │  WASM Plugin    │  │ Multi-tool      │            │
+│  │ (Single Tool)   │  │ (Single Tool)   │  │ Plugin          │            │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
+└───────────────────────────────────────────────────────────────────────────┘
+                                  │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                              Tool Layer                                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
+│  │   rt-tools      │  │ rt-plugin-pinyin│  │rt-plugin-czkawka│            │
+│  │ (Built-in)      │  │ (Single Tool)   │  │ (Multi-tool)    │            │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
+│  ┌─────────────────┐                                                       │
+│  │rt-plugin-ytdlp  │                                                       │
+│  │ (Single Tool)   │                                                       │
+│  └─────────────────┘                                                       │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 MCP Integration Architecture
+
+The Model Context Protocol (MCP) integration provides standardized context management and external system integration:
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          External Systems                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
+│  │   AI Agents     │  │   Web Apps      │  │   IDEs/Editors  │            │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
+└─────────────┬─────────────────┬─────────────────┬─────────────────┘       │
+              │                 │                 │                          │
+              ▼                 ▼                 ▼                          │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                            MCP Server                                     │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
+│  │  REST API       │  │  WebSocket      │  │  Context Mgmt   │            │
+│  │  Endpoints      │  │  Server         │  │  Service        │            │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
+└─────────────┬─────────────────┬─────────────────┬─────────────────┘       │
+              │                 │                 │                          │
+              ▼                 ▼                 ▼                          │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          MCP Core Layer                                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
+│  │ Context Manager │  │  MCP Workflow   │  │   MCP Node      │            │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
 │  ┌─────────────────┐  ┌─────────────────┐                                  │
-│  │    MCP API      │  │   MCP Server    │                                  │
+│  │ Request Handler │  │ Response Builder│                                  │
 │  └─────────────────┘  └─────────────────┘                                  │
-└───────────────────────────────────────────────────────────────────────────┘
-                                  │
+└─────────────┬─────────────────┬─────────────────┬─────────────────┘       │
+              │                 │                 │                          │
+              ▼                 ▼                 ▼                          │
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                                 插件层                                    │
+│                        Tool Execution Layer                               │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-│  │ Process Plugin  │  │  Wasm Plugin    │  │  其他插件类型   │            │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
-└───────────────────────────────────────────────────────────────────────────┘
-                                  │
-┌───────────────────────────────────────────────────────────────────────────┐
-│                                 工具层                                    │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │
-│  │   rt-tools      │  │ rt-plugin-pinyin│  │rt-plugin-ytdlp  │            │
+│  │  Built-in Tools │  │    Plugins      │  │   Workflows     │            │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 六边形架构
+### 2.3 Hexagonal Architecture
 
-核心模块 `rt-core` 采用六边形架构（Hexagonal Architecture）设计，也称为端口和适配器模式。该架构的核心思想是将业务逻辑与外部依赖分离，通过端口（Port）定义接口，通过适配器（Adapter）实现接口，从而提高系统的可测试性和可扩展性。
+The core module `rt-core` adopts Hexagonal Architecture design, also known as Ports and Adapters pattern. The core idea is to separate business logic from external dependencies through ports (interfaces) and adapters (implementations), improving system testability and extensibility.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                              外部系统                                     │
+│                            External Systems                               │
 └─────────────┬─────────────────┬─────────────────┬─────────────────┘       │
               │                 │                 │                          │
 ┌─────────────▼─────────┐ ┌─────▼─────────────┐ ┌▼─────────────────┐        │
-│    CLI 适配器         │ │   GUI 适配器      │ │ 插件适配器        │        │
+│   CLI Adapter         │ │   GUI Adapter     │ │ MCP Server       │        │
 └─────────────┬─────────┘ └─────┬─────────────┘ └▲─────────────────┘        │
               │                 │                 │                          │
 ┌─────────────▼─────────────────▼─────────────────▼─────────────────┐        │
-│                              端口层                                    │        │
+│                              Port Layer                           │        │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐       │        │
-│  │   Tool 端口     │  │ Workflow 端口   │  │ Plugin 端口     │       │        │
+│  │   Tool Port     │  │ Workflow Port   │  │ Plugin Port     │       │        │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘       │        │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐       │        │
+│  │    MCP Port     │  │ Service Port    │  │ Config Port     │       │        │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘       │        │
 │  ┌─────────────────┐  ┌─────────────────┐                              │        │
-│  │    MCP 端口     │  │  Context 端口   │                              │        │
+│  │ Persistence Port│  │  Logger Port    │                              │        │
 │  └─────────────────┘  └─────────────────┘                              │        │
 └─────────────┬─────────────────┬─────────────────┬─────────────────┘        │
               │                 │                 │                          │
 ┌─────────────▼─────────────────▼─────────────────▼─────────────────┐        │
-│                              领域层                                    │        │
+│                            Domain Layer                           │        │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐       │        │
-│  │   Tool 领域     │  │ Workflow 领域   │  │ Plugin 领域     │       │        │
+│  │   Tool Domain   │  │ Workflow Domain │  │ Plugin Domain   │       │        │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘       │        │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐       │        │
+│  │    MCP Domain   │  │ Service Domain  │  │ Config Domain   │       │        │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘       │        │
 │  ┌─────────────────┐  ┌─────────────────┐                              │        │
-│  │    MCP 领域     │  │  Context 领域   │                              │        │
+│  │Persistence Domain│  │ Logger Domain   │                              │        │
 │  └─────────────────┘  └─────────────────┘                              │        │
+└─────────────┬─────────────────┬─────────────────┬─────────────────┘        │
+              │                 │                 │                          │
+┌─────────────▼─────────┐ ┌─────▼─────────────┐ ┌▼─────────────────┐        │
+│   File Adapter        │ │  Cache Adapter    │ │ Database Adapter │        │
+└─────────────┬─────────┘ └─────┬─────────────┘ └▲─────────────────┘        │
+              │                 │                 │                          │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                         Infrastructure Layer                              │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 3. 核心组件设计
+## 3. Core Component Design
 
-### 3.1 Tool 组件
+### 3.1 Tool Component
 
-Tool 是整个系统的核心抽象，定义了工具的基本行为和接口。所有工具和插件都必须实现 Tool 接口。
+Tool is the core abstraction of the entire system, defining the basic behavior and interface of tools. All tools and plugins must implement the Tool interface.
 
 ```rust
 #[async_trait]
 pub trait Tool: Send + Sync {
-    /// 工具名称 (唯一标识)
+    /// Tool name (unique identifier)
     fn name(&self) -> &str;
     
-    /// 显示名称 (支持多语言)
+    /// Display name (multi-language support)
     fn display_name(&self, _locale: Locale) -> String;
     
-    /// 工具描述 (用于 UI 展示)
+    /// Tool description (for UI display)
     fn description(&self, locale: Locale) -> String;
     
-    /// 用户指南 (Markdown 格式)
+    /// User guide (Markdown format)
     fn user_guide(&self, locale: Locale) -> String;
     
-    /// 输入参数 Schema (JSON Schema)
+    /// Input parameter schema (JSON Schema)
     fn input_schema(&self, locale: Locale) -> Value;
     
-    /// 输出结果 Schema (JSON Schema)
+    /// Output result schema (JSON Schema)
     fn output_schema(&self, _locale: Locale) -> Value;
     
-    /// 执行逻辑
+    /// Execution logic
     async fn run(&self, input: Value) -> Result<Value>;
     
-    /// 是否支持 MCP
+    /// Whether MCP is supported
     fn mcp_supported(&self) -> bool {
         false
     }
     
-    /// 使用 MCP 上下文执行工具
+    /// Execute tool with MCP context
     async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
 }
 
-/// MCP 工具 trait，扩展 Tool trait，提供 MCP 特定功能
+/// MCP Tool trait, extends Tool trait to provide MCP-specific functionality
 #[async_trait]
 pub trait McpTool: Tool {
-    /// 获取 MCP 能力描述
+    /// Get MCP capability description
     fn get_mcp_capabilities(&self) -> Value;
     
-    /// 获取 MCP 上下文验证规则
+    /// Get MCP context validation rules
     fn get_context_validation_rules(&self) -> Value;
     
-    /// 是否需要完整上下文
+    /// Whether full context is required
     fn requires_full_context(&self) -> bool;
     
-    /// 执行逻辑（带 MCP 上下文）
+    /// Execution logic (with MCP context)
     async fn run_with_context(&self, request: McpRequest) -> Result<McpResponse>;
 }
 ```
 
-### 3.2 插件系统
+### 3.2 Service Layer
 
-插件系统负责加载、管理和执行插件。支持两种类型的插件：
+The service layer provides standardized service invocation interfaces with permission control and error handling.
 
-1. **Process Plugin**: 独立的可执行文件，通过进程间通信与主程序交互
-2. **Wasm Plugin**: WebAssembly 模块，直接在主程序中执行
+```rust
+/// Service manager for unified service registration and invocation
+pub struct ServiceManager {
+    services: RwLock<HashMap<String, Arc<dyn ServicePort>>>,
+    permissions: RwLock<HashMap<String, Vec<String>>>, // role -> services
+}
 
-#### 3.2.1 PluginManager
+/// Service port defining service invocation interface
+#[async_trait]
+pub trait ServicePort: Send + Sync {
+    async fn call(&self, request: ServiceRequest) -> Result<ServiceResponse>;
+    fn get_permissions(&self) -> Vec<String>;
+}
 
-PluginManager 是插件系统的核心组件，负责插件的加载和管理。
+/// Service request containing parameters and context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceRequest {
+    pub id: String,
+    pub service_name: String,
+    pub method: String,
+    pub params: Value,
+    pub context: Option<McpContext>,
+    pub user_role: Option<String>,
+}
+
+/// Service response containing data and status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceResponse {
+    pub id: String,
+    pub success: bool,
+    pub data: Option<Value>,
+    pub error: Option<String>,
+    pub context: Option<McpContext>,
+}
+```
+
+### 3.3 Configuration Management
+
+The configuration management module provides unified configuration services supporting multi-source loading, caching, and hot reload.
+
+```rust
+/// Configuration manager providing external access interface
+pub struct ConfigManager {
+    sources: Vec<Box<dyn ConfigSourcePort>>,
+    cache: Arc<dyn ConfigCachePort>,
+    watchers: RwLock<HashMap<String, Vec<ConfigWatcher>>>,
+}
+
+/// Configuration source port defining configuration loading interface
+#[async_trait]
+pub trait ConfigSourcePort: Send + Sync {
+    async fn load_config(&self, key: &str) -> Result<Option<Value>>;
+    fn get_priority(&self) -> u32;
+    fn supports_watch(&self) -> bool;
+}
+
+/// Configuration cache port defining configuration caching interface
+#[async_trait]
+pub trait ConfigCachePort: Send + Sync {
+    async fn get(&self, key: &str) -> Option<Value>;
+    async fn set(&self, key: &str, value: Value, ttl: Option<Duration>);
+    async fn invalidate(&self, key: &str);
+}
+```
+
+### 3.4 Logging System
+
+The logging system provides comprehensive logging services with hierarchical logging, multiple output targets, and structured logging.
+
+```rust
+/// Log manager providing external access interface
+pub struct LogManager {
+    writers: Vec<Arc<dyn LogWriterPort>>,
+    formatters: HashMap<String, Arc<dyn LogFormatterPort>>,
+    sinks: Vec<Arc<dyn LogSinkPort>>,
+    level: LogLevel,
+}
+
+/// Log writer port defining log writing interface
+#[async_trait]
+pub trait LogWriterPort: Send + Sync {
+    async fn write(&self, entry: &LogEntry) -> Result<()>;
+    fn supports_level(&self, level: LogLevel) -> bool;
+}
+
+/// Log sink port defining log output interface
+#[async_trait]
+pub trait LogSinkPort: Send + Sync {
+    async fn emit(&self, formatted: &str) -> Result<()>;
+    fn get_name(&self) -> &str;
+}
+
+/// Log formatter port defining log formatting interface
+pub trait LogFormatterPort: Send + Sync {
+    fn format(&self, entry: &LogEntry) -> String;
+    fn get_format_name(&self) -> &str;
+}
+```
+
+### 3.5 Plugin System
+
+The plugin system is responsible for loading, managing, and executing plugins. It supports multiple types of plugins:
+
+1. **Process Plugin (Single Tool)**: Independent executable files that communicate with the main program through inter-process communication
+2. **Process Plugin (Multi-Tool)**: Independent executable files that provide multiple tools through array-based metadata
+3. **WASM Plugin**: WebAssembly modules that execute directly within the main program
+
+#### 3.5.1 PluginManager
+
+PluginManager is the core component of the plugin system, responsible for plugin loading and management.
 
 ```rust
 pub struct PluginManager {
     plugin_dir: PathBuf,
     plugins: RwLock<HashMap<String, Arc<dyn Tool>>>,
+    multi_tool_plugins: RwLock<HashMap<String, Vec<Arc<dyn Tool>>>>,
 }
 ```
 
-主要功能：
-- 从指定目录加载插件
-- 管理已加载的插件
-- 提供插件查询和执行接口
+Key features:
+- Load plugins from specified directory
+- Manage loaded plugins (both single-tool and multi-tool)
+- Provide plugin query and execution interfaces
+- Support for array-based metadata format for multi-tool plugins
 
-#### 3.2.2 插件加载流程
+#### 3.5.2 Multi-Tool Plugin Architecture
+
+Multi-tool plugins support providing multiple tools through a single plugin executable:
+
+```rust
+/// Plugin metadata for multi-tool plugins (array format)
+pub type MultiToolMetadata = Vec<PluginMetadata>;
+
+/// Individual tool metadata within a multi-tool plugin
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginMetadata {
+    pub name: String,
+    pub display_name: LocalizedString,
+    pub description: LocalizedString,
+    pub user_guide: LocalizedString,
+    pub input_schema: Value,
+    pub output_schema: Option<Value>,
+    pub input_fields: Option<HashMap<String, HashMap<String, String>>>,
+    pub output_fields: Option<HashMap<String, HashMap<String, String>>>,
+    pub mcp_supported: bool,
+    pub mcp_capabilities: Value,
+    pub requires_full_context: bool,
+    pub context_validation_rules: Value,
+}
+```
+
+#### 3.5.3 Plugin Loading Flow
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                              加载插件                                    │
+│                            Load Plugins                                   │
 └───────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                     遍历插件目录中的文件                                  │
+│                    Scan Files in Plugin Directory                         │
 └───────────────────────────────────────────────────────────────────────────┘
         │
         ├─────────────────────────────────────────────────────────────────┤
         │                                                                 │
         ▼                                                                 ▼
 ┌─────────────────┐                                               ┌─────────┐
-│ 是 .wasm 文件？ │                                               │ 其他文件？│
+│ Is .wasm file?  │                                               │Other file?│
 └─────────┬───────┘                                               └─────┬───┘
           │                                                               │
           ▼                                                               ▼
 ┌─────────────────┐                                               ┌─────────┐
-│ 加载 Wasm 插件  │                                               │ 检查文件名 │
+│ Load WASM Plugin│                                               │Check filename│
 └─────────┬───────┘                                               └─────┬───┘
           │                                                               │
           ▼                                                               ▼
 ┌─────────────────┐                                               ┌─────────┐
-│ 创建 WasmPlugin │                                               │ 以 rt-plugin- 开头？ │
+│Create WasmPlugin│                                               │Starts with rt-plugin-?│
 └─────────┬───────┘                                               └─────┬───┘
           │                                                               │
           ├───────────────────────────────────────────────────────────────┤
           │                                                               │
           ▼                                                               ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                          创建 ProcessPlugin                              │
+│                        Create ProcessPlugin                               │
 └───────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
-│                           注册到 PluginManager                            │
+│                      Execute "plugin spec" Command                        │
+└───────────────────────────────────────────────────────────────────────────┘
+        │
+        ├─────────────────────────────────────────────────────────────────┤
+        │                                                                 │
+        ▼                                                                 ▼
+┌─────────────────┐                                               ┌─────────┐
+│ Array Response? │                                               │Object Response?│
+│ (Multi-tool)    │                                               │(Single-tool)│
+└─────────┬───────┘                                               └─────┬───┘
+          │                                                               │
+          ▼                                                               ▼
+┌─────────────────┐                                               ┌─────────┐
+│Register Multiple│                                               │Register Single│
+│Tools from Array │                                               │Tool from Object│
+└─────────┬───────┘                                               └─────┬───┘
+          │                                                               │
+          ├───────────────────────────────────────────────────────────────┤
+          │                                                               │
+          ▼                                                               ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│                        Register to PluginManager                          │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 工作流引擎
+### 3.6 Model Context Protocol (MCP) Components
 
-工作流引擎负责定义和执行工作流，支持节点间的依赖关系管理和并行执行。
+The MCP system provides standardized context management and external system integration capabilities.
 
-#### 3.3.1 核心概念
+#### 3.6.1 Core MCP Components
 
-- **WorkflowDefinition**: 工作流定义，包含节点和边
-- **WorkflowNode**: 工作流节点，对应一个工具的执行
-- **WorkflowEdge**: 工作流边，定义节点间的依赖关系
-- **WorkflowInstance**: 工作流实例，执行中的工作流
-- **WorkflowStatus**: 工作流状态，包括 Pending、Running、Paused、Completed、Failed
-- **NodeStatus**: 节点状态，包括 Pending、Running、Completed、Failed、Skipped
+```rust
+/// MCP Context - maintains execution state and history
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpContext {
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub metadata: HashMap<String, Value>,
+    pub execution_history: Vec<ExecutionRecord>,
+}
 
-#### 3.3.2 工作流执行流程
+/// MCP Request - standardized tool invocation format
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpRequest {
+    pub id: String,
+    pub context_id: String,
+    pub tool_name: String,
+    pub parameters: Value,
+    pub metadata: HashMap<String, Value>,
+}
+
+/// MCP Response - standardized execution result format
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpResponse {
+    pub id: String,
+    pub request_id: String,
+    pub context_id: String,
+    pub success: bool,
+    pub result: Option<Value>,
+    pub error: Option<String>,
+    pub metadata: HashMap<String, Value>,
+}
+
+/// Context Manager - manages context lifecycle
+pub struct ContextManager {
+    contexts: RwLock<HashMap<String, McpContext>>,
+    persistence: Arc<PersistenceManager>,
+}
+```
+
+#### 3.6.2 MCP Server Architecture
+
+The MCP server provides REST API and WebSocket endpoints for external system integration:
+
+```rust
+/// MCP Server providing REST API and WebSocket endpoints
+pub struct McpServer {
+    api_server: ApiServer,
+    websocket_server: WebSocketServer,
+    context_manager: Arc<ContextManager>,
+    tool_manager: Arc<ToolManager>,
+}
+
+/// REST API endpoints
+impl ApiServer {
+    // GET /api/tools - List available tools
+    // POST /api/tools/{name}/execute - Execute tool
+    // GET /api/contexts - List contexts
+    // POST /api/contexts - Create context
+    // GET /api/contexts/{id} - Get context
+    // PUT /api/contexts/{id} - Update context
+    // GET /api/workflows - List workflows
+    // POST /api/workflows - Create workflow
+    // POST /api/workflows/{id}/execute - Execute workflow
+}
+
+/// WebSocket server for real-time communication
+impl WebSocketServer {
+    // Real-time tool execution
+    // Context updates
+    // Workflow progress notifications
+    // Error notifications
+}
+```
+
+### 3.7 Workflow Engine
+
+The workflow engine is responsible for defining and executing workflows, supporting dependency management between nodes and parallel execution. It now includes enhanced support for multi-tool plugins and MCP integration.
+
+#### 3.7.1 Core Concepts
+
+- **WorkflowDefinition**: Workflow definition containing nodes and edges
+- **WorkflowNode**: Workflow node corresponding to a tool execution (supports multi-tool plugin tools)
+- **WorkflowEdge**: Workflow edge defining dependencies between nodes
+- **WorkflowInstance**: Workflow instance representing an executing workflow
+- **WorkflowStatus**: Workflow status including Pending, Running, Paused, Completed, Failed
+- **NodeStatus**: Node status including Pending, Running, Completed, Failed, Skipped
+- **McpWorkflow**: MCP-enabled workflow with context propagation
+
+#### 3.7.2 Enhanced Workflow Definition
+
+```rust
+/// Enhanced workflow definition with MCP support
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowDefinition {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub nodes: Vec<WorkflowNode>,
+    pub edges: Vec<WorkflowEdge>,
+    pub mcp_enabled: bool,
+    pub context_requirements: Option<ContextRequirements>,
+}
+
+/// Enhanced workflow node supporting multi-tool plugins
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowNode {
+    pub id: String,
+    pub tool_name: String, // Can reference tools from multi-tool plugins
+    pub plugin_source: Option<String>, // Plugin name for multi-tool plugins
+    pub label: Option<String>,
+    pub input_mappings: HashMap<String, String>,
+    pub static_inputs: Value,
+    pub mcp_context_required: bool,
+}
+```
+
+#### 3.7.3 Workflow Execution Flow
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐

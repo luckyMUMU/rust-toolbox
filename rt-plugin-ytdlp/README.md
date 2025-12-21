@@ -1,215 +1,490 @@
-# YouTube Downloader Plugin
+# YouTube Downloader Plugin (yt-dlp)
 
-## 概述
+## Overview
 
-YouTube Downloader 插件是一个基于 Rust Toolbox 框架的插件，它集成了 `yt-dlp` 的核心功能，允许用户从 YouTube 和其他支持的网站下载视频和音频内容。
+The YouTube Downloader Plugin (`rt-plugin-ytdlp`) is a comprehensive media downloading plugin for Rust Toolbox that integrates `yt-dlp` functionality. It enables users to download videos and audio content from YouTube and hundreds of other supported websites with extensive format and quality options.
 
-## 功能特性
+## Features
 
-- ✅ 下载单个视频
-- ✅ 下载整个播放列表
-- ✅ 支持多种格式选择
-- ✅ 支持字幕下载（包括自动生成字幕）
-- ✅ 自定义输出目录和文件名
-- ✅ 完整的多语言支持（英文和简体中文）
-- ✅ 结构化的输入输出
-- ✅ 详细的日志记录
+### Core Functionality
+- **Single Video Downloads**: Download individual videos from supported platforms
+- **Playlist Support**: Download entire playlists with batch processing
+- **Format Selection**: Choose from available video/audio formats and qualities
+- **Subtitle Downloads**: Download subtitles including auto-generated captions
+- **Custom Output**: Configurable output directories and filename templates
+- **Progress Tracking**: Real-time download progress monitoring
+- **Error Recovery**: Robust error handling and retry mechanisms
 
-## 安装要求
+### Supported Platforms
+The plugin supports all websites that `yt-dlp` supports, including:
+- **Video Platforms**: YouTube, Vimeo, Dailymotion, Twitch
+- **Social Media**: Twitter, Facebook, Instagram, TikTok
+- **Chinese Platforms**: Bilibili, 优酷 (Youku), 腾讯视频 (Tencent Video), 爱奇艺 (iQiyi)
+- **Audio Platforms**: SoundCloud, Spotify (metadata), Bandcamp
+- **News/Educational**: BBC iPlayer, Khan Academy, Coursera
+- **Live Streaming**: YouTube Live, Twitch streams
 
-1. **Rust Toolbox**：需要安装 Rust Toolbox 宿主程序（`rt-cli` 或 `rt-gui`）
-2. **yt-dlp**：需要在系统路径中安装 `yt-dlp` 工具
-   - 安装方法：`pip install yt-dlp`（需要 Python 3.7+）
-3. **FFmpeg**（可选）：用于视频格式转换和合并
+For the complete list, see [yt-dlp supported sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
 
-## 安装步骤
+## Installation
 
-1. **克隆仓库**：
+### Prerequisites
+1. **Rust Toolbox**: Requires rt-cli or rt-gui host application
+2. **yt-dlp**: Must be installed and available in system PATH
+   - Install via pip: `pip install yt-dlp` (requires Python 3.7+)
+   - Or download binary from [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases)
+3. **FFmpeg** (Optional): Required for format conversion and merging
+   - Download from [FFmpeg website](https://ffmpeg.org/download.html)
+   - Or install via package manager: `apt install ffmpeg` / `brew install ffmpeg`
+
+### Build Instructions
+
+1. **Clone Repository**:
    ```bash
-git clone https://github.com/your-username/rust-tool.git
-cd rust-tool
+   git clone https://github.com/your-repo/rust-tool.git
+   cd rust-tool
    ```
 
-2. **构建插件**：
+2. **Build Plugin**:
    ```bash
-cargo build --release --package rt-plugin-ytdlp
+   cargo build --release --package rt-plugin-ytdlp
    ```
 
-3. **部署插件**：
-   将编译好的插件可执行文件复制到 `plugins` 目录：
+3. **Deploy Plugin**:
    ```bash
-cp target/release/rt-plugin-ytdlp.exe plugins/
+   # Copy to plugins directory
+   cp target/release/rt-plugin-ytdlp.exe plugins/  # Windows
+   cp target/release/rt-plugin-ytdlp plugins/      # Unix systems
    ```
 
-## 使用方法
+### Verification
+```bash
+# Verify yt-dlp is available
+yt-dlp --version
 
-### 通过命令行界面（CLI）
+# Verify plugin is loaded
+rt-cli list | grep ytdlp
 
-1. **查看插件规范**：
-   ```bash
+# Get plugin specification
 rt-cli plugin spec --name media.ytdlp
-   ```
+```
 
-2. **运行插件**：
-   ```bash
-rt-cli plugin run --name media.ytdlp --input-file input.json
-   ```
+## Usage
 
-### 通过图形用户界面（GUI）
+### Command Line Interface (CLI)
 
-1. 启动 `rt-gui`
-2. 在插件列表中找到 "YouTube下载器"
-3. 填写输入参数
-4. 点击 "运行" 按钮开始下载
-
-## 输入参数
-
-| 参数名 | 类型 | 默认值 | 描述 |
-|--------|------|--------|------|
-| **URL** | 字符串 | 必填 | 要下载的视频或播放列表的URL |
-| **格式** | 字符串 | `best` | 要下载的格式（例如：`best`, `bestvideo+bestaudio`, `bestaudio`） |
-| **播放列表** | 布尔值 | `false` | 是否下载整个播放列表 |
-| **字幕** | 布尔值 | `false` | 是否下载字幕 |
-| **输出目录** | 字符串 | `.` | 保存下载文件的目录 |
-| **文件名模板** | 字符串 | `%(title)s.%(ext)s` | 输出文件名的模板 |
-
-## 输出结果
-
-| 字段名 | 类型 | 描述 |
-|--------|------|------|
-| **success** | 布尔值 | 下载是否成功 |
-| **files** | 数组 | 下载的文件列表，包含文件路径和大小 |
-| **message** | 字符串 | 描述结果的消息 |
-
-## 示例
-
-### 输入示例（input.json）
-
-```json
-{
+#### Basic Video Download
+```bash
+echo '{
   "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   "format": "best",
-  "playlist": false,
-  "subtitles": false,
-  "output_dir": "./downloads",
-  "filename_template": "%(title)s.%(ext)s"
-}
+  "output_dir": "./downloads"
+}' | rt-cli run media.ytdlp
 ```
 
-### 输出示例
+#### Audio-Only Download
+```bash
+echo '{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "format": "bestaudio",
+  "output_dir": "./music",
+  "filename_template": "%(artist)s - %(title)s.%(ext)s"
+}' | rt-cli run media.ytdlp
+```
 
+#### Playlist Download
+```bash
+echo '{
+  "url": "https://www.youtube.com/playlist?list=PLrAXtmRdnEQy6nuLMt9JVcwbFBbavGZCh",
+  "playlist": true,
+  "format": "best[height<=720]",
+  "output_dir": "./playlist"
+}' | rt-cli run media.ytdlp
+```
+
+#### Download with Subtitles
+```bash
+echo '{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "format": "best",
+  "subtitles": true,
+  "subtitle_langs": ["en", "zh-CN"],
+  "output_dir": "./videos"
+}' | rt-cli run media.ytdlp
+```
+
+### Graphical Interface (GUI)
+
+1. **Launch GUI**: Start `rt-gui` application
+2. **Navigate to Media Tools**: Find "YouTube Downloader" in the media section
+3. **Configure Download**:
+   - Enter video/playlist URL
+   - Select desired format and quality
+   - Choose output directory
+   - Configure additional options (subtitles, filename template)
+4. **Execute**: Click "Run" to start download
+5. **Monitor Progress**: View download progress and results in output panel
+
+## Input/Output Schema
+
+### Input Schema
 ```json
 {
-  "success": true,
-  "files": [
-    {
-      "path": "./downloads/Rick Astley - Never Gonna Give You Up (Official Music Video).mp4",
-      "size": 123456789
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "title": "Video URL",
+      "description": "URL of the video or playlist to download"
+    },
+    "format": {
+      "type": "string",
+      "default": "best",
+      "title": "Format",
+      "description": "Video/audio format selection"
+    },
+    "playlist": {
+      "type": "boolean",
+      "default": false,
+      "title": "Download Playlist",
+      "description": "Whether to download entire playlist"
+    },
+    "subtitles": {
+      "type": "boolean",
+      "default": false,
+      "title": "Download Subtitles",
+      "description": "Whether to download subtitle files"
+    },
+    "subtitle_langs": {
+      "type": "array",
+      "items": {"type": "string"},
+      "title": "Subtitle Languages",
+      "description": "List of subtitle language codes to download"
+    },
+    "output_dir": {
+      "type": "string",
+      "default": ".",
+      "title": "Output Directory",
+      "description": "Directory to save downloaded files"
+    },
+    "filename_template": {
+      "type": "string",
+      "default": "%(title)s.%(ext)s",
+      "title": "Filename Template",
+      "description": "Template for output filenames"
+    },
+    "quality": {
+      "type": "string",
+      "title": "Quality Preference",
+      "description": "Preferred video quality (e.g., 720p, 1080p)"
     }
-  ],
-  "message": "成功下载了 1 个文件"
+  },
+  "required": ["url"]
 }
 ```
 
-## 配置
+#### Field Descriptions
+- **url**: Video or playlist URL (required)
+- **format**: Format selector (best, worst, bestvideo+bestaudio, etc.)
+- **playlist**: Download entire playlist if URL is a playlist
+- **subtitles**: Download available subtitle files
+- **subtitle_langs**: Specific subtitle languages to download
+- **output_dir**: Target directory for downloaded files
+- **filename_template**: Custom filename pattern using yt-dlp variables
+- **quality**: Quality preference filter
 
-### 日志配置
+### Output Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "title": "Download Success",
+      "description": "Whether the download completed successfully"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "size": {"type": "integer"},
+          "format": {"type": "string"},
+          "duration": {"type": "number"}
+        }
+      },
+      "title": "Downloaded Files",
+      "description": "List of successfully downloaded files"
+    },
+    "message": {
+      "type": "string",
+      "title": "Status Message",
+      "description": "Human-readable status or error message"
+    },
+    "metadata": {
+      "type": "object",
+      "title": "Video Metadata",
+      "description": "Extracted video information"
+    }
+  },
+  "required": ["success", "files", "message"]
+}
+```
 
-插件使用 `log4rs` 进行日志记录。如果在当前目录下存在 `log4rs.yml` 文件，将使用该文件进行配置。否则，将使用默认的日志配置。
+#### Result Fields
+- **success**: Boolean indicating overall operation success
+- **files**: Array of downloaded files with metadata
+- **message**: Localized status or error message
+- **metadata**: Video information (title, uploader, duration, etc.)
 
-## 开发
+## Format Selection
 
-### 目录结构
+### Common Format Selectors
+- **`best`**: Best quality available (default)
+- **`worst`**: Lowest quality available
+- **`bestvideo+bestaudio`**: Best video and audio streams merged
+- **`bestaudio`**: Best audio-only stream
+- **`best[height<=720]`**: Best quality up to 720p
+- **`worst[filesize<50M]`**: Smallest file under 50MB
 
+### Quality Filters
+- **Height**: `best[height<=1080]`, `worst[height>=480]`
+- **File Size**: `best[filesize<100M]`, `worst[filesize>10M]`
+- **Format**: `best[ext=mp4]`, `bestaudio[ext=m4a]`
+- **Codec**: `best[vcodec=h264]`, `bestaudio[acodec=aac]`
+
+### Advanced Examples
+```bash
+# Best MP4 video under 100MB
+"format": "best[ext=mp4][filesize<100M]"
+
+# Audio-only in MP3 format
+"format": "bestaudio[ext=m4a]/bestaudio"
+
+# 720p video with AAC audio
+"format": "best[height=720][acodec=aac]"
+```
+
+## Filename Templates
+
+### Template Variables
+- **`%(title)s`**: Video title
+- **`%(uploader)s`**: Channel/uploader name
+- **`%(upload_date)s`**: Upload date (YYYYMMDD)
+- **`%(duration)s`**: Video duration in seconds
+- **`%(view_count)s`**: View count
+- **`%(like_count)s`**: Like count
+- **`%(ext)s`**: File extension
+
+### Template Examples
+```bash
+# Channel and title
+"%(uploader)s - %(title)s.%(ext)s"
+
+# Date and title
+"%(upload_date)s - %(title)s.%(ext)s"
+
+# Organized by uploader
+"%(uploader)s/%(title)s.%(ext)s"
+
+# With quality info
+"%(title)s [%(height)sp].%(ext)s"
+```
+
+## Configuration
+
+### Environment Variables
+- **`YTDLP_PATH`**: Custom path to yt-dlp executable
+- **`FFMPEG_PATH`**: Custom path to FFmpeg executable
+- **`YTDLP_CONFIG`**: Path to yt-dlp configuration file
+
+### Performance Tuning
+- **Concurrent Downloads**: Adjust based on network capacity
+- **Rate Limiting**: Respect site rate limits to avoid blocking
+- **Retry Logic**: Configure retry attempts for failed downloads
+- **Timeout Settings**: Set appropriate timeouts for slow connections
+
+## Error Handling
+
+### Common Error Conditions
+- **URL Not Supported**: Site not supported by yt-dlp
+- **Video Unavailable**: Private, deleted, or geo-blocked content
+- **Format Not Available**: Requested format doesn't exist
+- **Network Issues**: Connection timeouts or interruptions
+- **Disk Space**: Insufficient storage for downloads
+- **Permission Errors**: Cannot write to output directory
+
+### Error Recovery
+- **Automatic Retries**: Configurable retry attempts for transient failures
+- **Partial Downloads**: Resume interrupted downloads when possible
+- **Graceful Degradation**: Fall back to alternative formats
+- **Detailed Logging**: Comprehensive error reporting for troubleshooting
+
+## Internationalization
+
+### Supported Languages
+- **English (`en`)**: Primary development language
+- **Chinese (`zh-CN`)**: Simplified Chinese translations
+
+### Localized Elements
+- **Tool Name**: "YouTube Downloader" / "YouTube下载器"
+- **Field Labels**: Input/output field titles and descriptions
+- **Status Messages**: Download progress and completion messages
+- **Error Messages**: Localized error descriptions
+- **User Guide**: Comprehensive usage instructions
+
+## Development
+
+### Project Structure
 ```
 rt-plugin-ytdlp/
-├── Cargo.toml              # 插件依赖配置
+├── Cargo.toml              # Dependencies and metadata
+├── README.md               # This documentation
+├── input.json              # Sample input for testing
 ├── src/
-│   ├── main.rs            # 插件核心逻辑
-│   └── i18n.rs            # 多语言支持
-├── locales/
-│   ├── tool.en.json       # 英文翻译
-│   └── tool.zh.json       # 中文翻译
-├── README.md              # 插件说明文档
-└── input.json             # 测试用输入示例
+│   ├── main.rs            # Plugin entry point and CLI handling
+│   └── i18n.rs            # Internationalization support
+└── locales/               # Internationalization resources
+    ├── tool.en.json       # English translations
+    └── tool.zh.json       # Chinese translations
 ```
 
-### 测试
+### Dependencies
+- **tokio**: Async runtime for process execution
+- **serde**: JSON serialization/deserialization
+- **clap**: Command-line argument parsing
+- **rt-core**: Rust Toolbox core types and traits
+- **log**: Logging framework
 
-运行测试：
+### Building and Testing
 ```bash
-cargo test --package rt-plugin-ytdlp
-```
-
-### 构建调试版本
-
-```bash
+# Development build
 cargo build --package rt-plugin-ytdlp
-```
 
-### 构建发布版本
-
-```bash
+# Release build
 cargo build --release --package rt-plugin-ytdlp
+
+# Run tests
+cargo test --package rt-plugin-ytdlp
+
+# Integration test with sample input
+echo '{"url": "https://www.youtube.com/watch?v=BaW_jenozKc", "format": "worst"}' | \
+  cargo run --bin rt-plugin-ytdlp run
 ```
 
-## 许可证
+## Performance Optimization
 
-本插件采用 MIT 许可证。
+### Download Speed
+- **Parallel Downloads**: Multiple concurrent downloads for playlists
+- **Fragment Downloads**: Parallel downloading of video segments
+- **Network Optimization**: Optimal connection pooling and reuse
+- **Bandwidth Management**: Configurable rate limiting
 
-## 贡献
+### Resource Usage
+- **Memory Efficiency**: Streaming downloads without loading entire files
+- **Disk I/O**: Efficient file writing and temporary file management
+- **CPU Usage**: Minimal processing overhead during downloads
+- **Network Efficiency**: Optimal request patterns and caching
 
-欢迎提交 Issue 和 Pull Request！
+## Security Considerations
 
-## 支持的网站
+### Safe Downloads
+- **URL Validation**: Verify URLs before processing
+- **Path Sanitization**: Prevent directory traversal attacks
+- **File Type Validation**: Ensure downloaded files match expected types
+- **Size Limits**: Configurable maximum file sizes
 
-该插件支持 `yt-dlp` 支持的所有网站，包括但不限于：
+### Privacy Protection
+- **No Data Collection**: Plugin doesn't collect or transmit user data
+- **Local Processing**: All operations performed locally
+- **Secure Cleanup**: Temporary files properly cleaned up
+- **User Control**: Full user control over download locations and metadata
 
-- YouTube
-- Bilibili
-- 抖音
-- 优酷
-- 腾讯视频
-- 爱奇艺
-- SoundCloud
-- Twitter
+## Troubleshooting
 
-完整列表请查看 [yt-dlp 支持的网站](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)。
+### Common Issues
 
-## 故障排除
+#### yt-dlp Not Found
+- **Cause**: yt-dlp not installed or not in PATH
+- **Solution**: Install yt-dlp and ensure it's accessible: `pip install yt-dlp`
 
-1. **yt-dlp 未找到**：确保 `yt-dlp` 已安装并添加到系统路径中
-2. **下载失败**：检查 URL 是否有效，或者尝试使用不同的格式
-3. **权限错误**：确保输出目录存在且有写入权限
-4. **日志查看**：查看日志文件以获取详细的错误信息
+#### Download Failures
+- **Cause**: Video unavailable, network issues, or format problems
+- **Solution**: Check URL validity, try different formats, verify network connection
 
-## 联系方式
+#### Permission Errors
+- **Cause**: Cannot write to output directory
+- **Solution**: Ensure output directory exists and has write permissions
 
-如有问题或建议，请通过以下方式联系：
+#### Slow Downloads
+- **Cause**: Network limitations or server throttling
+- **Solution**: Try different quality settings, check network connection
 
-- 提交 GitHub Issue
-- 发送邮件到：your-email@example.com
+### Debug Information
+```bash
+# Enable verbose logging
+RUST_LOG=debug rt-cli run media.ytdlp < input.json
 
-## 更新日志
+# Test yt-dlp directly
+yt-dlp --list-formats "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-### v0.1.0 (2025-12-13)
+# Check plugin specification
+rt-cli plugin spec --name media.ytdlp --verbose
+```
 
-- 初始版本发布
-- 支持基本视频下载
-- 支持播放列表下载
-- 支持格式选择
-- 支持字幕下载
-- 完整的多语言支持
+### Performance Monitoring
+```bash
+# Monitor download progress
+tail -f ~/.rt-toolbox/logs/ytdlp.log
 
-## 未来计划
+# Check system resources during download
+htop  # or Task Manager on Windows
+```
 
-- [ ] 支持更多 yt-dlp 高级功能
-- [ ] 提供更详细的错误处理
-- [ ] 支持进度跟踪
-- [ ] 支持批量下载
-- [ ] 添加更多测试用例
-- [ ] 支持更多输出格式
+## License
+
+This plugin is licensed under the same terms as the Rust Toolbox project. See the main project LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please ensure all changes include:
+
+- **Tests**: Comprehensive test coverage for new features
+- **Documentation**: Updated documentation for changes
+- **Localization**: Updates to all supported language files
+- **Performance**: Consider performance impact of changes
+- **Security**: Review security implications of modifications
+
+## Support
+
+For issues, questions, or contributions:
+
+1. **GitHub Issues**: Report bugs and request features
+2. **Documentation**: Check yt-dlp documentation for format questions
+3. **Community**: Join project discussions and forums
+4. **Testing**: Provide sample URLs that cause issues
+
+## Changelog
+
+### v0.1.0 (Current)
+- Initial yt-dlp integration implementation
+- Support for video and audio downloads
+- Playlist download capabilities
+- Subtitle download support
+- Comprehensive format selection
+- Full internationalization support
+- CLI and GUI integration
+- Extensive documentation and testing
+
+### Future Enhancements
+- **Progress Callbacks**: Real-time download progress reporting
+- **Advanced Filtering**: More sophisticated content filtering options
+- **Batch Operations**: Enhanced batch download management
+- **Custom Extractors**: Support for additional site extractors
+- **Download Queues**: Managed download queue system
+- **Metadata Enhancement**: Extended metadata extraction and processing
 
 ---
 
-**Enjoy downloading! 🎉**
+**Happy downloading! 🎬🎵**

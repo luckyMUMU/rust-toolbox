@@ -1,96 +1,145 @@
 # Rust Toolbox (rt-box)
 
-Rust Toolbox 是一个模块化的工具集合项目，旨在通过统一的接口和工作流引擎，提供可扩展的工具链支持。
+Rust Toolbox is a modular tool integration platform built in Rust that provides unified management and orchestration of various tools through a workflow engine. The platform features a plugin-based architecture supporting dynamic loading and extension, with both CLI and GUI interfaces.
 
-## 相关文档
+## Core Features
 
-- [架构设计文档](ARCHITECTURE_DESIGN.md): 详细描述项目的架构设计、核心组件和部署架构
-- [设计文档](DESIGN.md): 项目的整体设计文档，包括技术选型和核心原则
-- [用户指南](USER_GUIDE.md): 详细的用户使用指南，包括工具库和使用方式
-- [插件开发指南](PLUGIN_GUIDE.md): 插件开发的规范和指南
-- [AI工作规范](AI_WORK_PROTOCOL.md): AI辅助开发的工作规范
-- [变更日志](CHANGELOG.md): 项目的变更历史
+- **Unified Tool Management**: Centralized tool discovery, execution, and management
+- **Plugin Architecture**: Dynamic loading of external tools as plugins (executable files and WebAssembly)
+- **Workflow Engine**: DAG-based workflow orchestration for automated task processing
+- **Multi-language Support**: Full internationalization (i18n) for English and Chinese
+- **Dual Interface**: Both command-line (rt-cli) and graphical (rt-gui) interfaces
+- **Model Context Protocol (MCP)**: Standardized context management and tool calling protocol
+- **Persistence Layer**: Unified data storage, caching, and configuration management
 
-## 项目结构 (Project Structure)
+## Related Documentation
 
-本项目采用 Cargo Workspace 结构，包含以下核心 Crate：
+- [Architecture Design](ARCHITECTURE_DESIGN.md): Detailed architecture design, core components and deployment architecture
+- [Design Document](DESIGN.md): Overall project design document, including technology stack and core principles
+- [User Guide](USER_GUIDE.md): Detailed user guide, including tool library and usage methods
+- [Plugin Development Guide](PLUGIN_GUIDE.md): Plugin development specifications and guidelines
+- [AI Work Protocol](AI_WORK_PROTOCOL.md): AI-assisted development work specifications
+- [Changelog](CHANGELOG.md): Project change history
 
-- **`rt-core`**: 核心库。定义了 `Tool` Trait 以及通用数据结构、插件系统和持久化管理。支持 Model Context Protocol (MCP)。
-- **`rt-tools`**: 内置工具集。包含具体业务逻辑工具。
-- **`rt-cli`**: 命令行入口。提供基于命令行的工具列出与运行功能。
-- **`rt-gui`**: 图形界面入口。提供可视化的工具配置与运行界面。
-- **`rt-plugin-pinyin`**: 插件。提供中文转拼音功能。
-- **`rt-plugin-ytdlp`**: 插件。提供视频下载功能。
-- **`rt-plugin-czkawka`**: 插件。集成 Czkawka 核心功能，提供重复文件查找、相似图片识别等功能。
+## Project Structure
 
-## 可用工具 (Available Tools)
+This project uses Cargo Workspace structure, containing the following core crates:
+
+- **`rt-core`**: Core library. Defines the `Tool` trait, common data structures, plugin system, and persistence management. Supports Model Context Protocol (MCP).
+- **`rt-tools`**: Built-in tool collection. Contains specific business logic tools.
+- **`rt-cli`**: Command-line interface. Provides command-line based tool listing and execution functionality.
+- **`rt-gui`**: Graphical interface. Provides visual tool configuration and execution interface.
+- **`rt-plugin-pinyin`**: Plugin. Provides Chinese to Pinyin conversion functionality.
+- **`rt-plugin-ytdlp`**: Plugin. Provides video download functionality.
+- **`rt-plugin-czkawka`**: Multi-tool plugin. Provides file system utilities (duplicate files, empty directories, similar images, temporary files, broken symlinks).
+
+## Available Tools
 
 ### File Operations (`file`)
-- **`file.move_folder`**: 移动或重命名文件夹（支持移动到现有目录内部）。
-- **`file.duplicates`**: 查找重复文件 (czkawka 插件)。
-- **`file.similar_images`**: 查找相似图片 (czkawka 插件)。
-- **`file.empty_directories`**: 查找空目录 (czkawka 插件)。
+- **`file.move_folder`**: Move or rename folders (supports moving to existing directory interiors)
+- **`file.duplicates`**: Find duplicate files in specified directories (via Czkawka plugin)
+- **`file.similar_images`**: Find visually similar images (via Czkawka plugin)
+- **`file.empty_directories`**: Find empty directories (via Czkawka plugin)
+- **`file.temporary_files`**: Find temporary files (via Czkawka plugin)
+- **`file.broken_symlinks`**: Find broken symbolic links (via Czkawka plugin)
 
 ### Text Operations (`text`)
-- **`text.pinyin`**: 将中文文本转换为带声调或不带声调的拼音。
-- **`text.convert_chinese`**: 简繁体中文转换。
-- **`text.ac_automaton`**: Aho-Corasick 多模式串匹配工具。
+- **`text.ac_automaton`**: Aho-Corasick pattern matching with multi-pattern support
+- **`text.convert_chinese`**: Traditional/Simplified Chinese conversion
+- **`text.pinyin`**: Convert Chinese text to Pinyin with or without tones (via plugin)
 
 ### Media Operations (`media`)
-- **`media.ytdlp`**: 从 YouTube 和其他支持的网站下载视频和音频内容（通过插件实现）。
+- **`media.ytdlp`**: Download videos and audio from YouTube and other supported sites (via plugin)
 
-## 快速开始 (Getting Started)
+## Getting Started
 
-### 构建项目
+### Building the Project
 
-#### 完整构建
-```powershell
+#### Full Build
+```bash
 cargo build
 ```
 
-#### 不编译插件的构建
-如果您只想构建核心功能而不编译插件，可以使用 `--workspace --exclude` 参数排除特定的插件包：
+#### Build Without Plugins
+If you only want to build core functionality without compiling plugins, you can use the `--workspace --exclude` parameter to exclude specific plugin packages:
 
-```powershell
-# 不编译任何插件
-cargo build --workspace --exclude rt-plugin-pinyin --exclude rt-plugin-ytdlp
+```bash
+# Build without any plugins
+cargo build --workspace --exclude rt-plugin-pinyin --exclude rt-plugin-ytdlp --exclude rt-plugin-czkawka
 
-# 仅构建核心库和 CLI
+# Build only core libraries and CLI
 cargo build --package rt-core --package rt-tools --package rt-cli
 ```
 
-不编译插件可以加快构建速度，特别是在开发核心功能时。
+Building without plugins can speed up the build process, especially when developing core functionality.
 
-### 运行测试
-```powershell
+### Running Tests
+```bash
 cargo test
 ```
 
-### 运行 CLI
-```powershell
+### Running CLI
+```bash
+# List available tools
 cargo run --bin rt-cli -- list
+
+# Run a specific tool
+cargo run --bin rt-cli -- run <tool_name>
 ```
 
-### 运行 GUI
-```powershell
+### Running GUI
+```bash
 cargo run --bin rt-gui
 ```
 
-### 打包 GUI 为可执行文件 (Build EXE)
-若要生成独立的 `.exe` 文件以便分发，请使用 release 模式进行构建：
+### Building Release Executable
+To generate a standalone executable file for distribution, use release mode:
 
-```powershell
-# 构建发布版本
+```bash
+# Build release version
 cargo build --release --bin rt-gui
 ```
 
-构建完成后，可执行文件位于：
-`target/release/rt-gui.exe`
+After building, the executable is located at:
+`target/release/rt-gui.exe` (Windows) or `target/release/rt-gui` (Linux/macOS)
 
-> **注意**：由于字体文件已嵌入到程序中，生成的 exe 是完全独立的单文件，无需附带 `assets` 目录即可在其他 Windows 机器上运行。
+> **Note**: Since font files are embedded in the program, the generated executable is completely standalone and can run on other machines without requiring the `assets` directory.
 
-## 开发规范
-请参考 [AI_WORK_PROTOCOL.md](AI_WORK_PROTOCOL.md)。
+### MCP Server Support
 
-## 许可证
-	GNU Affero General Public License v3
+The platform includes MCP (Model Context Protocol) server support for external system integration:
+
+```bash
+# Start MCP server (REST API + WebSocket)
+cargo run --bin rt-cli -- server --port 8080
+
+# Access REST API endpoints
+curl http://localhost:8080/api/tools
+curl http://localhost:8080/api/workflows
+
+# WebSocket endpoint available at ws://localhost:8080/ws
+```
+
+## Development Standards
+Please refer to [AI_WORK_PROTOCOL.md](AI_WORK_PROTOCOL.md).
+
+## Target Users
+
+- Developers needing automated tool workflows
+- System administrators managing file operations
+- Content creators working with media files
+- Anyone requiring batch text processing or file management
+
+## Technology Stack
+
+- **Language**: Rust 2021 Edition
+- **Async Runtime**: Tokio
+- **Serialization**: Serde with JSON/YAML support
+- **CLI Framework**: Clap v4 with derive macros
+- **GUI Framework**: egui (cross-platform, immediate mode)
+- **Web Framework**: Warp (for MCP server REST API + WebSocket)
+- **Storage**: Sled embedded database with moka caching
+- **Plugin System**: Process-based and WebAssembly (WASM) plugins
+
+## License
+GNU Affero General Public License v3
