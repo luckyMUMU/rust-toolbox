@@ -1,82 +1,84 @@
-# Workflow Engine Design Document
+# 工作流引擎设计文档
 
-## 1. System Architecture Design
+## 1. 目标 (Goal)
+- **核心功能**：基于 Tokio 异步运行时的轻量级工作流引擎，实现工具编排和自动化执行，全面支持多工具插件和模型上下文协议（MCP）。
+- **非目标**：不处理具体的业务逻辑，不包含 GUI 或 CLI 实现（这些位于 `rt-gui` 和 `rt-cli` 中）。
 
-A lightweight workflow engine based on Tokio async runtime, designed to implement tool orchestration and automated execution with comprehensive support for multi-tool plugins and Model Context Protocol (MCP).
+## 2. 核心定义 (Definitions)
 
-### 1.1 Architecture Diagram
+### 2.1 架构图
 
 ```mermaid
 graph TD
-    subgraph Frontend [Frontend Layer]
+    subgraph 前端层 [Frontend Layer]
         CLI[rt-cli]
         GUI[rt-gui]
         API[REST API]
         WS[WebSocket]
     end
 
-    subgraph Core [rt-core Workflow Engine]
-        Engine[Workflow Engine]
-        State[Execution State Manager]
-        Scheduler[Task Scheduler (Tokio)]
-        Context[Data Context Manager]
-        McpMgr[MCP Context Manager]
+    subgraph 核心引擎 [rt-core Workflow Engine]
+        Engine[工作流引擎]
+        State[执行状态管理器]
+        Scheduler[任务调度器 (Tokio)]
+        Context[数据上下文管理器]
+        McpMgr[MCP 上下文管理器]
     end
 
-    subgraph Tools [Tool Layer]
-        Registry[Tool Registry]
-        Native[Native Tools]
-        ProcessPlugin[Process Plugins]
-        WasmPlugin[WASM Plugins]
-        MultiTool[Multi-Tool Plugins]
+    subgraph 工具层 [Tool Layer]
+        Registry[工具注册表]
+        Native[本地工具]
+        ProcessPlugin[进程插件]
+        WasmPlugin[WASM 插件]
+        MultiTool[多工具插件]
     end
 
-    subgraph MCP [MCP Integration]
-        McpContext[MCP Context]
-        McpWorkflow[MCP Workflow]
-        McpNode[MCP Nodes]
+    subgraph MCP 集成 [MCP Integration]
+        McpContext[MCP 上下文]
+        McpWorkflow[MCP 工作流]
+        McpNode[MCP 节点]
     end
 
-    CLI -->|Command| Engine
-    GUI -->|Event| Engine
+    CLI -->|命令| Engine
+    GUI -->|事件| Engine
     API -->|HTTP| Engine
     WS -->|WebSocket| Engine
     
-    Engine -->|Schedule| Scheduler
-    Engine -->|Query| Registry
-    Engine -->|MCP Context| McpMgr
+    Engine -->|调度| Scheduler
+    Engine -->|查询| Registry
+    Engine -->|MCP 上下文| McpMgr
     
-    Scheduler -->|Execute| Native
-    Scheduler -->|Execute| ProcessPlugin
-    Scheduler -->|Execute| WasmPlugin
-    Scheduler -->|Execute| MultiTool
+    Scheduler -->|执行| Native
+    Scheduler -->|执行| ProcessPlugin
+    Scheduler -->|执行| WasmPlugin
+    Scheduler -->|执行| MultiTool
     
-    Native -->|Result| Context
-    ProcessPlugin -->|Result| Context
-    WasmPlugin -->|Result| Context
-    MultiTool -->|Result| Context
+    Native -->|结果| Context
+    ProcessPlugin -->|结果| Context
+    WasmPlugin -->|结果| Context
+    MultiTool -->|结果| Context
     
-    Context -->|Data Flow| Scheduler
-    McpMgr -->|Context| McpContext
-    McpContext -->|Workflow| McpWorkflow
-    McpWorkflow -->|Nodes| McpNode
+    Context -->|数据流| Scheduler
+    McpMgr -->|上下文| McpContext
+    McpContext -->|工作流| McpWorkflow
+    McpWorkflow -->|节点| McpNode
     
-    State -->|Monitor| GUI
-    State -->|Status| API
+    State -->|监控| GUI
+    State -->|状态| API
 ```
 
-### 1.2 Core Modules
-1. **Workflow Engine**: Responsible for parsing workflow definitions and managing lifecycle (start, pause, stop)
-2. **Task Scheduler**: Tokio-based concurrent scheduler for dependency analysis and task dispatch
-3. **Data Context Manager**: Handles data passing between nodes with JSON Path variable substitution
-4. **Execution State Manager**: Maintains runtime state and provides monitoring interfaces
-5. **MCP Context Manager**: Manages Model Context Protocol contexts for enhanced tool interaction
-6. **Multi-Tool Plugin Support**: Handles plugins that provide multiple tools through array-based metadata
+### 2.2 核心模块
+1. **工作流引擎**：负责解析工作流定义并管理生命周期（启动、暂停、停止）
+2. **任务调度器**：基于 Tokio 的并发调度器，用于依赖分析和任务分发
+3. **数据上下文管理器**：处理节点间的数据传递，支持 JSON Path 变量替换
+4. **执行状态管理器**：维护运行时状态并提供监控接口
+5. **MCP 上下文管理器**：管理模型上下文协议（MCP）上下文，用于增强工具交互
+6. **多工具插件支持**：处理通过基于数组的元数据提供多个工具的插件
 
-## 2. Key Data Structures
+### 2.3 关键数据结构
 
-### 2.1 Workflow Definition
-Core workflow structures supporting both traditional and MCP-enhanced workflows:
+### 2.3.1 工作流定义
+支持传统工作流和 MCP 增强工作流的核心结构：
 
 ```rust
 /// Workflow definition
@@ -107,8 +109,8 @@ pub struct WorkflowEdge {
 }
 ```
 
-### 2.2 Runtime State
-Enhanced runtime state with MCP context support:
+### 2.3.2 运行时状态
+支持 MCP 上下文的增强运行时状态：
 
 ```rust
 /// Execution instance
@@ -152,8 +154,8 @@ pub struct NodeExecutionState {
 }
 ```
 
-### 2.3 MCP Workflow Extensions
-Enhanced workflow structures for MCP support:
+### 2.3.3 MCP 工作流扩展
+用于 MCP 支持的增强工作流结构：
 
 ```rust
 /// MCP Workflow extending existing WorkflowDefinition
@@ -192,10 +194,10 @@ pub struct McpNode {
 }
 ```
 
-## 3. Interface Specifications
+## 3. 算法与逻辑设计 (Algorithm & Logic)
 
-### 3.1 Engine Interface
-Enhanced workflow engine interface with MCP support:
+### 3.1 引擎接口
+支持 MCP 的增强工作流引擎接口：
 
 ```rust
 #[async_trait]
@@ -220,19 +222,19 @@ pub trait WorkflowEngine: Send + Sync {
 }
 ```
 
-### 3.2 Data Passing Specification
-Enhanced data passing with MCP context support:
+### 3.2 数据传递规范
+支持 MCP 上下文的数据传递机制：
 
-- **Reference Syntax**: `{{ node_id.output.json_path }}`
-- **Resolution Logic**:
-  1. Before node execution, engine resolves `input_mappings`
-  2. Look up corresponding `node_id` output from `context`
-  3. Extract value using JSON Path
-  4. Inject extracted value into tool `input`
-  5. For MCP-enabled tools, pass enhanced context
+- **引用语法**：`{{ node_id.output.json_path }}`
+- **解析逻辑**：
+  1. 节点执行前，引擎解析 `input_mappings`
+  2. 从 `context` 中查找对应的 `node_id` 输出
+  3. 使用 JSON Path 提取值
+  4. 将提取的值注入到工具 `input`
+  5. 对于支持 MCP 的工具，传递增强上下文
 
-### 3.3 Tool Integration
-The workflow engine integrates with tools through the unified Tool trait:
+### 3.3 工具集成
+工作流引擎通过统一的 Tool trait 与工具集成：
 
 ```rust
 // Tool execution with MCP context support
@@ -252,7 +254,11 @@ if tool.mcp_supported() && mcp_context_opt.is_some() {
 }
 ```
 
-## 4. Multi-Tool Plugin Development Guide
+## 4. 接口与边界 (Interface & Boundary)
+
+## 5. 变更记录 (Status)
+- `[已完成]`：更新文档结构，统一语言为中文，添加变更记录 | 2025-12-21
+- `[已完成]`：初始设计文档创建 | 2025-12-20
 
 ### 4.1 Plugin Integration Principles
 The workflow engine interacts with tools through the `rt-core::Tool` trait. Plugins only need to comply with the standard plugin protocol (JSON Input/Output) to be called by the workflow engine, **requiring no additional modifications**.

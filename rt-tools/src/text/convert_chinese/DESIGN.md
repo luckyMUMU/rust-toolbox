@@ -1,72 +1,88 @@
-# Chinese Converter Tool Design Document
+# 模块名称：中文转换工具
 
-## Overview
+## 1. 目标 (Goal)
+- **核心功能**：提供高质量的简体中文和繁体中文之间的转换，包括台湾和香港地区的变体，使用 `ferrous-opencc` 库，这是一个纯 Rust 实现的 OpenCC（Open Chinese Convert）库，用于准确高效的文本转换。
+- **非目标**：不支持自定义字典（未来增强），不支持流式处理（未来增强）。
 
-The Chinese Converter tool (`text.convert_chinese`) provides high-quality conversion between Simplified and Traditional Chinese text, including regional variants for Taiwan and Hong Kong. It uses the `ferrous-opencc` library, a pure Rust implementation of OpenCC (Open Chinese Convert) for accurate and efficient text conversion.
+## 2. 核心定义 (Definitions)
+- **ConvertChineseTool**：工具的核心实现结构体，实现了 `rt_core::tool::Tool` trait。
+- **ConvertChineseInput**：输入参数结构体，包含要转换的文本和转换模式。
+- **ConvertChineseOutput**：输出结果结构体，包含转换后的文本。
+- **OpenCCConverterManager**：OpenCC 转换器管理器，管理：
+  - 字典加载：加载 OpenCC 转换字典
+  - 配置管理：将字符串模式映射到 OpenCC 配置
+  - 转换器实例：管理 OpenCC 转换器生命周期
 
-## Features
+## 3. 算法与逻辑设计 (Algorithm & Logic)
 
-### Core Functionality
-- **Bidirectional Conversion**: Convert between Simplified and Traditional Chinese
-- **Regional Variants**: Support for Taiwan and Hong Kong specific variants
-- **Phrase-Level Accuracy**: Uses OpenCC dictionaries for contextual conversion
-- **High Performance**: Pure Rust implementation without C++ dependencies
-- **Unicode Support**: Full Unicode text processing capabilities
+### 核心流程
+1. **输入验证**：
+   - 解析输入 JSON 到 `ConvertChineseInput` 结构。
+   - 验证文本非空且包含有效 Unicode。
+   - 验证模式是支持的转换类型之一。
 
-### Supported Conversion Modes
-1. **s2t**: Simplified Chinese to Traditional Chinese
-2. **t2s**: Traditional Chinese to Simplified Chinese
-3. **s2tw**: Simplified Chinese to Taiwan Traditional Chinese
-4. **tw2s**: Taiwan Traditional Chinese to Simplified Chinese
-5. **s2hk**: Simplified Chinese to Hong Kong Traditional Chinese
-6. **hk2s**: Hong Kong Traditional Chinese to Simplified Chinese
-7. **s2twp**: Simplified Chinese to Taiwan Traditional Chinese with phrases
-8. **tw2sp**: Taiwan Traditional Chinese to Simplified Chinese with phrases
+2. **配置映射**：
+   - 将字符串模式映射到 `ferrous_opencc::config::BuiltinConfig` 枚举。
+   - 加载适当的 OpenCC 字典配置。
+   - 使用选定的配置初始化转换器实例。
 
-## Architecture
+3. **文本转换**：
+   - 通过 OpenCC 转换器处理输入文本。
+   - 应用字符级和短语级转换规则。
+   - 适当处理混合中文/非中文文本。
 
-### Core Components
+4. **结果生成**：
+   - 将转换后的文本打包到输出结构中。
+   - 将结果序列化为 JSON 响应。
+   - 保留原始格式和非中文字符。
 
-#### OpenCC Integration
-- **Dictionary Loading**: Loads OpenCC conversion dictionaries
-- **Configuration Management**: Maps string modes to OpenCC configurations
-- **Converter Instances**: Manages OpenCC converter lifecycle
+### 算法细节
+- **OpenCC 算法**：
+  - 使用字典驱动的转换方法，包含字符级和短语级转换。
+  - 支持多种转换模式，包括简体到繁体、繁体到简体，以及台湾和香港地区变体。
+  - 时间复杂度：O(n)，其中 n 是文本长度。
 
-#### Text Processing
-- **Input Validation**: Ensures text is valid Unicode
-- **Conversion Engine**: Performs character and phrase-level conversion
-- **Output Formatting**: Returns converted text with proper encoding
+- **优化特性**：
+  - **字典缓存**：OpenCC 字典在首次使用后缓存，每次模式的时间复杂度为 O(1) 摊销。
+  - **高效处理**：直接 Unicode 字符串处理。
+  - **最小分配**：尽可能重用转换器实例。
 
-#### Error Handling
-- **Mode Validation**: Validates conversion mode parameters
-- **Dictionary Errors**: Handles missing or corrupted dictionaries
-- **Conversion Failures**: Manages text processing errors
+### 支持的转换模式
+1. **s2t**：简体中文到繁体中文
+2. **t2s**：繁体中文到简体中文
+3. **s2tw**：简体中文到台湾繁体中文
+4. **tw2s**：台湾繁体中文到简体中文
+5. **s2hk**：简体中文到香港繁体中文
+6. **hk2s**：香港繁体中文到简体中文
+7. **s2twp**：简体中文到台湾繁体中文（带短语）
+8. **tw2sp**：台湾繁体中文到简体中文（带短语）
 
-## Input Schema
+## 4. 接口契约 (Interface)
 
+### 输入 Schema
 ```json
 {
   "type": "object",
   "properties": {
     "text": {
       "type": "string",
-      "title": "Input Text",
-      "description": "Chinese text to convert"
+      "title": "输入文本",
+      "description": "要转换的中文文本"
     },
     "mode": {
       "type": "string",
       "enum": ["s2t", "t2s", "s2tw", "tw2s", "s2hk", "hk2s", "s2twp", "tw2sp"],
-      "title": "Conversion Mode",
-      "description": "Type of conversion to perform",
+      "title": "转换模式",
+      "description": "要执行的转换类型",
       "x-enum-labels": {
-        "s2t": "Simplified to Traditional",
-        "t2s": "Traditional to Simplified", 
-        "s2tw": "Simplified to Taiwan Traditional",
-        "tw2s": "Taiwan Traditional to Simplified",
-        "s2hk": "Simplified to Hong Kong Traditional",
-        "hk2s": "Hong Kong Traditional to Simplified",
-        "s2twp": "Simplified to Taiwan Traditional (with phrases)",
-        "tw2sp": "Taiwan Traditional to Simplified (with phrases)"
+        "s2t": "简体到繁体",
+        "t2s": "繁体到简体", 
+        "s2tw": "简体到台湾繁体",
+        "tw2s": "台湾繁体到简体",
+        "s2hk": "简体到香港繁体",
+        "hk2s": "香港繁体到简体",
+        "s2twp": "简体到台湾繁体（带短语）",
+        "tw2sp": "台湾繁体到简体（带短语）"
       }
     }
   },
@@ -74,201 +90,158 @@ The Chinese Converter tool (`text.convert_chinese`) provides high-quality conver
 }
 ```
 
-### Field Descriptions
-- **text**: Unicode string containing Chinese text to convert
-- **mode**: Conversion direction and regional variant specification
-
-## Output Schema
-
+### 输出 Schema
 ```json
 {
   "type": "object",
   "properties": {
     "converted": {
       "type": "string",
-      "title": "Converted Text",
-      "description": "Text after Chinese conversion"
+      "title": "转换后的文本",
+      "description": "转换后的中文文本"
     }
   },
   "required": ["converted"]
 }
 ```
 
-### Result Fields
-- **converted**: The converted Chinese text in the target variant
+### 错误处理策略
 
-## Operation Logic
+#### 输入验证错误
+- **空文本**：文本参数不能为空
+- **无效模式**：模式必须是支持的转换类型之一
+- **格式错误的 JSON**：输入必须是有效的 JSON 结构
 
-### 1. Input Validation
-- Parse input JSON into `ConvertChineseInput` structure
-- Validate that text is non-empty and contains valid Unicode
-- Verify that mode is one of the supported conversion types
+#### 运行时错误
+- **字典加载失败**：OpenCC 字典文件丢失或损坏
+- **转换失败**：内部 OpenCC 处理错误
+- **内存分配**：大文本的内存不足情况
 
-### 2. Configuration Mapping
-- Map string mode to `ferrous_opencc::config::BuiltinConfig` enum
-- Load appropriate OpenCC dictionary configuration
-- Initialize converter instance with selected configuration
+#### 错误恢复
+- **优雅降级**：如果转换失败，返回原始文本
+- **详细错误消息**：用于调试的特定错误描述
+- **状态保留**：错误后转换器状态保持一致
 
-### 3. Text Conversion
-- Process input text through OpenCC converter
-- Apply character-level and phrase-level conversion rules
-- Handle mixed Chinese/non-Chinese text appropriately
+## 5. 变更记录 (Status)
+> 格式：[状态] | 变更描述 | 日期
 
-### 4. Result Generation
-- Package converted text into output structure
-- Serialize result as JSON response
-- Preserve original formatting and non-Chinese characters
+### 当前变更
+- `[已完成]`：更新文档结构，统一语言为中文，添加变更记录，重命名为小写 | 2025-12-21
 
-## Usage Examples
+### 历史记录
+- `[已完成]`：初始设计文档创建 | 2025-12-20
 
-### Simplified to Traditional
-```json
-{
-  "text": "简体中文转换",
-  "mode": "s2t"
-}
-```
-Result: `{"converted": "簡體中文轉換"}`
+## 附加信息
 
-### Traditional to Simplified
-```json
-{
-  "text": "繁體中文轉換",
-  "mode": "t2s"
-}
-```
-Result: `{"converted": "繁体中文转换"}`
+### 功能特性
 
-### Taiwan Variant Conversion
-```json
-{
-  "text": "计算机软件",
-  "mode": "s2tw"
-}
-```
-Result: `{"converted": "電腦軟體"}`
+#### 核心功能
+- **双向转换**：在简体中文和繁体中文之间转换
+- **地区变体**：支持台湾和香港特定变体
+- **短语级准确性**：使用 OpenCC 字典进行上下文转换
+- **高性能**：纯 Rust 实现，无 C++ 依赖
+- **Unicode 支持**：完整的 Unicode 文本处理能力
 
-### Mixed Text Handling
-```json
-{
-  "text": "Hello 世界！",
-  "mode": "s2t"
-}
-```
-Result: `{"converted": "Hello 世界！"}`
+### 架构组件
 
-## Performance Characteristics
+#### OpenCC 集成
+- **字典加载**：加载 OpenCC 转换字典
+- **配置管理**：将字符串模式映射到 OpenCC 配置
+- **转换器实例**：管理 OpenCC 转换器生命周期
 
-### Time Complexity
-- **Dictionary Loading**: O(1) amortized (cached after first use)
-- **Text Conversion**: O(n) where n is text length
-- **Memory Usage**: O(d + n) where d is dictionary size and n is text length
+#### 文本处理
+- **输入验证**：确保文本是有效的 Unicode
+- **转换引擎**：执行字符级和短语级转换
+- **输出格式化**：返回具有适当编码的转换文本
 
-### Optimization Features
-- **Dictionary Caching**: OpenCC dictionaries loaded once per mode
-- **Efficient Processing**: Direct Unicode string processing
-- **Minimal Allocations**: Reuses converter instances where possible
+### 优化特性
+- **字典缓存**：OpenCC 字典在首次使用后缓存
+- **高效处理**：直接 Unicode 字符串处理
+- **最小分配**：尽可能重用转换器实例
 
-## Error Handling
+### 国际化
 
-### Input Validation Errors
-- **Empty Text**: Text parameter cannot be empty
-- **Invalid Mode**: Mode must be one of the supported conversion types
-- **Malformed JSON**: Input must be valid JSON structure
+#### 支持的语言环境
+- **英语 (`en`)**：主要开发语言
+- **中文 (`zh-CN`)**：简体中文翻译
 
-### Runtime Errors
-- **Dictionary Load Failure**: OpenCC dictionary files missing or corrupted
-- **Conversion Failure**: Internal OpenCC processing errors
-- **Memory Allocation**: Out-of-memory conditions for large texts
+#### 本地化元素
+- **显示名称**：用户界面中的工具名称
+- **描述**：工具用途和功能
+- **用户指南**：全面的使用说明
+- **字段标题**：输入/输出字段标签
+- **模式标签**：转换模式描述
+- **错误消息**：本地化错误描述
 
-### Error Recovery
-- **Graceful Degradation**: Returns original text if conversion fails
-- **Detailed Error Messages**: Specific error descriptions for debugging
-- **State Preservation**: Converter state remains consistent after errors
+### 测试策略
 
-## Internationalization
+#### 单元测试
+- **模式验证**：测试所有支持的转换模式
+- **文本处理**：使用已知示例验证转换准确性
+- **错误条件**：测试无效输入和错误处理
+- **Unicode 支持**：测试各种 Unicode 字符和编码
 
-### Supported Locales
-- **English (`en`)**: Primary development language
-- **Chinese (`zh-CN`)**: Simplified Chinese translations
+#### 集成测试
+- **工具注册**：验证与 rt-core 的正确集成
+- **模式验证**：测试输入/输出模式合规性
+- **本地化**：确保所有语言环境正确加载
+- **性能**：使用大文本基准测试转换速度
 
-### Localized Elements
-- **Display Name**: Tool name in user interfaces
-- **Description**: Tool purpose and capabilities
-- **User Guide**: Comprehensive usage instructions
-- **Field Titles**: Input/output field labels
-- **Mode Labels**: Conversion mode descriptions
-- **Error Messages**: Localized error descriptions
+#### 准确性测试
+- **字典验证**：验证 OpenCC 字典完整性
+- **转换质量**：使用标准中文文本样本测试
+- **地区变体**：验证台湾和香港特定转换
+- **混合内容**：测试中文/非中文混合文本的处理
 
-## Testing Strategy
+### 依赖关系
 
-### Unit Tests
-- **Mode Validation**: Test all supported conversion modes
-- **Text Processing**: Verify conversion accuracy with known examples
-- **Error Conditions**: Test invalid inputs and error handling
-- **Unicode Support**: Test with various Unicode characters and encodings
+#### 核心依赖
+- **ferrous-opencc**：纯 Rust OpenCC 实现
+- **rt-core**：核心工具 trait 和错误类型
+- **serde**：输入/输出处理的序列化
+- **schemars**：JSON 模式生成
 
-### Integration Tests
-- **Tool Registration**: Verify proper integration with rt-core
-- **Schema Validation**: Test input/output schema compliance
-- **Localization**: Ensure all locales load correctly
-- **Performance**: Benchmark conversion speed with large texts
+#### OpenCC 字典
+- **内置字典**：嵌入式 OpenCC 转换表
+- **无外部文件**：所有字典编译到二进制中
+- **版本兼容性**：使用稳定的 OpenCC 字典格式
 
-### Accuracy Tests
-- **Dictionary Validation**: Verify OpenCC dictionary integrity
-- **Conversion Quality**: Test with standard Chinese text samples
-- **Regional Variants**: Validate Taiwan and Hong Kong specific conversions
-- **Mixed Content**: Test handling of Chinese/non-Chinese mixed text
+### 兼容性
 
-## Dependencies
+#### 平台支持
+- **Windows**：完整支持，使用原生编译
+- **Linux**：完整支持，使用原生编译
+- **macOS**：完整支持，使用原生编译
 
-### Core Dependencies
-- **ferrous-opencc**: Pure Rust OpenCC implementation
-- **rt-core**: Core tool trait and error types
-- **serde**: Serialization for input/output handling
-- **schemars**: JSON schema generation
+#### 文本编码
+- **UTF-8**：所有文本处理的主要编码
+- **Unicode**：完整的 Unicode 字符集支持
+- **跨平台**：跨操作系统的一致行为
 
-### OpenCC Dictionaries
-- **Built-in Dictionaries**: Embedded OpenCC conversion tables
-- **No External Files**: All dictionaries compiled into binary
-- **Version Compatibility**: Uses stable OpenCC dictionary format
+### 质量保证
 
-## Compatibility
+#### 转换准确性
+- **OpenCC 标准**：使用行业标准的 OpenCC 字典
+- **短语上下文**：考虑短语级上下文以获得准确转换
+- **地区准确性**：正确处理台湾和香港变体
+- **持续测试**：定期针对已知转换对进行验证
 
-### Platform Support
-- **Windows**: Full support with native compilation
-- **Linux**: Full support with native compilation
-- **macOS**: Full support with native compilation
+#### 性能监控
+- **基准测试套件**：使用各种文本大小进行定期性能测试
+- **内存分析**：监控内存使用模式
+- **转换速度**：跟踪转换吞吐量指标
+- **资源使用**：监控 CPU 和内存消耗
 
-### Text Encoding
-- **UTF-8**: Primary encoding for all text processing
-- **Unicode**: Full Unicode character set support
-- **Cross-Platform**: Consistent behavior across operating systems
+### 未来增强
 
-## Future Enhancements
+#### 计划功能
+- **自定义字典**：支持用户提供的转换字典
+- **批处理**：在单个操作中转换多个文本
+- **转换统计**：转换操作的详细指标
+- **格式保留**：在转换过程中保持文本格式
 
-### Planned Features
-- **Custom Dictionaries**: Support for user-provided conversion dictionaries
-- **Batch Processing**: Convert multiple texts in single operation
-- **Conversion Statistics**: Detailed metrics on conversion operations
-- **Format Preservation**: Maintain text formatting during conversion
-
-### API Extensions
-- **Streaming Conversion**: Handle very large texts in chunks
-- **Confidence Scoring**: Provide conversion confidence metrics
-- **Alternative Suggestions**: Multiple conversion options for ambiguous text
-- **Integration Hooks**: Callbacks for custom conversion logic
-
-## Quality Assurance
-
-### Conversion Accuracy
-- **OpenCC Standard**: Uses industry-standard OpenCC dictionaries
-- **Phrase Context**: Considers phrase-level context for accurate conversion
-- **Regional Accuracy**: Proper handling of Taiwan and Hong Kong variants
-- **Continuous Testing**: Regular validation against known conversion pairs
-
-### Performance Monitoring
-- **Benchmark Suite**: Regular performance testing with various text sizes
-- **Memory Profiling**: Monitor memory usage patterns
-- **Conversion Speed**: Track conversion throughput metrics
-- **Resource Usage**: Monitor CPU and memory consumption
+#### API 扩展
+- **流式转换**：处理非常大的文本块
+- **置信度评分**：提供转换置信度指标
+- **替代建议**：模糊文本的多种转换选项
+- **集成钩子**：自定义转换逻辑的回调

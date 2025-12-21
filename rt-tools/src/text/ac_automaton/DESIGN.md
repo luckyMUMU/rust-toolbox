@@ -1,47 +1,128 @@
-# AC Automaton Tool Design Document
+# 模块名称：AC 自动机文本匹配工具
 
-## Overview
+## 1. 目标 (Goal)
+- **核心功能**：实现 Aho-Corasick 算法，用于高效的多模式字符串匹配，支持同时在多个文本中搜索多个模式。
+- **非目标**：不支持正则表达式模式（未来增强），不支持实时流处理（未来增强）。
 
-The AC Automaton tool (`text.ac_automaton`) implements the Aho-Corasick algorithm for efficient multi-pattern string matching. This tool allows users to search for multiple patterns simultaneously in one or more texts, making it highly efficient for large-scale text processing tasks.
+## 2. 核心定义 (Definitions)
+- **AcAutomatonTool**：工具的核心实现结构体，实现了 `rt_core::tool::Tool` trait。
+- **AcAutomatonImpl**：内部实现结构体，管理：
+  - Aho-Corasick 自动机：底层模式匹配引擎
+  - 模式存储：线程安全的活动模式存储
+  - 构建器配置：自动机配置（大小写敏感性等）
+- **AcAutomatonInput**：输入参数结构体，包含操作类型、模式列表、文本列表和配置选项。
+- **AcAutomatonOutput**：输出结果结构体，包含操作成功状态、匹配结果、当前模式列表和执行时间。
+- **MatchResult**：匹配结果结构体，包含匹配的模式、起始位置和结束位置。
 
-## Features
+## 3. 算法与逻辑设计 (Algorithm & Logic)
 
-### Core Functionality
-- **Multi-pattern Matching**: Search for multiple patterns in a single pass through the text
-- **Pattern Management**: Add, remove, and list patterns in the automaton
-- **Case Sensitivity Control**: Support both case-sensitive and case-insensitive matching
-- **Parallel Processing**: Optional parallel matching for multiple texts
-- **Performance Metrics**: Execution time tracking for performance analysis
+### 核心流程
+1. **操作解析**：解析输入参数，识别要执行的操作类型（add、remove、list、match）。
+2. **模式管理**：
+   - **添加模式**：验证模式非空且唯一，添加到模式存储中，触发自动机重建。
+   - **移除模式**：验证确认标志，从模式存储中移除模式，触发自动机重建。
+   - **列出模式**：返回当前加载的所有模式。
+3. **自动机构建**：
+   - 基于当前模式列表构建 Aho-Corasick 自动机。
+   - 仅在模式变更时重建（延迟重建优化）。
+4. **文本匹配**：
+   - **单文本匹配**：对单个文本执行高效匹配。
+   - **并行匹配**：异步并行处理多个文本。
+   - **结果聚合**：合并多个匹配操作的结果。
+5. **结果输出**：返回匹配结果、当前模式列表和执行时间。
 
-### Supported Operations
-1. **Add Patterns** (`add`): Add one or more patterns to the automaton
-2. **Remove Patterns** (`remove`): Remove patterns with confirmation requirement
-3. **List Patterns** (`list`): Display all currently loaded patterns
-4. **Match Texts** (`match`): Perform pattern matching on input texts
-5. **Save/Load** (`save`/`load`): Persistence operations (planned for future implementation)
+### 算法细节
+- **Aho-Corasick 算法**：
+  - 构建一个包含所有模式的前缀树（Trie）。
+  - 为每个节点添加失败指针，实现高效的多模式匹配。
+  - 时间复杂度：O(m + n + z)，其中 m 是所有模式的总长度，n 是文本长度，z 是匹配数量。
 
-## Architecture
+- **延迟重建优化**：
+  - 仅在模式添加或移除后重建自动机。
+  - 避免不必要的计算，提高性能。
 
-### Core Components
+- **并行处理**：
+  - 使用 tokio 异步运行时实现并行文本匹配。
+  - 每个文本在独立的任务中处理。
+  - 结果通过通道聚合。
 
-#### AcAutomatonImpl
-Internal implementation managing:
-- **Aho-Corasick Automaton**: The underlying pattern matching engine
-- **Pattern Storage**: Thread-safe storage of active patterns
-- **Builder Configuration**: Automaton configuration (case sensitivity, etc.)
+### 伪代码
+```
+class AcAutomatonTool:
+    def __init__(self):
+        self.patterns = set()
+        self.automaton = None
+        self.config = Config()
+    
+    def add_patterns(self, new_patterns):
+        # 验证并去重
+        valid_patterns = [p for p in new_patterns if p and p not in self.patterns]
+        if not valid_patterns:
+            return
+        # 添加到模式集合
+        self.patterns.update(valid_patterns)
+        # 触发自动机重建
+        self._rebuild_automaton()
+    
+    def remove_patterns(self, patterns_to_remove, confirm):
+        if not confirm:
+            raise Error("Remove operation requires confirmation")
+        # 从模式集合中移除
+        self.patterns.difference_update(patterns_to_remove)
+        # 触发自动机重建
+        self._rebuild_automaton()
+    
+    def match_texts(self, texts, ignore_case, parallel):
+        if not self.automaton:
+            return empty_result
+        
+        if parallel:
+            # 并行处理多个文本
+            tasks = [self._match_single_text(text, ignore_case) for text in texts]
+            results = await asyncio.gather(*tasks)
+        else:
+            # 串行处理多个文本
+            results = [self._match_single_text(text, ignore_case) for text in texts]
+        
+        return self._aggregate_results(results)
+    
+    def _rebuild_automaton(self):
+        # 仅在模式变更时重建
+        if not self.patterns:
+            self.automaton = None
+            return
+        # 构建 Aho-Corasick 自动机
+        self.automaton = AhoCorasickBuilder()
+            .ascii_case_insensitive(self.config.ignore_case)
+            .build(self.patterns)
+    
+    def _match_single_text(self, text, ignore_case):
+        # 使用 Aho-Corasick 自动机进行匹配
+        matches = []
+        for match in self.automaton.find_iter(text):
+            matches.append({
+                "pattern": self.patterns[match.pattern()],
+                "start": match.start(),
+                "end": match.end()
+            })
+        return matches
+```
 
-#### Pattern Management
-- **Validation**: Ensures patterns are non-empty and unique
-- **Deduplication**: Prevents duplicate pattern registration
-- **Atomic Operations**: Thread-safe pattern addition and removal
+### 复杂度分析
+- **时间复杂度**：
+  - **模式添加**：O(m)，其中 m 是所有模式的总长度。
+  - **自动机构建**：O(m)，用于构建失败函数。
+  - **文本匹配**：O(n + z)，其中 n 是文本长度，z 是匹配数量。
+  - **并行匹配**：接近线性加速比，与 CPU 核心数量相关。
 
-#### Matching Engine
-- **Single Text Matching**: Efficient matching for individual texts
-- **Parallel Processing**: Async parallel matching for multiple texts
-- **Result Aggregation**: Combines results from multiple matching operations
+- **空间复杂度**：
+  - **模式存储**：O(m)，用于存储模式字符串。
+  - **自动机结构**：O(m)，用于状态机。
+  - **匹配结果**：O(z)，用于存储匹配位置。
 
-## Input Schema
+## 4. 接口契约 (Interface)
 
+### 输入 Schema
 ```json
 {
   "action": "match",
@@ -53,183 +134,163 @@ Internal implementation managing:
 }
 ```
 
-### Field Descriptions
-- **action**: Operation to perform (`add`, `remove`, `list`, `match`, `save`, `load`)
-- **patterns**: Array of pattern strings to add/remove or use for matching
-- **texts**: Array of text strings to search (only used with `match` action)
-- **confirm**: Boolean flag required for `remove` operations to prevent accidental deletion
-- **ignore_case**: Enable case-insensitive matching (rebuilds automaton)
-- **parallel**: Use parallel processing for multiple text matching
+### 字段描述
+- **action**：要执行的操作类型（`add`、`remove`、`list`、`match`、`save`、`load`）。
+- **patterns**：要添加/移除或用于匹配的模式字符串数组。
+- **texts**：要搜索的文本字符串数组（仅用于 `match` 操作）。
+- **confirm**：`remove` 操作所需的确认标志，防止意外删除。
+- **ignore_case**：启用大小写不敏感匹配（重建自动机）。
+- **parallel**：对多个文本使用并行处理。
 
-## Output Schema
-
+### 输出 Schema
 ```json
 {
   "success": true,
   "message": "操作成功",
   "results": [
     {
-      "pattern": "pattern1",   // Matched pattern
-      "start": 0,              // Start position in text
-      "end": 8                 // End position in text
+      "pattern": "pattern1",   // 匹配的模式
+      "start": 0,              // 文本中的起始位置
+      "end": 8                 // 文本中的结束位置
     }
   ],
-  "patterns": ["pattern1"],    // Current pattern list (for list action)
-  "elapsed_ms": 15            // Execution time in milliseconds
+  "patterns": ["pattern1"],    // 当前模式列表（用于 list 操作）
+  "elapsed_ms": 15            // 执行时间（毫秒）
 }
 ```
 
-### Result Fields
-- **success**: Boolean indicating operation success
-- **message**: Localized status message
-- **results**: Array of match results with pattern, start, and end positions
-- **patterns**: Current list of loaded patterns
-- **elapsed_ms**: Performance timing information
+### 错误处理策略
 
-## Usage Examples
+#### 输入验证错误
+- **空模式**：模式不能为空字符串。
+- **重复模式**：尝试添加已存在的模式。
+- **缺少确认**：移除操作需要明确的确认。
+- **无效操作**：不支持的操作类型。
 
-### Adding Patterns
-```json
-{
-  "action": "add",
-  "patterns": ["hello", "world", "rust"]
-}
-```
+#### 运行时错误
+- **自动机构建失败**：构建 Aho-Corasick 自动机时出现问题。
+- **并行执行失败**：异步任务执行中的错误。
+- **内存分配**：大型模式集的内存不足情况。
 
-### Pattern Matching
-```json
-{
-  "action": "match",
-  "patterns": ["hello", "world"],
-  "texts": ["hello world", "rust programming"],
-  "ignore_case": false,
-  "parallel": true
-}
-```
+#### 错误恢复
+- **优雅降级**：失败的操作不影响现有模式。
+- **状态保留**：错误后自动机状态保持一致。
+- **详细错误消息**：用于调试的本地化错误描述。
 
-### Removing Patterns
-```json
-{
-  "action": "remove",
-  "patterns": ["hello"],
-  "confirm": true
-}
-```
+## 5. 变更记录 (Status)
+> 格式：[状态] | 变更描述 | 日期
 
-### Listing Patterns
-```json
-{
-  "action": "list",
-  "patterns": []
-}
-```
+### 当前变更
+- `[已完成]`：更新文档结构，统一语言为中文，添加变更记录，重命名为小写 | 2025-12-21
 
-## Performance Characteristics
+### 历史记录
+- `[已完成]`：初始设计文档创建 | 2025-12-20
 
-### Time Complexity
-- **Pattern Addition**: O(m) where m is the total length of all patterns
-- **Automaton Construction**: O(m) for building the failure function
-- **Text Matching**: O(n + z) where n is text length and z is number of matches
-- **Parallel Matching**: Near-linear speedup with number of CPU cores
+## 附加信息
 
-### Memory Usage
-- **Pattern Storage**: O(m) for pattern strings
-- **Automaton Structure**: O(m) for state machine
-- **Match Results**: O(z) for storing match positions
+### 功能特性
 
-### Optimization Features
-- **Lazy Automaton Rebuild**: Only rebuilds when patterns change
-- **Async Parallel Processing**: Non-blocking parallel text processing
-- **Efficient Memory Layout**: Minimal memory overhead per pattern
+#### 核心功能
+- **多模式匹配**：在单次文本遍历中搜索多个模式
+- **模式管理**：添加、移除和列出自动机中的模式
+- **大小写敏感性控制**：支持大小写敏感和大小写不敏感匹配
+- **并行处理**：多个文本的可选并行匹配
+- **性能指标**：执行时间跟踪，用于性能分析
 
-## Error Handling
+#### 支持的操作
+1. **添加模式** (`add`)：向自动机添加一个或多个模式
+2. **移除模式** (`remove`)：移除模式，需要确认
+3. **列出模式** (`list`)：显示所有当前加载的模式
+4. **匹配文本** (`match`)：对输入文本执行模式匹配
+5. **保存/加载** (`save`/`load`)：持久化操作（计划用于未来实现）
 
-### Input Validation Errors
-- **Empty Pattern**: Patterns cannot be empty strings
-- **Duplicate Pattern**: Attempting to add existing patterns
-- **Missing Confirmation**: Remove operations require explicit confirmation
-- **Invalid Action**: Unsupported operation types
+### 架构组件
 
-### Runtime Errors
-- **Automaton Build Failure**: Issues constructing the Aho-Corasick automaton
-- **Parallel Execution Failure**: Errors in async task execution
-- **Memory Allocation**: Out-of-memory conditions for large pattern sets
+#### 模式管理
+- **验证**：确保模式非空且唯一
+- **去重**：防止重复模式注册
+- **原子操作**：线程安全的模式添加和移除
 
-### Error Recovery
-- **Graceful Degradation**: Failed operations don't affect existing patterns
-- **State Preservation**: Automaton state remains consistent after errors
-- **Detailed Error Messages**: Localized error descriptions for debugging
+#### 匹配引擎
+- **单文本匹配**：单个文本的高效匹配
+- **并行处理**：多个文本的异步并行匹配
+- **结果聚合**：合并多个匹配操作的结果
 
-## Internationalization
+### 优化特性
+- **延迟自动机重建**：仅在模式变更时重建
+- **异步并行处理**：非阻塞并行文本处理
+- **高效内存布局**：每个模式的最小内存开销
 
-### Supported Locales
-- **English (`en`)**: Primary development language
-- **Chinese (`zh-CN`)**: Simplified Chinese translations
+### 国际化
 
-### Localized Elements
-- **Display Name**: Tool name in user interfaces
-- **Description**: Tool purpose and capabilities
-- **User Guide**: Comprehensive usage instructions
-- **Field Titles**: Input/output field labels
-- **Action Labels**: Operation type descriptions
-- **Error Messages**: Localized error descriptions
+#### 支持的语言环境
+- **英语 (`en`)**：主要开发语言
+- **中文 (`zh-CN`)**：简体中文翻译
 
-## Testing Strategy
+#### 本地化元素
+- **显示名称**：用户界面中的工具名称
+- **描述**：工具用途和功能
+- **用户指南**：全面的使用说明
+- **字段标题**：输入/输出字段标签
+- **操作标签**：操作类型描述
+- **错误消息**：本地化错误描述
 
-### Unit Tests
-- **Pattern Management**: Add, remove, list operations
-- **Matching Accuracy**: Verify correct pattern detection
-- **Case Sensitivity**: Test both case-sensitive and insensitive modes
-- **Error Conditions**: Validate proper error handling
-- **Performance**: Benchmark execution times
+### 测试策略
 
-### Integration Tests
-- **Tool Registration**: Verify proper integration with rt-core
-- **Schema Validation**: Test input/output schema compliance
-- **Localization**: Ensure all locales load correctly
-- **Async Operations**: Test parallel processing functionality
+#### 单元测试
+- **模式管理**：添加、移除、列出操作
+- **匹配准确性**：验证正确的模式检测
+- **大小写敏感性**：测试大小写敏感和不敏感模式
+- **错误条件**：测试所有错误场景
+- **性能**：基准测试执行时间
 
-### Performance Tests
-- **Large Pattern Sets**: Test with thousands of patterns
-- **Long Texts**: Validate performance on large documents
-- **Parallel Scaling**: Measure speedup with multiple texts
-- **Memory Usage**: Monitor memory consumption patterns
+#### 集成测试
+- **工具注册**：验证与 rt-core 的正确集成
+- **模式验证**：测试输入/输出模式合规性
+- **异步操作**：测试并行处理功能
+- **本地化**：确保所有语言环境正确加载
 
-## Future Enhancements
+#### 性能测试
+- **大型模式集**：使用数千个模式进行测试
+- **长文本**：在大型文档上验证性能
+- **并行扩展**：使用多个文本测量加速比
+- **内存使用**：监控内存消耗模式
 
-### Planned Features
-- **Pattern Persistence**: Save/load pattern sets to/from files
-- **Regular Expression Support**: Extend beyond literal string patterns
-- **Streaming Processing**: Handle very large texts in chunks
-- **Advanced Statistics**: Detailed matching statistics and analytics
+### 未来增强
 
-### API Extensions
-- **Batch Operations**: Bulk pattern management operations
-- **Configuration Profiles**: Named pattern sets for different use cases
-- **Export Formats**: Multiple output formats (CSV, XML, etc.)
-- **Integration Hooks**: Callbacks for real-time processing
+#### 计划功能
+- **模式持久化**：将模式集保存到文件/从文件加载
+- **正则表达式支持**：扩展到字面字符串模式之外
+- **流处理**：以块为单位处理非常大的文本
+- **高级统计**：详细的匹配统计和分析
 
-## Dependencies
+#### API 扩展
+- **批处理操作**：批量模式管理操作
+- **配置文件**：不同用例的命名模式集
+- **导出格式**：多种输出格式（CSV、XML 等）
+- **集成钩子**：实时处理的回调
 
-### Core Dependencies
-- **aho-corasick**: Efficient Aho-Corasick implementation
-- **tokio**: Async runtime for parallel processing
-- **serde**: Serialization for input/output handling
-- **schemars**: JSON schema generation
+### 依赖关系
 
-### Development Dependencies
-- **rt-core**: Core tool trait and error types
-- **futures**: Future utilities for async operations
-- **serde_json**: JSON processing and schema handling
+#### 核心依赖
+- **aho-corasick**：高效的 Aho-Corasick 实现
+- **tokio**：异步运行时，用于并行处理
+- **serde**：输入/输出处理的序列化
+- **schemars**：JSON 模式生成
 
-## Compatibility
+#### 开发依赖
+- **rt-core**：核心工具 trait 和错误类型
+- **futures**：异步操作的未来工具
+- **serde_json**：JSON 处理和模式处理
 
-### Platform Support
-- **Windows**: Full support with native compilation
-- **Linux**: Full support with native compilation
-- **macOS**: Full support with native compilation
+### 兼容性
 
-### Rust Version
-- **Minimum**: Rust 2021 Edition
-- **Recommended**: Latest stable Rust version
-- **Features**: Uses async/await, const generics, and other modern features
+#### 平台支持
+- **Windows**：完整支持，使用原生编译
+- **Linux**：完整支持，使用原生编译
+- **macOS**：完整支持，使用原生编译
+
+#### Rust 版本
+- **最低要求**：Rust 2021 Edition
+- **推荐版本**：最新稳定 Rust 版本
+- **特性**：使用 async/await、const generics 和其他现代特性

@@ -1,54 +1,54 @@
-# Rust Toolbox Architecture Design Document
+# Rust Toolbox 架构设计文档
 
-## 1. Project Overview
+## 1. 目标 (Goal)
+- **核心功能**：Rust Toolbox 是一个基于 Rust 构建的模块化工具集成平台，通过工作流引擎提供各种工具的统一管理和编排。该平台采用插件式架构，支持动态加载和扩展，同时提供 CLI 和 GUI 界面。系统实现了模型上下文协议（MCP），用于标准化上下文管理和外部系统集成。
+- **非目标**：不处理具体的业务逻辑，不包含特定领域的工具实现。
 
-Rust Toolbox is a modular tool integration platform built in Rust that provides unified management and orchestration of various tools through a workflow engine. The platform features a plugin-based architecture supporting dynamic loading and extension, with both CLI and GUI interfaces. The system implements Model Context Protocol (MCP) for standardized context management and external system integration.
+## 1.1 相关文档
 
-## 1.1 Related Documentation
+- [设计文档](design.md)：总体项目设计文档，包括技术栈和核心原则
+- [用户指南](USER_GUIDE.md)：详细用户指南，包括工具库和使用方法
+- [插件开发指南](PLUGIN_GUIDE.md)：插件开发规范和指南
+- [AI 工作协议](AI_WORK_PROTOCOL.md)：AI 辅助开发工作规范
+- [变更日志](CHANGELOG.md)：项目变更历史
+- [持久化设计文档](rt-core/PERSISTENCE_DESIGN.md)：项目持久化设计的详细描述
+- [工作流设计文档](rt-core/WORKFLOW_DESIGN.md)：项目工作流设计的详细描述
 
-- [Design Document](DESIGN.md): Overall project design document, including technology stack and core principles
-- [User Guide](USER_GUIDE.md): Detailed user guide, including tool library and usage methods
-- [Plugin Development Guide](PLUGIN_GUIDE.md): Plugin development specifications and guidelines
-- [AI Work Protocol](AI_WORK_PROTOCOL.md): AI-assisted development work specifications
-- [Changelog](CHANGELOG.md): Project change history
-- [Persistence Design Document](rt-core/PERSISTENCE_DESIGN.md): Detailed description of project persistence design
-- [Workflow Design Document](rt-core/WORKFLOW_DESIGN.md): Detailed description of project workflow design
+## 1.2 核心特性
 
-## 1.2 Core Features
+- **统一工具管理**：集中式工具发现、执行和管理
+- **插件架构**：动态加载外部工具作为插件（可执行文件和 WebAssembly）
+- **工作流引擎**：基于 DAG 的工作流编排，用于自动化任务处理
+- **多语言支持**：完整的国际化（i18n）支持，支持英文和中文
+- **持久化层**：统一的数据存储、缓存和配置管理
+- **双界面**：同时提供命令行（rt-cli）和图形（rt-gui）界面
+- **模型上下文协议（MCP）**：标准化的上下文管理和工具调用协议
+- **MCP 服务器**：REST API 和 WebSocket 端点，用于外部系统集成
+- **服务层**：统一的服务管理，支持基于角色的访问控制
+- **配置管理**：多源配置加载，支持缓存和热重载
+- **日志系统**：全面的日志记录，支持多个输出目标和结构化日志
 
-- **Unified Tool Management**: Centralized tool discovery, execution, and management
-- **Plugin Architecture**: Dynamic loading of external tools as plugins (executable files and WebAssembly)
-- **Workflow Engine**: DAG-based workflow orchestration for automated task processing
-- **Multi-language Support**: Full internationalization (i18n) for English and Chinese
-- **Persistence Layer**: Unified data storage, caching, and configuration management
-- **Dual Interface**: Both command-line (rt-cli) and graphical (rt-gui) interfaces
-- **Model Context Protocol (MCP)**: Standardized context management and tool calling protocol
-- **MCP Server**: REST API and WebSocket endpoints for external system integration
-- **Service Layer**: Unified service management with role-based access control
-- **Configuration Management**: Multi-source configuration loading with caching and hot reload
-- **Logging System**: Comprehensive logging with multiple output targets and structured logging
+## 1.3 技术栈
 
-## 1.3 Technology Stack
-
-- **Language**: Rust 2021 Edition
-- **Build System**: Cargo Workspace
-- **Async Runtime**: Tokio
-- **Serialization**: Serde (JSON/YAML)
-- **Error Handling**: thiserror + anyhow
-- **CLI Framework**: Clap v4 with derive macros
-- **GUI Framework**: egui (cross-platform, immediate mode)
-- **Web Framework**: Warp (for MCP server REST API)
-- **WebSocket**: tokio-tungstenite (for MCP WebSocket support)
-- **Storage**: Sled embedded database
-- **Caching**: moka (async in-memory cache)
-- **Compression**: zstd + async-compression
-- **Plugin System**: wasmtime (WebAssembly runtime) + process-based plugins
+- **语言**：Rust 2021 Edition
+- **构建系统**：Cargo Workspace
+- **异步运行时**：Tokio
+- **序列化**：Serde（JSON/YAML）
+- **错误处理**：thiserror + anyhow
+- **CLI 框架**：Clap v4 with derive macros
+- **GUI 框架**：egui（跨平台，即时模式）
+- **Web 框架**：Warp（用于 MCP 服务器 REST API）
+- **WebSocket**：tokio-tungstenite（用于 MCP WebSocket 支持）
+- **存储**：Sled 嵌入式数据库
+- **缓存**：moka（异步内存缓存）
+- **压缩**：zstd + async-compression
+- **插件系统**：wasmtime（WebAssembly 运行时）+ 基于进程的插件
 
 ## 2. 架构设计
 
-### 2.1 Overall Architecture
+### 2.1 总体架构
 
-Rust Toolbox adopts a modular architecture design based on Cargo workspace structure. The core logic is centralized in the `rt-core` module, while other modules build specific functionality on top of the core module.
+Rust Toolbox 采用基于 Cargo workspace 结构的模块化架构设计。核心逻辑集中在 `rt-core` 模块中，而其他模块则基于核心模块构建特定功能。
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -92,9 +92,9 @@ Rust Toolbox adopts a modular architecture design based on Cargo workspace struc
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 MCP Integration Architecture
+### 2.2 MCP 集成架构
 
-The Model Context Protocol (MCP) integration provides standardized context management and external system integration:
+模型上下文协议（MCP）集成提供标准化的上下文管理和外部系统集成：
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -133,9 +133,9 @@ The Model Context Protocol (MCP) integration provides standardized context manag
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.3 Hexagonal Architecture
+### 2.3 六边形架构
 
-The core module `rt-core` adopts Hexagonal Architecture design, also known as Ports and Adapters pattern. The core idea is to separate business logic from external dependencies through ports (interfaces) and adapters (implementations), improving system testability and extensibility.
+核心模块 `rt-core` 采用六边形架构设计，也称为端口和适配器模式。核心思想是通过端口（接口）和适配器（实现）将业务逻辑与外部依赖分离，提高系统的可测试性和可扩展性。
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -181,11 +181,11 @@ The core module `rt-core` adopts Hexagonal Architecture design, also known as Po
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 3. Core Component Design
+## 3. 核心定义 (Definitions)
 
-### 3.1 Tool Component
+### 3.1 工具组件
 
-Tool is the core abstraction of the entire system, defining the basic behavior and interface of tools. All tools and plugins must implement the Tool interface.
+工具是整个系统的核心抽象，定义了工具的基本行为和接口。所有工具和插件都必须实现 Tool 接口。
 
 ```rust
 #[async_trait]
@@ -237,9 +237,9 @@ pub trait McpTool: Tool {
 }
 ```
 
-### 3.2 Service Layer
+### 3.2 服务层
 
-The service layer provides standardized service invocation interfaces with permission control and error handling.
+服务层提供标准化的服务调用接口，带有权限控制和错误处理。
 
 ```rust
 /// Service manager for unified service registration and invocation
@@ -277,9 +277,9 @@ pub struct ServiceResponse {
 }
 ```
 
-### 3.3 Configuration Management
+### 3.3 配置管理
 
-The configuration management module provides unified configuration services supporting multi-source loading, caching, and hot reload.
+配置管理模块提供统一的配置服务，支持多源加载、缓存和热重载。
 
 ```rust
 /// Configuration manager providing external access interface
@@ -306,9 +306,9 @@ pub trait ConfigCachePort: Send + Sync {
 }
 ```
 
-### 3.4 Logging System
+### 3.4 日志系统
 
-The logging system provides comprehensive logging services with hierarchical logging, multiple output targets, and structured logging.
+日志系统提供全面的日志服务，支持分级日志、多个输出目标和结构化日志。
 
 ```rust
 /// Log manager providing external access interface
@@ -340,17 +340,17 @@ pub trait LogFormatterPort: Send + Sync {
 }
 ```
 
-### 3.5 Plugin System
+### 3.5 插件系统
 
-The plugin system is responsible for loading, managing, and executing plugins. It supports multiple types of plugins:
+插件系统负责加载、管理和执行插件。它支持多种类型的插件：
 
-1. **Process Plugin (Single Tool)**: Independent executable files that communicate with the main program through inter-process communication
-2. **Process Plugin (Multi-Tool)**: Independent executable files that provide multiple tools through array-based metadata
-3. **WASM Plugin**: WebAssembly modules that execute directly within the main program
+1. **进程插件（单工具）**：独立的可执行文件，通过进程间通信与主程序通信
+2. **进程插件（多工具）**：独立的可执行文件，通过基于数组的元数据提供多个工具
+3. **WASM 插件**：直接在主程序内执行的 WebAssembly 模块
 
-#### 3.5.1 PluginManager
+#### 3.5.1 插件管理器
 
-PluginManager is the core component of the plugin system, responsible for plugin loading and management.
+PluginManager 是插件系统的核心组件，负责插件的加载和管理。
 
 ```rust
 pub struct PluginManager {
@@ -366,9 +366,9 @@ Key features:
 - Provide plugin query and execution interfaces
 - Support for array-based metadata format for multi-tool plugins
 
-#### 3.5.2 Multi-Tool Plugin Architecture
+#### 3.5.2 多工具插件架构
 
-Multi-tool plugins support providing multiple tools through a single plugin executable:
+多工具插件支持通过单个插件可执行文件提供多个工具：
 
 ```rust
 /// Plugin metadata for multi-tool plugins (array format)
@@ -392,7 +392,7 @@ pub struct PluginMetadata {
 }
 ```
 
-#### 3.5.3 Plugin Loading Flow
+#### 3.5.3 插件加载流程
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -455,11 +455,11 @@ pub struct PluginMetadata {
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.6 Model Context Protocol (MCP) Components
+### 3.6 模型上下文协议（MCP）组件
 
-The MCP system provides standardized context management and external system integration capabilities.
+MCP 系统提供标准化的上下文管理和外部系统集成能力。
 
-#### 3.6.1 Core MCP Components
+#### 3.6.1 核心 MCP 组件
 
 ```rust
 /// MCP Context - maintains execution state and history
@@ -502,9 +502,9 @@ pub struct ContextManager {
 }
 ```
 
-#### 3.6.2 MCP Server Architecture
+#### 3.6.2 MCP 服务器架构
 
-The MCP server provides REST API and WebSocket endpoints for external system integration:
+MCP 服务器提供 REST API 和 WebSocket 端点，用于外部系统集成：
 
 ```rust
 /// MCP Server providing REST API and WebSocket endpoints
@@ -537,21 +537,21 @@ impl WebSocketServer {
 }
 ```
 
-### 3.7 Workflow Engine
+### 3.7 工作流引擎
 
-The workflow engine is responsible for defining and executing workflows, supporting dependency management between nodes and parallel execution. It now includes enhanced support for multi-tool plugins and MCP integration.
+工作流引擎负责定义和执行工作流，支持节点间的依赖管理和并行执行。现在它包括对多工具插件和 MCP 集成的增强支持。
 
-#### 3.7.1 Core Concepts
+#### 3.7.1 核心概念
 
-- **WorkflowDefinition**: Workflow definition containing nodes and edges
-- **WorkflowNode**: Workflow node corresponding to a tool execution (supports multi-tool plugin tools)
-- **WorkflowEdge**: Workflow edge defining dependencies between nodes
-- **WorkflowInstance**: Workflow instance representing an executing workflow
-- **WorkflowStatus**: Workflow status including Pending, Running, Paused, Completed, Failed
-- **NodeStatus**: Node status including Pending, Running, Completed, Failed, Skipped
-- **McpWorkflow**: MCP-enabled workflow with context propagation
+- **WorkflowDefinition**：工作流定义，包含节点和边
+- **WorkflowNode**：工作流节点，对应工具执行（支持多工具插件工具）
+- **WorkflowEdge**：工作流边，定义节点间的依赖关系
+- **WorkflowInstance**：工作流实例，表示正在执行的工作流
+- **WorkflowStatus**：工作流状态，包括 Pending、Running、Paused、Completed、Failed
+- **NodeStatus**：节点状态，包括 Pending、Running、Completed、Failed、Skipped
+- **McpWorkflow**：支持 MCP 的工作流，带有上下文传播
 
-#### 3.7.2 Enhanced Workflow Definition
+#### 3.7.2 增强工作流定义
 
 ```rust
 /// Enhanced workflow definition with MCP support
@@ -579,7 +579,7 @@ pub struct WorkflowNode {
 }
 ```
 
-#### 3.7.3 Workflow Execution Flow
+#### 3.7.3 工作流执行流程
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -844,3 +844,7 @@ YouTube 下载插件，基于 yt-dlp 实现视频下载功能。
 Rust Tool 采用模块化、插件化、六边形架构设计，具有良好的可扩展性、可测试性和可维护性。系统支持多种工具的统一管理和调度，提供工作流引擎实现工具间的协同工作，同时提供 CLI 和 GUI 两种交互方式，满足不同用户的需求。
 
 该架构设计为系统的未来发展提供了良好的基础，支持分布式部署、更多插件类型和更丰富的功能扩展。
+
+## 12. 变更记录 (Status)
+- `[已完成]`：更新文档结构，统一语言为中文，添加变更记录 | 2025-12-21
+- `[已完成]`：初始设计文档创建 | 2025-12-20

@@ -1,242 +1,237 @@
-# Move Folder Tool Design Document
+# 模块名称：移动文件夹工具
 
-## Overview
+## 1. 目标 (Goal)
+- **核心功能**：提供安全可靠的文件和目录移动功能，支持冲突处理和覆盖保护，可用于重命名操作和将项目移动到现有目录中。
+- **非目标**：不处理跨文件系统移动（未来增强），不支持交互式冲突解决（未来增强）。
 
-The Move Folder tool (`file.move_folder`) provides safe and reliable file and directory moving functionality with collision handling and overwrite protection. It supports both renaming operations and moving items into existing directories.
+## 2. 核心定义 (Definitions)
+- **MoveFolderTool**：工具的核心实现结构体，实现了 `rt_core::tool::Tool` trait。
+- **MoveFolderInput**：输入参数结构体，包含源路径、目标路径和覆盖选项。
+- **MoveFolderOutput**：输出结果结构体，包含操作成功状态和移动的文件数量。
+- **PathValidationResult**：路径验证结果结构体，包含源路径和目标路径的验证信息。
+- **ConflictResolutionResult**：冲突解决结果结构体，包含冲突检测和解决策略。
 
-## Features
+## 3. 算法与逻辑设计 (Algorithm & Logic)
 
-### Core Functionality
-- **Safe File/Directory Moving**: Atomic operations where possible
-- **Collision Detection**: Identifies destination conflicts before execution
-- **Overwrite Protection**: Configurable overwrite behavior with explicit confirmation
-- **Cross-Platform Support**: Works on Windows, Linux, and macOS
-- **Operation Statistics**: Reports number of files/items moved
+### 核心流程
+1. **输入验证**：
+   - 验证源路径存在且可读。
+   - 检查目标路径有效性。
+   - 验证用户对两个路径的权限。
 
-### Supported Operations
-- **File Moving**: Move individual files to new locations
-- **Directory Moving**: Move entire directory trees
-- **Renaming**: Rename files and directories in place
-- **Into Directory**: Move items into existing directories
+2. **路径解析**：
+   - **目录目标**：如果目标存在且是目录，将源移动到其中。
+   - **新路径**：如果目标不存在，将其视为重命名操作。
+   - **文件目标**：如果目标存在且是文件，处理冲突。
 
-## Architecture
+3. **冲突处理**：
+   - **不覆盖**：如果目标存在且覆盖选项为 false，返回错误。
+   - **覆盖**：在移动前删除现有目标。
+   - **安全检查**：防止将目录移动到自身内部。
 
-### Core Components
+4. **执行操作**：
+   - **主要方法**：使用 `std::fs::rename` 进行原子操作。
+   - **进度跟踪**：统计移动的文件和目录数量。
+   - **错误恢复**：为失败提供详细的错误信息。
 
-#### Path Validation
-- **Source Validation**: Ensures source path exists and is accessible
-- **Destination Analysis**: Determines if destination is a directory or new path
-- **Permission Checking**: Validates read/write permissions
+### 伪代码
+```
+function move_folder(source, destination, overwrite):
+    // 1. 输入验证
+    if not source.exists():
+        return Error("Source not found")
+    if not source.is_readable():
+        return Error("Permission denied for source")
+    
+    // 2. 路径解析
+    if destination.exists():
+        if destination.is_dir():
+            // 将源移动到目标目录中
+            final_dest = destination / source.name
+        else:
+            // 目标是文件，处理冲突
+            final_dest = destination
+    else:
+        // 目标不存在，作为重命名操作
+        final_dest = destination
+    
+    // 3. 冲突处理
+    if final_dest.exists():
+        if not overwrite:
+            return Error("Destination exists and overwrite is false")
+        else:
+            remove(final_dest)
+    
+    // 4. 安全检查
+    if is_subdirectory(source, final_dest):
+        return Error("Cannot move directory into itself")
+    
+    // 5. 执行移动
+    try:
+        rename(source, final_dest)
+        count = calculate_moved_items(source)
+        return Success(count)
+    catch e:
+        return Error(e.message)
+```
 
-#### Conflict Resolution
-- **Collision Detection**: Identifies when destination already exists
-- **Overwrite Logic**: Handles overwrite confirmation and execution
-- **Atomic Operations**: Uses filesystem rename when possible
+### 复杂度分析
+- **时间复杂度**：
+  - 同一文件系统：O(1) 用于重命名操作
+  - 目录树：O(m)，其中 m 是项目数量
+  - 跨文件系统：O(n)，其中 n 是总文件大小（未来增强）
 
-#### Operation Execution
-- **Rename Strategy**: Primary method using `std::fs::rename`
-- **Copy-Delete Fallback**: For cross-filesystem moves (future enhancement)
-- **Progress Tracking**: Counts moved files and directories
+- **空间复杂度**：
+  - 最小内存占用：直接使用文件系统操作
+  - 无缓冲：不将文件内容加载到内存
+  - 高效计数：只跟踪移动的项目数量，不存储路径
 
-## Input Schema
+## 4. 接口契约 (Interface)
 
+### 输入 Schema
 ```json
 {
   "type": "object",
   "properties": {
     "source": {
       "type": "string",
-      "title": "Source Path",
-      "description": "Path to the file or directory to move"
+      "title": "源路径",
+      "description": "要移动的文件或目录的路径"
     },
     "destination": {
       "type": "string", 
-      "title": "Destination Path",
-      "description": "Target path or directory for the move operation"
+      "title": "目标路径",
+      "description": "移动操作的目标路径或目录"
     },
     "overwrite": {
       "type": "boolean",
       "default": false,
-      "title": "Allow Overwrite",
-      "description": "Whether to overwrite existing files at destination"
+      "title": "允许覆盖",
+      "description": "是否覆盖目标位置的现有文件"
     }
   },
   "required": ["source", "destination"]
 }
 ```
 
-### Field Descriptions
-- **source**: Absolute or relative path to the item to move
-- **destination**: Target location (can be directory or new path)
-- **overwrite**: Boolean flag controlling overwrite behavior
-
-## Output Schema
-
+### 输出 Schema
 ```json
 {
   "type": "object",
   "properties": {
     "success": {
       "type": "boolean",
-      "title": "Operation Success",
-      "description": "Whether the move operation completed successfully"
+      "title": "操作成功",
+      "description": "移动操作是否成功完成"
     },
     "moved_files": {
       "type": "integer",
-      "title": "Files Moved",
-      "description": "Number of files and directories moved"
+      "title": "移动的文件数",
+      "description": "成功移动的文件和目录数量"
     }
   },
   "required": ["success", "moved_files"]
 }
 ```
 
-### Result Fields
-- **success**: Boolean indicating operation success
-- **moved_files**: Count of items successfully moved
+### 错误处理策略
 
-## Operation Logic
+#### 输入验证错误
+- **源路径不存在**：源路径不存在
+- **权限拒绝**：对源路径或目标路径的权限不足
+- **无效路径**：格式错误或无效的路径字符串
+- **自移动**：尝试将目录移动到自身内部
 
-### 1. Input Validation
-- Verify source path exists and is readable
-- Check destination path validity
-- Validate user permissions for both paths
+#### 运行时错误
+- **目标已存在**：目标存在且覆盖选项为禁用
+- **文件系统已满**：移动操作的空间不足
+- **跨设备移动**：跨文件系统边界移动（尚未支持）
+- **IO 错误**：硬件或系统级故障
 
-### 2. Path Resolution
-- **Directory Destination**: If destination exists and is a directory, move source into it
-- **New Path**: If destination doesn't exist, treat as rename operation
-- **File Destination**: If destination exists and is a file, handle collision
+#### 错误恢复
+- **原子操作**：失败的移动不会留下部分结果
+- **状态保留**：失败后原始文件保持完整
+- **详细消息**：用于故障排除的特定错误描述
 
-### 3. Conflict Handling
-- **No Overwrite**: Return error if destination exists and overwrite is false
-- **With Overwrite**: Remove existing destination before moving
-- **Safety Checks**: Prevent moving directory into itself
+## 5. 变更记录 (Status)
+> 格式：[状态] | 变更描述 | 日期
 
-### 4. Execution
-- **Primary Method**: Use `std::fs::rename` for atomic operation
-- **Error Recovery**: Provide detailed error messages for failures
-- **Statistics**: Count and report moved items
+### 当前变更
+- `[已完成]`：更新文档结构，统一语言为中文，添加变更记录，重命名为小写 | 2025-12-21
 
-## Usage Examples
+### 历史记录
+- `[已完成]`：初始设计文档创建 | 2025-12-20
 
-### Basic File Move
-```json
-{
-  "source": "/home/user/document.txt",
-  "destination": "/home/user/backup/document.txt"
-}
-```
+## 附加信息
 
-### Move Into Directory
-```json
-{
-  "source": "/home/user/project",
-  "destination": "/home/user/archive/"
-}
-```
+### 功能特性
 
-### Move With Overwrite
-```json
-{
-  "source": "/tmp/data.csv",
-  "destination": "/home/user/data.csv",
-  "overwrite": true
-}
-```
+#### 核心功能
+- **安全的文件/目录移动**：尽可能使用原子操作
+- **冲突检测**：在执行前识别目标冲突
+- **覆盖保护**：可配置的覆盖行为，带有明确的确认
+- **跨平台支持**：适用于 Windows、Linux 和 macOS
+- **操作统计**：报告移动的文件/项目数量
 
-## Error Handling
+#### 支持的操作
+- **文件移动**：将单个文件移动到新位置
+- **目录移动**：移动整个目录树
+- **重命名**：原地重命名文件和目录
+- **移入目录**：将项目移动到现有目录中
 
-### Input Validation Errors
-- **Source Not Found**: Source path does not exist
-- **Permission Denied**: Insufficient permissions for source or destination
-- **Invalid Path**: Malformed or invalid path strings
-- **Self-Move**: Attempting to move directory into itself
+### 架构组件
 
-### Runtime Errors
-- **Destination Exists**: Target exists and overwrite is disabled
-- **Filesystem Full**: Insufficient space for move operation
-- **Cross-Device Move**: Moving across filesystem boundaries (not yet supported)
-- **IO Errors**: Hardware or system-level failures
+#### 路径验证
+- **源验证**：确保源路径存在且可访问
+- **目标分析**：确定目标是目录还是新路径
+- **权限检查**：验证读/写权限
 
-### Error Recovery
-- **Atomic Operations**: Failed moves don't leave partial results
-- **State Preservation**: Original files remain intact on failure
-- **Detailed Messages**: Specific error descriptions for troubleshooting
+#### 冲突解决
+- **冲突检测**：识别目标何时已存在
+- **覆盖逻辑**：处理覆盖确认和执行
+- **原子操作**：尽可能使用文件系统重命名
 
-## Performance Characteristics
+#### 操作执行
+- **重命名策略**：使用 `std::fs::rename` 的主要方法
+- **复制-删除回退**：用于跨文件系统移动（未来增强）
+- **进度跟踪**：统计移动的文件和目录
 
-### Time Complexity
-- **Same Filesystem**: O(1) for rename operations
-- **Cross Filesystem**: O(n) where n is total file size (future)
-- **Directory Trees**: O(m) where m is number of items
+### 国际化
 
-### Memory Usage
-- **Minimal Footprint**: Uses filesystem operations directly
-- **No Buffering**: Doesn't load file contents into memory
-- **Efficient Counting**: Tracks moved items without storing paths
+#### 支持的语言环境
+- **英语 (`en`)**：主要开发语言
+- **中文 (`zh-CN`)**：简体中文翻译
 
-## Internationalization
+#### 本地化元素
+- **字段标题**：输入/输出字段标签
+- **错误消息**：本地化错误描述
+- **用户指南**：全面的使用说明
+- **工具描述**：用途和功能
 
-### Supported Locales
-- **English (`en`)**: Primary development language
-- **Chinese (`zh-CN`)**: Simplified Chinese translations
+### 测试策略
 
-### Localized Elements
-- **Field Titles**: Input/output field labels
-- **Error Messages**: Localized error descriptions
-- **User Guide**: Comprehensive usage instructions
-- **Tool Description**: Purpose and capabilities
+#### 单元测试
+- **路径验证**：测试各种路径格式和边缘情况
+- **冲突处理**：验证覆盖逻辑是否正确工作
+- **错误条件**：测试所有错误场景
+- **跨平台**：确保跨操作系统的一致行为
 
-## Testing Strategy
+#### 集成测试
+- **工具注册**：验证与 rt-core 的正确集成
+- **模式验证**：测试输入/输出模式合规性
+- **文件系统操作**：使用真实文件和目录进行测试
+- **权限处理**：测试各种权限场景
 
-### Unit Tests
-- **Path Validation**: Test various path formats and edge cases
-- **Collision Handling**: Verify overwrite logic works correctly
-- **Error Conditions**: Test all error scenarios
-- **Cross-Platform**: Ensure consistent behavior across operating systems
+### 未来增强
 
-### Integration Tests
-- **Tool Registration**: Verify proper integration with rt-core
-- **Schema Validation**: Test input/output schema compliance
-- **Filesystem Operations**: Test with real files and directories
-- **Permission Handling**: Test various permission scenarios
+#### 计划功能
+- **跨文件系统支持**：用于跨设备移动的复制-删除策略
+- **进度报告**：大型操作的实时进度
+- **批处理操作**：在单个操作中移动多个项目
+- **符号链接处理**：正确处理符号链接和硬链接
 
-## Future Enhancements
-
-### Planned Features
-- **Cross-Filesystem Support**: Copy-delete strategy for cross-device moves
-- **Progress Reporting**: Real-time progress for large operations
-- **Batch Operations**: Move multiple items in single operation
-- **Symbolic Link Handling**: Proper handling of symlinks and hardlinks
-
-### API Extensions
-- **Preserve Metadata**: Option to preserve timestamps and permissions
-- **Dry Run Mode**: Preview operations without executing
-- **Conflict Resolution**: Interactive conflict resolution options
-- **Backup Creation**: Automatic backup before overwrite
-
-## Dependencies
-
-### Core Dependencies
-- **std::fs**: Standard filesystem operations
-- **rt-core**: Core tool trait and error types
-- **serde**: Serialization for input/output handling
-- **schemars**: JSON schema generation
-
-### Platform Dependencies
-- **Windows**: Uses Windows API for optimal performance
-- **Unix**: Uses POSIX filesystem operations
-- **Cross-Platform**: Consistent behavior across platforms
-
-## Compatibility
-
-### Platform Support
-- **Windows**: Full support with native paths
-- **Linux**: Full support with Unix paths
-- **macOS**: Full support with Unix paths
-
-### Filesystem Support
-- **NTFS**: Full support on Windows
-- **ext4/XFS**: Full support on Linux
-- **APFS/HFS+**: Full support on macOS
-- **Network Drives**: Limited support (depends on network filesystem)
+#### API 扩展
+- **保留元数据**：保留时间戳和权限的选项
+- **模拟运行模式**：预览操作而不执行
+- **冲突解决**：交互式冲突解决选项
+- **备份创建**：覆盖前自动备份
