@@ -1,4 +1,10 @@
 use super::*;
+use crate::tools::duplicates::DuplicateFilesTool;
+use crate::tools::similar_images::SimilarImagesTool;
+use crate::tools::empty_dirs::EmptyDirectoriesTool;
+use crate::tools::temp_files::TemporaryFilesTool;
+use crate::tools::broken_symlinks::BrokenSymlinksTool;
+use crate::tools::get_tool_by_name;
 use serde_json::json;
 
 /// 测试重复文件查找工具

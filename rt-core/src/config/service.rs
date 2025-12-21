@@ -58,7 +58,7 @@ impl ConfigService {
         sources.push(Arc::new(source));
         
         // 按优先级排序，优先级高的放在前面
-        sources.sort_by(|a, b| b.get_priority().cmp(&a.get_priority()));
+        sources.sort_by_key(|source| std::cmp::Reverse(source.get_priority()));
     }
     
     /// 从所有配置源加载配置
@@ -71,8 +71,7 @@ impl ConfigService {
         let sources = {
             let sources_lock = self.sources.lock().unwrap();
             // 使用 Vec<Arc<Box<dyn ConfigSourcePort>>> 来存储配置源的引用
-            let sources_vec: Vec<_> = sources_lock.iter().map(|source| source.clone()).collect();
-            sources_vec
+            sources_lock.iter().cloned().collect()
         };
         
         // 2. 从每个配置源加载配置，保存到临时变量
@@ -151,11 +150,7 @@ impl ConfigService {
         // 缓存未命中，从内存获取
         let json_value = {
             let config_items = self.config_items.lock().unwrap();
-            if let Some(item) = config_items.get(key) {
-                Some(item.value.clone())
-            } else {
-                None
-            }
+            config_items.get(key).map(|item| item.value.clone())
         };
         
         if let Some(json_str) = json_value {

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use serde_json::Value;
 use crate::{Tool, Locale, Result, CoreError};
@@ -73,8 +73,8 @@ impl WasmPlugin {
         }
     }
 
-    async fn run_wasm(path: &PathBuf, args: Vec<String>, input: Option<String>) -> Result<Value> {
-        let path = path.clone();
+    async fn run_wasm(path: &Path, args: Vec<String>, input: Option<String>) -> Result<Value> {
+        let path = path.to_path_buf();
         tokio::task::spawn_blocking(move || {
             let engine = Engine::default();
             let mut linker: Linker<WasmState> = Linker::new(&engine);

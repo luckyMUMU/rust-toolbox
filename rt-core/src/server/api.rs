@@ -7,6 +7,13 @@ pub struct ApiServer {
 impl ApiServer {
     /// 创建一个新的 API 服务器
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for ApiServer {
+    /// 创建默认的 API 服务器
+    fn default() -> Self {
         Self {}
     }
 }

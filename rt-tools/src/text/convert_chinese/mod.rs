@@ -26,6 +26,12 @@ crate::register_tool!(ConvertChinese);
 
 impl ConvertChinese {
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for ConvertChinese {
+    fn default() -> Self {
         Self {
             i18n: ToolI18n::new(
                 include_str!("locales/tool.en.json"),

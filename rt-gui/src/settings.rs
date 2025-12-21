@@ -7,20 +7,15 @@ use std::io::Write;
 use rt_core::Locale;
 
 /// 主题选项
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Theme {
     /// 浅色主题
     Light,
     /// 深色主题
     Dark,
     /// 跟随系统主题
+    #[default]
     System,
-}
-
-impl Default for Theme {
-    fn default() -> Self {
-        Self::System
-    }
 }
 
 impl Theme {
@@ -66,7 +61,7 @@ pub struct ShortcutSettings {
 }
 
 /// 应用配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
     /// 显示偏好设置
     pub display: DisplaySettings,
@@ -124,6 +119,8 @@ impl Default for DataSettings {
         }
     }
 }
+
+
 
 impl Default for ShortcutSettings {
     fn default() -> Self {

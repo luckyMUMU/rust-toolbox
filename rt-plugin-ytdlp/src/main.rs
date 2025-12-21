@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, Read};
 use tokio::process::Command;
 use log::{debug, info, error};
-use log4rs;
 use anyhow::Result;
 
 use rt_core::{Locale, plugin::{PluginMetadata, LocalizedString}};
@@ -154,7 +153,7 @@ impl Tool for YtdlpTool {
             .arg("--format")
             .arg(&input.format)
             .arg("--output")
-            .arg(&format!("{}/{}", input.output_dir, input.filename_template));
+            .arg(format!("{}/{}", input.output_dir, input.filename_template));
 
         // 添加播放列表选项
         if input.playlist {

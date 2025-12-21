@@ -2,20 +2,15 @@ use eframe::egui;
 use serde_json::Value;
 
 /// 布局类型枚举
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum LayoutType {
     /// 单栏布局：输入区域在上，输出区域在下
     SingleColumn,
     /// 双栏布局：左侧输入，右侧输出（默认）
+    #[default]
     TwoColumns,
     /// 三栏布局：左侧输入，中间预览，右侧输出
     ThreeColumns,
-}
-
-impl Default for LayoutType {
-    fn default() -> Self {
-        LayoutType::TwoColumns
-    }
 }
 
 impl LayoutType {
@@ -39,17 +34,10 @@ impl LayoutType {
 }
 
 /// 布局管理器
+#[derive(Default)]
 pub struct LayoutManager {
     /// 当前布局类型
     pub current_layout: LayoutType,
-}
-
-impl Default for LayoutManager {
-    fn default() -> Self {
-        Self {
-            current_layout: LayoutType::default(),
-        }
-    }
 }
 
 impl LayoutManager {
@@ -297,8 +285,11 @@ pub fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_o
                     }
                 } else {
                     // 如果类型不匹配，强制重置
-                    if !read_only { *data = serde_json::json!(""); }
-                    else { ui.label("Invalid Type"); }
+                    if !read_only {
+                        *data = serde_json::json!("");
+                    } else {
+                        ui.label("Invalid Type");
+                    }
                 }
             }
         },
@@ -314,8 +305,8 @@ pub fn render_schema(ui: &mut egui::Ui, schema: &Value, data: &mut Value, read_o
                         }
                     });
                 }
-            } else {
-                if !read_only { *data = serde_json::json!(false); }
+            } else if !read_only {
+                *data = serde_json::json!(false);
             }
         },
          "integer" | "number" => {

@@ -149,3 +149,57 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+    
+    /// 测试命令行解析
+    #[test]
+    fn test_cli_parse() {
+        // 测试 List 命令解析
+        let cli = Cli::try_parse_from(["rt-cli", "list"]).unwrap();
+        assert!(matches!(cli.command, Commands::List));
+        
+        // 测试 Run 命令解析
+        let cli = Cli::try_parse_from(["rt-cli", "run", "test-tool"]).unwrap();
+        assert!(matches!(cli.command, Commands::Run { .. }));
+        
+        // 测试 Run 命令带 input 参数
+        let cli = Cli::try_parse_from(["rt-cli", "run", "test-tool", "--input", "{\"key\": \"value\"}"]).unwrap();
+        assert!(matches!(cli.command, Commands::Run { .. }));
+        
+        // 测试 Workflow Run 命令
+        let cli = Cli::try_parse_from(["rt-cli", "workflow", "run", "test.json"]).unwrap();
+        assert!(matches!(cli.command, Commands::Workflow { .. }));
+    }
+    
+    /// 测试命令行帮助生成
+    #[test]
+    fn test_cli_help() {
+        let mut cmd = Cli::command();
+        let help_output = cmd.render_help().to_string();
+        
+        // 检查帮助信息是否包含基本命令
+        assert!(help_output.contains("list"));
+        assert!(help_output.contains("run"));
+        assert!(help_output.contains("workflow"));
+    }
+    
+    /// 测试工具注册功能
+    #[tokio::test]
+    async fn test_tool_registration() {
+        let tools = register_tools().await;
+        
+        // 验证至少注册了一些工具
+        // 由于这是集成测试，具体工具数量可能会变化
+        assert!(!tools.is_empty(), "No tools were registered");
+        
+        // 验证注册的工具都有有效的名称
+        for (name, tool) in tools {
+            assert!(!name.is_empty(), "Tool has empty name");
+            assert_eq!(name, tool.name(), "Tool name mismatch");
+        }
+    }
+}

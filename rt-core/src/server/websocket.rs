@@ -11,14 +11,21 @@ pub struct WebSocketServer {
 impl WebSocketServer {
     /// 创建一个新的 WebSocket 服务器
     pub fn new() -> Self {
-        let (broadcast_tx, _) = broadcast::channel(100);
-        Self {
-            broadcast_tx,
-        }
+        Self::default()
     }
     
     /// 广播消息给所有连接的客户端
     pub fn broadcast(&self, message: &str) {
         let _ = self.broadcast_tx.send(message.to_string());
+    }
+}
+
+impl Default for WebSocketServer {
+    /// 创建默认的 WebSocket 服务器
+    fn default() -> Self {
+        let (broadcast_tx, _) = broadcast::channel(100);
+        Self {
+            broadcast_tx,
+        }
     }
 }

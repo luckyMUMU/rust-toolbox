@@ -29,6 +29,12 @@ crate::register_tool!(MoveFolder);
 
 impl MoveFolder {
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for MoveFolder {
+    fn default() -> Self {
         Self {
             i18n: ToolI18n::new(
                 include_str!("locales/tool.en.json"),

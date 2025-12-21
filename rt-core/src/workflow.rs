@@ -283,45 +283,53 @@ impl InMemoryWorkflowEngine {
                             let mcp_context_opt = mcp_context_opt;
                             let node = node;
                             async move {
-                                 if let Some(tool) = tools_clone.get(&node.tool_name) {
-                                     if tool.mcp_supported() && mcp_context_opt.is_some() {
-                                         // 使用 MCP 上下文执行工具
-                                         let mcp_context = mcp_context_opt.unwrap();
-                                         let service_context = crate::service::ServiceContext {
-                                             caller_id: "workflow_engine".to_string(),
-                                             caller_type: crate::service::CallerType::System,
-                                             permission_level: crate::service::PermissionLevel::Admin,
-                                             extra: serde_json::json!({}),
-                                         };
-                                          
-                                         let mcp_request = crate::mcp::McpRequest::new_tool_call(
-                                             node.tool_name.clone(),
-                                             input.clone(),
-                                             mcp_context,
-                                             crate::mcp::request::McpServiceContext {
-                                                 caller_id: service_context.caller_id.clone(),
-                                                 caller_type: service_context.caller_type,
-                                                 permission_level: service_context.permission_level,
-                                                 extra: service_context.extra,
-                                             }
-                                         );
-                                          
-                                         let mcp_response = tool.run_with_context(mcp_request).await;
-                                         match mcp_response {
-                                             Ok(resp) => Ok((resp.data.unwrap_or(serde_json::json!({})), Some(resp.context))),
-                                             Err(e) => Err(e)
-                                         }
-                                     } else {
-                                         // 普通执行模式
-                                         let output = tool.run(input.clone()).await;
-                                         match output {
-                                             Ok(out) => Ok((out, None)),
-                                             Err(e) => Err(e)
-                                         }
-                                     }
-                                 } else {
-                                     Err(CoreError::ConfigError(format!("Tool not found: {}", node.tool_name)))
-                                 }
+                                if let Some(tool) = tools_clone.get(&node.tool_name) {
+                                    if let Some(mcp_context) = mcp_context_opt {
+                                        if tool.mcp_supported() {
+                                            // 使用 MCP 上下文执行工具
+                                            let service_context = crate::service::ServiceContext {
+                                                caller_id: "workflow_engine".to_string(),
+                                                caller_type: crate::service::CallerType::System,
+                                                permission_level: crate::service::PermissionLevel::Admin,
+                                                extra: serde_json::json!({}),
+                                            };
+                                           
+                                            let mcp_request = crate::mcp::McpRequest::new_tool_call(
+                                                node.tool_name.clone(),
+                                                input.clone(),
+                                                mcp_context,
+                                                crate::mcp::request::McpServiceContext {
+                                                    caller_id: service_context.caller_id.clone(),
+                                                    caller_type: service_context.caller_type,
+                                                    permission_level: service_context.permission_level,
+                                                    extra: service_context.extra,
+                                                }
+                                            );
+                                      
+                                            let mcp_response = tool.run_with_context(mcp_request).await;
+                                            match mcp_response {
+                                                Ok(resp) => Ok((resp.data.unwrap_or(serde_json::json!({})), Some(resp.context))),
+                                                Err(e) => Err(e)
+                                            }
+                                        } else {
+                                            // MCP 上下文存在但工具不支持 MCP，使用普通执行模式
+                                            let output = tool.run(input.clone()).await;
+                                            match output {
+                                                Ok(out) => Ok((out, None)),
+                                                Err(e) => Err(e)
+                                            }
+                                        }
+                                    } else {
+                                        // 没有 MCP 上下文，使用普通执行模式
+                                        let output = tool.run(input.clone()).await;
+                                        match output {
+                                            Ok(out) => Ok((out, None)),
+                                            Err(e) => Err(e)
+                                        }
+                                    }
+                                } else {
+                                    Err(CoreError::ConfigError(format!("Tool not found: {}", node.tool_name)))
+                                }
                             }.await
                         },
                         Err(e) => Err(e),

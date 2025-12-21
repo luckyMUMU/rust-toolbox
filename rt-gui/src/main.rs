@@ -444,8 +444,8 @@ impl ToolkitApp {
     ) {
         // 工具名称和帮助按钮
         ui.horizontal(|ui| {
-            ui.heading(format!("{}", tab.title));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.heading(tab.title.to_string());
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let help_label = if tab.show_help { self.tr("Hide Help") } else { self.tr("Show Help") };
                 if ui.button(help_label).clicked() {
                     tab.show_help = !tab.show_help;
@@ -774,7 +774,7 @@ impl ToolkitApp {
         
         // 1. 渲染工具名称、帮助按钮和布局切换按钮
         ui.horizontal(|ui| {
-            ui.heading(format!("{}", tab.title));
+            ui.heading(tab.title.to_string());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // 布局切换按钮
                 let mut layout_manager = LayoutManager::new();

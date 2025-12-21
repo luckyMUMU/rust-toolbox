@@ -119,7 +119,6 @@ impl FileSink {
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .write(true)
             .open(&path)?;
         
         Ok(Self {

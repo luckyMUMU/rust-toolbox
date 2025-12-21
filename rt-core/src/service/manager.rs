@@ -23,8 +23,21 @@ pub struct PermissionPolicy {
 }
 
 impl PermissionPolicy {
+    /// 检查权限
+    pub fn check_permission(&self, context: &ServiceContext, service_name: &str, method: &str) -> bool {
+        // 获取该服务方法的最小权限要求
+        let min_permission = self.method_permissions.get(&(service_name.to_string(), method.to_string()))
+            .unwrap_or_else(|| self.default_permissions.get(&context.caller_type)
+                .unwrap_or(&PermissionLevel::ReadOnly));
+        
+        // 检查调用者权限是否满足要求
+        &context.permission_level >= min_permission
+    }
+}
+
+impl Default for PermissionPolicy {
     /// 创建默认权限策略
-    pub fn default() -> Self {
+    fn default() -> Self {
         let mut default_permissions = HashMap::new();
         default_permissions.insert(CallerType::System, PermissionLevel::Admin);
         default_permissions.insert(CallerType::CoreTool, PermissionLevel::Standard);
@@ -41,26 +54,12 @@ impl PermissionPolicy {
             method_permissions,
         }
     }
-    
-    /// 检查权限
-    pub fn check_permission(&self, context: &ServiceContext, service_name: &str, method: &str) -> bool {
-        // 获取该服务方法的最小权限要求
-        let min_permission = self.method_permissions.get(&(service_name.to_string(), method.to_string()))
-            .unwrap_or_else(|| self.default_permissions.get(&context.caller_type)
-                .unwrap_or(&PermissionLevel::ReadOnly));
-        
-        // 检查调用者权限是否满足要求
-        &context.permission_level >= min_permission
-    }
 }
 
 impl ServiceManager {
     /// 创建新的服务管理器实例
     pub fn new() -> Self {
-        Self {
-            services: RwLock::new(HashMap::new()),
-            default_permission_policy: PermissionPolicy::default(),
-        }
+        Self::default()
     }
     
     /// 注册服务实例
@@ -136,6 +135,16 @@ impl ServiceManager {
     }
 }
 
+impl Default for ServiceManager {
+    /// 创建默认服务管理器实例
+    fn default() -> Self {
+        Self {
+            services: RwLock::new(HashMap::new()),
+            default_permission_policy: PermissionPolicy::default(),
+        }
+    }
+}
+
 /// 服务工厂，用于创建各种服务实例
 pub struct ServiceFactory {
     /// 配置服务实例
@@ -151,11 +160,7 @@ pub struct ServiceFactory {
 impl ServiceFactory {
     /// 创建新的服务工厂实例
     pub fn new() -> Self {
-        Self {
-            config_service: None,
-            log_service: None,
-            tool_service: None,
-        }
+        Self::default()
     }
     
     /// 注册配置服务
@@ -191,5 +196,16 @@ impl ServiceFactory {
         }
         
         Ok(manager)
+    }
+}
+
+impl Default for ServiceFactory {
+    /// 创建默认服务工厂实例
+    fn default() -> Self {
+        Self {
+            config_service: None,
+            log_service: None,
+            tool_service: None,
+        }
     }
 }

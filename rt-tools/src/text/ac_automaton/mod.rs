@@ -199,6 +199,13 @@ mod tests;
 impl AcAutomatonTool {
     /// 创建新的AC自动机工具实例
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for AcAutomatonTool {
+    /// 创建默认的AC自动机工具实例
+    fn default() -> Self {
         Self {
             i18n: ToolI18n::new(
                 include_str!("locales/tool.en.json"),
