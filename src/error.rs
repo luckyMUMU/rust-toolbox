@@ -26,6 +26,33 @@ pub enum WorkflowError {
     #[error("Workflow execution error: {message}")]
     WorkflowExecution { message: String },
     
+    #[error("Duplicate node ID: {0}")]
+    DuplicateNodeId(String),
+    
+    #[error("Node not found: {0}")]
+    NodeNotFound(String),
+    
+    #[error("Invalid workflow name: {0}")]
+    InvalidWorkflowName(String),
+    
+    #[error("Invalid workflow version: {0}")]
+    InvalidWorkflowVersion(String),
+    
+    #[error("Empty workflow: workflow must contain at least one node")]
+    EmptyWorkflow,
+    
+    #[error("Invalid node ID: {0}")]
+    InvalidNodeId(String),
+    
+    #[error("Missing tool name for node: {0}")]
+    MissingToolName(String),
+    
+    #[error("Circular dependency detected in workflow")]
+    CircularDependency,
+    
+    #[error("Invalid edge: {0}")]
+    InvalidEdge(String),
+    
     #[error("Tool error: {message}")]
     Tool { message: String },
     
