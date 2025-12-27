@@ -1,0 +1,89 @@
+[package]
+name = "workflow-toolkit"
+version = "0.1.0"
+edition = "2021"
+authors = ["Workflow Toolkit Team"]
+description = "A multi-interface workflow execution system built with Rust"
+license = "MIT"
+repository = "https://github.com/workflow-toolkit/workflow-toolkit"
+
+[features]
+default = []
+lancedb = ["dep:lancedb", "dep:arrow", "dep:parquet"]
+
+[dependencies]
+# 异步运行时
+tokio = { version = "1.42", features = ["full"] }
+tokio-util = "0.7"
+
+# 序列化和配置
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+config = "0.14"
+
+# CLI框架
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# TUI框架
+ratatui = "0.29"
+crossterm = "0.28"
+
+# MCP协议 (暂时注释掉，避免构建依赖问题)
+# mcp-protocol-server = "0.2"
+# jsonrpc-core = "18.0"
+# jsonrpc-http-server = "18.0"
+# jsonrpc-ws-server = "18.0"
+
+# 数据库和存储 (可选功能)
+lancedb = { version = "0.20", optional = true }
+arrow = { version = "54.0", optional = true }
+parquet = { version = "54.0", optional = true }
+
+# 缓存
+moka = { version = "0.12", features = ["future"] }
+
+# 日志和监控
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# metrics = "0.24"
+# metrics-exporter-prometheus = "0.16"
+
+# 插件系统 (暂时简化)
+libloading = "0.8"
+# wasmtime = "27.0"
+# extism = "1.8"
+
+# 工作流调度
+petgraph = "0.6"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# 错误处理
+anyhow = "1.0"
+thiserror = "2.0"
+
+# 并发和同步
+dashmap = "6.1"
+parking_lot = "0.12"
+
+# 异步trait支持
+async-trait = "0.1"
+
+# TOML支持
+toml = "0.8"
+
+[dev-dependencies]
+proptest = "1.6"
+tokio-test = "0.4"
+tempfile = "3.14"
+# mockall = "0.13"
+# testcontainers = "0.23"
+
+[[bin]]
+name = "workflow-toolkit"
+path = "src/main.rs"
+
+[lib]
+name = "workflow_toolkit"
+path = "src/lib.rs"

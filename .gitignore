@@ -1,0 +1,63 @@
+# Rust 编译输出
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo 锁文件 (对于库项目可以忽略，但对于二进制项目应该保留)
+# Cargo.lock
+
+# IDE 和编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统生成的文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+*.log
+*.bak
+*.backup
+
+# 测试覆盖率报告
+tarpaulin-report.html
+cobertura.xml
+lcov.info
+
+# 基准测试结果
+criterion/
+
+# 文档生成
+/doc/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 运行时生成的配置
+config/local.toml
+config/production.toml
+config/development.toml
+
+# 插件开发临时文件
+plugins/temp/
+plugins/build/
+
+# 工作流执行日志
+workflow_logs/
+execution_logs/
+
+# 缓存目录
+.cache/
+cache/

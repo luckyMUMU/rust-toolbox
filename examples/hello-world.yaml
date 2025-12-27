@@ -1,0 +1,32 @@
+name: "hello-world"
+version: "1.0.0"
+description: "A simple hello world workflow"
+
+metadata:
+  author: "Workflow Toolkit Team"
+  created: "2024-01-01"
+
+nodes:
+  - id: "start"
+    node_type: "Tool"
+    tool_name: "echo"
+    parameters:
+      message: "Hello, World!"
+    timeout: "30s"
+  
+  - id: "end"
+    node_type: "Tool"
+    tool_name: "echo"
+    parameters:
+      message: "Workflow completed successfully!"
+    timeout: "30s"
+
+edges:
+  - from: "start"
+    to: "end"
+
+global_config:
+  timeout: "5m"
+  parallel_limit: 1
+  enable_caching: true
+  checkpoint_interval: "1m"
