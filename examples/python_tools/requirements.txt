@@ -1,0 +1,9 @@
+# Basic requirements for Python tools
+# No external dependencies needed for the basic examples
+# but this file demonstrates how requirements would be specified
+
+# For more advanced tools, you might include:
+# requests>=2.28.0
+# pandas>=1.5.0
+# numpy>=1.21.0
+# pydantic>=1.10.0

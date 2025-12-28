@@ -1,0 +1,15 @@
+{
+  "name": "nodejs-tools-example",
+  "version": "1.0.0",
+  "description": "Example Node.js tools for workflow-toolkit",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "keywords": ["workflow", "tools", "nodejs"],
+  "author": "Workflow Toolkit Team",
+  "license": "MIT"
+}

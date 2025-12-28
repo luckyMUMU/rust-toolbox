@@ -189,14 +189,14 @@
 - [x] 12. 检查点 - 确保基础接口功能正常
   - 确保所有测试通过，如有问题请询问用户
 
-- [ ] 13. 实现插件系统架构
-  - [ ] 13.1 实现Plugin trait和PluginManager
+- [x] 13. 实现插件系统架构
+  - [x] 13.1 实现Plugin trait和PluginManager
     - 插件生命周期管理
     - 插件配置和元数据
     - 创建plugins模块的DESIGN.md文档
     - _需求: 6.1, 6.6, 9.2_
 
-  - [ ] 13.2 实现Native插件支持
+  - [x] 13.2 实现Native插件支持
     - 动态库加载和符号解析
     - 安全沙箱机制
     - _需求: 6.1, 8.5_
@@ -205,13 +205,13 @@
     - **属性 24: 插件加载和卸载一致性**
     - **验证需求: 需求 6.1, 6.6**
 
-- [ ] 14. 实现Python插件封装
-  - [ ] 14.1 实现PythonPlugin和PythonToolNode
+- [x] 14. 实现Python插件封装
+  - [x] 14.1 实现PythonPlugin和PythonToolNode
     - Python虚拟环境管理
     - requirements.txt依赖安装
     - _需求: 6.2, 6.4_
 
-  - [ ] 14.2 实现Python工具执行
+  - [x] 14.2 实现Python工具执行
     - 进程间通信和数据序列化
     - 错误处理和超时控制
     - _需求: 6.3, 8.1_
@@ -220,18 +220,18 @@
     - **属性 25: 第三方包依赖解析正确性**
     - **验证需求: 需求 6.4**
 
-- [ ] 15. 实现Node.js插件封装
-  - [ ] 15.1 实现NodeJsPlugin和NodeJsToolNode
+- [x] 15. 实现Node.js插件封装
+  - [x] 15.1 实现NodeJsPlugin和NodeJsToolNode
     - npm依赖管理
     - package.json解析和模块加载
     - _需求: 6.2, 6.4_
 
-  - [ ] 15.2 实现Node.js工具执行
+  - [x] 15.2 实现Node.js工具执行
     - 子进程管理和通信
     - 异步执行和结果处理
     - _需求: 6.3_
 
-- [ ] 16. 实现Docker插件封装
+- [-] 16. 实现Docker插件封装
   - [ ] 16.1 实现DockerPlugin和DockerToolNode
     - Docker镜像构建和管理
     - 容器生命周期控制

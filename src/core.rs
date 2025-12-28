@@ -187,7 +187,7 @@ pub struct PluginInfo {
 }
 
 /// Plugin type enumeration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PluginType {
     Native,
     Python,

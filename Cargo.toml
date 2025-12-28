@@ -93,6 +93,10 @@ path = "src/main.rs"
 name = "tools_example"
 path = "examples/tools_example.rs"
 
+[[example]]
+name = "python_plugin_example"
+path = "examples/python_plugin_example.rs"
+
 [lib]
 name = "workflow_toolkit"
 path = "src/lib.rs"
