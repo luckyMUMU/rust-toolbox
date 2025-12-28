@@ -1,9 +1,9 @@
 //! DAG-based workflow scheduler
 
 use crate::error::{Result, WorkflowError};
-use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType};
+use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge};
 use petgraph::{Graph, Directed, Direction};
-use petgraph::graph::{NodeIndex, EdgeIndex};
+use petgraph::graph::NodeIndex;
 use petgraph::algo::{toposort, is_cyclic_directed};
 use petgraph::visit::EdgeRef;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -445,7 +445,9 @@ pub struct ExecutionStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType};
+    use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge};
+    use proptest::prelude::*;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn test_simple_linear_workflow() {
@@ -534,5 +536,189 @@ mod tests {
         assert_eq!(stats.blocked_nodes, 2); // node2 and node3 should be blocked
         
         assert!(scheduler.is_execution_complete());
+    }
+
+    // Property-based test generators
+    fn valid_node_id() -> impl Strategy<Value = String> {
+        "[a-zA-Z][a-zA-Z0-9_-]{0,31}".prop_map(|s| s)
+    }
+
+    fn workflow_name() -> impl Strategy<Value = String> {
+        "[a-zA-Z][a-zA-Z0-9_-]{0,63}".prop_map(|s| s)
+    }
+
+    fn workflow_version() -> impl Strategy<Value = String> {
+        r"[0-9]+\.[0-9]+(\.[0-9]+)?".prop_map(|s| s)
+    }
+
+    // Property-based test for dependency execution order correctness
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn test_dependency_execution_order_correctness(
+            name in workflow_name(),
+            version in workflow_version(),
+            node_count in 2usize..15,
+            node_ids in prop::collection::vec(valid_node_id(), 2..15),
+            edge_probability in 0.1f64..0.7f64, // Probability of creating edges between nodes
+        ) {
+            // **Feature: workflow-toolkit, Property 3: Dependency execution order correctness**
+            // *For any* workflow containing dependencies, task execution order should follow topological sorting rules
+            // **Validates: Requirements 1.4**
+
+            prop_assume!(node_ids.len() >= node_count);
+            
+            // Create a workflow with unique node IDs
+            let mut workflow = WorkflowDefinition::new(&name, &version);
+            let mut unique_node_ids = Vec::new();
+            let mut seen_ids = HashSet::new();
+            
+            // Ensure we have unique node IDs
+            for node_id in node_ids.iter().take(node_count) {
+                if seen_ids.insert(node_id.clone()) {
+                    unique_node_ids.push(node_id.clone());
+                }
+                if unique_node_ids.len() >= node_count {
+                    break;
+                }
+            }
+            
+            prop_assume!(unique_node_ids.len() >= 2);
+            
+            // Add nodes to workflow
+            for node_id in &unique_node_ids {
+                workflow.add_node(WorkflowNode::tool(node_id.clone(), "test_tool".to_string())).unwrap();
+            }
+
+            // Create a DAG by adding edges that don't create cycles
+            // We'll create edges from earlier nodes to later nodes to ensure acyclicity
+            let mut dependency_map: HashMap<String, HashSet<String>> = HashMap::new();
+            
+            for i in 0..unique_node_ids.len() {
+                dependency_map.insert(unique_node_ids[i].clone(), HashSet::new());
+                
+                for j in 0..i {
+                    // Add edge from j to i with given probability
+                    if edge_probability > (j as f64 / unique_node_ids.len() as f64) {
+                        let from_node = &unique_node_ids[j];
+                        let to_node = &unique_node_ids[i];
+                        
+                        workflow.add_edge(WorkflowEdge::new(from_node, to_node)).unwrap();
+                        dependency_map.get_mut(to_node).unwrap().insert(from_node.clone());
+                    }
+                }
+            }
+
+            // Create scheduler and get topological order
+            let scheduler = DagScheduler::from_workflow(&workflow).unwrap();
+            let topo_order = scheduler.get_topological_order().unwrap();
+
+            // Property 1: All nodes should be in the topological order
+            prop_assert_eq!(topo_order.len(), unique_node_ids.len(), 
+                "Topological order should contain all nodes");
+            
+            for node_id in &unique_node_ids {
+                prop_assert!(topo_order.contains(node_id), 
+                    "Node {} should be in topological order", node_id);
+            }
+
+            // Property 2: Dependencies should be satisfied in the topological order
+            let node_positions: HashMap<String, usize> = topo_order.iter()
+                .enumerate()
+                .map(|(pos, node)| (node.clone(), pos))
+                .collect();
+
+            for (node, dependencies) in &dependency_map {
+                let node_pos = node_positions[node];
+                
+                for dependency in dependencies {
+                    let dep_pos = node_positions[dependency];
+                    prop_assert!(dep_pos < node_pos, 
+                        "Dependency {} (pos {}) should come before {} (pos {}) in topological order",
+                        dependency, dep_pos, node, node_pos);
+                }
+            }
+
+            // Property 3: Execution levels should respect dependencies
+            let schedule = scheduler.generate_schedule().unwrap();
+            let execution_levels = &schedule.execution_order;
+            
+            // Build position map for execution levels
+            let mut level_positions: HashMap<String, usize> = HashMap::new();
+            for (level, nodes) in execution_levels.iter().enumerate() {
+                for node in nodes {
+                    level_positions.insert(node.clone(), level);
+                }
+            }
+
+            // Check that dependencies are in earlier levels
+            for (node, dependencies) in &dependency_map {
+                let node_level = level_positions[node];
+                
+                for dependency in dependencies {
+                    let dep_level = level_positions[dependency];
+                    prop_assert!(dep_level < node_level, 
+                        "Dependency {} (level {}) should be in earlier level than {} (level {})",
+                        dependency, dep_level, node, node_level);
+                }
+            }
+
+            // Property 4: Ready nodes should have no unmet dependencies
+            let ready_nodes = scheduler.get_ready_nodes();
+            for ready_node in &ready_nodes {
+                let dependencies = dependency_map.get(ready_node).unwrap();
+                prop_assert!(dependencies.is_empty(), 
+                    "Ready node {} should have no dependencies, but has: {:?}", 
+                    ready_node, dependencies);
+            }
+
+            // Property 5: Simulate execution and verify order is maintained
+            let mut execution_scheduler = DagScheduler::from_workflow(&workflow).unwrap();
+            let mut executed_nodes = HashSet::new();
+            let mut execution_order = Vec::new();
+
+            while !execution_scheduler.is_execution_complete() && execution_scheduler.has_ready_nodes() {
+                let ready = execution_scheduler.get_ready_nodes();
+                
+                // Verify all ready nodes have their dependencies satisfied
+                for ready_node in &ready {
+                    let dependencies = dependency_map.get(ready_node).unwrap();
+                    for dep in dependencies {
+                        prop_assert!(executed_nodes.contains(dep), 
+                            "Ready node {} has unmet dependency {}", ready_node, dep);
+                    }
+                }
+
+                // Execute the first ready node
+                if let Some(node_to_execute) = ready.first() {
+                    execution_scheduler.mark_node_started(node_to_execute).unwrap();
+                    execution_scheduler.mark_node_completed(node_to_execute).unwrap();
+                    executed_nodes.insert(node_to_execute.clone());
+                    execution_order.push(node_to_execute.clone());
+                }
+            }
+
+            // Property 6: All nodes should be executed if no failures occur
+            prop_assert_eq!(executed_nodes.len(), unique_node_ids.len(), 
+                "All nodes should be executed");
+
+            // Property 7: Execution order should respect dependencies
+            let exec_positions: HashMap<String, usize> = execution_order.iter()
+                .enumerate()
+                .map(|(pos, node)| (node.clone(), pos))
+                .collect();
+
+            for (node, dependencies) in &dependency_map {
+                let node_pos = exec_positions[node];
+                
+                for dependency in dependencies {
+                    let dep_pos = exec_positions[dependency];
+                    prop_assert!(dep_pos < node_pos, 
+                        "In execution order, dependency {} (pos {}) should come before {} (pos {})",
+                        dependency, dep_pos, node, node_pos);
+                }
+            }
+        }
     }
 }

@@ -1,191 +1,81 @@
-use clap::{Parser, Subcommand};
-use workflow_toolkit::{init_logging, Result};
-
-#[derive(Parser)]
-#[command(name = "workflow-toolkit")]
-#[command(about = "A multi-interface workflow execution system")]
-#[command(version)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Workflow management commands
-    Workflow {
-        #[command(subcommand)]
-        action: WorkflowAction,
-    },
-    /// Tool management commands
-    Tool {
-        #[command(subcommand)]
-        action: ToolAction,
-    },
-    /// Plugin management commands
-    Plugin {
-        #[command(subcommand)]
-        action: PluginAction,
-    },
-    /// Start TUI interface
-    Tui,
-    /// Start MCP server
-    Server {
-        /// HTTP port for MCP server
-        #[arg(long, default_value = "8080")]
-        http_port: u16,
-        /// WebSocket port for MCP server
-        #[arg(long, default_value = "8081")]
-        ws_port: u16,
-    },
-}
-
-#[derive(Subcommand)]
-enum WorkflowAction {
-    /// Create a new workflow
-    Create {
-        /// Path to workflow definition file
-        definition_file: String,
-    },
-    /// Execute a workflow
-    Execute {
-        /// Workflow name
-        workflow_name: String,
-        /// Parameters file (optional)
-        #[arg(long)]
-        params: Option<String>,
-    },
-    /// Get workflow status
-    Status {
-        /// Workflow execution ID
-        workflow_id: String,
-    },
-    /// Pause a running workflow
-    Pause {
-        /// Workflow execution ID
-        workflow_id: String,
-    },
-    /// Resume a paused workflow
-    Resume {
-        /// Workflow execution ID
-        workflow_id: String,
-    },
-    /// Stop a workflow
-    Stop {
-        /// Workflow execution ID
-        workflow_id: String,
-    },
-    /// List all workflows
-    List,
-}
-
-#[derive(Subcommand)]
-enum ToolAction {
-    /// List available tools
-    List,
-    /// Execute a tool
-    Execute {
-        /// Tool name
-        tool_name: String,
-        /// Tool parameters (JSON format)
-        #[arg(long)]
-        params: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum PluginAction {
-    /// Install a plugin
-    Install {
-        /// Plugin path or URL
-        plugin_path: String,
-    },
-    /// List installed plugins
-    List,
-    /// Reload a plugin
-    Reload {
-        /// Plugin name
-        plugin_name: String,
-    },
-}
+use workflow_toolkit::{init_logging, Result, Config};
+use workflow_toolkit::interfaces::cli::{CliApp, Cli};
+use workflow_toolkit::storage::{StateManager, SimpleMemoryCache, FileStorage};
+use workflow_toolkit::tools::{BasicToolRegistry, ToolRegistry};
+use workflow_toolkit::workflow::engine::DefaultWorkflowEngine;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    init_logging()?;
+    // Parse command line arguments
+    let _cli = Cli::parse_args();
     
-    let cli = Cli::parse();
+    // Initialize logging early but don't fail if already initialized
+    let _ = init_logging();
     
-    match cli.command {
-        Commands::Workflow { action } => {
-            handle_workflow_command(action).await?;
-        }
-        Commands::Tool { action } => {
-            handle_tool_command(action).await?;
-        }
-        Commands::Plugin { action } => {
-            handle_plugin_command(action).await?;
-        }
-        Commands::Tui => {
-            println!("TUI interface not yet implemented");
-        }
-        Commands::Server { http_port, ws_port } => {
-            println!("MCP server not yet implemented (HTTP: {}, WS: {})", http_port, ws_port);
-        }
-    }
+    // Load configuration
+    let config = Config::default(); // TODO: Load from file or environment
     
-    Ok(())
-}
-
-async fn handle_workflow_command(action: WorkflowAction) -> Result<()> {
-    match action {
-        WorkflowAction::Create { definition_file } => {
-            println!("Creating workflow from: {}", definition_file);
+    // Initialize components
+    let temp_dir = std::env::temp_dir().join("workflow-toolkit");
+    std::fs::create_dir_all(&temp_dir).map_err(|e| {
+        workflow_toolkit::WorkflowError::workflow_execution(&format!("Failed to create temp dir: {}", e))
+    })?;
+    
+    // Create storage components
+    let storage = Arc::new(FileStorage::new(&temp_dir.join("storage")).map_err(|e| {
+        workflow_toolkit::WorkflowError::workflow_execution(&format!("Failed to create storage: {}", e))
+    })?);
+    let cache = Arc::new(SimpleMemoryCache::new());
+    let state_manager = Arc::new(StateManager::new(storage, cache));
+    
+    // Create tool registry with some basic tools
+    let mut tool_registry = BasicToolRegistry::new();
+    
+    // Add a simple echo tool for testing
+    use workflow_toolkit::tools::{BasicTool, AsyncFunctionExecutor};
+    let echo_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| async move {
+        if let Some(message) = params.get("message") {
+            Ok(serde_json::json!({
+                "output": message,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }))
+        } else {
+            Ok(serde_json::json!({
+                "output": "Hello, World!",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }))
         }
-        WorkflowAction::Execute { workflow_name, params } => {
-            println!("Executing workflow: {} with params: {:?}", workflow_name, params);
-        }
-        WorkflowAction::Status { workflow_id } => {
-            println!("Getting status for workflow: {}", workflow_id);
-        }
-        WorkflowAction::Pause { workflow_id } => {
-            println!("Pausing workflow: {}", workflow_id);
-        }
-        WorkflowAction::Resume { workflow_id } => {
-            println!("Resuming workflow: {}", workflow_id);
-        }
-        WorkflowAction::Stop { workflow_id } => {
-            println!("Stopping workflow: {}", workflow_id);
-        }
-        WorkflowAction::List => {
-            println!("Listing all workflows");
-        }
-    }
-    Ok(())
-}
-
-async fn handle_tool_command(action: ToolAction) -> Result<()> {
-    match action {
-        ToolAction::List => {
-            println!("Listing available tools");
-        }
-        ToolAction::Execute { tool_name, params } => {
-            println!("Executing tool: {} with params: {:?}", tool_name, params);
-        }
-    }
-    Ok(())
-}
-
-async fn handle_plugin_command(action: PluginAction) -> Result<()> {
-    match action {
-        PluginAction::Install { plugin_path } => {
-            println!("Installing plugin from: {}", plugin_path);
-        }
-        PluginAction::List => {
-            println!("Listing installed plugins");
-        }
-        PluginAction::Reload { plugin_name } => {
-            println!("Reloading plugin: {}", plugin_name);
-        }
-    }
-    Ok(())
+    }));
+    
+    let echo_tool = BasicTool::builder()
+        .name("echo")
+        .version("1.0.0")
+        .description("A simple echo tool for testing")
+        .executor(echo_executor)
+        .build()
+        .map_err(|e| workflow_toolkit::WorkflowError::workflow_execution(&format!("Failed to create echo tool: {}", e)))?;
+    
+    tool_registry.register_tool(Arc::new(echo_tool))
+        .map_err(|e| workflow_toolkit::WorkflowError::workflow_execution(&format!("Failed to register echo tool: {}", e)))?;
+    
+    let tool_registry = Arc::new(tool_registry);
+    
+    // Create workflow engine
+    let workflow_engine = Arc::new(DefaultWorkflowEngine::new(
+        state_manager.clone(),
+        tool_registry.clone(),
+        4, // max parallel workflows
+    ));
+    
+    // Create and run CLI application with all components
+    let app = CliApp::with_components(
+        config,
+        workflow_engine,
+        tool_registry,
+        state_manager,
+    );
+    
+    let args: Vec<String> = std::env::args().collect();
+    app.run(args).await
 }

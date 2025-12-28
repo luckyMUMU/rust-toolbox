@@ -3,5 +3,7 @@
 pub mod node;
 pub mod registry;
 
-pub use node::ToolNode;
-pub use registry::ToolRegistry;
+pub use node::{
+    AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor, ToolExecutor, ToolNode,
+};
+pub use registry::{BasicToolRegistry, ToolRegistry, ToolRegistryBuilder};

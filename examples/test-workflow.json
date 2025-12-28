@@ -1,0 +1,38 @@
+{
+  "name": "test-workflow",
+  "version": "1.0.0",
+  "description": "A test workflow",
+  "metadata": {},
+  "global_config": {
+    "timeout": null,
+    "retry_policy": {
+      "strategy": "None",
+      "max_attempts": 1,
+      "base_delay": {
+        "secs": 1,
+        "nanos": 0
+      },
+      "max_delay": null,
+      "backoff_multiplier": 2.0
+    },
+    "parallel_limit": null,
+    "checkpoint_interval": null,
+    "enable_caching": true,
+    "metadata": {}
+  },
+  "nodes": [
+    {
+      "id": "step1",
+      "node_type": "Tool",
+      "tool_name": "echo",
+      "parameters": {
+        "message": "Hello"
+      },
+      "retry_policy": null,
+      "timeout": null,
+      "metadata": {},
+      "depends_on": []
+    }
+  ],
+  "edges": []
+}

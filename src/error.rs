@@ -23,6 +23,9 @@ pub enum WorkflowError {
     #[error("Workflow validation error: {message}")]
     WorkflowValidation { message: String },
     
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+    
     #[error("Workflow execution error: {message}")]
     WorkflowExecution { message: String },
     
@@ -79,6 +82,21 @@ pub enum WorkflowError {
     
     #[error("Generic error: {0}")]
     Generic(#[from] anyhow::Error),
+    
+    #[error("Workflow not found: {0}")]
+    WorkflowNotFound(crate::core::WorkflowId),
+    
+    #[error("Execution cancelled")]
+    ExecutionCancelled,
+    
+    #[error("Resource exhausted")]
+    ResourceExhausted,
+    
+    #[error("Invalid state transition from {from:?} to {to:?}")]
+    InvalidStateTransition {
+        from: crate::core::ExecutionStatus,
+        to: crate::core::ExecutionStatus,
+    },
 }
 
 impl WorkflowError {

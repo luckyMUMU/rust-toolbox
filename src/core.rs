@@ -1,6 +1,7 @@
 //! Core types and traits for the workflow toolkit
 
 use chrono::{DateTime, Utc};
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -97,7 +98,7 @@ pub enum RetryStrategy {
 }
 
 /// Execution status for workflows and tasks
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 pub enum ExecutionStatus {
     Pending,
     Running,

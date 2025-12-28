@@ -1,0 +1,8 @@
+workflows:
+  - name: "test-workflow-1"
+    file: "examples/test-workflow.json"
+    parameters: {}
+  - name: "test-workflow-2"
+    file: "examples/test-workflow.json"
+    parameters:
+      custom_param: "value2"

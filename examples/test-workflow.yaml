@@ -1,0 +1,18 @@
+name: test-workflow
+version: "1.0.0"
+description: A test workflow
+metadata: {}
+global_config:
+  timeout: 300
+  checkpoint_interval: 60
+nodes:
+  - id: "step1"
+    node_type: "Tool"
+    tool_name: "echo"
+    parameters:
+      message: "Hello"
+    retry_policy: null
+    timeout: null
+    metadata: {}
+    depends_on: []
+edges: []

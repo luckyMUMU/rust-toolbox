@@ -6,6 +6,9 @@ pub mod scheduler;
 pub mod engine;
 pub mod execution;
 
+#[cfg(test)]
+pub mod retry_tests;
+
 pub use definition::{
     WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType,
     WorkflowTemplate, TemplateParameter, ParameterType
