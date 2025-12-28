@@ -144,11 +144,22 @@ impl DefaultWorkflowEngine {
             }
             if control.should_pause() {
                 // Wait until resumed or stopped
-                while control.should_pause() && !control.should_stop() {
+                loop {
+                    if let Some(updated_control) = self.control_signals.get(&workflow_id) {
+                        if !updated_control.should_pause() || updated_control.should_stop() {
+                            break;
+                        }
+                    } else {
+                        break; // Control signal removed, exit loop
+                    }
                     sleep(Duration::from_millis(100)).await;
                 }
-                if control.should_stop() {
-                    return Err(WorkflowError::ExecutionCancelled.into());
+                
+                // Check again if we should stop after the pause loop
+                if let Some(control) = self.control_signals.get(&workflow_id) {
+                    if control.should_stop() {
+                        return Err(WorkflowError::ExecutionCancelled.into());
+                    }
                 }
             }
         }
