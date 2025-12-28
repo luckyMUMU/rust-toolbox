@@ -13,7 +13,7 @@ pub mod plugins;
 pub mod interfaces;
 
 // Re-export commonly used types
-pub use crate::config::Config;
+pub use crate::config::{Config, ConfigManager, CliConfigOverrides};
 pub use crate::core::*;
 pub use crate::error::{Result, WorkflowError};
 pub use crate::workflow::{WorkflowDefinition, WorkflowEngine, WorkflowExecution};

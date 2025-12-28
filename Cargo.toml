@@ -113,6 +113,10 @@ path = "examples/docker_dockerfile_example.rs"
 name = "wasm_plugin_example"
 path = "examples/wasm_plugin_example.rs"
 
+[[example]]
+name = "config_priority_example"
+path = "examples/config_priority_example.rs"
+
 [lib]
 name = "workflow_toolkit"
 path = "src/lib.rs"

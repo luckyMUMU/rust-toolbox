@@ -1,4 +1,5 @@
-use workflow_toolkit::{init_logging, Result, Config};
+use workflow_toolkit::{init_logging, Result};
+use workflow_toolkit::config::{Config, ConfigManager};
 use workflow_toolkit::interfaces::cli::{CliApp, Cli};
 use workflow_toolkit::storage::{StateManager, SimpleMemoryCache, FileStorage};
 use workflow_toolkit::tools::{BasicToolRegistry, ToolRegistry};
@@ -13,8 +14,20 @@ async fn main() -> Result<()> {
     // Initialize logging early but don't fail if already initialized
     let _ = init_logging();
     
-    // Load configuration
-    let config = Config::default(); // TODO: Load from file or environment
+    // Load configuration with priority handling
+    let config_manager = if let Some(config_path) = &_cli.config {
+        Arc::new(Config::load_from_path_with_priority(config_path)?)
+    } else {
+        Arc::new(Config::load_with_priority()?)
+    };
+    
+    // Start configuration hot reload monitoring
+    let config_manager_clone = config_manager.clone();
+    tokio::spawn(async move {
+        if let Err(e) = config_manager_clone.start_hot_reload().await {
+            eprintln!("Failed to start configuration hot reload: {}", e);
+        }
+    });
     
     // Initialize components
     let temp_dir = std::env::temp_dir().join("workflow-toolkit");
@@ -70,11 +83,14 @@ async fn main() -> Result<()> {
     
     // Create and run CLI application with all components
     let app = CliApp::with_components(
-        config,
+        config_manager,
         workflow_engine,
         tool_registry,
         state_manager,
     );
+    
+    // Start configuration hot reload monitoring for the app
+    app.start_config_hot_reload().await?;
     
     let args: Vec<String> = std::env::args().collect();
     app.run(args).await
