@@ -389,8 +389,11 @@ mod tests {
             description: "A test tool".to_string(),
             category: Some("testing".to_string()),
             tags: vec!["test".to_string(), "example".to_string()],
-            dependencies: vec![],
-            metadata: HashMap::new(),
+            parameters_schema: serde_json::json!({}),
+            return_schema: serde_json::json!({}),
+            plugin_name: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
         }
     }
 

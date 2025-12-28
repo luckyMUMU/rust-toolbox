@@ -7,6 +7,7 @@ use crate::interfaces::cli::{
 };
 use crate::interfaces::cli::output::{create_formatter, OutputFormatter};
 use crate::interfaces::tui::TuiInterface;
+use crate::interfaces::mcp::{McpServer, McpServerInterface, McpServerConfig};
 use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
 use crate::workflow::WorkflowEngine;
@@ -82,6 +83,7 @@ pub struct CliApp {
     workflow_engine: Option<Arc<dyn WorkflowEngine>>,
     tool_registry: Option<Arc<dyn ToolRegistry>>,
     state_manager: Option<Arc<StateManager>>,
+    mcp_server: Option<Arc<dyn McpServerInterface>>,
 }
 
 impl CliApp {
@@ -92,6 +94,7 @@ impl CliApp {
             workflow_engine: None,
             tool_registry: None,
             state_manager: None,
+            mcp_server: None,
         }
     }
     
@@ -102,11 +105,20 @@ impl CliApp {
         tool_registry: Arc<dyn ToolRegistry>,
         state_manager: Arc<StateManager>,
     ) -> Self {
+        // Create MCP server and register tools
+        let mut mcp_server = McpServer::new();
+        if let Err(e) = tokio::runtime::Handle::current().block_on(
+            mcp_server.register_tools(tool_registry.clone())
+        ) {
+            warn!("Failed to register tools with MCP server: {}", e);
+        }
+        
         Self {
             config,
             workflow_engine: Some(workflow_engine),
             tool_registry: Some(tool_registry),
             state_manager: Some(state_manager),
+            mcp_server: Some(Arc::new(mcp_server)),
         }
     }
     
@@ -591,8 +603,47 @@ impl CliApp {
     ) -> Result<()> {
         info!("Starting MCP server (HTTP: {}, WS: {}, auth: {})", http_port, ws_port, auth);
         
-        // TODO: Implement MCP server
-        println!("MCP server not yet implemented (HTTP: {}, WS: {}, auth: {})", http_port, ws_port, auth);
+        if let Some(mcp_server) = &self.mcp_server {
+            let config = McpServerConfig {
+                http_port,
+                ws_port,
+                auth: crate::core::AuthConfig {
+                    enabled: auth,
+                    jwt_secret: if auth { Some("default_secret_key".to_string()) } else { None },
+                    token_expiry: std::time::Duration::from_secs(3600),
+                    allowed_origins: vec!["*".to_string()],
+                },
+                rate_limit: crate::core::RateLimitConfig {
+                    requests_per_minute: 60,
+                    burst_size: 10,
+                    enabled: true,
+                },
+                cors_origins: vec!["*".to_string()], // TODO: Configure properly
+            };
+            
+            // List available tools
+            if let Ok(tools) = mcp_server.list_tools().await {
+                info!("MCP server registered {} tools:", tools.len());
+                for tool in &tools {
+                    info!("  - {}: {}", tool.name, tool.description);
+                }
+            }
+            
+            mcp_server.start(config).await?;
+            
+            // Keep the server running
+            info!("MCP server started successfully. Press Ctrl+C to stop.");
+            tokio::signal::ctrl_c().await.map_err(|e| {
+                crate::WorkflowError::workflow_execution(&format!("Failed to wait for Ctrl+C: {}", e))
+            })?;
+            
+            info!("Shutting down MCP server...");
+            mcp_server.stop().await?;
+            info!("MCP server stopped.");
+        } else {
+            return Err(crate::WorkflowError::workflow_execution("MCP server not initialized"));
+        }
+        
         Ok(())
     }
     
