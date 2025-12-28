@@ -175,15 +175,10 @@ pub struct ToolInfo {
 pub struct PluginInfo {
     pub name: String,
     pub version: String,
-    pub description: String,
     pub plugin_type: PluginType,
+    pub description: Option<String>,
     pub author: Option<String>,
-    pub license: Option<String>,
-    pub repository: Option<String>,
-    pub dependencies: Vec<String>,
-    pub tools: Vec<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub metadata: HashMap<String, Value>,
 }
 
 /// Plugin type enumeration

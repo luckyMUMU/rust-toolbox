@@ -52,8 +52,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # 插件系统 (暂时简化)
 libloading = "0.8"
-# wasmtime = "27.0"
-# extism = "1.8"
+wasmtime = "27.0"
+extism = "1.13"
 
 # 工作流调度
 petgraph = "0.6"
@@ -108,6 +108,10 @@ path = "examples/docker_plugin_example.rs"
 [[example]]
 name = "docker_dockerfile_example"
 path = "examples/docker_dockerfile_example.rs"
+
+[[example]]
+name = "wasm_plugin_example"
+path = "examples/wasm_plugin_example.rs"
 
 [lib]
 name = "workflow_toolkit"

@@ -868,15 +868,10 @@ impl PythonPluginBuilder {
         let plugin_info = PluginInfo {
             name: name.clone(),
             version,
-            description,
             plugin_type: PluginType::Python,
+            description: Some(description),
             author: None,
-            license: None,
-            repository: None,
-            dependencies: Vec::new(),
-            tools: self.tools.iter().map(|(info, _, _)| info.name.clone()).collect(),
-            created_at: now,
-            updated_at: now,
+            metadata: HashMap::new(),
         };
 
         let mut plugin = PythonPlugin::new(plugin_info, self.runtime_config);

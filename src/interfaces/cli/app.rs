@@ -8,6 +8,8 @@ use crate::interfaces::cli::{
 use crate::interfaces::cli::output::{create_formatter, OutputFormatter};
 use crate::interfaces::tui::TuiInterface;
 use crate::interfaces::mcp::{McpServer, McpServerInterface, McpServerConfig};
+use crate::plugins::manager::PluginManager;
+use crate::plugins::types::PluginConfig;
 use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
 use crate::workflow::WorkflowEngine;
@@ -84,6 +86,7 @@ pub struct CliApp {
     tool_registry: Option<Arc<dyn ToolRegistry>>,
     state_manager: Option<Arc<StateManager>>,
     mcp_server: Option<Arc<dyn McpServerInterface>>,
+    plugin_manager: Option<Arc<PluginManager>>,
 }
 
 impl CliApp {
@@ -95,6 +98,7 @@ impl CliApp {
             tool_registry: None,
             state_manager: None,
             mcp_server: None,
+            plugin_manager: None,
         }
     }
     
@@ -105,6 +109,9 @@ impl CliApp {
         tool_registry: Arc<dyn ToolRegistry>,
         state_manager: Arc<StateManager>,
     ) -> Self {
+        // Create plugin manager
+        let plugin_manager = Arc::new(PluginManager::new());
+        
         // Create MCP server and register tools
         let mut mcp_server = McpServer::new();
         if let Err(e) = tokio::runtime::Handle::current().block_on(
@@ -119,6 +126,7 @@ impl CliApp {
             tool_registry: Some(tool_registry),
             state_manager: Some(state_manager),
             mcp_server: Some(Arc::new(mcp_server)),
+            plugin_manager: Some(plugin_manager),
         }
     }
     
@@ -380,6 +388,17 @@ impl CliApp {
                 
                 let mut tools = registry.list_tools();
                 
+                // Also include tools from plugins
+                if let Some(plugin_manager) = &self.plugin_manager {
+                    if let Ok(plugin_tools) = plugin_manager.get_all_tools() {
+                        for tool in plugin_tools {
+                            // Convert plugin tool to ToolInfo
+                            let tool_info = tool.get_info();
+                            tools.push(tool_info);
+                        }
+                    }
+                }
+                
                 // Apply filters
                 if let Some(cat) = category {
                     tools.retain(|tool| tool.category.as_ref().map_or(false, |c| c == cat));
@@ -423,13 +442,33 @@ impl CliApp {
                 // Create execution context
                 let context = ExecutionContext::new();
                 
-                // Execute tool with timeout if specified
-                let result = if let Some(timeout_secs) = timeout {
-                    debug!("Tool execution timeout set to {} seconds", timeout_secs);
-                    // TODO: Implement timeout wrapper
-                    registry.execute_tool(tool_name, tool_params, context).await?
-                } else {
-                    registry.execute_tool(tool_name, tool_params, context).await?
+                // Try to execute from registry first, then from plugins
+                let result = match registry.execute_tool(tool_name, tool_params.clone(), context.clone()).await {
+                    Ok(result) => result,
+                    Err(_) => {
+                        // Try to find and execute from plugins
+                        if let Some(plugin_manager) = &self.plugin_manager {
+                            let plugin_tools = plugin_manager.get_all_tools()?;
+                            let tool = plugin_tools.iter()
+                                .find(|t| t.name() == tool_name)
+                                .ok_or_else(|| crate::WorkflowError::NotFound {
+                                    resource: format!("tool '{}'", tool_name),
+                                })?;
+                            
+                            // Execute tool with timeout if specified
+                            if let Some(timeout_secs) = timeout {
+                                debug!("Tool execution timeout set to {} seconds", timeout_secs);
+                                // TODO: Implement timeout wrapper
+                                tool.execute(tool_params, context).await?
+                            } else {
+                                tool.execute(tool_params, context).await?
+                            }
+                        } else {
+                            return Err(crate::WorkflowError::NotFound {
+                                resource: format!("tool '{}'", tool_name),
+                            }.into());
+                        }
+                    }
                 };
                 
                 // Format and display result
@@ -440,7 +479,21 @@ impl CliApp {
             ToolAction::Info { tool_name } => {
                 info!("Getting info for tool: {}", tool_name);
                 
-                let tools = registry.list_tools();
+                let mut tools = registry.list_tools();
+                
+                // Also check plugin tools
+                if let Some(plugin_manager) = &self.plugin_manager {
+                    if let Ok(plugin_tools) = plugin_manager.get_all_tools() {
+                        for tool in plugin_tools {
+                            if tool.name() == *tool_name {
+                                let tool_info = tool.get_info();
+                                tools.push(tool_info);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
                 let tool = tools.iter()
                     .find(|t| t.name == *tool_name)
                     .ok_or_else(|| CliError::ToolNotFound(tool_name.clone()))?;
@@ -459,15 +512,183 @@ impl CliApp {
         formatter: &Box<dyn OutputFormatter>,
         _cli: &Cli,
     ) -> Result<()> {
+        let plugin_manager = self.plugin_manager.as_ref()
+            .ok_or_else(|| crate::WorkflowError::workflow_execution("Plugin manager not initialized"))?;
+        
         match action {
             PluginAction::Install { plugin_path, plugin_type, force } => {
                 info!("Installing plugin from: {} (type: {:?}, force: {})", plugin_path, plugin_type, force);
                 
-                // TODO: Implement plugin installation
+                // Determine plugin type if not specified
+                let detected_type = if let Some(ptype) = plugin_type {
+                    self.parse_plugin_type(ptype)?
+                } else {
+                    self.detect_plugin_type(plugin_path)?
+                };
+                
+                // Create plugin configuration
+                let plugin_name = self.extract_plugin_name(plugin_path);
+                let config = PluginConfig::new(plugin_name.clone(), detected_type.clone());
+                
+                // Check if plugin already exists
+                if !force {
+                    if let Ok(plugins) = plugin_manager.list_plugins() {
+                        if plugins.iter().any(|p| p.name == plugin_name) {
+                            return Err(crate::WorkflowError::ValidationError(
+                                format!("Plugin '{}' already exists. Use --force to reinstall.", plugin_name)
+                            ).into());
+                        }
+                    }
+                }
+                
+                // Create and load the plugin based on type
+                match detected_type {
+                    crate::core::PluginType::Native => {
+                        let plugin_info = crate::core::PluginInfo {
+                            name: plugin_name.clone(),
+                            version: "1.0.0".to_string(),
+                            plugin_type: crate::core::PluginType::Native,
+                            description: Some(format!("Native plugin from {}", plugin_path)),
+                            author: None,
+                            metadata: std::collections::HashMap::new(),
+                        };
+                        
+                        let native_plugin = crate::plugins::types::NativePlugin::new(
+                            plugin_info,
+                            PathBuf::from(plugin_path)
+                        );
+                        
+                        plugin_manager.load_plugin(Box::new(native_plugin), config)?;
+                    }
+                    crate::core::PluginType::Python => {
+                        let plugin_info = crate::core::PluginInfo {
+                            name: plugin_name.clone(),
+                            version: "1.0.0".to_string(),
+                            plugin_type: crate::core::PluginType::Python,
+                            description: Some(format!("Python plugin from {}", plugin_path)),
+                            author: None,
+                            metadata: std::collections::HashMap::new(),
+                        };
+                        
+                        let runtime_config = crate::plugins::python::PythonRuntimeConfig {
+                            python_executable: "python3".to_string(),
+                            virtual_env_path: None,
+                            requirements_file: Some(PathBuf::from(plugin_path).join("requirements.txt")),
+                            python_paths: vec![],
+                            environment_variables: std::collections::HashMap::new(),
+                            working_directory: Some(PathBuf::from(plugin_path)),
+                        };
+                        
+                        let python_plugin = crate::plugins::types::PythonPlugin::new(
+                            plugin_info,
+                            runtime_config
+                        );
+                        
+                        plugin_manager.load_plugin(Box::new(python_plugin), config)?;
+                    }
+                    crate::core::PluginType::NodeJs => {
+                        let plugin_info = crate::core::PluginInfo {
+                            name: plugin_name.clone(),
+                            version: "1.0.0".to_string(),
+                            plugin_type: crate::core::PluginType::NodeJs,
+                            description: Some(format!("Node.js plugin from {}", plugin_path)),
+                            author: None,
+                            metadata: std::collections::HashMap::new(),
+                        };
+                        
+                        let runtime_config = crate::plugins::nodejs::NodeJsRuntimeConfig {
+                            node_executable: "node".to_string(),
+                            npm_executable: "npm".to_string(),
+                            project_directory: Some(PathBuf::from(plugin_path)),
+                            node_modules_path: None,
+                            module_paths: vec![],
+                            package_json: Some(PathBuf::from(plugin_path).join("package.json")),
+                            environment_variables: std::collections::HashMap::new(),
+                            working_directory: Some(PathBuf::from(plugin_path)),
+                            auto_install_dependencies: true,
+                        };
+                        
+                        let nodejs_plugin = crate::plugins::types::NodeJsPlugin::new(
+                            plugin_info,
+                            runtime_config
+                        );
+                        
+                        plugin_manager.load_plugin(Box::new(nodejs_plugin), config)?;
+                    }
+                    crate::core::PluginType::Docker => {
+                        let plugin_info = crate::core::PluginInfo {
+                            name: plugin_name.clone(),
+                            version: "1.0.0".to_string(),
+                            plugin_type: crate::core::PluginType::Docker,
+                            description: Some(format!("Docker plugin from {}", plugin_path)),
+                            author: None,
+                            metadata: std::collections::HashMap::new(),
+                        };
+                        
+                        let runtime_config = crate::plugins::docker::DockerRuntimeConfig::default();
+                        
+                        let docker_plugin = crate::plugins::types::DockerPlugin::new(
+                            plugin_info,
+                            runtime_config
+                        )?;
+                        
+                        plugin_manager.load_plugin(Box::new(docker_plugin), config)?;
+                    }
+                    crate::core::PluginType::Wasm => {
+                        let plugin_info = crate::core::PluginInfo {
+                            name: plugin_name.clone(),
+                            version: "1.0.0".to_string(),
+                            plugin_type: crate::core::PluginType::Wasm,
+                            description: Some(format!("WASM plugin from {}", plugin_path)),
+                            author: None,
+                            metadata: std::collections::HashMap::new(),
+                        };
+                        
+                        let runtime_config = crate::plugins::wasm::WasmRuntimeConfig {
+                            runtime_type: crate::plugins::wasm::WasmRuntimeType::Wasmtime,
+                            module_path: PathBuf::from(plugin_path),
+                            memory_limit: 64 * 1024 * 1024, // 64MB
+                            timeout: std::time::Duration::from_secs(30),
+                            fuel_limit: Some(1_000_000),
+                            allow_wasi: false,
+                            allowed_imports: vec![],
+                            entry_points: {
+                                let mut map = std::collections::HashMap::new();
+                                map.insert("main".to_string(), "main".to_string());
+                                map
+                            },
+                            extism_config: None,
+                        };
+                        
+                        let wasm_plugin = crate::plugins::types::WasmPlugin::new(
+                            plugin_info,
+                            runtime_config
+                        );
+                        
+                        plugin_manager.load_plugin(Box::new(wasm_plugin), config)?;
+                    }
+                    crate::core::PluginType::Go => {
+                        return Err(crate::WorkflowError::ValidationError(
+                            "Go plugin support is not yet implemented".to_string()
+                        ).into());
+                    }
+                }
+                
+                // Register plugin tools with tool registry
+                // Note: This requires mutable access to the tool registry, which is not
+                // available through Arc<dyn ToolRegistry>. This would need to be redesigned
+                // to use interior mutability or a different approach.
+                if let Some(_tool_registry) = &self.tool_registry {
+                    let plugin_tools = plugin_manager.get_plugin_tools(&plugin_name)?;
+                    debug!("Plugin '{}' provides {} tools", plugin_name, plugin_tools.len());
+                    // TODO: Implement tool registration with proper thread-safe design
+                }
+                
                 println!("{}", formatter.format_success(&format!(
-                    "Plugin installed from {} (type: {:?}){}",
+                    "Plugin '{}' installed successfully from {} (type: {:?}){}",
+                    plugin_name,
                     plugin_path,
-                    plugin_type,
+                    detected_type,
                     if *force { " (forced)" } else { "" }
                 )));
             }
@@ -475,23 +696,122 @@ impl CliApp {
             PluginAction::List { detailed, plugin_type } => {
                 info!("Listing plugins (detailed: {}, type: {:?})", detailed, plugin_type);
                 
-                // TODO: Implement plugin listing
-                println!("No plugins installed.");
+                let plugins = plugin_manager.list_plugins()?;
+                
+                // Filter by type if specified
+                let filtered_plugins: Vec<_> = if let Some(ptype) = plugin_type {
+                    let filter_type = self.parse_plugin_type(ptype)?;
+                    plugins.into_iter()
+                        .filter(|p| {
+                            // Filter by plugin type
+                            p.plugin_type == filter_type
+                        })
+                        .collect()
+                } else {
+                    plugins
+                };
+                
+                if filtered_plugins.is_empty() {
+                    println!("No plugins installed.");
+                } else if *detailed {
+                    for plugin in &filtered_plugins {
+                        println!("Plugin: {}", plugin.name);
+                        println!("  Version: {}", plugin.version);
+                        println!("  Type: {:?}", plugin.plugin_type);
+                        if let Some(description) = &plugin.description {
+                            println!("  Description: {}", description);
+                        }
+                        if let Some(author) = &plugin.author {
+                            println!("  Author: {}", author);
+                        }
+                        
+                        // Get plugin status
+                        if let Ok(Some(status)) = plugin_manager.get_plugin_status(&plugin.name) {
+                            println!("  Status: {:?}", status);
+                        }
+                        
+                        // List plugin tools
+                        if let Ok(tools) = plugin_manager.get_plugin_tools(&plugin.name) {
+                            if !tools.is_empty() {
+                                println!("  Tools:");
+                                for tool in tools {
+                                    println!("    - {}: {}", tool.name(), tool.get_info().description);
+                                }
+                            }
+                        }
+                        
+                        println!(); // Add spacing between plugins
+                    }
+                } else {
+                    println!("{:<20} {:<10} {:<15} {}", "Name", "Version", "Type", "Description");
+                    println!("{}", "-".repeat(80));
+                    for plugin in &filtered_plugins {
+                        println!("{:<20} {:<10} {:<15} {}", 
+                            plugin.name,
+                            plugin.version,
+                            format!("{:?}", plugin.plugin_type),
+                            plugin.description.as_deref().unwrap_or("No description")
+                        );
+                    }
+                }
             }
             
             PluginAction::Reload { plugin_name } => {
                 info!("Reloading plugin: {}", plugin_name);
                 
-                // TODO: Implement plugin reloading
-                println!("{}", formatter.format_success(&format!("Plugin {} reloaded", plugin_name)));
+                plugin_manager.reload_plugin(plugin_name)?;
+                
+                // Re-register plugin tools with tool registry
+                // Note: This requires mutable access to the tool registry, which is not
+                // available through Arc<dyn ToolRegistry>. This would need to be redesigned
+                // to use interior mutability or a different approach.
+                if let Some(_tool_registry) = &self.tool_registry {
+                    let plugin_tools = plugin_manager.get_plugin_tools(plugin_name)?;
+                    debug!("Plugin '{}' provides {} tools after reload", plugin_name, plugin_tools.len());
+                    // TODO: Implement tool registration with proper thread-safe design
+                }
+                
+                println!("{}", formatter.format_success(&format!("Plugin '{}' reloaded successfully", plugin_name)));
             }
             
             PluginAction::Uninstall { plugin_name, force } => {
                 info!("Uninstalling plugin: {} (force: {})", plugin_name, force);
                 
-                // TODO: Implement plugin uninstallation
+                // Check if plugin exists
+                let plugins = plugin_manager.list_plugins()?;
+                if !plugins.iter().any(|p| p.name == *plugin_name) {
+                    return Err(crate::WorkflowError::NotFound {
+                        resource: format!("plugin '{}'", plugin_name),
+                    }.into());
+                }
+                
+                // Confirm uninstallation if not forced
+                if !force {
+                    println!("Are you sure you want to uninstall plugin '{}'? (y/N)", plugin_name);
+                    let mut input = String::new();
+                    std::io::stdin().read_line(&mut input)?;
+                    if !input.trim().to_lowercase().starts_with('y') {
+                        println!("Uninstallation cancelled.");
+                        return Ok(());
+                    }
+                }
+                
+                // Remove plugin tools from tool registry
+                // Note: This requires mutable access to the tool registry, which is not
+                // available through Arc<dyn ToolRegistry>. This would need to be redesigned
+                // to use interior mutability or a different approach.
+                if let Some(_tool_registry) = &self.tool_registry {
+                    if let Ok(plugin_tools) = plugin_manager.get_plugin_tools(plugin_name) {
+                        debug!("Would unregister {} tools from plugin '{}'", plugin_tools.len(), plugin_name);
+                        // TODO: Implement tool unregistration with proper thread-safe design
+                    }
+                }
+                
+                // Unload the plugin
+                plugin_manager.unload_plugin(plugin_name)?;
+                
                 println!("{}", formatter.format_success(&format!(
-                    "Plugin {} uninstalled{}",
+                    "Plugin '{}' uninstalled successfully{}",
                     plugin_name,
                     if *force { " (forced)" } else { "" }
                 )));
@@ -500,8 +820,44 @@ impl CliApp {
             PluginAction::Info { plugin_name } => {
                 info!("Getting info for plugin: {}", plugin_name);
                 
-                // TODO: Implement plugin info
-                println!("Plugin: {}", plugin_name);
+                let plugins = plugin_manager.list_plugins()?;
+                let plugin = plugins.iter()
+                    .find(|p| p.name == *plugin_name)
+                    .ok_or_else(|| crate::WorkflowError::NotFound {
+                        resource: format!("plugin '{}'", plugin_name),
+                    })?;
+                
+                println!("Plugin Information:");
+                println!("  Name: {}", plugin.name);
+                println!("  Version: {}", plugin.version);
+                println!("  Type: {:?}", plugin.plugin_type);
+                
+                if let Some(description) = &plugin.description {
+                    println!("  Description: {}", description);
+                }
+                
+                if let Some(author) = &plugin.author {
+                    println!("  Author: {}", author);
+                }
+                
+                // Get plugin status
+                if let Ok(Some(status)) = plugin_manager.get_plugin_status(plugin_name) {
+                    println!("  Status: {:?}", status);
+                }
+                
+                // List plugin tools
+                if let Ok(tools) = plugin_manager.get_plugin_tools(plugin_name) {
+                    if !tools.is_empty() {
+                        println!("  Tools ({}):", tools.len());
+                        for tool in tools {
+                            println!("    - {}: {}", tool.name(), tool.get_info().description);
+                        }
+                    } else {
+                        println!("  Tools: None");
+                    }
+                } else {
+                    println!("  Tools: Unable to retrieve");
+                }
             }
         }
         
@@ -901,6 +1257,61 @@ impl CliApp {
         }
         
         Ok(batch_results)
+    }
+    
+    /// Parse plugin type from string
+    fn parse_plugin_type(&self, plugin_type: &str) -> Result<crate::core::PluginType> {
+        match plugin_type.to_lowercase().as_str() {
+            "native" => Ok(crate::core::PluginType::Native),
+            "python" => Ok(crate::core::PluginType::Python),
+            "nodejs" | "node" => Ok(crate::core::PluginType::NodeJs),
+            "go" => Ok(crate::core::PluginType::Go),
+            "docker" => Ok(crate::core::PluginType::Docker),
+            "wasm" | "webassembly" => Ok(crate::core::PluginType::Wasm),
+            _ => Err(crate::WorkflowError::ValidationError(
+                format!("Unsupported plugin type: {}. Supported types: native, python, nodejs, go, docker, wasm", plugin_type)
+            ).into()),
+        }
+    }
+    
+    /// Detect plugin type from path
+    fn detect_plugin_type(&self, plugin_path: &str) -> Result<crate::core::PluginType> {
+        let path = std::path::Path::new(plugin_path);
+        
+        // Check for specific files that indicate plugin type
+        if path.join("requirements.txt").exists() || path.join("setup.py").exists() || path.join("pyproject.toml").exists() {
+            Ok(crate::core::PluginType::Python)
+        } else if path.join("package.json").exists() {
+            Ok(crate::core::PluginType::NodeJs)
+        } else if path.join("Dockerfile").exists() {
+            Ok(crate::core::PluginType::Docker)
+        } else if path.extension().map_or(false, |ext| ext == "wasm" || ext == "wat") {
+            Ok(crate::core::PluginType::Wasm)
+        } else if path.extension().map_or(false, |ext| ext == "so" || ext == "dll" || ext == "dylib") {
+            Ok(crate::core::PluginType::Native)
+        } else {
+            // Default to native if we can't detect
+            warn!("Could not detect plugin type for {}, defaulting to native", plugin_path);
+            Ok(crate::core::PluginType::Native)
+        }
+    }
+    
+    /// Extract plugin name from path
+    fn extract_plugin_name(&self, plugin_path: &str) -> String {
+        let path = std::path::Path::new(plugin_path);
+        
+        // Use the directory name or file stem as plugin name
+        if path.is_dir() {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("unknown")
+                .to_string()
+        } else {
+            path.file_stem()
+                .and_then(|name| name.to_str())
+                .unwrap_or("unknown")
+                .to_string()
+        }
     }
     
     /// Save batch results to output directory

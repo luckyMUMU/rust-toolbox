@@ -6,9 +6,11 @@
 
 use crate::error::Result;
 use crate::workflow::WorkflowExecution;
-use crate::core::{ToolInfo, WorkflowId};
+use crate::core::{ToolInfo, WorkflowId, PluginInfo};
+use crate::plugins::manager::PluginManager;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use std::sync::Arc;
 
 /// TUI interface trait defining the core functionality for terminal user interfaces
 pub trait TuiInterface: Send + Sync {
@@ -26,6 +28,12 @@ pub trait TuiInterface: Send + Sync {
     
     /// Handle user input events
     fn handle_input(&self, input: TuiInput) -> Result<TuiAction>;
+    
+    /// Set plugin manager for plugin integration
+    fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()>;
+    
+    /// Get plugin manager
+    fn get_plugin_manager(&self) -> Option<Arc<PluginManager>>;
 }
 
 /// TUI input events
@@ -112,6 +120,14 @@ pub enum TuiAction {
     StopWorkflow(WorkflowId),
     /// Execute a tool
     ExecuteTool(String),
+    /// Install a plugin
+    InstallPlugin(String),
+    /// Uninstall a plugin
+    UninstallPlugin(String),
+    /// Reload a plugin
+    ReloadPlugin(String),
+    /// Show plugin info
+    ShowPluginInfo(String),
     /// Refresh the current view
     Refresh,
 }
@@ -122,6 +138,7 @@ pub enum TuiView {
     WorkflowList,
     ExecutionMonitor,
     ToolManager,
+    PluginManager,
     SystemStatus,
     LogViewer,
 }
@@ -204,10 +221,12 @@ pub struct TuiApp {
     workflow_list: WorkflowListWidget,
     execution_monitor: ExecutionMonitorWidget,
     tool_manager: ToolManagerWidget,
+    plugin_manager: PluginManagerWidget,
     system_status: SystemStatusWidget,
     log_viewer: LogViewerWidget,
     current_view: TuiView,
     is_running: bool,
+    plugin_manager_ref: Option<Arc<PluginManager>>,
 }
 
 /// Workflow list widget
@@ -229,6 +248,14 @@ pub struct ToolManagerWidget {
     tools: Vec<ToolInfo>,
     selected_index: usize,
     filter: String,
+}
+
+/// Plugin manager widget
+pub struct PluginManagerWidget {
+    plugins: Vec<PluginInfo>,
+    selected_index: usize,
+    filter: String,
+    show_details: bool,
 }
 
 /// System status widget
@@ -262,10 +289,12 @@ impl TuiApp {
             workflow_list: WorkflowListWidget::new(),
             execution_monitor: ExecutionMonitorWidget::new(),
             tool_manager: ToolManagerWidget::new(),
+            plugin_manager: PluginManagerWidget::new(),
             system_status: SystemStatusWidget::new(),
             log_viewer: LogViewerWidget::new(),
             current_view: TuiView::WorkflowList,
             is_running: false,
+            plugin_manager_ref: None,
         }
     }
     
@@ -279,12 +308,29 @@ impl TuiApp {
         self.current_view = view;
     }
     
+    /// Set plugin manager reference
+    pub fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) {
+        self.plugin_manager_ref = Some(plugin_manager);
+        // Update plugin list in the widget
+        if let Some(ref pm) = self.plugin_manager_ref {
+            if let Ok(plugins) = pm.list_plugins() {
+                self.plugin_manager.set_plugins(plugins);
+            }
+        }
+    }
+    
+    /// Get plugin manager reference
+    pub fn get_plugin_manager(&self) -> Option<Arc<PluginManager>> {
+        self.plugin_manager_ref.clone()
+    }
+    
     /// Get the current widget
     pub fn current_widget(&mut self) -> &mut dyn TuiWidget {
         match self.current_view {
             TuiView::WorkflowList => &mut self.workflow_list,
             TuiView::ExecutionMonitor => &mut self.execution_monitor,
             TuiView::ToolManager => &mut self.tool_manager,
+            TuiView::PluginManager => &mut self.plugin_manager,
             TuiView::SystemStatus => &mut self.system_status,
             TuiView::LogViewer => &mut self.log_viewer,
         }
@@ -435,6 +481,32 @@ impl ToolManagerWidget {
     }
 }
 
+impl PluginManagerWidget {
+    pub fn new() -> Self {
+        Self {
+            plugins: Vec::new(),
+            selected_index: 0,
+            filter: String::new(),
+            show_details: false,
+        }
+    }
+    
+    pub fn set_plugins(&mut self, plugins: Vec<PluginInfo>) {
+        self.plugins = plugins;
+        if self.selected_index >= self.plugins.len() && !self.plugins.is_empty() {
+            self.selected_index = self.plugins.len() - 1;
+        }
+    }
+    
+    pub fn selected_plugin(&self) -> Option<&PluginInfo> {
+        self.plugins.get(self.selected_index)
+    }
+    
+    pub fn toggle_details(&mut self) {
+        self.show_details = !self.show_details;
+    }
+}
+
 impl TuiWidget for ToolManagerWidget {
     fn render(&self, _area: TuiRect) -> Result<()> {
         // Stub implementation
@@ -473,6 +545,69 @@ impl TuiWidget for ToolManagerWidget {
     
     fn title(&self) -> &str {
         "工具管理"
+    }
+}
+
+impl TuiWidget for PluginManagerWidget {
+    fn render(&self, _area: TuiRect) -> Result<()> {
+        // Stub implementation - will be implemented with ratatui
+        Ok(())
+    }
+    
+    fn handle_input(&mut self, input: &TuiInput) -> Result<TuiAction> {
+        match input {
+            TuiInput::Key(KeyEvent { code: KeyCode::Up, .. }) => {
+                if self.selected_index > 0 {
+                    self.selected_index -= 1;
+                }
+                Ok(TuiAction::None)
+            }
+            TuiInput::Key(KeyEvent { code: KeyCode::Down, .. }) => {
+                if self.selected_index < self.plugins.len().saturating_sub(1) {
+                    self.selected_index += 1;
+                }
+                Ok(TuiAction::None)
+            }
+            TuiInput::Key(KeyEvent { code: KeyCode::Enter, .. }) => {
+                if let Some(plugin) = self.selected_plugin() {
+                    Ok(TuiAction::ShowPluginInfo(plugin.name.clone()))
+                } else {
+                    Ok(TuiAction::None)
+                }
+            }
+            TuiInput::Key(KeyEvent { code: KeyCode::Char('i'), .. }) => {
+                // Install plugin (would open a dialog or prompt)
+                Ok(TuiAction::None)
+            }
+            TuiInput::Key(KeyEvent { code: KeyCode::Char('u'), .. }) => {
+                if let Some(plugin) = self.selected_plugin() {
+                    Ok(TuiAction::UninstallPlugin(plugin.name.clone()))
+                } else {
+                    Ok(TuiAction::None)
+                }
+            }
+            TuiInput::Key(KeyEvent { code: KeyCode::Char('r'), .. }) => {
+                if let Some(plugin) = self.selected_plugin() {
+                    Ok(TuiAction::ReloadPlugin(plugin.name.clone()))
+                } else {
+                    Ok(TuiAction::None)
+                }
+            }
+            TuiInput::Key(KeyEvent { code: KeyCode::Char('d'), .. }) => {
+                self.toggle_details();
+                Ok(TuiAction::None)
+            }
+            _ => Ok(TuiAction::None),
+        }
+    }
+    
+    fn update(&mut self) -> Result<()> {
+        // Stub implementation - would refresh plugin list
+        Ok(())
+    }
+    
+    fn title(&self) -> &str {
+        "插件管理"
     }
 }
 
@@ -579,6 +714,7 @@ impl TuiWidget for LogViewerWidget {
 pub struct BasicTuiInterface {
     app: TuiApp,
     is_running: bool,
+    plugin_manager: Option<Arc<PluginManager>>,
 }
 
 impl BasicTuiInterface {
@@ -586,6 +722,7 @@ impl BasicTuiInterface {
         Self {
             app: TuiApp::new(),
             is_running: false,
+            plugin_manager: None,
         }
     }
     
@@ -632,11 +769,22 @@ impl TuiInterface for BasicTuiInterface {
             TuiInput::Key(KeyEvent { code: KeyCode::F(1), .. }) => Ok(TuiAction::Navigate(TuiView::WorkflowList)),
             TuiInput::Key(KeyEvent { code: KeyCode::F(2), .. }) => Ok(TuiAction::Navigate(TuiView::ExecutionMonitor)),
             TuiInput::Key(KeyEvent { code: KeyCode::F(3), .. }) => Ok(TuiAction::Navigate(TuiView::ToolManager)),
-            TuiInput::Key(KeyEvent { code: KeyCode::F(4), .. }) => Ok(TuiAction::Navigate(TuiView::SystemStatus)),
-            TuiInput::Key(KeyEvent { code: KeyCode::F(5), .. }) => Ok(TuiAction::Navigate(TuiView::LogViewer)),
+            TuiInput::Key(KeyEvent { code: KeyCode::F(4), .. }) => Ok(TuiAction::Navigate(TuiView::PluginManager)),
+            TuiInput::Key(KeyEvent { code: KeyCode::F(5), .. }) => Ok(TuiAction::Navigate(TuiView::SystemStatus)),
+            TuiInput::Key(KeyEvent { code: KeyCode::F(6), .. }) => Ok(TuiAction::Navigate(TuiView::LogViewer)),
             TuiInput::Key(KeyEvent { code: KeyCode::F(12), .. }) => Ok(TuiAction::Refresh),
             TuiInput::Quit => Ok(TuiAction::Quit),
             _ => Ok(TuiAction::None),
         }
+    }
+    
+    fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()> {
+        self.plugin_manager = Some(plugin_manager.clone());
+        self.app.set_plugin_manager(plugin_manager);
+        Ok(())
+    }
+    
+    fn get_plugin_manager(&self) -> Option<Arc<PluginManager>> {
+        self.plugin_manager.clone()
     }
 }

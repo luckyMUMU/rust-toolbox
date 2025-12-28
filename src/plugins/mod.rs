@@ -6,6 +6,7 @@ pub mod native;
 pub mod nodejs;
 pub mod python;
 pub mod types;
+pub mod wasm;
 
 pub use docker::{
     DockerPlugin as DockerPluginImpl, DockerPluginBuilder, DockerEnvironment, 
@@ -24,5 +25,9 @@ pub use python::{
 };
 pub use types::{
     Plugin, PluginConfig, PluginStatus, PluginType, ResourceLimits, SecurityPolicy,
-    NativePlugin, PythonPlugin, NodeJsPlugin, DockerPlugin,
+    NativePlugin, PythonPlugin, NodeJsPlugin, DockerPlugin, WasmPlugin,
+};
+pub use wasm::{
+    WasmPlugin as WasmPluginImpl, WasmPluginBuilder, WasmRuntimeConfig,
+    WasmToolExecutor, WasmToolNode, ExtismToolNode, WasmRuntimeType, ExtismConfig,
 };

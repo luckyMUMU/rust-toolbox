@@ -121,8 +121,7 @@ pub enum PluginType {
     Python(PythonPlugin),
     NodeJs(NodeJsPlugin),
     Docker(DockerPlugin),
-    // WASM support will be added in later tasks when wasmtime dependency is available
-    // Wasm(WasmPlugin),
+    Wasm(WasmPlugin),
 }
 
 /// Native plugin implementation
@@ -353,6 +352,73 @@ impl DockerPlugin {
 }
 
 impl Plugin for DockerPlugin {
+    fn info(&self) -> &PluginInfo {
+        &self.info
+    }
+    
+    fn initialize(&mut self, config: PluginConfig) -> Result<()> {
+        if let Some(ref mut inner) = self.inner {
+            inner.initialize(config.clone())?;
+            self.status = inner.status();
+            self.config = Some(config);
+        }
+        Ok(())
+    }
+    
+    fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
+        if let Some(ref inner) = self.inner {
+            inner.get_tools()
+        } else {
+            Vec::new()
+        }
+    }
+    
+    fn shutdown(&mut self) -> Result<()> {
+        if let Some(ref mut inner) = self.inner {
+            inner.shutdown()?;
+            self.status = inner.status();
+        }
+        Ok(())
+    }
+    
+    fn is_initialized(&self) -> bool {
+        if let Some(ref inner) = self.inner {
+            inner.is_initialized()
+        } else {
+            matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
+        }
+    }
+    
+    fn status(&self) -> PluginStatus {
+        if let Some(ref inner) = self.inner {
+            inner.status()
+        } else {
+            self.status
+        }
+    }
+}
+
+/// WASM plugin wrapper
+pub struct WasmPlugin {
+    pub info: PluginInfo,
+    pub status: PluginStatus,
+    pub config: Option<PluginConfig>,
+    // The actual implementation is in the wasm module
+    inner: Option<crate::plugins::wasm::WasmPlugin>,
+}
+
+impl WasmPlugin {
+    pub fn new(info: PluginInfo, runtime_config: crate::plugins::wasm::WasmRuntimeConfig) -> Self {
+        Self {
+            info: info.clone(),
+            status: PluginStatus::Uninitialized,
+            config: None,
+            inner: Some(crate::plugins::wasm::WasmPlugin::new(info, runtime_config)),
+        }
+    }
+}
+
+impl Plugin for WasmPlugin {
     fn info(&self) -> &PluginInfo {
         &self.info
     }

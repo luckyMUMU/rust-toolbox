@@ -2,6 +2,7 @@
 
 use crate::core::{AuthConfig, RateLimitConfig};
 use crate::error::Result;
+use crate::plugins::manager::PluginManager;
 use crate::tools::ToolRegistry;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -77,6 +78,18 @@ pub struct McpPluginRequest {
     pub config: Option<Value>,
 }
 
+/// MCP plugin list response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpPluginInfo {
+    pub name: String,
+    pub version: String,
+    pub plugin_type: String,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub status: String,
+    pub tools_count: usize,
+}
+
 /// MCP server interface trait
 #[async_trait]
 pub trait McpServerInterface: Send + Sync {
@@ -88,6 +101,9 @@ pub trait McpServerInterface: Send + Sync {
     
     /// Register MCP tools from the tool registry
     async fn register_tools(&mut self, tool_registry: Arc<dyn ToolRegistry>) -> Result<()>;
+    
+    /// Set plugin manager for plugin integration
+    async fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()>;
     
     /// Get list of available MCP tools
     async fn list_tools(&self) -> Result<Vec<McpToolDefinition>>;
@@ -103,6 +119,18 @@ pub trait McpServerInterface: Send + Sync {
     
     /// Install a plugin via MCP
     async fn install_plugin(&self, request: McpPluginRequest) -> Result<String>;
+    
+    /// List installed plugins via MCP
+    async fn list_plugins(&self) -> Result<Vec<McpPluginInfo>>;
+    
+    /// Uninstall a plugin via MCP
+    async fn uninstall_plugin(&self, plugin_name: &str) -> Result<()>;
+    
+    /// Reload a plugin via MCP
+    async fn reload_plugin(&self, plugin_name: &str) -> Result<()>;
+    
+    /// Get plugin information via MCP
+    async fn get_plugin_info(&self, plugin_name: &str) -> Result<McpPluginInfo>;
     
     /// Pause a workflow via MCP
     async fn pause_workflow(&self, workflow_id: &str) -> Result<()>;
@@ -121,6 +149,8 @@ pub struct McpServer {
     tools: HashMap<String, McpToolDefinition>,
     /// Reference to tool registry for tool execution
     tool_registry: Option<Arc<dyn ToolRegistry>>,
+    /// Reference to plugin manager for plugin operations
+    plugin_manager: Option<Arc<PluginManager>>,
     /// Server running state
     is_running: bool,
 }
@@ -130,6 +160,7 @@ impl McpServer {
         Self {
             tools: HashMap::new(),
             tool_registry: None,
+            plugin_manager: None,
             is_running: false,
         }
     }
@@ -173,6 +204,47 @@ impl McpServer {
                         }
                     },
                     "required": ["plugin_source", "plugin_type"]
+                }),
+            },
+            McpToolDefinition {
+                name: "list_plugins".to_string(),
+                description: "列出已安装的插件".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {}
+                }),
+            },
+            McpToolDefinition {
+                name: "uninstall_plugin".to_string(),
+                description: "卸载指定的插件".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "plugin_name": {"type": "string"}
+                    },
+                    "required": ["plugin_name"]
+                }),
+            },
+            McpToolDefinition {
+                name: "reload_plugin".to_string(),
+                description: "重新加载指定的插件".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "plugin_name": {"type": "string"}
+                    },
+                    "required": ["plugin_name"]
+                }),
+            },
+            McpToolDefinition {
+                name: "get_plugin_info".to_string(),
+                description: "获取插件详细信息".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "plugin_name": {"type": "string"}
+                    },
+                    "required": ["plugin_name"]
                 }),
             },
             McpToolDefinition {
@@ -267,6 +339,12 @@ impl McpServerInterface for McpServer {
         Ok(())
     }
     
+    async fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()> {
+        self.plugin_manager = Some(plugin_manager);
+        println!("Plugin manager set for MCP server");
+        Ok(())
+    }
+    
     async fn list_tools(&self) -> Result<Vec<McpToolDefinition>> {
         Ok(self.tools.values().cloned().collect())
     }
@@ -318,7 +396,112 @@ impl McpServerInterface for McpServer {
     async fn install_plugin(&self, request: McpPluginRequest) -> Result<String> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP plugin installation requested: {} ({})", request.plugin_source, request.plugin_type);
+        
+        if let Some(ref plugin_manager) = self.plugin_manager {
+            // In a full implementation, this would use the plugin manager to install the plugin
+            println!("Plugin manager available for installation");
+        } else {
+            println!("Plugin manager not available");
+        }
+        
         Ok("plugin_installation_stub_id".to_string())
+    }
+    
+    async fn list_plugins(&self) -> Result<Vec<McpPluginInfo>> {
+        // Stub implementation - will be implemented in later tasks
+        println!("MCP plugin list requested");
+        
+        if let Some(ref plugin_manager) = self.plugin_manager {
+            match plugin_manager.list_plugins() {
+                Ok(plugins) => {
+                    let mcp_plugins: Vec<McpPluginInfo> = plugins.into_iter().map(|plugin| {
+                        McpPluginInfo {
+                            name: plugin.name,
+                            version: plugin.version,
+                            plugin_type: format!("{:?}", plugin.plugin_type),
+                            description: plugin.description,
+                            author: plugin.author,
+                            status: "loaded".to_string(), // Simplified status
+                            tools_count: 0, // Would need to query plugin tools
+                        }
+                    }).collect();
+                    Ok(mcp_plugins)
+                }
+                Err(e) => {
+                    println!("Failed to list plugins: {}", e);
+                    Ok(Vec::new())
+                }
+            }
+        } else {
+            println!("Plugin manager not available");
+            Ok(Vec::new())
+        }
+    }
+    
+    async fn uninstall_plugin(&self, plugin_name: &str) -> Result<()> {
+        // Stub implementation - will be implemented in later tasks
+        println!("MCP plugin uninstall requested for: {}", plugin_name);
+        
+        if let Some(ref plugin_manager) = self.plugin_manager {
+            match plugin_manager.unload_plugin(plugin_name) {
+                Ok(_) => println!("Plugin '{}' uninstalled successfully", plugin_name),
+                Err(e) => println!("Failed to uninstall plugin '{}': {}", plugin_name, e),
+            }
+        } else {
+            println!("Plugin manager not available");
+        }
+        
+        Ok(())
+    }
+    
+    async fn reload_plugin(&self, plugin_name: &str) -> Result<()> {
+        // Stub implementation - will be implemented in later tasks
+        println!("MCP plugin reload requested for: {}", plugin_name);
+        
+        if let Some(ref plugin_manager) = self.plugin_manager {
+            match plugin_manager.reload_plugin(plugin_name) {
+                Ok(_) => println!("Plugin '{}' reloaded successfully", plugin_name),
+                Err(e) => println!("Failed to reload plugin '{}': {}", plugin_name, e),
+            }
+        } else {
+            println!("Plugin manager not available");
+        }
+        
+        Ok(())
+    }
+    
+    async fn get_plugin_info(&self, plugin_name: &str) -> Result<McpPluginInfo> {
+        // Stub implementation - will be implemented in later tasks
+        println!("MCP plugin info requested for: {}", plugin_name);
+        
+        if let Some(ref plugin_manager) = self.plugin_manager {
+            match plugin_manager.list_plugins() {
+                Ok(plugins) => {
+                    if let Some(plugin) = plugins.iter().find(|p| p.name == plugin_name) {
+                        Ok(McpPluginInfo {
+                            name: plugin.name.clone(),
+                            version: plugin.version.clone(),
+                            plugin_type: format!("{:?}", plugin.plugin_type),
+                            description: plugin.description.clone(),
+                            author: plugin.author.clone(),
+                            status: "loaded".to_string(),
+                            tools_count: 0, // Would need to query plugin tools
+                        })
+                    } else {
+                        Err(crate::WorkflowError::NotFound {
+                            resource: format!("plugin '{}'", plugin_name),
+                        }.into())
+                    }
+                }
+                Err(e) => {
+                    println!("Failed to get plugin info: {}", e);
+                    Err(e.into())
+                }
+            }
+        } else {
+            println!("Plugin manager not available");
+            Err(crate::WorkflowError::workflow_execution("Plugin manager not available").into())
+        }
     }
     
     async fn pause_workflow(&self, workflow_id: &str) -> Result<()> {
