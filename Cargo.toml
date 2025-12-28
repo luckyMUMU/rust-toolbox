@@ -75,6 +75,10 @@ parking_lot = "0.12"
 async-trait = "0.1"
 futures = "0.3"
 
+# Docker支持
+bollard = "0.17"
+tar = "0.4"
+
 # TOML支持
 toml = "0.8"
 
@@ -96,6 +100,14 @@ path = "examples/tools_example.rs"
 [[example]]
 name = "python_plugin_example"
 path = "examples/python_plugin_example.rs"
+
+[[example]]
+name = "docker_plugin_example"
+path = "examples/docker_plugin_example.rs"
+
+[[example]]
+name = "docker_dockerfile_example"
+path = "examples/docker_dockerfile_example.rs"
 
 [lib]
 name = "workflow_toolkit"

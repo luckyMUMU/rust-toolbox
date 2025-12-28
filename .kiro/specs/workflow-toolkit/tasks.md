@@ -231,13 +231,13 @@
     - 异步执行和结果处理
     - _需求: 6.3_
 
-- [-] 16. 实现Docker插件封装
-  - [ ] 16.1 实现DockerPlugin和DockerToolNode
+- [x] 16. 实现Docker插件封装
+  - [x] 16.1 实现DockerPlugin和DockerToolNode
     - Docker镜像构建和管理
     - 容器生命周期控制
     - _需求: 6.2, 6.4_
 
-  - [ ] 16.2 实现Docker工具执行
+  - [x] 16.2 实现Docker工具执行
     - 容器API调用和数据传输
     - 资源限制和安全隔离
     - _需求: 6.3, 8.5_
@@ -246,7 +246,7 @@
     - **属性 27: 插件沙箱隔离安全性**
     - **验证需求: 需求 8.5**
 
-- [ ] 17. 实现WASM插件支持
+- [-] 17. 实现WASM插件支持
   - [ ] 17.1 实现WasmPlugin和WasmToolNode
     - WebAssembly模块加载
     - 内存和执行时间限制

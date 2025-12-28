@@ -333,11 +333,23 @@ impl Plugin for NodeJsPlugin {
 }
 
 /// Docker plugin wrapper
-#[derive(Debug, Clone)]
 pub struct DockerPlugin {
     pub info: PluginInfo,
     pub status: PluginStatus,
-    // Implementation details will be added later
+    pub config: Option<PluginConfig>,
+    // The actual implementation is in the docker module
+    inner: Option<crate::plugins::docker::DockerPlugin>,
+}
+
+impl DockerPlugin {
+    pub fn new(info: PluginInfo, runtime_config: crate::plugins::docker::DockerRuntimeConfig) -> Result<Self> {
+        Ok(Self {
+            info: info.clone(),
+            status: PluginStatus::Uninitialized,
+            config: None,
+            inner: Some(crate::plugins::docker::DockerPlugin::new(info, runtime_config)?),
+        })
+    }
 }
 
 impl Plugin for DockerPlugin {
@@ -345,27 +357,44 @@ impl Plugin for DockerPlugin {
         &self.info
     }
     
-    fn initialize(&mut self, _config: PluginConfig) -> Result<()> {
-        // Docker plugin initialization will be implemented later
-        self.status = PluginStatus::Ready;
+    fn initialize(&mut self, config: PluginConfig) -> Result<()> {
+        if let Some(ref mut inner) = self.inner {
+            inner.initialize(config.clone())?;
+            self.status = inner.status();
+            self.config = Some(config);
+        }
         Ok(())
     }
     
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
-        // Implementation will be added later
-        Vec::new()
+        if let Some(ref inner) = self.inner {
+            inner.get_tools()
+        } else {
+            Vec::new()
+        }
     }
     
     fn shutdown(&mut self) -> Result<()> {
-        self.status = PluginStatus::Shutdown;
+        if let Some(ref mut inner) = self.inner {
+            inner.shutdown()?;
+            self.status = inner.status();
+        }
         Ok(())
     }
     
     fn is_initialized(&self) -> bool {
-        matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
+        if let Some(ref inner) = self.inner {
+            inner.is_initialized()
+        } else {
+            matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
+        }
     }
     
     fn status(&self) -> PluginStatus {
-        self.status
+        if let Some(ref inner) = self.inner {
+            inner.status()
+        } else {
+            self.status
+        }
     }
 }
