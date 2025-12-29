@@ -16,7 +16,10 @@ pub mod interfaces;
 pub use crate::config::{Config, ConfigManager, CliConfigOverrides};
 pub use crate::core::*;
 pub use crate::error::{Result, WorkflowError};
-pub use crate::workflow::{WorkflowDefinition, WorkflowEngine, WorkflowExecution};
+pub use crate::workflow::{
+    WorkflowDefinition, WorkflowEngine, WorkflowExecution,
+    ExecutionManager, DefaultExecutionManager, ExecutionHandle, ExecutionResult
+};
 pub use crate::tools::{ToolNode, ToolRegistry};
 
 /// Initialize the logging system

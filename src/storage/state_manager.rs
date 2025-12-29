@@ -10,7 +10,7 @@ use std::time::Duration;
 
 /// State manager for workflow data
 pub struct StateManager {
-    storage: Arc<dyn StorageBackend>,
+    pub storage: Arc<dyn StorageBackend>,
     cache: Arc<dyn CacheBackend>,
 }
 

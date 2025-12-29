@@ -6,7 +6,8 @@ use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
 use crate::workflow::{
     DagScheduler, WorkflowDefinition, WorkflowExecution, WorkflowState, 
-    NodeExecutionState, Checkpoint, ExecutionRecord
+    NodeExecutionState, Checkpoint, ExecutionRecord, AuditLogger, 
+    AuditEventType, LogLevel, ErrorDetails
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -64,6 +65,8 @@ pub struct DefaultWorkflowEngine {
     control_signals: DashMap<WorkflowId, ExecutionControl>,
     /// Semaphore for controlling parallel execution
     parallel_semaphore: Arc<Semaphore>,
+    /// Audit logger for compliance and tracking
+    audit_logger: Arc<AuditLogger>,
 }
 
 /// Control signals for workflow execution
@@ -116,12 +119,43 @@ impl DefaultWorkflowEngine {
         tool_registry: Arc<dyn ToolRegistry>,
         max_parallel_workflows: usize,
     ) -> Self {
+        let audit_logger = Arc::new(AuditLogger::new(
+            state_manager.clone(),
+            false, // compliance_mode
+            30,    // retention_days
+        ));
+        
         Self {
             state_manager,
             tool_registry,
             active_executions: DashMap::new(),
             control_signals: DashMap::new(),
             parallel_semaphore: Arc::new(Semaphore::new(max_parallel_workflows)),
+            audit_logger,
+        }
+    }
+
+    /// Create a new workflow engine with audit configuration
+    pub fn new_with_audit(
+        state_manager: Arc<StateManager>,
+        tool_registry: Arc<dyn ToolRegistry>,
+        max_parallel_workflows: usize,
+        compliance_mode: bool,
+        retention_days: u32,
+    ) -> Self {
+        let audit_logger = Arc::new(AuditLogger::new(
+            state_manager.clone(),
+            compliance_mode,
+            retention_days,
+        ));
+        
+        Self {
+            state_manager,
+            tool_registry,
+            active_executions: DashMap::new(),
+            control_signals: DashMap::new(),
+            parallel_semaphore: Arc::new(Semaphore::new(max_parallel_workflows)),
+            audit_logger,
         }
     }
 
@@ -184,7 +218,36 @@ impl DefaultWorkflowEngine {
         let retry_policy = retry_policy.unwrap_or(&default_retry);
         
         let mut attempt = 0;
-        let mut last_error = None;
+        let mut last_error: Option<String> = None;
+        let start_time = Utc::now();
+
+        // Log node execution start
+        let (workflow_id, workflow_name) = {
+            let execution = workflow_execution.read().await;
+            (execution.id, execution.workflow_name.clone())
+        };
+
+        let node_start_event = self.audit_logger.create_node_event(
+            AuditEventType::NodeStarted,
+            workflow_id,
+            node_id,
+            &context,
+            None,
+            None,
+        );
+        self.audit_logger.log_audit_event(node_start_event).await?;
+
+        // Log execution details
+        let log_entry = self.audit_logger.create_execution_log(
+            LogLevel::Info,
+            workflow_id,
+            &context.execution_id,
+            Some(node_id),
+            &format!("Starting execution of node '{}' with retry policy (max_attempts: {})", 
+                    node_id, retry_policy.max_attempts),
+            std::collections::HashMap::new(),
+        );
+        self.audit_logger.log_execution(log_entry).await?;
 
         while attempt < retry_policy.max_attempts {
             attempt += 1;
@@ -198,48 +261,125 @@ impl DefaultWorkflowEngine {
             }
 
             match self.execute_node(node_id, workflow_execution.clone(), context.clone()).await {
-                Ok(result) => return Ok(result),
-                Err(error) => {
-                    last_error = Some(error);
+                Ok(result) => {
+                    let duration = Utc::now().signed_duration_since(start_time);
                     
-                    // Don't retry if this is the last attempt
-                    if attempt >= retry_policy.max_attempts {
-                        break;
-                    }
-
-                    // Calculate delay based on retry strategy
-                    let delay = self.calculate_retry_delay(retry_policy, attempt);
-                    
-                    // Log retry attempt
-                    tracing::warn!(
-                        "Node {} failed on attempt {}/{}, retrying in {:?}: {}",
+                    // Log successful completion
+                    let node_complete_event = self.audit_logger.create_node_event(
+                        AuditEventType::NodeCompleted,
+                        workflow_id,
                         node_id,
-                        attempt,
-                        retry_policy.max_attempts,
-                        delay,
-                        last_error.as_ref().unwrap()
+                        &context,
+                        Some(duration),
+                        None,
                     );
+                    self.audit_logger.log_audit_event(node_complete_event).await?;
 
-                    // Wait before retrying
-                    sleep(delay).await;
+                    let log_entry = self.audit_logger.create_execution_log(
+                        LogLevel::Info,
+                        workflow_id,
+                        &context.execution_id,
+                        Some(node_id),
+                        &format!("Node '{}' completed successfully after {} attempts in {:?}", 
+                                node_id, attempt, duration),
+                        std::collections::HashMap::new(),
+                    );
+                    self.audit_logger.log_execution(log_entry).await?;
 
-                    // Check if we should stop retrying due to control signals
-                    let workflow_id = {
-                        let execution = workflow_execution.read().await;
-                        execution.id
-                    };
+                    return Ok(result);
+                }
+                Err(error) => {
+                    last_error = Some(format!("{}", error));
+                    
+                    // Log retry attempt if not the last attempt
+                    if attempt < retry_policy.max_attempts {
+                        let retry_event = self.audit_logger.create_node_event(
+                            AuditEventType::NodeRetried,
+                            workflow_id,
+                            node_id,
+                            &context,
+                            None,
+                            Some(ErrorDetails {
+                                error_type: std::any::type_name_of_val(&error).to_string(),
+                                error_message: error.to_string(),
+                                stack_trace: None,
+                                error_code: None,
+                                retry_count: Some(attempt),
+                            }),
+                        );
+                        self.audit_logger.log_audit_event(retry_event).await?;
 
-                    if let Some(control) = self.control_signals.get(&workflow_id) {
-                        if control.should_stop() {
-                            return Err(WorkflowError::ExecutionCancelled.into());
+                        // Calculate delay based on retry strategy
+                        let delay = self.calculate_retry_delay(retry_policy, attempt);
+                        
+                        // Log retry attempt
+                        tracing::warn!(
+                            "Node {} failed on attempt {}/{}, retrying in {:?}: {}",
+                            node_id,
+                            attempt,
+                            retry_policy.max_attempts,
+                            delay,
+                            error
+                        );
+
+                        let log_entry = self.audit_logger.create_execution_log(
+                            LogLevel::Warn,
+                            workflow_id,
+                            &context.execution_id,
+                            Some(node_id),
+                            &format!("Node '{}' failed on attempt {}/{}, retrying in {:?}: {}", 
+                                    node_id, attempt, retry_policy.max_attempts, delay, error),
+                            std::collections::HashMap::new(),
+                        );
+                        self.audit_logger.log_execution(log_entry).await?;
+
+                        // Wait before retrying
+                        sleep(delay).await;
+
+                        // Check if we should stop retrying due to control signals
+                        if let Some(control) = self.control_signals.get(&workflow_id) {
+                            if control.should_stop() {
+                                return Err(WorkflowError::ExecutionCancelled.into());
+                            }
                         }
                     }
                 }
             }
         }
 
-        // All retries exhausted
-        Err(last_error.unwrap_or_else(|| WorkflowError::workflow_execution("Unknown error").into()))
+        // All retries exhausted - log final failure
+        let duration = Utc::now().signed_duration_since(start_time);
+        let final_error_msg = last_error.unwrap_or_else(|| "Unknown error".to_string());
+        let final_error = WorkflowError::workflow_execution(&final_error_msg);
+        
+        let node_failed_event = self.audit_logger.create_node_event(
+            AuditEventType::NodeFailed,
+            workflow_id,
+            node_id,
+            &context,
+            Some(duration),
+            Some(ErrorDetails {
+                error_type: "WorkflowError".to_string(),
+                error_message: final_error_msg.clone(),
+                stack_trace: None,
+                error_code: None,
+                retry_count: Some(attempt),
+            }),
+        );
+        self.audit_logger.log_audit_event(node_failed_event).await?;
+
+        let log_entry = self.audit_logger.create_execution_log(
+            LogLevel::Error,
+            workflow_id,
+            &context.execution_id,
+            Some(node_id),
+            &format!("Node '{}' failed after {} attempts in {:?}: {}", 
+                    node_id, attempt, duration, final_error_msg),
+            std::collections::HashMap::new(),
+        );
+        self.audit_logger.log_execution(log_entry).await?;
+
+        Err(final_error.into())
     }
 
     /// Calculate retry delay based on strategy
@@ -616,7 +756,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
 
         // Generate workflow execution ID
         let workflow_id = definition.generate_id();
-        let _execution_id = Uuid::new_v4().to_string();
+        let execution_id = Uuid::new_v4().to_string();
 
         // Create initial workflow execution state
         let mut workflow_execution = WorkflowExecution {
@@ -649,6 +789,36 @@ impl WorkflowEngine for DefaultWorkflowEngine {
         let context = ExecutionContext::new()
             .with_workflow_id(workflow_id);
 
+        // Log workflow creation and start
+        let workflow_created_event = self.audit_logger.create_workflow_event(
+            AuditEventType::WorkflowCreated,
+            workflow_id,
+            &definition.name,
+            &context,
+            Some(format!("Workflow '{}' created with {} nodes", definition.name, definition.nodes.len())),
+        );
+        self.audit_logger.log_audit_event(workflow_created_event).await?;
+
+        let workflow_started_event = self.audit_logger.create_workflow_event(
+            AuditEventType::WorkflowStarted,
+            workflow_id,
+            &definition.name,
+            &context,
+            None,
+        );
+        self.audit_logger.log_audit_event(workflow_started_event).await?;
+
+        // Log execution start
+        let log_entry = self.audit_logger.create_execution_log(
+            LogLevel::Info,
+            workflow_id,
+            &execution_id,
+            None,
+            &format!("Starting workflow '{}' execution with {} nodes", definition.name, definition.nodes.len()),
+            std::collections::HashMap::new(),
+        );
+        self.audit_logger.log_execution(log_entry).await?;
+
         // Store the execution in active executions
         let execution_arc = Arc::new(RwLock::new(workflow_execution.clone()));
         self.active_executions.insert(workflow_id, execution_arc.clone());
@@ -669,6 +839,15 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                 // Check for control signals
                 if let Some(control) = self.control_signals.get(&workflow_id) {
                     if control.should_stop() {
+                        // Log workflow stop
+                        let workflow_stopped_event = self.audit_logger.create_workflow_event(
+                            AuditEventType::WorkflowStopped,
+                            workflow_id,
+                            &definition.name,
+                            &context,
+                            Some("Workflow execution stopped by user request".to_string()),
+                        );
+                        self.audit_logger.log_audit_event(workflow_stopped_event).await?;
                         break;
                     }
                     if control.should_pause() {
@@ -677,6 +856,16 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                             let mut execution = execution_arc.write().await;
                             execution.status = ExecutionStatus::Paused;
                         }
+                        
+                        // Log workflow pause
+                        let workflow_paused_event = self.audit_logger.create_workflow_event(
+                            AuditEventType::WorkflowPaused,
+                            workflow_id,
+                            &definition.name,
+                            &context,
+                            Some("Workflow execution paused by user request".to_string()),
+                        );
+                        self.audit_logger.log_audit_event(workflow_paused_event).await?;
                         
                         // Create checkpoint before pausing
                         let execution = execution_arc.read().await;
@@ -697,11 +886,20 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                             break;
                         }
                         
-                        // Update status back to running
+                        // Update status back to running and log resume
                         {
                             let mut execution = execution_arc.write().await;
                             execution.status = ExecutionStatus::Running;
                         }
+
+                        let workflow_resumed_event = self.audit_logger.create_workflow_event(
+                            AuditEventType::WorkflowResumed,
+                            workflow_id,
+                            &definition.name,
+                            &context,
+                            Some("Workflow execution resumed".to_string()),
+                        );
+                        self.audit_logger.log_audit_event(workflow_resumed_event).await?;
                     }
                 }
 
@@ -828,6 +1026,23 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             execution.current_node = None;
         }
 
+        // Log workflow completion
+        let workflow_event_type = match final_status {
+            ExecutionStatus::Completed => AuditEventType::WorkflowCompleted,
+            ExecutionStatus::Failed => AuditEventType::WorkflowFailed,
+            ExecutionStatus::Cancelled => AuditEventType::WorkflowCancelled,
+            _ => AuditEventType::WorkflowStopped,
+        };
+
+        let workflow_final_event = self.audit_logger.create_workflow_event(
+            workflow_event_type,
+            workflow_id,
+            &definition.name,
+            &context,
+            Some(format!("Workflow '{}' finished with status: {:?}", definition.name, final_status)),
+        );
+        self.audit_logger.log_audit_event(workflow_final_event).await?;
+
         // Save final state and record execution
         let final_execution = {
             let execution = execution_arc.read().await;
@@ -835,6 +1050,21 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             self.record_execution(&execution).await?;
             execution.clone()
         };
+
+        // Log final execution summary
+        let duration = final_execution.completed_at.unwrap_or_else(Utc::now)
+            .signed_duration_since(final_execution.started_at);
+        
+        let log_entry = self.audit_logger.create_execution_log(
+            LogLevel::Info,
+            workflow_id,
+            &execution_id,
+            None,
+            &format!("Workflow '{}' execution completed with status {:?} in {:?}", 
+                    definition.name, final_status, duration),
+            std::collections::HashMap::new(),
+        );
+        self.audit_logger.log_execution(log_entry).await?;
 
         // Clean up
         self.active_executions.remove(&workflow_id);
@@ -1014,7 +1244,7 @@ mod tests {
         let state_manager = Arc::new(StateManager::new(storage, cache));
         let tool_registry = Arc::new(MockToolRegistry);
         
-        DefaultWorkflowEngine::new(state_manager, tool_registry, 10)
+        DefaultWorkflowEngine::new_with_audit(state_manager, tool_registry, 10, false, 30)
     }
 
     // Helper function to create a simple test workflow

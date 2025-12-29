@@ -674,6 +674,11 @@ impl CliApp {
                         plugin_manager.load_plugin(Box::new(docker_plugin), config)?;
                     }
                     crate::core::PluginType::Wasm => {
+                        // WASM plugin support temporarily disabled
+                        return Err(crate::WorkflowError::ValidationError(
+                            "WASM plugin support is temporarily disabled".to_string()
+                        ).into());
+                        /*
                         let plugin_info = crate::core::PluginInfo {
                             name: plugin_name.clone(),
                             version: "1.0.0".to_string(),
@@ -705,6 +710,7 @@ impl CliApp {
                         );
                         
                         plugin_manager.load_plugin(Box::new(wasm_plugin), config)?;
+                        */
                     }
                     crate::core::PluginType::Go => {
                         return Err(crate::WorkflowError::ValidationError(

@@ -121,7 +121,7 @@ pub enum PluginType {
     Python(PythonPlugin),
     NodeJs(NodeJsPlugin),
     Docker(DockerPlugin),
-    Wasm(WasmPlugin),
+    // Wasm(WasmPlugin),  // Temporarily disabled
 }
 
 /// Native plugin implementation
@@ -398,7 +398,8 @@ impl Plugin for DockerPlugin {
     }
 }
 
-/// WASM plugin wrapper
+// WASM plugin wrapper (temporarily disabled)
+/*
 pub struct WasmPlugin {
     pub info: PluginInfo,
     pub status: PluginStatus,
@@ -448,6 +449,9 @@ impl Plugin for WasmPlugin {
         Ok(())
     }
     
+*/
+
+/*
     fn is_initialized(&self) -> bool {
         if let Some(ref inner) = self.inner {
             inner.is_initialized()
@@ -464,3 +468,4 @@ impl Plugin for WasmPlugin {
         }
     }
 }
+*/

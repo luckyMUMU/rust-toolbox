@@ -92,6 +92,9 @@ pub enum WorkflowError {
     #[error("Resource exhausted")]
     ResourceExhausted,
     
+    #[error("Execution timeout")]
+    ExecutionTimeout,
+    
     #[error("Invalid state transition from {from:?} to {to:?}")]
     InvalidStateTransition {
         from: crate::core::ExecutionStatus,

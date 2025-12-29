@@ -52,8 +52,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # 插件系统 (暂时简化)
 libloading = "0.8"
-wasmtime = "27.0"
-extism = "1.13"
+# wasmtime = "25.0"
+# extism = "1.8"
 
 # 工作流调度
 petgraph = "0.6"

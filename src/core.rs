@@ -139,6 +139,8 @@ pub struct WorkflowConfig {
     pub parallel_limit: Option<usize>,
     pub checkpoint_interval: Option<Duration>,
     pub enable_caching: bool,
+    pub execution_mode: ExecutionMode,
+    pub concurrency_config: ConcurrencyConfig,
     pub metadata: HashMap<String, Value>,
 }
 
@@ -150,6 +152,8 @@ impl Default for WorkflowConfig {
             parallel_limit: Some(10),
             checkpoint_interval: Some(Duration::from_secs(300)), // 5 minutes
             enable_caching: true,
+            execution_mode: ExecutionMode::default(),
+            concurrency_config: ConcurrencyConfig::default(),
             metadata: HashMap::new(),
         }
     }
@@ -228,4 +232,95 @@ impl Default for AuthConfig {
             allowed_origins: vec!["*".to_string()],
         }
     }
+}
+
+/// Execution mode for workflows and tasks
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+pub enum ExecutionMode {
+    /// Synchronous execution - blocks until completion
+    Sync,
+    /// Asynchronous execution - returns immediately with execution handle
+    Async,
+}
+
+impl Default for ExecutionMode {
+    fn default() -> Self {
+        Self::Async
+    }
+}
+
+/// Concurrency control configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConcurrencyConfig {
+    /// Maximum number of concurrent tasks
+    pub max_concurrent_tasks: usize,
+    /// Maximum number of concurrent workflows
+    pub max_concurrent_workflows: usize,
+    /// Task queue size limit
+    pub task_queue_size: usize,
+    /// Enable task prioritization
+    pub enable_prioritization: bool,
+    /// Resource limits per task
+    pub resource_limits: ResourceLimits,
+}
+
+impl Default for ConcurrencyConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_tasks: 100,
+            max_concurrent_workflows: 10,
+            task_queue_size: 1000,
+            enable_prioritization: false,
+            resource_limits: ResourceLimits::default(),
+        }
+    }
+}
+
+/// Resource limits for task execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceLimits {
+    /// Maximum memory usage in bytes
+    pub max_memory_bytes: Option<u64>,
+    /// Maximum CPU time in seconds
+    pub max_cpu_time: Option<Duration>,
+    /// Maximum execution time
+    pub max_execution_time: Option<Duration>,
+    /// Maximum number of file descriptors
+    pub max_file_descriptors: Option<u32>,
+}
+
+impl Default for ResourceLimits {
+    fn default() -> Self {
+        Self {
+            max_memory_bytes: Some(1024 * 1024 * 1024), // 1GB
+            max_cpu_time: Some(Duration::from_secs(300)), // 5 minutes
+            max_execution_time: Some(Duration::from_secs(600)), // 10 minutes
+            max_file_descriptors: Some(1024),
+        }
+    }
+}
+
+/// Task priority levels
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum TaskPriority {
+    Low = 1,
+    Normal = 2,
+    High = 3,
+    Critical = 4,
+}
+
+impl Default for TaskPriority {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+/// Execution metrics for monitoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionMetrics {
+    pub active_executions: usize,
+    pub queued_executions: usize,
+    pub total_capacity: usize,
+    pub queue_capacity: usize,
+    pub available_permits: usize,
 }
