@@ -2,10 +2,11 @@
 
 use crate::core::{ExecutionContext, ToolInfo};
 use crate::error::{Result, WorkflowError};
-use crate::tools::ToolNode;
+use crate::tools::{ToolNode, DependencyResolver, ToolDependency, ToolVersion, Version, VersionRequirement, ResolutionResult, ParameterTemplate, TemplateContext};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use serde_json::Value;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
@@ -38,12 +39,34 @@ pub trait ToolRegistry: Send + Sync {
     
     /// Clear all tools from the registry
     fn clear(&mut self);
+    
+    /// Resolve dependencies for a set of tools
+    fn resolve_dependencies(&self, tool_names: Vec<String>) -> Result<ResolutionResult>;
+    
+    /// Check for version conflicts in the registry
+    fn check_version_conflicts(&self) -> Result<Vec<String>>;
+    
+    /// Get tools that depend on a specific tool
+    fn get_dependents(&self, tool_name: &str) -> Vec<ToolInfo>;
+    
+    /// Expand tool parameters using templates
+    async fn execute_tool_with_templates(
+        &self, 
+        name: &str, 
+        params: Value, 
+        template_context: &TemplateContext,
+        execution_context: ExecutionContext
+    ) -> Result<Value>;
+    
+    /// Get parameter templates for a tool
+    fn get_tool_templates(&self, tool_name: &str) -> Vec<ParameterTemplate>;
 }
 
 /// Basic implementation of ToolRegistry using DashMap for concurrent access
 pub struct BasicToolRegistry {
     tools: DashMap<String, Arc<dyn ToolNode>>,
     tool_info_cache: DashMap<String, ToolInfo>,
+    dependency_resolver: DependencyResolver,
 }
 
 impl BasicToolRegistry {
@@ -52,6 +75,7 @@ impl BasicToolRegistry {
         Self {
             tools: DashMap::new(),
             tool_info_cache: DashMap::new(),
+            dependency_resolver: DependencyResolver::new(),
         }
     }
     
@@ -60,6 +84,7 @@ impl BasicToolRegistry {
         Self {
             tools: DashMap::with_capacity(capacity),
             tool_info_cache: DashMap::with_capacity(capacity),
+            dependency_resolver: DependencyResolver::new(),
         }
     }
     
@@ -108,10 +133,28 @@ impl BasicToolRegistry {
             .collect()
     }
     
-    /// Update tool info cache
+    /// Update tool info cache and dependency resolver
     fn update_cache(&self, tool: &Arc<dyn ToolNode>) {
         let info = tool.get_info();
-        self.tool_info_cache.insert(info.name.clone(), info);
+        
+        // Update info cache
+        self.tool_info_cache.insert(info.name.clone(), info.clone());
+        
+        // Update dependency resolver
+        let version = Version::from_str(&info.version).unwrap_or_else(|_| Version::new(0, 0, 0));
+        let mut tool_version = ToolVersion::new(info.name.clone(), version);
+        
+        // Add dependencies
+        for (dep_name, version_req) in &info.version_requirements {
+            if let Ok(requirement) = VersionRequirement::parse(version_req) {
+                let dependency = ToolDependency::new(dep_name.clone(), requirement);
+                tool_version = tool_version.with_dependency(dependency);
+            }
+        }
+        
+        // This is a bit tricky since DependencyResolver doesn't have a mutable reference
+        // We'll need to rebuild it when needed or use interior mutability
+        // For now, we'll store the tool version info in the cache
     }
     
     /// Remove from cache
@@ -225,6 +268,102 @@ impl ToolRegistry for BasicToolRegistry {
         self.tools.clear();
         self.tool_info_cache.clear();
         info!("Cleared {} tools from registry", count);
+    }
+    
+    fn resolve_dependencies(&self, tool_names: Vec<String>) -> Result<ResolutionResult> {
+        debug!("Resolving dependencies for tools: {:?}", tool_names);
+        
+        // Build dependency resolver with current tools
+        let mut resolver = DependencyResolver::new();
+        
+        // Add all tools to the resolver
+        for entry in self.tool_info_cache.iter() {
+            let info = entry.value();
+            let version = Version::from_str(&info.version)
+                .unwrap_or_else(|_| Version::new(0, 0, 0));
+            let mut tool_version = ToolVersion::new(info.name.clone(), version);
+            
+            // Add dependencies
+            for (dep_name, version_req) in &info.version_requirements {
+                if let Ok(requirement) = VersionRequirement::parse(version_req) {
+                    let dependency = ToolDependency::new(dep_name.clone(), requirement);
+                    tool_version = tool_version.with_dependency(dependency);
+                }
+            }
+            
+            resolver.add_tool_version(tool_version);
+        }
+        
+        // Create requirements for the requested tools
+        let requirements: Vec<ToolDependency> = tool_names.into_iter()
+            .map(|name| ToolDependency::new(name, VersionRequirement::Any))
+            .collect();
+        
+        resolver.resolve_dependencies(requirements)
+    }
+    
+    fn check_version_conflicts(&self) -> Result<Vec<String>> {
+        let tool_names: Vec<String> = self.tool_info_cache.iter()
+            .map(|entry| entry.key().clone())
+            .collect();
+        
+        let resolution = self.resolve_dependencies(tool_names)?;
+        
+        Ok(resolution.conflicts.into_iter()
+            .map(|conflict| format!("Conflict in tool '{}': {:?}", conflict.tool_name, conflict.conflict_type))
+            .collect())
+    }
+    
+    fn get_dependents(&self, tool_name: &str) -> Vec<ToolInfo> {
+        self.tool_info_cache.iter()
+            .filter_map(|entry| {
+                let info = entry.value();
+                if info.dependencies.contains(&tool_name.to_string()) {
+                    Some(info.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+    
+    async fn execute_tool_with_templates(
+        &self, 
+        name: &str, 
+        params: Value, 
+        template_context: &TemplateContext,
+        execution_context: ExecutionContext
+    ) -> Result<Value> {
+        debug!("Executing tool '{}' with template expansion", name);
+        
+        let tool = self.get_tool(name).ok_or_else(|| {
+            WorkflowError::NotFound {
+                resource: format!("tool '{}'", name),
+            }
+        })?;
+        
+        // Expand parameters using templates
+        let expanded_params = tool.expand_parameters(params, template_context)?;
+        
+        // Execute with expanded parameters
+        match tool.execute(expanded_params, execution_context).await {
+            Ok(result) => {
+                debug!("Tool '{}' executed successfully with templates", name);
+                Ok(result)
+            }
+            Err(e) => {
+                error!("Tool '{}' execution with templates failed: {}", name, e);
+                Err(e)
+            }
+        }
+    }
+    
+    fn get_tool_templates(&self, tool_name: &str) -> Vec<ParameterTemplate> {
+        if let Some(tool) = self.get_tool(tool_name) {
+            tool.get_parameter_templates()
+        } else {
+            Vec::new()
+        }
     }
 }
 

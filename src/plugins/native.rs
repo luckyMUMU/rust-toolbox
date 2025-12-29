@@ -7,6 +7,7 @@ use crate::tools::{BasicTool, ToolExecutor, ToolNode};
 use async_trait::async_trait;
 use libloading::{Library, Symbol};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::path::PathBuf;
@@ -231,6 +232,8 @@ impl NativePlugin {
                 parameters_schema,
                 return_schema,
                 plugin_name: Some(self.info.name.clone()),
+                dependencies: Vec::new(),
+                version_requirements: HashMap::new(),
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             };

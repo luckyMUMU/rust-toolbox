@@ -170,6 +170,8 @@ pub struct ToolInfo {
     pub parameters_schema: Value,
     pub return_schema: Value,
     pub plugin_name: Option<String>,
+    pub dependencies: Vec<String>, // Tool names this tool depends on
+    pub version_requirements: HashMap<String, String>, // Tool name -> version requirement
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

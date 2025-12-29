@@ -7,6 +7,7 @@ pub mod engine;
 pub mod execution;
 pub mod execution_manager;
 pub mod audit;
+pub mod result_cache;
 
 #[cfg(test)]
 pub mod retry_tests;
@@ -36,4 +37,8 @@ pub use audit::{
     AuditLogger, AuditEvent, AuditEventType, AuditSeverity,
     ExecutionLogEntry, LogLevel, AuditQueryCriteria, AuditReport,
     ErrorDetails, ErrorSummary
+};
+pub use result_cache::{
+    ResultCache, CacheKey, CachedResult, InvalidationStrategy,
+    CacheConfig, CacheStats
 };

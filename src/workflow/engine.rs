@@ -7,7 +7,7 @@ use crate::tools::ToolRegistry;
 use crate::workflow::{
     DagScheduler, WorkflowDefinition, WorkflowExecution, WorkflowState, 
     NodeExecutionState, Checkpoint, ExecutionRecord, AuditLogger, 
-    AuditEventType, LogLevel, ErrorDetails
+    AuditEventType, LogLevel, ErrorDetails, ResultCache, CacheConfig
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -67,6 +67,8 @@ pub struct DefaultWorkflowEngine {
     parallel_semaphore: Arc<Semaphore>,
     /// Audit logger for compliance and tracking
     audit_logger: Arc<AuditLogger>,
+    /// Result cache for execution results
+    result_cache: Option<Arc<ResultCache>>,
 }
 
 /// Control signals for workflow execution
@@ -132,6 +134,39 @@ impl DefaultWorkflowEngine {
             control_signals: DashMap::new(),
             parallel_semaphore: Arc::new(Semaphore::new(max_parallel_workflows)),
             audit_logger,
+            result_cache: None,
+        }
+    }
+
+    /// Create a new workflow engine with caching enabled
+    pub fn new_with_cache(
+        state_manager: Arc<StateManager>,
+        tool_registry: Arc<dyn ToolRegistry>,
+        max_parallel_workflows: usize,
+        cache_config: CacheConfig,
+    ) -> Self {
+        let audit_logger = Arc::new(AuditLogger::new(
+            state_manager.clone(),
+            false, // compliance_mode
+            30,    // retention_days
+        ));
+        
+        // Create result cache using the same cache backend as state manager
+        let result_cache = if cache_config.enabled {
+            let cache_backend = state_manager.get_cache_backend();
+            Some(Arc::new(ResultCache::new(cache_backend, cache_config)))
+        } else {
+            None
+        };
+        
+        Self {
+            state_manager,
+            tool_registry,
+            active_executions: DashMap::new(),
+            control_signals: DashMap::new(),
+            parallel_semaphore: Arc::new(Semaphore::new(max_parallel_workflows)),
+            audit_logger,
+            result_cache,
         }
     }
 
@@ -156,7 +191,37 @@ impl DefaultWorkflowEngine {
             control_signals: DashMap::new(),
             parallel_semaphore: Arc::new(Semaphore::new(max_parallel_workflows)),
             audit_logger,
+            result_cache: None,
         }
+    }
+
+    /// Create a new workflow engine with automatic recovery
+    pub async fn new_with_recovery(
+        state_manager: Arc<StateManager>,
+        tool_registry: Arc<dyn ToolRegistry>,
+        max_parallel_workflows: usize,
+        enable_auto_recovery: bool,
+    ) -> Result<Self> {
+        let engine = Self::new(state_manager, tool_registry, max_parallel_workflows);
+        
+        if enable_auto_recovery {
+            // Attempt to recover incomplete workflows
+            let recovered_workflows = engine.recover_incomplete_workflows().await?;
+            
+            // Re-register recovered workflows in active executions
+            for execution in recovered_workflows {
+                let execution_arc = Arc::new(RwLock::new(execution.clone()));
+                engine.active_executions.insert(execution.id, execution_arc);
+                engine.control_signals.insert(execution.id, ExecutionControl::new());
+                
+                tracing::info!(
+                    "Re-registered recovered workflow {} in active executions",
+                    execution.id
+                );
+            }
+        }
+        
+        Ok(engine)
     }
 
     /// Execute a single node (basic implementation)
@@ -206,7 +271,7 @@ impl DefaultWorkflowEngine {
         let params = Value::Null; // Default empty parameters for testing
         self.tool_registry.execute_tool(tool_name, params, context).await
     }
-    /// Execute a single node with retry logic
+    /// Execute a single node with retry logic and caching
     pub async fn execute_node_with_retry(
         &self,
         node_id: &str,
@@ -217,16 +282,48 @@ impl DefaultWorkflowEngine {
         let default_retry = crate::core::RetryPolicy::default();
         let retry_policy = retry_policy.unwrap_or(&default_retry);
         
-        let mut attempt = 0;
-        let mut last_error: Option<String> = None;
-        let start_time = Utc::now();
-
-        // Log node execution start
         let (workflow_id, workflow_name) = {
             let execution = workflow_execution.read().await;
             (execution.id, execution.workflow_name.clone())
         };
 
+        // Check cache first if caching is enabled
+        if let Some(result_cache) = &self.result_cache {
+            let parameters = Value::Null; // In a real implementation, get actual parameters
+            
+            if let Ok(Some(cached_result)) = result_cache.get_node_result(
+                &workflow_name,
+                "1.0.0", // In a real implementation, get actual version
+                node_id,
+                &context,
+                &parameters,
+            ).await {
+                tracing::info!(
+                    "Using cached result for node {} in workflow {}",
+                    node_id,
+                    workflow_id
+                );
+                
+                // Log cache hit
+                let log_entry = self.audit_logger.create_execution_log(
+                    LogLevel::Info,
+                    workflow_id,
+                    &context.execution_id,
+                    Some(node_id),
+                    &format!("Node '{}' result retrieved from cache", node_id),
+                    std::collections::HashMap::new(),
+                );
+                self.audit_logger.log_execution(log_entry).await?;
+                
+                return Ok(cached_result.result);
+            }
+        }
+
+        let mut attempt = 0;
+        let mut last_error: Option<String> = None;
+        let start_time = Utc::now();
+
+        // Log node execution start
         let node_start_event = self.audit_logger.create_node_event(
             AuditEventType::NodeStarted,
             workflow_id,
@@ -263,6 +360,34 @@ impl DefaultWorkflowEngine {
             match self.execute_node(node_id, workflow_execution.clone(), context.clone()).await {
                 Ok(result) => {
                     let duration = Utc::now().signed_duration_since(start_time);
+                    
+                    // Cache the result if caching is enabled
+                    if let Some(result_cache) = &self.result_cache {
+                        let parameters = Value::Null; // In a real implementation, get actual parameters
+                        
+                        if let Err(cache_error) = result_cache.cache_node_result(
+                            &workflow_name,
+                            "1.0.0", // In a real implementation, get actual version
+                            node_id,
+                            &context,
+                            &parameters,
+                            &result,
+                            Some(duration),
+                        ).await {
+                            tracing::warn!(
+                                "Failed to cache result for node {} in workflow {}: {}",
+                                node_id,
+                                workflow_id,
+                                cache_error
+                            );
+                        } else {
+                            tracing::debug!(
+                                "Cached result for node {} in workflow {}",
+                                node_id,
+                                workflow_id
+                            );
+                        }
+                    }
                     
                     // Log successful completion
                     let node_complete_event = self.audit_logger.create_node_event(
@@ -568,16 +693,73 @@ impl DefaultWorkflowEngine {
     /// Create a checkpoint for the workflow
     async fn create_checkpoint(
         &self,
-        _workflow_id: WorkflowId,
+        workflow_id: WorkflowId,
         node_id: &str,
         state_snapshot: Value,
     ) -> Result<Checkpoint> {
-        Ok(Checkpoint {
+        let checkpoint = Checkpoint {
             id: Uuid::new_v4().to_string(),
             timestamp: Utc::now(),
             node_id: node_id.to_string(),
             state_snapshot,
-        })
+        };
+
+        // Log checkpoint creation
+        tracing::debug!(
+            "Created checkpoint {} for workflow {} at node {}",
+            checkpoint.id,
+            workflow_id,
+            node_id
+        );
+
+        Ok(checkpoint)
+    }
+
+    /// Create a comprehensive checkpoint with full workflow state
+    async fn create_comprehensive_checkpoint(
+        &self,
+        workflow_execution: &WorkflowExecution,
+    ) -> Result<Checkpoint> {
+        // Create a comprehensive state snapshot including:
+        // - Current node states
+        // - Global context
+        // - Execution metadata
+        let mut state_snapshot = serde_json::Map::new();
+        
+        // Include node states
+        state_snapshot.insert(
+            "node_states".to_string(),
+            serde_json::to_value(&workflow_execution.node_states)?
+        );
+        
+        // Include global context
+        state_snapshot.insert(
+            "global_context".to_string(),
+            workflow_execution.global_context.clone()
+        );
+        
+        // Include execution metadata
+        let mut execution_metadata = serde_json::Map::new();
+        execution_metadata.insert("started_at".to_string(), 
+            serde_json::to_value(workflow_execution.started_at)?);
+        execution_metadata.insert("current_node".to_string(), 
+            serde_json::to_value(&workflow_execution.current_node)?);
+        execution_metadata.insert("status".to_string(), 
+            serde_json::to_value(workflow_execution.status)?);
+        
+        state_snapshot.insert(
+            "execution_metadata".to_string(),
+            Value::Object(execution_metadata)
+        );
+
+        let current_node = workflow_execution.current_node.clone()
+            .unwrap_or_else(|| "unknown".to_string());
+
+        self.create_checkpoint(
+            workflow_execution.id,
+            &current_node,
+            Value::Object(state_snapshot),
+        ).await
     }
 
     /// Save workflow state to persistence with checkpoints
@@ -586,14 +768,27 @@ impl DefaultWorkflowEngine {
         workflow_execution: &WorkflowExecution,
         checkpoint: Option<Checkpoint>
     ) -> Result<()> {
-        let mut checkpoints = Vec::new();
+        // Load existing workflow state to preserve previous checkpoints
+        let mut existing_checkpoints = if let Some(existing_state) = self.load_workflow_state(workflow_execution.id).await? {
+            existing_state.checkpoints
+        } else {
+            Vec::new()
+        };
+
+        // Add new checkpoint if provided
         if let Some(cp) = checkpoint {
-            checkpoints.push(cp);
+            existing_checkpoints.push(cp);
+            
+            // Limit checkpoint history to prevent unbounded growth
+            const MAX_CHECKPOINTS: usize = 10;
+            if existing_checkpoints.len() > MAX_CHECKPOINTS {
+                existing_checkpoints.drain(0..existing_checkpoints.len() - MAX_CHECKPOINTS);
+            }
         }
 
         let workflow_state = WorkflowState {
             execution: workflow_execution.clone(),
-            checkpoints,
+            checkpoints: existing_checkpoints,
             metadata: std::collections::HashMap::new(),
         };
 
@@ -603,8 +798,8 @@ impl DefaultWorkflowEngine {
     }
 
     /// Recover workflow from checkpoint
-    pub async fn recover_workflow(&self, _workflow_id: WorkflowId) -> Result<Option<WorkflowExecution>> {
-        if let Some(workflow_state) = self.load_workflow_state(_workflow_id).await? {
+    pub async fn recover_workflow(&self, workflow_id: WorkflowId) -> Result<Option<WorkflowExecution>> {
+        if let Some(workflow_state) = self.load_workflow_state(workflow_id).await? {
             let mut execution = workflow_state.execution;
             
             // Only recover if the workflow was in a recoverable state
@@ -613,13 +808,46 @@ impl DefaultWorkflowEngine {
                     // Reset status to pending for recovery
                     execution.status = ExecutionStatus::Pending;
                     
-                    // Find the last checkpoint
+                    // Find the last checkpoint and restore state
                     if let Some(last_checkpoint) = workflow_state.checkpoints.last() {
+                        tracing::info!(
+                            "Recovering workflow {} from checkpoint {} at node {}",
+                            workflow_id,
+                            last_checkpoint.id,
+                            last_checkpoint.node_id
+                        );
+                        
                         // Restore state from checkpoint
                         execution.current_node = Some(last_checkpoint.node_id.clone());
-                        execution.global_context = last_checkpoint.state_snapshot.clone();
                         
-                        // Reset node states after the checkpoint
+                        // Restore comprehensive state if available
+                        if let Value::Object(state_map) = &last_checkpoint.state_snapshot {
+                            // Restore node states
+                            if let Some(node_states_value) = state_map.get("node_states") {
+                                if let Ok(node_states) = serde_json::from_value(node_states_value.clone()) {
+                                    execution.node_states = node_states;
+                                }
+                            }
+                            
+                            // Restore global context
+                            if let Some(global_context) = state_map.get("global_context") {
+                                execution.global_context = global_context.clone();
+                            }
+                            
+                            // Restore execution metadata if needed
+                            if let Some(Value::Object(exec_metadata)) = state_map.get("execution_metadata") {
+                                if let Some(current_node_value) = exec_metadata.get("current_node") {
+                                    if let Ok(current_node) = serde_json::from_value(current_node_value.clone()) {
+                                        execution.current_node = current_node;
+                                    }
+                                }
+                            }
+                        } else {
+                            // Fallback to simple state restoration
+                            execution.global_context = last_checkpoint.state_snapshot.clone();
+                        }
+                        
+                        // Reset running nodes to pending for re-execution
                         for (_node_id, node_state) in execution.node_states.iter_mut() {
                             if node_state.status == ExecutionStatus::Running {
                                 // Reset running nodes to pending
@@ -629,17 +857,110 @@ impl DefaultWorkflowEngine {
                                 node_state.error = None;
                             }
                         }
+                    } else {
+                        tracing::warn!(
+                            "No checkpoints found for workflow {}, performing basic recovery",
+                            workflow_id
+                        );
                     }
                     
                     Ok(Some(execution))
                 }
+                ExecutionStatus::Failed => {
+                    // Check if there are any completed nodes that can be resumed from
+                    let has_completed_nodes = execution.node_states
+                        .values()
+                        .any(|state| state.status == ExecutionStatus::Completed);
+                    
+                    if has_completed_nodes {
+                        tracing::info!(
+                            "Attempting recovery of failed workflow {} with completed nodes",
+                            workflow_id
+                        );
+                        
+                        // Reset to pending and allow recovery from last successful checkpoint
+                        execution.status = ExecutionStatus::Pending;
+                        
+                        // Find the last successful checkpoint
+                        if let Some(last_checkpoint) = workflow_state.checkpoints.last() {
+                            execution.current_node = Some(last_checkpoint.node_id.clone());
+                            execution.global_context = last_checkpoint.state_snapshot.clone();
+                        }
+                        
+                        Ok(Some(execution))
+                    } else {
+                        tracing::warn!(
+                            "Cannot recover failed workflow {} - no completed nodes found",
+                            workflow_id
+                        );
+                        Ok(None)
+                    }
+                }
                 _ => {
-                    // Workflow is in a terminal state, cannot recover
+                    tracing::debug!(
+                        "Workflow {} is in terminal state {:?}, cannot recover",
+                        workflow_id,
+                        execution.status
+                    );
                     Ok(None)
                 }
             }
         } else {
+            tracing::warn!("No workflow state found for workflow {}", workflow_id);
             Ok(None)
+        }
+    }
+
+    /// Recover all incomplete workflows after system restart
+    pub async fn recover_incomplete_workflows(&self) -> Result<Vec<WorkflowExecution>> {
+        let workflow_ids = self.state_manager.list_workflow_states().await?;
+        let mut recovered_workflows = Vec::new();
+        
+        for workflow_id in workflow_ids {
+            if let Some(recovered_execution) = self.recover_workflow(workflow_id).await? {
+                recovered_workflows.push(recovered_execution);
+                tracing::info!("Recovered workflow {} after system restart", workflow_id);
+            }
+        }
+        
+        tracing::info!(
+            "System recovery complete: {} workflows recovered",
+            recovered_workflows.len()
+        );
+        
+        Ok(recovered_workflows)
+    }
+
+    /// Get cache statistics if caching is enabled
+    pub async fn get_cache_stats(&self) -> Option<crate::workflow::CacheStats> {
+        if let Some(result_cache) = &self.result_cache {
+            Some(result_cache.get_cache_stats().await)
+        } else {
+            None
+        }
+    }
+
+    /// Clear all cached results
+    pub async fn clear_cache(&self) -> Result<()> {
+        if let Some(result_cache) = &self.result_cache {
+            result_cache.clear_all().await?;
+            tracing::info!("Cleared all cached workflow results");
+        }
+        Ok(())
+    }
+
+    /// Invalidate cache for a specific workflow
+    pub async fn invalidate_workflow_cache(&self, workflow_name: &str, workflow_version: Option<&str>) -> Result<usize> {
+        if let Some(result_cache) = &self.result_cache {
+            let count = result_cache.invalidate_workflow(workflow_name, workflow_version).await?;
+            tracing::info!(
+                "Invalidated {} cache entries for workflow {}",
+                count,
+                workflow_name
+            );
+            Ok(count)
+        } else {
+            Ok(0)
         }
     }
 
@@ -693,14 +1014,13 @@ impl DefaultWorkflowEngine {
         if should_checkpoint {
             *last_checkpoint_time = Some(now);
             
-            let current_node = workflow_execution.current_node.clone()
-                .unwrap_or_else(|| "unknown".to_string());
+            let checkpoint = self.create_comprehensive_checkpoint(workflow_execution).await?;
             
-            let checkpoint = self.create_checkpoint(
-                workflow_execution.id,
-                &current_node,
-                workflow_execution.global_context.clone(),
-            ).await?;
+            tracing::debug!(
+                "Created periodic checkpoint {} for workflow {}",
+                checkpoint.id,
+                workflow_execution.id
+            );
             
             Ok(Some(checkpoint))
         } else {
@@ -769,6 +1089,43 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             node_states: std::collections::HashMap::new(),
             global_context: Value::Object(serde_json::Map::new()),
         };
+
+        // Check cache for workflow result if caching is enabled
+        if let Some(result_cache) = &self.result_cache {
+            let context = ExecutionContext::new().with_workflow_id(workflow_id);
+            let parameters = Value::Null; // In a real implementation, get actual parameters
+            
+            if let Ok(Some(cached_result)) = result_cache.get_workflow_result(
+                &definition.name,
+                &definition.version,
+                &context,
+                &parameters,
+            ).await {
+                tracing::info!(
+                    "Using cached result for workflow {} ({})",
+                    definition.name,
+                    workflow_id
+                );
+                
+                // Create a completed execution from cached result
+                workflow_execution.status = ExecutionStatus::Completed;
+                workflow_execution.completed_at = Some(Utc::now());
+                workflow_execution.global_context = cached_result.result;
+                
+                // Log cache hit
+                let log_entry = self.audit_logger.create_execution_log(
+                    LogLevel::Info,
+                    workflow_id,
+                    &execution_id,
+                    None,
+                    &format!("Workflow '{}' result retrieved from cache", definition.name),
+                    std::collections::HashMap::new(),
+                );
+                self.audit_logger.log_execution(log_entry).await?;
+                
+                return Ok(workflow_execution);
+            }
+        }
 
         // Initialize node states
         for node in &definition.nodes {
@@ -869,13 +1226,9 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                         
                         // Create checkpoint before pausing
                         let execution = execution_arc.read().await;
-                        let checkpoint = self.maybe_create_checkpoint(
-                            &execution, 
-                            &mut last_checkpoint_time, 
-                            Duration::from_secs(0) // Force checkpoint
-                        ).await?;
+                        let checkpoint = self.create_comprehensive_checkpoint(&execution).await?;
                         
-                        self.save_workflow_state_with_checkpoint(&execution, checkpoint).await?;
+                        self.save_workflow_state_with_checkpoint(&execution, Some(checkpoint)).await?;
                         
                         // Wait until resumed or stopped
                         while control.should_pause() && !control.should_stop() {
@@ -991,7 +1344,12 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                         checkpoint_interval
                     ).await?;
                     
-                    self.save_workflow_state_with_checkpoint(&execution, checkpoint).await?;
+                    if checkpoint.is_some() {
+                        self.save_workflow_state_with_checkpoint(&execution, checkpoint).await?;
+                    } else {
+                        // Save state without checkpoint for regular persistence
+                        self.save_workflow_state(&execution).await?;
+                    }
                 }
             }
 
@@ -1048,6 +1406,40 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             let execution = execution_arc.read().await;
             self.save_workflow_state_with_checkpoint(&execution, None).await?;
             self.record_execution(&execution).await?;
+            
+            // Cache the workflow result if caching is enabled and execution was successful
+            if let Some(result_cache) = &self.result_cache {
+                if execution.status == ExecutionStatus::Completed {
+                    let context = ExecutionContext::new().with_workflow_id(workflow_id);
+                    let parameters = Value::Null; // In a real implementation, get actual parameters
+                    let execution_duration = execution.completed_at.map(|completed| {
+                        completed.signed_duration_since(execution.started_at)
+                    });
+                    
+                    if let Err(cache_error) = result_cache.cache_workflow_result(
+                        &definition.name,
+                        &definition.version,
+                        &context,
+                        &parameters,
+                        &execution.global_context,
+                        execution_duration,
+                    ).await {
+                        tracing::warn!(
+                            "Failed to cache result for workflow {} ({}): {}",
+                            definition.name,
+                            workflow_id,
+                            cache_error
+                        );
+                    } else {
+                        tracing::debug!(
+                            "Cached result for workflow {} ({})",
+                            definition.name,
+                            workflow_id
+                        );
+                    }
+                }
+            }
+            
             execution.clone()
         };
 

@@ -7110,6 +7110,7 @@ dependencies = [
  "petgraph 0.6.5",
  "proptest",
  "ratatui",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",

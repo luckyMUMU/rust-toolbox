@@ -22,6 +22,11 @@ impl StateManager {
         Self { storage, cache }
     }
     
+    /// Get the cache backend for external use
+    pub fn get_cache_backend(&self) -> Arc<dyn CacheBackend> {
+        self.cache.clone()
+    }
+    
     /// Create a StateManager with file storage and simple memory cache
     pub fn with_file_storage<P: Into<std::path::PathBuf>>(base_path: P) -> Result<Self> {
         let storage = Arc::new(crate::storage::FileStorage::new(base_path)?);

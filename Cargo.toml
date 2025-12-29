@@ -67,6 +67,9 @@ thiserror = "2.0"
 # JSON Schema validation
 jsonschema = "0.18"
 
+# Regular expressions
+regex = "1.10"
+
 # 并发和同步
 dashmap = "6.1"
 parking_lot = "0.12"

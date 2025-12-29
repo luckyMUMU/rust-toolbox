@@ -2,10 +2,12 @@
 
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
+use crate::tools::{ParameterTemplate, TemplateContext, TemplateEngine};
 use async_trait::async_trait;
 use chrono::Utc;
 use jsonschema::{Draft, JSONSchema};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Trait for tool nodes
@@ -28,6 +30,18 @@ pub trait ToolNode: Send + Sync {
     
     /// Get plugin information if this tool belongs to a plugin
     fn get_plugin_info(&self) -> Option<&PluginInfo>;
+    
+    /// Get parameter templates for this tool
+    fn get_parameter_templates(&self) -> Vec<ParameterTemplate> {
+        Vec::new() // Default implementation returns no templates
+    }
+    
+    /// Expand parameters using templates and context
+    fn expand_parameters(&self, params: Value, context: &TemplateContext) -> Result<Value> {
+        // Default implementation uses template engine for basic expansion
+        let engine = TemplateEngine::new()?;
+        engine.expand(&params, context)
+    }
 }
 
 /// Trait for tool executors - separates execution logic from tool metadata
@@ -49,6 +63,7 @@ pub struct BasicTool {
     executor: Arc<dyn ToolExecutor>,
     plugin_info: Option<PluginInfo>,
     parameter_schema: Option<JSONSchema>,
+    parameter_templates: Vec<ParameterTemplate>,
 }
 
 impl BasicTool {
@@ -74,6 +89,7 @@ impl BasicTool {
             executor,
             plugin_info,
             parameter_schema,
+            parameter_templates: Vec::new(),
         })
     }
     
@@ -126,6 +142,15 @@ impl ToolNode for BasicTool {
     fn get_plugin_info(&self) -> Option<&PluginInfo> {
         self.plugin_info.as_ref()
     }
+    
+    fn get_parameter_templates(&self) -> Vec<ParameterTemplate> {
+        self.parameter_templates.clone()
+    }
+    
+    fn expand_parameters(&self, params: Value, context: &TemplateContext) -> Result<Value> {
+        let engine = TemplateEngine::new()?;
+        engine.expand(&params, context)
+    }
 }
 
 /// Builder for BasicTool
@@ -138,6 +163,9 @@ pub struct BasicToolBuilder {
     parameters_schema: Value,
     return_schema: Value,
     plugin_name: Option<String>,
+    dependencies: Vec<String>,
+    version_requirements: HashMap<String, String>,
+    parameter_templates: Vec<ParameterTemplate>,
     executor: Option<Arc<dyn ToolExecutor>>,
     plugin_info: Option<PluginInfo>,
 }
@@ -153,6 +181,9 @@ impl BasicToolBuilder {
             parameters_schema: Value::Null,
             return_schema: Value::Null,
             plugin_name: None,
+            dependencies: Vec::new(),
+            version_requirements: HashMap::new(),
+            parameter_templates: Vec::new(),
             executor: None,
             plugin_info: None,
         }
@@ -208,6 +239,38 @@ impl BasicToolBuilder {
         self
     }
     
+    pub fn dependencies<I: IntoIterator<Item = S>, S: Into<String>>(mut self, dependencies: I) -> Self {
+        self.dependencies = dependencies.into_iter().map(|s| s.into()).collect();
+        self
+    }
+    
+    pub fn version_requirement<S1: Into<String>, S2: Into<String>>(mut self, tool_name: S1, requirement: S2) -> Self {
+        self.version_requirements.insert(tool_name.into(), requirement.into());
+        self
+    }
+    
+    pub fn version_requirements<I, S1, S2>(mut self, requirements: I) -> Self 
+    where
+        I: IntoIterator<Item = (S1, S2)>,
+        S1: Into<String>,
+        S2: Into<String>,
+    {
+        self.version_requirements = requirements.into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+        self
+    }
+    
+    pub fn parameter_template(mut self, template: ParameterTemplate) -> Self {
+        self.parameter_templates.push(template);
+        self
+    }
+    
+    pub fn parameter_templates<I: IntoIterator<Item = ParameterTemplate>>(mut self, templates: I) -> Self {
+        self.parameter_templates = templates.into_iter().collect();
+        self
+    }
+    
     pub fn build(self) -> Result<BasicTool> {
         let name = self.name.ok_or_else(|| WorkflowError::ValidationError("Tool name is required".to_string()))?;
         let version = self.version.ok_or_else(|| WorkflowError::ValidationError("Tool version is required".to_string()))?;
@@ -224,11 +287,17 @@ impl BasicToolBuilder {
             parameters_schema: self.parameters_schema,
             return_schema: self.return_schema,
             plugin_name: self.plugin_name,
+            dependencies: self.dependencies,
+            version_requirements: self.version_requirements,
             created_at: now,
             updated_at: now,
         };
         
         BasicTool::new(info, executor, self.plugin_info)
+            .map(|mut tool| {
+                tool.parameter_templates = self.parameter_templates;
+                tool
+            })
     }
 }
 
