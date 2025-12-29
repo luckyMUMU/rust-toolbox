@@ -65,6 +65,9 @@ pub enum WorkflowError {
     #[error("Storage error: {message}")]
     Storage { message: String },
     
+    #[error("Backup error: {0}")]
+    BackupError(String),
+    
     #[error("Authentication error: {message}")]
     Authentication { message: String },
     

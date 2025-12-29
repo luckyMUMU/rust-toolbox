@@ -1,7 +1,7 @@
 //! State management for workflows and executions
 
 use crate::error::Result;
-use crate::storage::{CacheBackend, StorageBackend, RetentionPolicy};
+use crate::storage::{CacheBackend, StorageBackend, RetentionPolicy, BackupManager, BackupConfig};
 use crate::workflow::{WorkflowState, ExecutionRecord};
 use crate::core::WorkflowId;
 use chrono::Utc;
@@ -12,6 +12,7 @@ use std::time::Duration;
 pub struct StateManager {
     pub storage: Arc<dyn StorageBackend>,
     cache: Arc<dyn CacheBackend>,
+    backup_manager: Option<BackupManager>,
 }
 
 impl StateManager {
@@ -19,7 +20,25 @@ impl StateManager {
         storage: Arc<dyn StorageBackend>,
         cache: Arc<dyn CacheBackend>,
     ) -> Self {
-        Self { storage, cache }
+        Self { 
+            storage, 
+            cache,
+            backup_manager: None,
+        }
+    }
+    
+    /// Create StateManager with backup functionality
+    pub fn with_backup(
+        storage: Arc<dyn StorageBackend>,
+        cache: Arc<dyn CacheBackend>,
+        backup_config: BackupConfig,
+    ) -> Result<Self> {
+        let backup_manager = BackupManager::new(storage.clone(), backup_config)?;
+        Ok(Self { 
+            storage, 
+            cache,
+            backup_manager: Some(backup_manager),
+        })
     }
     
     /// Get the cache backend for external use
@@ -185,6 +204,81 @@ impl StateManager {
     /// Get cache size
     pub fn cache_size(&self) -> usize {
         self.cache.size()
+    }
+    
+    /// Get backup manager reference
+    pub fn backup_manager(&self) -> Option<&BackupManager> {
+        self.backup_manager.as_ref()
+    }
+    
+    /// Create a full backup of all system data
+    pub async fn create_backup(&self) -> Result<crate::storage::BackupMetadata> {
+        match &self.backup_manager {
+            Some(manager) => manager.create_full_backup().await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
+    }
+    
+    /// Create an incremental backup
+    pub async fn create_incremental_backup(&self, previous_backup_id: &str) -> Result<crate::storage::BackupMetadata> {
+        match &self.backup_manager {
+            Some(manager) => manager.create_incremental_backup(previous_backup_id).await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
+    }
+    
+    /// Restore system state from backup
+    pub async fn restore_from_backup(&self, backup_id: &str) -> Result<crate::storage::RestoreResult> {
+        match &self.backup_manager {
+            Some(manager) => manager.restore_from_backup(backup_id).await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
+    }
+    
+    /// Verify backup integrity
+    pub async fn verify_backup(&self, backup_id: &str) -> Result<crate::storage::BackupVerification> {
+        match &self.backup_manager {
+            Some(manager) => manager.verify_backup(backup_id).await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
+    }
+    
+    /// List available backups
+    pub async fn list_backups(&self) -> Result<Vec<crate::storage::BackupMetadata>> {
+        match &self.backup_manager {
+            Some(manager) => manager.list_backups().await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
+    }
+    
+    /// Delete a backup
+    pub async fn delete_backup(&self, backup_id: &str) -> Result<()> {
+        match &self.backup_manager {
+            Some(manager) => manager.delete_backup(backup_id).await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
+    }
+    
+    /// Get backup statistics
+    pub async fn get_backup_statistics(&self) -> Result<crate::storage::BackupStatistics> {
+        match &self.backup_manager {
+            Some(manager) => manager.get_backup_statistics().await,
+            None => Err(crate::error::WorkflowError::BackupError(
+                "Backup manager not configured".to_string()
+            ).into()),
+        }
     }
 }
 
