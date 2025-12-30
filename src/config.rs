@@ -3,13 +3,22 @@
 use crate::core::{AuthConfig, RateLimitConfig};
 use crate::error::{Result, WorkflowError};
 use config::{Config as ConfigBuilder, Environment, File};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Deserializer};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::sync::{Arc, RwLock};
 use tokio::sync::watch;
 use tokio::time::{interval, Duration as TokioDuration};
 use tracing::{debug, info, warn, error};
+
+// Helper function to deserialize duration from seconds
+fn deserialize_duration_from_secs<'de, D>(deserializer: D) -> std::result::Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let secs = u64::deserialize(deserializer)?;
+    Ok(Duration::from_secs(secs))
+}
 
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +40,7 @@ pub struct ServerConfig {
     pub bind_address: String,
     pub cors_origins: Vec<String>,
     pub max_connections: usize,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub request_timeout: Duration,
 }
 
@@ -39,8 +49,10 @@ pub struct ServerConfig {
 pub struct StorageConfig {
     pub database_path: PathBuf,
     pub cache_size: u64,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub cache_ttl: Duration,
     pub backup_enabled: bool,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub backup_interval: Duration,
     pub retention_days: u32,
 }
@@ -62,6 +74,7 @@ pub struct PluginConfig {
     pub plugin_dir: PathBuf,
     pub auto_load: bool,
     pub sandbox_enabled: bool,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub timeout: Duration,
     pub memory_limit: u64,
 }
@@ -70,9 +83,12 @@ pub struct PluginConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowEngineConfig {
     pub max_concurrent_workflows: usize,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub default_timeout: Duration,
     pub checkpoint_enabled: bool,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub checkpoint_interval: Duration,
+    #[serde(deserialize_with = "deserialize_duration_from_secs")]
     pub cleanup_interval: Duration,
 }
 

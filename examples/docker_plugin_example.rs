@@ -24,15 +24,10 @@ async fn main() -> Result<()> {
     let plugin_info = PluginInfo {
         name: "image-processor".to_string(),
         version: "1.0.0".to_string(),
-        description: "Docker-based image processing tools".to_string(),
         plugin_type: PluginType::Docker,
+        description: Some("Docker-based image processing tools".to_string()),
         author: Some("Workflow Toolkit Team".to_string()),
-        license: Some("MIT".to_string()),
-        repository: None,
-        dependencies: vec![],
-        tools: vec!["resize_image".to_string(), "convert_format".to_string()],
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        metadata: std::collections::HashMap::new(),
     };
 
     // Create Docker tool configurations
@@ -164,6 +159,8 @@ async fn main() -> Result<()> {
             }
         }),
         plugin_name: Some("image-processor".to_string()),
+        dependencies: vec![],
+        version_requirements: std::collections::HashMap::new(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -196,6 +193,8 @@ async fn main() -> Result<()> {
             }
         }),
         plugin_name: Some("image-processor".to_string()),
+        dependencies: vec![],
+        version_requirements: std::collections::HashMap::new(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -243,8 +242,8 @@ async fn main() -> Result<()> {
     // Get plugin information
     let info = plugin.info();
     println!("Plugin: {} v{}", info.name, info.version);
-    println!("Description: {}", info.description);
-    println!("Tools: {:?}", info.tools);
+    println!("Description: {:?}", info.description);
+    println!("Plugin type: {:?}", info.plugin_type);
 
     // Get available tools
     let tools = plugin.get_tools();

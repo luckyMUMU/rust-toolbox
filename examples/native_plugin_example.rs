@@ -20,15 +20,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plugin_info = PluginInfo {
         name: "example-native-plugin".to_string(),
         version: "1.0.0".to_string(),
-        description: "Example native plugin for demonstration".to_string(),
         plugin_type: PluginType::Native,
+        description: Some("Example native plugin for demonstration".to_string()),
         author: Some("Workflow Toolkit Team".to_string()),
-        license: Some("MIT".to_string()),
-        repository: None,
-        dependencies: vec![],
-        tools: vec!["example_tool".to_string()],
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        metadata: std::collections::HashMap::new(),
     };
 
     // Create plugin configuration

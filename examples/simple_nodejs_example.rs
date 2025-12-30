@@ -42,6 +42,8 @@ async fn main() -> Result<()> {
             }
         }),
         plugin_name: Some("simple-nodejs-plugin".to_string()),
+        dependencies: vec![],
+        version_requirements: std::collections::HashMap::new(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };

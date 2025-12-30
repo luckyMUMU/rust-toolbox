@@ -634,18 +634,18 @@ mod tests {
         let call_stack = vec![
             CallInfo {
                 function_name: "main".to_string(),
-                start_time: Instant::now(),
-                thread_id: std::thread::current().id(),
+                start_time_millis: chrono::Utc::now().timestamp_millis() as u64,
+                thread_id_hash: 12345,
             },
             CallInfo {
                 function_name: "process_data".to_string(),
-                start_time: Instant::now(),
-                thread_id: std::thread::current().id(),
+                start_time_millis: chrono::Utc::now().timestamp_millis() as u64,
+                thread_id_hash: 12345,
             },
             CallInfo {
                 function_name: "validate_input".to_string(),
-                start_time: Instant::now(),
-                thread_id: std::thread::current().id(),
+                start_time_millis: chrono::Utc::now().timestamp_millis() as u64,
+                thread_id_hash: 12345,
             },
         ];
         
