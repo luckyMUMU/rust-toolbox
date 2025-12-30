@@ -111,6 +111,36 @@ impl ToolRegistry for MockRetryToolRegistry {
         self.attempt_counts.lock().unwrap().clear();
         self.failure_counts.lock().unwrap().clear();
     }
+
+    fn resolve_dependencies(&self, _tool_names: Vec<String>) -> Result<crate::tools::ResolutionResult> {
+        Ok(crate::tools::ResolutionResult {
+            resolved_versions: std::collections::HashMap::new(),
+            conflicts: Vec::new(),
+            warnings: Vec::new(),
+        })
+    }
+    
+    fn check_version_conflicts(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+    
+    fn get_dependents(&self, _tool_name: &str) -> Vec<crate::core::ToolInfo> {
+        Vec::new()
+    }
+    
+    async fn execute_tool_with_templates(
+        &self,
+        name: &str,
+        params: Value,
+        _template_context: &crate::tools::TemplateContext,
+        execution_context: ExecutionContext
+    ) -> Result<Value> {
+        self.execute_tool(name, params, execution_context).await
+    }
+    
+    fn get_tool_templates(&self, _tool_name: &str) -> Vec<crate::tools::ParameterTemplate> {
+        Vec::new()
+    }
 }
 
 /// Helper function to create a test workflow engine with mock tool registry

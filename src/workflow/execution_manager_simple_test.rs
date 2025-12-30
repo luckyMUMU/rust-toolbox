@@ -117,6 +117,36 @@ mod simple_tests {
         fn clear(&mut self) {
             // No-op
         }
+
+        fn resolve_dependencies(&self, _tool_names: Vec<String>) -> crate::Result<crate::tools::ResolutionResult> {
+            Ok(crate::tools::ResolutionResult {
+                resolved_versions: std::collections::HashMap::new(),
+                conflicts: Vec::new(),
+                warnings: Vec::new(),
+            })
+        }
+        
+        fn check_version_conflicts(&self) -> crate::Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+        
+        fn get_dependents(&self, _tool_name: &str) -> Vec<crate::core::ToolInfo> {
+            Vec::new()
+        }
+        
+        async fn execute_tool_with_templates(
+            &self,
+            name: &str,
+            params: serde_json::Value,
+            _template_context: &crate::tools::TemplateContext,
+            execution_context: ExecutionContext
+        ) -> crate::Result<serde_json::Value> {
+            self.execute_tool(name, params, execution_context).await
+        }
+        
+        fn get_tool_templates(&self, _tool_name: &str) -> Vec<crate::tools::ParameterTemplate> {
+            Vec::new()
+        }
     }
 
     fn create_simple_execution_manager() -> DefaultExecutionManager {

@@ -394,6 +394,8 @@ mod tests {
             plugin_name: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            dependencies: Vec::new(),
+            version_requirements: std::collections::HashMap::new(),
         }
     }
 

@@ -78,6 +78,12 @@ parking_lot = "0.12"
 async-trait = "0.1"
 futures = "0.3"
 
+# 随机数生成
+rand = "0.8"
+
+# 系统信息
+num_cpus = "1.16"
+
 # Docker支持
 bollard = "0.17"
 tar = "0.4"

@@ -11,6 +11,7 @@ pub mod workflow;
 pub mod tools;
 pub mod plugins;
 pub mod interfaces;
+pub mod performance;
 
 // Re-export commonly used types
 pub use crate::config::{Config, ConfigManager, CliConfigOverrides};
@@ -21,6 +22,7 @@ pub use crate::workflow::{
     ExecutionManager, DefaultExecutionManager, ExecutionHandle, ExecutionResult
 };
 pub use crate::tools::{ToolNode, ToolRegistry};
+pub use crate::performance::{PerformanceManager, PerformanceConfig};
 
 /// Initialize the logging system
 pub fn init_logging() -> Result<()> {

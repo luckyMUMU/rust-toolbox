@@ -128,6 +128,8 @@ async fn test_nodejs_plugin_builder() {
         plugin_name: Some("test-plugin".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        dependencies: Vec::new(),
+        version_requirements: std::collections::HashMap::new(),
     };
 
     let plugin: NodeJsPlugin = NodeJsPluginBuilder::new()
@@ -163,6 +165,8 @@ async fn test_nodejs_plugin_initialization() {
         plugin_name: Some("test-plugin".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        dependencies: Vec::new(),
+        version_requirements: std::collections::HashMap::new(),
     };
 
     let mut plugin: NodeJsPlugin = NodeJsPluginBuilder::new()
@@ -207,6 +211,8 @@ async fn test_nodejs_tool_execution() {
         plugin_name: Some("test-plugin".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        dependencies: Vec::new(),
+        version_requirements: std::collections::HashMap::new(),
     };
 
     let mut plugin: NodeJsPlugin = NodeJsPluginBuilder::new()
@@ -260,6 +266,8 @@ async fn test_nodejs_tool_math_execution() {
         plugin_name: Some("test-plugin".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        dependencies: Vec::new(),
+        version_requirements: std::collections::HashMap::new(),
     };
 
     let mut plugin: NodeJsPlugin = NodeJsPluginBuilder::new()
@@ -314,6 +322,8 @@ async fn test_nodejs_tool_error_handling() {
         plugin_name: Some("test-plugin".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        dependencies: Vec::new(),
+        version_requirements: std::collections::HashMap::new(),
     };
 
     let mut plugin: NodeJsPlugin = NodeJsPluginBuilder::new()
@@ -396,6 +406,8 @@ async fn test_nodejs_plugin_shutdown() {
         plugin_name: Some("test-plugin".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
+        dependencies: Vec::new(),
+        version_requirements: std::collections::HashMap::new(),
     };
 
     let mut plugin: NodeJsPlugin = NodeJsPluginBuilder::new()

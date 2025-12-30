@@ -147,4 +147,26 @@ impl WorkflowError {
             resource: resource.into(),
         }
     }
+    
+    /// Create a new concurrency error
+    pub fn concurrency<S: Into<String>>(message: S) -> Self {
+        Self::Generic(anyhow::anyhow!("Concurrency error: {}", message.into()))
+    }
+    
+    /// Create a new backpressure error
+    pub fn backpressure<S: Into<String>>(message: S) -> Self {
+        Self::Generic(anyhow::anyhow!("Backpressure detected: {}", message.into()))
+    }
+    
+    /// Create a new tool execution error
+    pub fn tool_execution<S: Into<String>>(message: S) -> Self {
+        Self::Tool {
+            message: message.into(),
+        }
+    }
+    
+    /// Create a new validation error
+    pub fn validation<S: Into<String>>(message: S) -> Self {
+        Self::ValidationError(message.into())
+    }
 }
