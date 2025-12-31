@@ -77,79 +77,10 @@ impl FileManagementToolRegistry {
     fn register_text_processor_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
         debug!("Registering text processor tool");
 
-        let tool_info = ToolInfo {
-            name: "text-processor".to_string(),
-            version: "1.0.0".to_string(),
-            description: "Text processing including Chinese and pinyin conversion".to_string(),
-            category: Some("text-processing".to_string()),
-            tags: vec!["text".to_string(), "chinese".to_string(), "pinyin".to_string()],
-            parameters_schema: json!({
-                "type": "object",
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "Text to process"
-                    },
-                    "operations": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "enum": ["NormalizeCase", "RemoveSpaces", "ConvertTraditional", "GeneratePinyin", "CreateCombinations"]
-                        },
-                        "description": "List of operations to perform"
-                    },
-                    "chinese_processing": {
-                        "type": "object",
-                        "properties": {
-                            "pinyin_style": {
-                                "type": "string",
-                                "enum": ["Normal", "WithTone", "WithoutTone", "FirstLetter"],
-                                "default": "Normal"
-                            },
-                            "generate_combinations": {
-                                "type": "boolean",
-                                "default": false
-                            },
-                            "include_tones": {
-                                "type": "boolean",
-                                "default": false
-                            }
-                        }
-                    }
-                },
-                "required": ["text", "operations"]
-            }),
-            return_schema: json!({
-                "type": "object",
-                "properties": {
-                    "original": {"type": "string"},
-                    "processed": {"type": "string"},
-                    "pinyin_variants": {"type": "array", "items": {"type": "string"}},
-                    "combinations": {"type": "array"},
-                    "metadata": {"type": "object"}
-                }
-            }),
-            plugin_name: Some(self.plugin_info.name.clone()),
-            dependencies: Vec::new(),
-            version_requirements: HashMap::new(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-
-        // Create placeholder executor (will be implemented in later tasks)
-        let executor = Arc::new(PlaceholderExecutor::new("text-processor"));
-
-        let tool = BasicTool::builder()
-            .name(&tool_info.name)
-            .version(&tool_info.version)
-            .description(&tool_info.description)
-            .category(tool_info.category.clone().unwrap_or_default())
-            .tags(tool_info.tags.clone())
-            .parameters_schema(tool_info.parameters_schema.clone())
-            .return_schema(tool_info.return_schema.clone())
-            .plugin_info(self.plugin_info.clone())
-            .executor(executor)
-            .build()?;
+        let tool = super::text_processor_tool::TextProcessorTool::new(
+            self.config.enable_chinese_processing,
+            None, // Use default normalization config
+        );
 
         let tool_arc = Arc::new(tool);
         self.registered_tools.insert("text-processor".to_string(), tool_arc.clone());
@@ -231,67 +162,10 @@ impl FileManagementToolRegistry {
     fn register_classification_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
         debug!("Registering classification tool");
 
-        let tool_info = ToolInfo {
-            name: "folder-classifier".to_string(),
-            version: "1.0.0".to_string(),
-            description: "Intelligent folder classification using configurable rules".to_string(),
-            category: Some("classification".to_string()),
-            tags: vec!["classification".to_string(), "folder".to_string(), "ai".to_string()],
-            parameters_schema: json!({
-                "type": "object",
-                "properties": {
-                    "folder_path": {
-                        "type": "string",
-                        "description": "Path to folder to classify"
-                    },
-                    "classification_rules": {
-                        "description": "Classification rules (JSON object or file path)"
-                    },
-                    "enable_user_interaction": {
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Enable human decision for ambiguous cases"
-                    },
-                    "experimental_mode": {
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Run in experimental mode (no actual changes)"
-                    }
-                },
-                "required": ["folder_path", "classification_rules"]
-            }),
-            return_schema: json!({
-                "type": "object",
-                "properties": {
-                    "status": {"type": "string", "enum": ["classified", "unclassified", "pending", "error"]},
-                    "category": {"type": "string"},
-                    "candidates": {"type": "array"},
-                    "score": {"type": "number"},
-                    "folder_name": {"type": "string"},
-                    "processing_time_ms": {"type": "number"}
-                }
-            }),
-            plugin_name: Some(self.plugin_info.name.clone()),
-            dependencies: vec!["text-processor".to_string(), "ac-matcher".to_string()],
-            version_requirements: HashMap::new(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-
-        let executor = Arc::new(PlaceholderExecutor::new("folder-classifier"));
-
-        let tool = BasicTool::builder()
-            .name(&tool_info.name)
-            .version(&tool_info.version)
-            .description(&tool_info.description)
-            .category(tool_info.category.clone().unwrap_or_default())
-            .tags(tool_info.tags.clone())
-            .parameters_schema(tool_info.parameters_schema.clone())
-            .return_schema(tool_info.return_schema.clone())
-            .plugin_info(self.plugin_info.clone())
-            .dependencies(tool_info.dependencies.clone())
-            .executor(executor)
-            .build()?;
+        let tool = super::classification_tool::ClassificationTool::with_plugin_info(
+            self.config.enable_chinese_processing,
+            self.plugin_info.clone(),
+        );
 
         let tool_arc = Arc::new(tool);
         self.registered_tools.insert("folder-classifier".to_string(), tool_arc.clone());

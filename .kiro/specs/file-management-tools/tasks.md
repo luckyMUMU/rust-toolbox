@@ -39,29 +39,29 @@ This implementation plan develops file management tools as plugins for the exist
     - Integrate with workflow-toolkit execution context
     - _Requirements: 2.1, 7.3_
 
-- [-] 3. Implement text processing capabilities
-  - [ ] 3.1 Create text normalization functions
+- [x] 3. Implement text processing capabilities
+  - [x] 3.1 Create text normalization functions
     - Case normalization and character filtering
     - Unicode text handling and segmentation
     - _Requirements: 3.1, 3.4_
 
-  - [ ] 3.2 Add Chinese text processing
+  - [x] 3.2 Add Chinese text processing
     - Traditional to simplified conversion
     - Chinese character detection and processing
     - _Requirements: 3.2, 3.4_
 
-  - [ ] 3.3 Implement pinyin conversion
+  - [x] 3.3 Implement pinyin conversion
     - Chinese to pinyin conversion with multiple styles
     - Pinyin combination generation for keywords
     - _Requirements: 3.1, 3.3_
 
-  - [ ] 3.4 Create Text Processor Tool
+  - [x] 3.4 Create Text Processor Tool
     - Wrap text processing as workflow tool
     - Support configurable processing operations
     - _Requirements: 3.1, 7.3_
 
-- [ ] 4. Implement classification tool
-  - [ ] 4.1 Create classification engine core
+- [x] 4. Implement classification tool
+  - [x] 4.1 Create classification engine core
     - Integrate AC automaton with text processing
     - Implement scoring and decision algorithms
     - _Requirements: 1.1, 1.3_
@@ -70,12 +70,12 @@ This implementation plan develops file management tools as plugins for the exist
     - **Property 3: Classification Result Determinism**
     - **Validates: Requirements 1.3**
 
-  - [ ] 4.3 Add rule configuration support
+  - [x] 4.3 Add rule configuration support
     - JSON rule loading and validation
     - Support for complex keyword combinations
     - _Requirements: 1.2, 1.4_
 
-  - [ ] 4.4 Implement Classification Tool
+  - [x] 4.4 Implement Classification Tool
     - Complete folder classification as workflow tool
     - Support experimental mode and user interaction
     - _Requirements: 1.1, 1.5_
