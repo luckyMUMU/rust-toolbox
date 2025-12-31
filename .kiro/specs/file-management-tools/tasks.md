@@ -18,28 +18,28 @@ This implementation plan develops file management tools as plugins for the exist
   - **Validates: Requirements 7.1**
 
 - [-] 2. Implement Aho-Corasick automaton core
-  - [ ] 2.1 Create AC automaton data structures
+  - [x] 2.1 Create AC automaton data structures
     - Implement AutomatonNode and Pattern types
     - Add pattern insertion and tree building
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 2.2 Implement failure link construction
+  - [x] 2.2 Implement failure link construction
     - Build failure pointers for efficient matching
     - Handle overlapping pattern scenarios correctly
     - _Requirements: 2.1, 2.4_
 
-  - [ ] 2.3 Add pattern matching algorithm
+  - [x] 2.3 Add pattern matching algorithm
     - Core matching with position tracking
     - Support case-sensitive and case-insensitive modes
     - _Requirements: 2.2, 2.3_
 
-  - [ ] 2.4 Implement AC Matcher Tool
+  - [x] 2.4 Implement AC Matcher Tool
     - Wrap AC automaton as workflow tool
     - Define parameter schema and validation
     - Integrate with workflow-toolkit execution context
     - _Requirements: 2.1, 7.3_
 
-- [ ] 3. Implement text processing capabilities
+- [-] 3. Implement text processing capabilities
   - [ ] 3.1 Create text normalization functions
     - Case normalization and character filtering
     - Unicode text handling and segmentation
