@@ -1,6 +1,7 @@
 //! Plugin system for extending functionality
 
 pub mod docker;
+pub mod file_management;
 pub mod manager;
 pub mod native;
 pub mod nodejs;
@@ -12,6 +13,9 @@ pub use docker::{
     DockerPlugin as DockerPluginImpl, DockerPluginBuilder, DockerEnvironment, 
     DockerRuntimeConfig, DockerToolExecutor, DockerToolNode, DockerToolConfig,
     DockerMount, DockerMountType, DockerResourceLimits, DockerNetworkConfig,
+};
+pub use file_management::{
+    FileManagementPlugin, FileManagementPluginBuilder, FileManagementConfig,
 };
 pub use manager::{PluginManager, RuntimeManager};
 pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder, NativeToolExecutor};

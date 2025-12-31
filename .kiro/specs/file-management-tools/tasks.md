@@ -6,7 +6,7 @@ This implementation plan develops file management tools as plugins for the exist
 
 ## Tasks
 
-- [-] 1. Setup file management plugin structure
+- [x] 1. Setup file management plugin structure
   - Create plugin module within workflow-toolkit
   - Define plugin configuration and initialization
   - Set up tool registration framework
@@ -17,7 +17,7 @@ This implementation plan develops file management tools as plugins for the exist
   - **Property 1: Tool Registration Completeness**
   - **Validates: Requirements 7.1**
 
-- [ ] 2. Implement Aho-Corasick automaton core
+- [-] 2. Implement Aho-Corasick automaton core
   - [ ] 2.1 Create AC automaton data structures
     - Implement AutomatonNode and Pattern types
     - Add pattern insertion and tree building
