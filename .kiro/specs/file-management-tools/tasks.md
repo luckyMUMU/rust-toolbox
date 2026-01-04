@@ -113,23 +113,23 @@ This implementation plan develops file management tools as plugins for the exist
     - Integration with operation planning
     - _Requirements: 4.2_
 
-- [-] 7. Implement folder merger tool
-  - [ ] 7.1 Create folder comparison logic
+- [x] 7. Implement folder merger tool
+  - [x] 7.1 Create folder comparison logic
     - Identify common folders across locations
     - Calculate folder sizes and merge directions
     - _Requirements: 5.1, 5.2_
 
-  - [ ] 7.2 Add intelligent merging strategies
+  - [x] 7.2 Add intelligent merging strategies
     - Size-based merge direction decisions
     - Duplicate file handling approaches
     - _Requirements: 5.3, 5.4_
 
-  - [ ] 7.3 Implement Folder Merger Tool
+  - [x] 7.3 Implement Folder Merger Tool
     - Replace placeholder executor with actual implementation
     - Support recursive merging with safety limits
     - _Requirements: 5.1, 5.5_
 
-- [ ] 8. Implement batch processing tool
+- [-] 8. Implement batch processing tool
   - [ ] 8.1 Create batch processing framework
     - Parallel processing of multiple items
     - Integration with workflow-toolkit thread pools

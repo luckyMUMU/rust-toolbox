@@ -34,6 +34,10 @@ pub use utils::{
     FileOperationManager, TextProcessor, PathUtils, ValidationUtils,
     ExperimentalMode, HumanDecisionContext, TextNormalizationConfig,
     PinyinStyle, PinyinResult, ChineseTextType, MixedTextResult,
+    FolderMerger, FolderMergerConfig, FolderComparisonResult, CommonFolderInfo,
+    FolderLocationInfo, UniqueFolderInfo, MergeDirection, MergeRecommendation,
+    MergeStrategy, DuplicateHandling, FolderMergeResult, SingleFolderMergeResult,
+    FolderMergeError, MergeOperationStats,
 };
 pub use ac_automaton::{
     Pattern, AutomatonNode, PatternMatch, AutomatonConfig, AutomatonStats,

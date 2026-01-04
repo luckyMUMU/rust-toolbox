@@ -1993,6 +1993,923 @@ impl ExperimentalOperation {
     }
 }
 
+/// Folder comparison result for merging operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderComparisonResult {
+    pub common_folders: Vec<CommonFolderInfo>,
+    pub unique_folders: Vec<UniqueFolderInfo>,
+    pub total_folders_analyzed: usize,
+    pub total_size_bytes: u64,
+    pub merge_recommendations: Vec<MergeRecommendation>,
+}
+
+/// Information about folders with identical names found in multiple locations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommonFolderInfo {
+    pub folder_name: String,
+    pub locations: Vec<FolderLocationInfo>,
+    pub recommended_merge_direction: MergeDirection,
+    pub total_size_all_locations: u64,
+    pub duplicate_files_count: usize,
+    pub unique_files_count: usize,
+}
+
+/// Information about a folder location
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderLocationInfo {
+    pub path: PathBuf,
+    pub size_bytes: u64,
+    pub file_count: usize,
+    pub subdirectory_count: usize,
+    pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_writable: bool,
+}
+
+/// Information about folders that are unique to one location
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UniqueFolderInfo {
+    pub folder_name: String,
+    pub location: FolderLocationInfo,
+}
+
+/// Merge direction recommendation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MergeDirection {
+    /// Merge all into the largest folder
+    IntoLargest,
+    /// Merge all into the most recently modified folder
+    IntoNewest,
+    /// Merge all into the first location found
+    IntoFirst,
+    /// Merge all into a specific location (index in locations array)
+    IntoSpecific(usize),
+    /// Manual decision required
+    Manual,
+}
+
+/// Merge recommendation with reasoning
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeRecommendation {
+    pub folder_name: String,
+    pub recommended_direction: MergeDirection,
+    pub reasoning: String,
+    pub confidence_score: f64, // 0.0 to 1.0
+    pub estimated_space_saved: u64,
+    pub potential_conflicts: usize,
+}
+
+/// Folder merger for intelligent folder merging operations
+pub struct FolderMerger {
+    config: FolderMergerConfig,
+}
+
+/// Configuration for folder merger
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderMergerConfig {
+    pub merge_strategy: MergeStrategy,
+    pub duplicate_handling: DuplicateHandling,
+    pub max_recursion_depth: usize,
+    pub min_confidence_threshold: f64,
+    pub enable_size_based_decisions: bool,
+    pub enable_date_based_decisions: bool,
+    pub dry_run: bool,
+}
+
+impl Default for FolderMergerConfig {
+    fn default() -> Self {
+        Self {
+            merge_strategy: MergeStrategy::SizeBased,
+            duplicate_handling: DuplicateHandling::Rename,
+            max_recursion_depth: 10,
+            min_confidence_threshold: 0.7,
+            enable_size_based_decisions: true,
+            enable_date_based_decisions: true,
+            dry_run: false,
+        }
+    }
+}
+
+/// Merge strategy for determining merge direction
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MergeStrategy {
+    /// Merge into the folder with the largest size
+    SizeBased,
+    /// Merge into the most recently modified folder
+    DateBased,
+    /// Always ask for manual decision
+    Manual,
+    /// Use a combination of size and date with confidence scoring
+    Intelligent,
+}
+
+/// How to handle duplicate files during merge
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DuplicateHandling {
+    /// Skip duplicate files
+    Skip,
+    /// Rename duplicate files
+    Rename,
+    /// Keep the newer file
+    KeepNewer,
+    /// Keep the larger file
+    KeepLarger,
+    /// Merge file contents if possible
+    Merge,
+}
+
+impl FolderMerger {
+    /// Create a new folder merger with default configuration
+    pub fn new() -> Self {
+        Self {
+            config: FolderMergerConfig::default(),
+        }
+    }
+
+    /// Create a new folder merger with custom configuration
+    pub fn with_config(config: FolderMergerConfig) -> Self {
+        Self { config }
+    }
+
+    /// Compare folders across multiple source directories to identify merge candidates
+    pub fn compare_folders<P: AsRef<Path>>(&self, source_directories: &[P]) -> FileManagementResult<FolderComparisonResult> {
+        debug!("Comparing folders across {} source directories", source_directories.len());
+        
+        let mut folder_map: HashMap<String, Vec<FolderLocationInfo>> = HashMap::new();
+        let mut total_folders_analyzed = 0;
+        let mut total_size_bytes = 0;
+
+        // Scan all source directories
+        for source_dir in source_directories {
+            let source_path = source_dir.as_ref();
+            
+            if !source_path.exists() {
+                warn!("Source directory does not exist: {}", source_path.display());
+                continue;
+            }
+
+            if !source_path.is_dir() {
+                warn!("Source path is not a directory: {}", source_path.display());
+                continue;
+            }
+
+            // Read directory contents
+            let entries = std::fs::read_dir(source_path).map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read source directory {}", source_path.display()),
+                    e,
+                )
+            })?;
+
+            for entry in entries {
+                let entry = entry.map_err(|e| {
+                    FileManagementError::io(
+                        format!("Failed to read directory entry in {}", source_path.display()),
+                        e,
+                    )
+                })?;
+
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let folder_name = entry_path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+
+                    let location_info = self.analyze_folder_location(&entry_path)?;
+                    total_size_bytes += location_info.size_bytes;
+                    total_folders_analyzed += 1;
+
+                    folder_map.entry(folder_name).or_insert_with(Vec::new).push(location_info);
+                }
+            }
+        }
+
+        // Separate common and unique folders
+        let mut common_folders = Vec::new();
+        let mut unique_folders = Vec::new();
+
+        for (folder_name, locations) in folder_map {
+            if locations.len() > 1 {
+                // Common folder - found in multiple locations
+                let common_info = self.analyze_common_folder(&folder_name, locations)?;
+                common_folders.push(common_info);
+            } else if let Some(location) = locations.into_iter().next() {
+                // Unique folder - found in only one location
+                unique_folders.push(UniqueFolderInfo {
+                    folder_name,
+                    location,
+                });
+            }
+        }
+
+        // Generate merge recommendations
+        let merge_recommendations = self.generate_merge_recommendations(&common_folders)?;
+
+        debug!(
+            "Folder comparison complete: {} common folders, {} unique folders, {} recommendations",
+            common_folders.len(),
+            unique_folders.len(),
+            merge_recommendations.len()
+        );
+
+        Ok(FolderComparisonResult {
+            common_folders,
+            unique_folders,
+            total_folders_analyzed,
+            total_size_bytes,
+            merge_recommendations,
+        })
+    }
+
+    /// Analyze a single folder location to gather metadata
+    fn analyze_folder_location(&self, folder_path: &Path) -> FileManagementResult<FolderLocationInfo> {
+        let size_bytes = PathUtils::get_directory_size(folder_path)?;
+        
+        let metadata = std::fs::metadata(folder_path).map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to get metadata for {}", folder_path.display()),
+                e,
+            )
+        })?;
+
+        let last_modified = metadata.modified()
+            .ok()
+            .and_then(|time| {
+                time.duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .map(|duration| {
+                        chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+                            .unwrap_or_else(chrono::Utc::now)
+                    })
+            });
+
+        // Count files and subdirectories
+        let (file_count, subdirectory_count) = self.count_folder_contents(folder_path)?;
+
+        // Check if folder is writable
+        let is_writable = self.check_folder_writable(folder_path);
+
+        Ok(FolderLocationInfo {
+            path: folder_path.to_path_buf(),
+            size_bytes,
+            file_count,
+            subdirectory_count,
+            last_modified,
+            is_writable,
+        })
+    }
+
+    /// Count files and subdirectories in a folder
+    fn count_folder_contents(&self, folder_path: &Path) -> FileManagementResult<(usize, usize)> {
+        let mut file_count = 0;
+        let mut subdirectory_count = 0;
+
+        let entries = std::fs::read_dir(folder_path).map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to read folder contents {}", folder_path.display()),
+                e,
+            )
+        })?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read folder entry in {}", folder_path.display()),
+                    e,
+                )
+            })?;
+
+            if entry.path().is_dir() {
+                subdirectory_count += 1;
+            } else {
+                file_count += 1;
+            }
+        }
+
+        Ok((file_count, subdirectory_count))
+    }
+
+    /// Check if a folder is writable
+    fn check_folder_writable(&self, folder_path: &Path) -> bool {
+        // Try to create a temporary file to test writability
+        let test_file = folder_path.join(format!(".test_write_{}", uuid::Uuid::new_v4().simple()));
+        match std::fs::write(&test_file, b"test") {
+            Ok(_) => {
+                let _ = std::fs::remove_file(&test_file);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Analyze a common folder found in multiple locations
+    fn analyze_common_folder(&self, folder_name: &str, locations: Vec<FolderLocationInfo>) -> FileManagementResult<CommonFolderInfo> {
+        let total_size_all_locations: u64 = locations.iter().map(|loc| loc.size_bytes).sum();
+        
+        // Determine recommended merge direction
+        let recommended_merge_direction = self.determine_merge_direction(&locations)?;
+
+        // Analyze for duplicate files (simplified - in a real implementation this would be more thorough)
+        let (duplicate_files_count, unique_files_count) = self.estimate_duplicate_files(&locations)?;
+
+        Ok(CommonFolderInfo {
+            folder_name: folder_name.to_string(),
+            locations,
+            recommended_merge_direction,
+            total_size_all_locations,
+            duplicate_files_count,
+            unique_files_count,
+        })
+    }
+
+    /// Determine the best merge direction based on configuration and folder analysis
+    fn determine_merge_direction(&self, locations: &[FolderLocationInfo]) -> FileManagementResult<MergeDirection> {
+        match self.config.merge_strategy {
+            MergeStrategy::SizeBased => {
+                if self.config.enable_size_based_decisions {
+                    // Find the location with the largest size
+                    let largest_index = locations
+                        .iter()
+                        .enumerate()
+                        .max_by_key(|(_, loc)| loc.size_bytes)
+                        .map(|(index, _)| index)
+                        .unwrap_or(0);
+                    Ok(MergeDirection::IntoSpecific(largest_index))
+                } else {
+                    Ok(MergeDirection::IntoLargest)
+                }
+            }
+            MergeStrategy::DateBased => {
+                if self.config.enable_date_based_decisions {
+                    // Find the location with the most recent modification
+                    let newest_index = locations
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, loc)| loc.last_modified.map(|date| (index, date)))
+                        .max_by_key(|(_, date)| *date)
+                        .map(|(index, _)| index)
+                        .unwrap_or(0);
+                    Ok(MergeDirection::IntoSpecific(newest_index))
+                } else {
+                    Ok(MergeDirection::IntoNewest)
+                }
+            }
+            MergeStrategy::Manual => Ok(MergeDirection::Manual),
+            MergeStrategy::Intelligent => {
+                // Use intelligent decision making combining size and date
+                self.intelligent_merge_direction(locations)
+            }
+        }
+    }
+
+    /// Intelligent merge direction using multiple factors
+    fn intelligent_merge_direction(&self, locations: &[FolderLocationInfo]) -> FileManagementResult<MergeDirection> {
+        let mut scores: Vec<(usize, f64)> = Vec::new();
+
+        for (index, location) in locations.iter().enumerate() {
+            let mut score = 0.0;
+
+            // Size factor (normalized)
+            if self.config.enable_size_based_decisions {
+                let max_size = locations.iter().map(|loc| loc.size_bytes).max().unwrap_or(1);
+                let size_score = location.size_bytes as f64 / max_size as f64;
+                score += size_score * 0.4; // 40% weight for size
+            }
+
+            // Date factor (normalized)
+            if self.config.enable_date_based_decisions {
+                if let Some(modified) = location.last_modified {
+                    let newest_time = locations
+                        .iter()
+                        .filter_map(|loc| loc.last_modified)
+                        .max()
+                        .unwrap_or(modified);
+                    
+                    let oldest_time = locations
+                        .iter()
+                        .filter_map(|loc| loc.last_modified)
+                        .min()
+                        .unwrap_or(modified);
+
+                    if newest_time != oldest_time {
+                        let time_range = (newest_time - oldest_time).num_seconds() as f64;
+                        let time_score = if time_range > 0.0 {
+                            (modified - oldest_time).num_seconds() as f64 / time_range
+                        } else {
+                            1.0
+                        };
+                        score += time_score * 0.3; // 30% weight for recency
+                    }
+                }
+            }
+
+            // Writability factor
+            if location.is_writable {
+                score += 0.2; // 20% bonus for writable locations
+            }
+
+            // File count factor (more files might indicate more active use)
+            let max_files = locations.iter().map(|loc| loc.file_count).max().unwrap_or(1);
+            let file_score = location.file_count as f64 / max_files as f64;
+            score += file_score * 0.1; // 10% weight for file count
+
+            scores.push((index, score));
+        }
+
+        // Find the highest scoring location
+        let best_location = scores
+            .into_iter()
+            .max_by(|(_, score_a), (_, score_b)| score_a.partial_cmp(score_b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, score)| (index, score))
+            .unwrap_or((0, 0.0));
+
+        // If confidence is too low, require manual decision
+        if best_location.1 < self.config.min_confidence_threshold {
+            Ok(MergeDirection::Manual)
+        } else {
+            Ok(MergeDirection::IntoSpecific(best_location.0))
+        }
+    }
+
+    /// Estimate duplicate and unique files across locations (simplified implementation)
+    fn estimate_duplicate_files(&self, locations: &[FolderLocationInfo]) -> FileManagementResult<(usize, usize)> {
+        // This is a simplified estimation - a real implementation would compare file contents
+        let total_files: usize = locations.iter().map(|loc| loc.file_count).sum();
+        let max_files = locations.iter().map(|loc| loc.file_count).max().unwrap_or(0);
+        
+        // Rough estimation: assume some overlap based on folder sizes
+        let estimated_duplicates = if total_files > max_files {
+            (total_files - max_files) / 2 // Conservative estimate
+        } else {
+            0
+        };
+        
+        let estimated_unique = total_files - estimated_duplicates;
+        
+        Ok((estimated_duplicates, estimated_unique))
+    }
+
+    /// Generate merge recommendations for all common folders
+    fn generate_merge_recommendations(&self, common_folders: &[CommonFolderInfo]) -> FileManagementResult<Vec<MergeRecommendation>> {
+        let mut recommendations = Vec::new();
+
+        for common_folder in common_folders {
+            let recommendation = self.generate_single_merge_recommendation(common_folder)?;
+            recommendations.push(recommendation);
+        }
+
+        // Sort recommendations by confidence score (highest first)
+        recommendations.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap_or(std::cmp::Ordering::Equal));
+
+        Ok(recommendations)
+    }
+
+    /// Generate a merge recommendation for a single common folder
+    fn generate_single_merge_recommendation(&self, common_folder: &CommonFolderInfo) -> FileManagementResult<MergeRecommendation> {
+        let mut reasoning = String::new();
+        let mut confidence_score = 0.5; // Base confidence
+
+        // Calculate estimated space saved
+        let total_size = common_folder.total_size_all_locations;
+        let largest_size = common_folder.locations.iter().map(|loc| loc.size_bytes).max().unwrap_or(0);
+        let estimated_space_saved = if total_size > largest_size {
+            total_size - largest_size
+        } else {
+            0
+        };
+
+        // Generate reasoning based on merge direction
+        match &common_folder.recommended_merge_direction {
+            MergeDirection::IntoLargest => {
+                reasoning.push_str("Merge into largest folder to minimize data movement");
+                confidence_score += 0.2;
+            }
+            MergeDirection::IntoNewest => {
+                reasoning.push_str("Merge into most recently modified folder to preserve recent changes");
+                confidence_score += 0.2;
+            }
+            MergeDirection::IntoSpecific(index) => {
+                if let Some(target_location) = common_folder.locations.get(*index) {
+                    reasoning.push_str(&format!(
+                        "Merge into {} based on intelligent analysis (size: {} bytes, writable: {})",
+                        target_location.path.display(),
+                        target_location.size_bytes,
+                        target_location.is_writable
+                    ));
+                    confidence_score += 0.3;
+                } else {
+                    reasoning.push_str("Merge into first available location");
+                    confidence_score -= 0.1;
+                }
+            }
+            MergeDirection::Manual => {
+                reasoning.push_str("Manual decision required due to ambiguous merge conditions");
+                confidence_score = 0.1;
+            }
+            _ => {
+                reasoning.push_str("Standard merge operation");
+            }
+        }
+
+        // Adjust confidence based on potential conflicts
+        let potential_conflicts = common_folder.duplicate_files_count;
+        if potential_conflicts > 0 {
+            reasoning.push_str(&format!(", {} potential file conflicts detected", potential_conflicts));
+            confidence_score -= (potential_conflicts as f64 * 0.05).min(0.3); // Reduce confidence for conflicts
+        }
+
+        // Ensure confidence is within bounds
+        confidence_score = confidence_score.max(0.0).min(1.0);
+
+        Ok(MergeRecommendation {
+            folder_name: common_folder.folder_name.clone(),
+            recommended_direction: common_folder.recommended_merge_direction.clone(),
+            reasoning,
+            confidence_score,
+            estimated_space_saved,
+            potential_conflicts,
+        })
+    }
+
+    /// Execute folder merge operations based on comparison results
+    pub async fn execute_merge_operations(
+        &self,
+        comparison_result: &FolderComparisonResult,
+        file_operation_manager: &FileOperationManager,
+    ) -> FileManagementResult<FolderMergeResult> {
+        debug!("Executing merge operations for {} common folders", comparison_result.common_folders.len());
+
+        let mut merge_results = Vec::new();
+        let mut total_operations = 0;
+        let mut successful_operations = 0;
+        let mut failed_operations = 0;
+        let mut total_bytes_moved = 0;
+        let start_time = std::time::Instant::now();
+
+        for common_folder in &comparison_result.common_folders {
+            let merge_result = self.execute_single_folder_merge(common_folder, file_operation_manager).await?;
+            
+            total_operations += merge_result.operations_performed;
+            successful_operations += merge_result.successful_operations;
+            failed_operations += merge_result.failed_operations;
+            total_bytes_moved += merge_result.bytes_moved;
+            
+            merge_results.push(merge_result);
+        }
+
+        let duration_ms = start_time.elapsed().as_millis() as u64;
+
+        Ok(FolderMergeResult {
+            merge_results,
+            total_operations,
+            successful_operations,
+            failed_operations,
+            total_bytes_moved,
+            duration_ms,
+            folders_merged: comparison_result.common_folders.len(),
+        })
+    }
+
+    /// Execute merge operation for a single common folder
+    async fn execute_single_folder_merge(
+        &self,
+        common_folder: &CommonFolderInfo,
+        file_operation_manager: &FileOperationManager,
+    ) -> FileManagementResult<SingleFolderMergeResult> {
+        debug!("Executing merge for folder: {}", common_folder.folder_name);
+
+        // Determine target location based on merge direction
+        let target_index = match &common_folder.recommended_merge_direction {
+            MergeDirection::IntoLargest => {
+                common_folder.locations
+                    .iter()
+                    .enumerate()
+                    .max_by_key(|(_, loc)| loc.size_bytes)
+                    .map(|(index, _)| index)
+                    .unwrap_or(0)
+            }
+            MergeDirection::IntoNewest => {
+                common_folder.locations
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, loc)| loc.last_modified.map(|date| (index, date)))
+                    .max_by_key(|(_, date)| *date)
+                    .map(|(index, _)| index)
+                    .unwrap_or(0)
+            }
+            MergeDirection::IntoFirst => 0,
+            MergeDirection::IntoSpecific(index) => *index,
+            MergeDirection::Manual => {
+                return Err(FileManagementError::unsupported_operation(
+                    "Manual merge direction requires human decision"
+                ));
+            }
+        };
+
+        let target_location = common_folder.locations.get(target_index)
+            .ok_or_else(|| FileManagementError::validation(
+                format!("Invalid target index {} for folder {}", target_index, common_folder.folder_name)
+            ))?;
+
+        let mut operations_performed = 0;
+        let mut successful_operations = 0;
+        let mut failed_operations = 0;
+        let mut bytes_moved = 0;
+        let mut merge_errors = Vec::new();
+
+        // Merge all other locations into the target
+        for (source_index, source_location) in common_folder.locations.iter().enumerate() {
+            if source_index == target_index {
+                continue; // Skip the target location
+            }
+
+            debug!("Merging {} into {}", source_location.path.display(), target_location.path.display());
+
+            match self.merge_single_location(
+                &source_location.path,
+                &target_location.path,
+                file_operation_manager,
+            ).await {
+                Ok(merge_stats) => {
+                    operations_performed += merge_stats.operations_performed;
+                    successful_operations += merge_stats.successful_operations;
+                    failed_operations += merge_stats.failed_operations;
+                    bytes_moved += merge_stats.bytes_moved;
+                }
+                Err(e) => {
+                    failed_operations += 1;
+                    merge_errors.push(FolderMergeError {
+                        source_path: source_location.path.clone(),
+                        target_path: target_location.path.clone(),
+                        error_message: e.to_string(),
+                        error_category: e.category().to_string(),
+                    });
+                    warn!("Failed to merge {} into {}: {}", 
+                          source_location.path.display(), 
+                          target_location.path.display(), 
+                          e);
+                }
+            }
+        }
+
+        Ok(SingleFolderMergeResult {
+            folder_name: common_folder.folder_name.clone(),
+            target_location: target_location.path.clone(),
+            source_locations: common_folder.locations.iter()
+                .enumerate()
+                .filter(|(index, _)| *index != target_index)
+                .map(|(_, loc)| loc.path.clone())
+                .collect(),
+            operations_performed,
+            successful_operations,
+            failed_operations,
+            bytes_moved,
+            merge_errors,
+        })
+    }
+
+    /// Merge contents of source location into target location
+    fn merge_single_location<'a>(
+        &'a self,
+        source_path: &'a Path,
+        target_path: &'a Path,
+        file_operation_manager: &'a FileOperationManager,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<MergeOperationStats>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut stats = MergeOperationStats {
+                operations_performed: 0,
+                successful_operations: 0,
+                failed_operations: 0,
+                bytes_moved: 0,
+            };
+
+            // Read source directory contents
+            let entries = std::fs::read_dir(source_path).map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read source directory {}", source_path.display()),
+                    e,
+                )
+            })?;
+
+            for entry in entries {
+                let entry = entry.map_err(|e| {
+                    FileManagementError::io(
+                        format!("Failed to read directory entry in {}", source_path.display()),
+                        e,
+                    )
+                })?;
+
+                let entry_path = entry.path();
+                let entry_name = entry.file_name();
+                let target_entry_path = target_path.join(&entry_name);
+
+                stats.operations_performed += 1;
+
+                if entry_path.is_dir() {
+                    // Handle directory merge
+                    match self.merge_directory(&entry_path, &target_entry_path, file_operation_manager).await {
+                        Ok(dir_stats) => {
+                            stats.successful_operations += 1;
+                            stats.bytes_moved += dir_stats.bytes_moved;
+                            stats.operations_performed += dir_stats.operations_performed;
+                            stats.successful_operations += dir_stats.successful_operations;
+                            stats.failed_operations += dir_stats.failed_operations;
+                        }
+                        Err(e) => {
+                            stats.failed_operations += 1;
+                            warn!("Failed to merge directory {} to {}: {}", 
+                                  entry_path.display(), target_entry_path.display(), e);
+                        }
+                    }
+                } else {
+                    // Handle file merge
+                    match self.merge_file(&entry_path, &target_entry_path, file_operation_manager).await {
+                        Ok(bytes) => {
+                            stats.successful_operations += 1;
+                            stats.bytes_moved += bytes;
+                        }
+                        Err(e) => {
+                            stats.failed_operations += 1;
+                            warn!("Failed to merge file {} to {}: {}", 
+                                  entry_path.display(), target_entry_path.display(), e);
+                        }
+                    }
+                }
+            }
+
+            // Remove source directory if all operations were successful and it's empty
+            if stats.failed_operations == 0 && !self.config.dry_run {
+                if let Err(e) = std::fs::remove_dir(source_path) {
+                    warn!("Failed to remove source directory after merge {}: {}", source_path.display(), e);
+                } else {
+                    debug!("Successfully removed source directory: {}", source_path.display());
+                }
+            }
+
+            Ok(stats)
+        })
+    }
+
+    /// Merge a directory, handling conflicts based on configuration
+    fn merge_directory<'a>(
+        &'a self,
+        source_dir: &'a Path,
+        target_dir: &'a Path,
+        file_operation_manager: &'a FileOperationManager,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<MergeOperationStats>> + Send + 'a>> {
+        Box::pin(async move {
+            if target_dir.exists() && target_dir.is_dir() {
+                // Target directory exists - merge contents recursively
+                self.merge_single_location(source_dir, target_dir, file_operation_manager).await
+            } else {
+                // Target directory doesn't exist - move the entire directory
+                let result = file_operation_manager.move_file(source_dir, target_dir).await?;
+                Ok(MergeOperationStats {
+                    operations_performed: 1,
+                    successful_operations: 1,
+                    failed_operations: 0,
+                    bytes_moved: result.bytes_moved,
+                })
+            }
+        })
+    }
+
+    /// Merge a file, handling conflicts based on configuration
+    async fn merge_file(
+        &self,
+        source_file: &Path,
+        target_file: &Path,
+        file_operation_manager: &FileOperationManager,
+    ) -> FileManagementResult<u64> {
+        if target_file.exists() {
+            // Handle file conflict based on duplicate handling strategy
+            match self.config.duplicate_handling {
+                DuplicateHandling::Skip => {
+                    debug!("Skipping duplicate file: {}", target_file.display());
+                    return Ok(0);
+                }
+                DuplicateHandling::Rename => {
+                    let unique_target = PathUtils::generate_unique_name(target_file);
+                    let result = file_operation_manager.move_file(source_file, &unique_target).await?;
+                    return Ok(result.bytes_moved);
+                }
+                DuplicateHandling::KeepNewer => {
+                    if self.is_source_newer(source_file, target_file)? {
+                        let result = file_operation_manager.move_file(source_file, target_file).await?;
+                        return Ok(result.bytes_moved);
+                    } else {
+                        debug!("Target file is newer, skipping: {}", target_file.display());
+                        return Ok(0);
+                    }
+                }
+                DuplicateHandling::KeepLarger => {
+                    if self.is_source_larger(source_file, target_file)? {
+                        let result = file_operation_manager.move_file(source_file, target_file).await?;
+                        return Ok(result.bytes_moved);
+                    } else {
+                        debug!("Target file is larger, skipping: {}", target_file.display());
+                        return Ok(0);
+                    }
+                }
+                DuplicateHandling::Merge => {
+                    // For now, treat merge as rename - actual content merging would be file-type specific
+                    let unique_target = PathUtils::generate_unique_name(target_file);
+                    let result = file_operation_manager.move_file(source_file, &unique_target).await?;
+                    return Ok(result.bytes_moved);
+                }
+            }
+        } else {
+            // No conflict - move file directly
+            let result = file_operation_manager.move_file(source_file, target_file).await?;
+            Ok(result.bytes_moved)
+        }
+    }
+
+    /// Check if source file is newer than target file
+    fn is_source_newer(&self, source_file: &Path, target_file: &Path) -> FileManagementResult<bool> {
+        let source_metadata = std::fs::metadata(source_file).map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to get metadata for source file {}", source_file.display()),
+                e,
+            )
+        })?;
+
+        let target_metadata = std::fs::metadata(target_file).map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to get metadata for target file {}", target_file.display()),
+                e,
+            )
+        })?;
+
+        let source_modified = source_metadata.modified().map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to get modification time for source file {}", source_file.display()),
+                e,
+            )
+        })?;
+
+        let target_modified = target_metadata.modified().map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to get modification time for target file {}", target_file.display()),
+                e,
+            )
+        })?;
+
+        Ok(source_modified > target_modified)
+    }
+
+    /// Check if source file is larger than target file
+    fn is_source_larger(&self, source_file: &Path, target_file: &Path) -> FileManagementResult<bool> {
+        let source_size = PathUtils::get_file_size(source_file)?;
+        let target_size = PathUtils::get_file_size(target_file)?;
+        Ok(source_size > target_size)
+    }
+}
+
+/// Result of folder merge operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderMergeResult {
+    pub merge_results: Vec<SingleFolderMergeResult>,
+    pub total_operations: usize,
+    pub successful_operations: usize,
+    pub failed_operations: usize,
+    pub total_bytes_moved: u64,
+    pub duration_ms: u64,
+    pub folders_merged: usize,
+}
+
+/// Result of merging a single folder
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SingleFolderMergeResult {
+    pub folder_name: String,
+    pub target_location: PathBuf,
+    pub source_locations: Vec<PathBuf>,
+    pub operations_performed: usize,
+    pub successful_operations: usize,
+    pub failed_operations: usize,
+    pub bytes_moved: u64,
+    pub merge_errors: Vec<FolderMergeError>,
+}
+
+/// Error information for merge operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FolderMergeError {
+    pub source_path: PathBuf,
+    pub target_path: PathBuf,
+    pub error_message: String,
+    pub error_category: String,
+}
+
+/// Statistics for merge operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeOperationStats {
+    pub operations_performed: usize,
+    pub successful_operations: usize,
+    pub failed_operations: usize,
+    pub bytes_moved: u64,
+}
+
 /// Context for human decision making
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HumanDecisionContext {

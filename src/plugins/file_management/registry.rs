@@ -248,24 +248,96 @@ impl FileManagementToolRegistry {
     fn register_folder_merger_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
         debug!("Registering folder merger tool");
 
-        let executor = Arc::new(PlaceholderExecutor::new("folder-merger"));
-
-        let tool = BasicTool::builder()
-            .name("folder-merger")
-            .version("1.0.0")
-            .description("Intelligent folder merging with duplicate handling")
-            .category("file-operations")
-            .tags(vec!["folder", "merge", "duplicate"])
-            .parameters_schema(json!({
+        let tool_info = ToolInfo {
+            name: "folder-merger".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Intelligent folder merging with duplicate handling".to_string(),
+            category: Some("file-operations".to_string()),
+            tags: vec!["folder".to_string(), "merge".to_string(), "duplicate".to_string()],
+            parameters_schema: json!({
                 "type": "object",
                 "properties": {
-                    "source_directories": {"type": "array", "items": {"type": "string"}},
-                    "merge_strategy": {"type": "string", "enum": ["SizeBased", "DateBased", "Manual"], "default": "SizeBased"},
-                    "handle_duplicates": {"type": "string", "enum": ["Skip", "Rename", "Merge"], "default": "Rename"},
-                    "experimental_mode": {"type": "boolean", "default": false}
+                    "source_directories": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of source directory paths to analyze for merging"
+                    },
+                    "merge_strategy": {
+                        "type": "string",
+                        "enum": ["SizeBased", "DateBased", "Manual", "Intelligent"],
+                        "default": "SizeBased",
+                        "description": "Strategy for determining merge direction"
+                    },
+                    "duplicate_handling": {
+                        "type": "string",
+                        "enum": ["Skip", "Rename", "KeepNewer", "KeepLarger", "Merge"],
+                        "default": "Rename",
+                        "description": "How to handle duplicate files during merge"
+                    },
+                    "max_recursion_depth": {
+                        "type": "number",
+                        "default": 10,
+                        "description": "Maximum recursion depth for directory traversal"
+                    },
+                    "min_confidence_threshold": {
+                        "type": "number",
+                        "default": 0.7,
+                        "minimum": 0.0,
+                        "maximum": 1.0,
+                        "description": "Minimum confidence score for automatic merge decisions"
+                    },
+                    "experimental_mode": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Run in experimental mode (dry run) without making actual changes"
+                    }
                 },
                 "required": ["source_directories"]
-            }))
+            }),
+            return_schema: json!({
+                "type": "object",
+                "properties": {
+                    "comparison_result": {
+                        "type": "object",
+                        "properties": {
+                            "common_folders": {"type": "array"},
+                            "unique_folders": {"type": "array"},
+                            "total_folders_analyzed": {"type": "number"},
+                            "total_size_bytes": {"type": "number"},
+                            "merge_recommendations": {"type": "array"}
+                        }
+                    },
+                    "merge_result": {
+                        "type": "object",
+                        "properties": {
+                            "total_operations": {"type": "number"},
+                            "successful_operations": {"type": "number"},
+                            "failed_operations": {"type": "number"},
+                            "total_bytes_moved": {"type": "number"},
+                            "duration_ms": {"type": "number"},
+                            "folders_merged": {"type": "number"}
+                        }
+                    },
+                    "experimental_mode": {"type": "boolean"}
+                }
+            }),
+            plugin_name: Some(self.plugin_info.name.clone()),
+            dependencies: Vec::new(),
+            version_requirements: HashMap::new(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let executor = Arc::new(FolderMergerExecutor::new(self.config.clone()));
+
+        let tool = BasicTool::builder()
+            .name(&tool_info.name)
+            .version(&tool_info.version)
+            .description(&tool_info.description)
+            .category(tool_info.category.clone().unwrap_or_default())
+            .tags(tool_info.tags.clone())
+            .parameters_schema(tool_info.parameters_schema.clone())
+            .return_schema(tool_info.return_schema.clone())
             .plugin_info(self.plugin_info.clone())
             .executor(executor)
             .build()?;
@@ -914,6 +986,260 @@ impl ToolExecutor for FileMoverExecutor {
         if let Some(create_directories) = params.get("create_directories") {
             if !create_directories.is_boolean() {
                 return Err(WorkflowError::validation("create_directories must be a boolean"));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Folder merger executor that implements actual folder merging operations
+pub struct FolderMergerExecutor {
+    config: FileManagementConfig,
+}
+
+impl FolderMergerExecutor {
+    pub fn new(config: FileManagementConfig) -> Self {
+        Self { config }
+    }
+
+    /// Parse merge strategy from parameters
+    fn parse_merge_strategy(&self, params: &Value) -> super::utils::MergeStrategy {
+        let strategy_str = params
+            .get("merge_strategy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("SizeBased");
+
+        match strategy_str {
+            "SizeBased" => super::utils::MergeStrategy::SizeBased,
+            "DateBased" => super::utils::MergeStrategy::DateBased,
+            "Manual" => super::utils::MergeStrategy::Manual,
+            "Intelligent" => super::utils::MergeStrategy::Intelligent,
+            _ => super::utils::MergeStrategy::SizeBased, // Default fallback
+        }
+    }
+
+    /// Parse duplicate handling strategy from parameters
+    fn parse_duplicate_handling(&self, params: &Value) -> super::utils::DuplicateHandling {
+        let handling_str = params
+            .get("duplicate_handling")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Rename");
+
+        match handling_str {
+            "Skip" => super::utils::DuplicateHandling::Skip,
+            "Rename" => super::utils::DuplicateHandling::Rename,
+            "KeepNewer" => super::utils::DuplicateHandling::KeepNewer,
+            "KeepLarger" => super::utils::DuplicateHandling::KeepLarger,
+            "Merge" => super::utils::DuplicateHandling::Merge,
+            _ => super::utils::DuplicateHandling::Rename, // Default fallback
+        }
+    }
+
+    /// Parse source directories from parameters
+    fn parse_source_directories(&self, params: &Value) -> Result<Vec<String>> {
+        let directories_value = params
+            .get("source_directories")
+            .ok_or_else(|| WorkflowError::validation("source_directories parameter is required"))?;
+
+        let directories_array = directories_value
+            .as_array()
+            .ok_or_else(|| WorkflowError::validation("source_directories must be an array"))?;
+
+        if directories_array.is_empty() {
+            return Err(WorkflowError::validation("source_directories array cannot be empty"));
+        }
+
+        let mut directories = Vec::new();
+        for (index, dir_value) in directories_array.iter().enumerate() {
+            let dir_str = dir_value
+                .as_str()
+                .ok_or_else(|| WorkflowError::validation(format!(
+                    "source_directories[{}] must be a string", 
+                    index
+                )))?;
+            directories.push(dir_str.to_string());
+        }
+
+        Ok(directories)
+    }
+
+    /// Create folder merger configuration from parameters
+    fn create_merger_config(&self, params: &Value, experimental_mode: bool) -> super::utils::FolderMergerConfig {
+        let merge_strategy = self.parse_merge_strategy(params);
+        let duplicate_handling = self.parse_duplicate_handling(params);
+        
+        let max_recursion_depth = params
+            .get("max_recursion_depth")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10) as usize;
+
+        let min_confidence_threshold = params
+            .get("min_confidence_threshold")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.7);
+
+        super::utils::FolderMergerConfig {
+            merge_strategy,
+            duplicate_handling,
+            max_recursion_depth,
+            min_confidence_threshold,
+            enable_size_based_decisions: true,
+            enable_date_based_decisions: true,
+            dry_run: experimental_mode,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ToolExecutor for FolderMergerExecutor {
+    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+        debug!("Executing folder merger tool with parameters: {}", params);
+
+        // Parse source directories
+        let source_directories = self.parse_source_directories(&params)?;
+
+        // Check if we're in experimental mode
+        let experimental_mode = params
+            .get("experimental_mode")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        // Create merger configuration
+        let merger_config = self.create_merger_config(&params, experimental_mode);
+        let folder_merger = super::utils::FolderMerger::with_config(merger_config);
+
+        // Perform folder comparison
+        debug!("Comparing folders across {} source directories", source_directories.len());
+        let comparison_result = folder_merger.compare_folders(&source_directories).map_err(|e| {
+            WorkflowError::tool(format!("Failed to compare folders: {}", e))
+        })?;
+
+        debug!(
+            "Folder comparison complete: {} common folders, {} unique folders",
+            comparison_result.common_folders.len(),
+            comparison_result.unique_folders.len()
+        );
+
+        // If no common folders found, return comparison result only
+        if comparison_result.common_folders.is_empty() {
+            return Ok(json!({
+                "comparison_result": comparison_result,
+                "merge_result": null,
+                "experimental_mode": experimental_mode,
+                "message": "No common folders found for merging"
+            }));
+        }
+
+        // Create file operation manager for merge operations
+        let file_operation_manager = super::utils::FileOperationManager::with_config(
+            self.config.temp_directory.clone(),
+            experimental_mode, // dry_run mode
+            super::utils::ConflictResolution::Merge, // Use merge resolution for folder operations
+            true, // create_directories
+            true, // check_disk_space
+        );
+
+        // Execute merge operations
+        debug!("Executing merge operations for {} common folders", comparison_result.common_folders.len());
+        let merge_result = folder_merger.execute_merge_operations(&comparison_result, &file_operation_manager).await.map_err(|e| {
+            WorkflowError::tool(format!("Failed to execute merge operations: {}", e))
+        })?;
+
+        info!(
+            "Folder merger completed: {} folders merged, {} operations performed, {} bytes moved in {}ms",
+            merge_result.folders_merged,
+            merge_result.total_operations,
+            merge_result.total_bytes_moved,
+            merge_result.duration_ms
+        );
+
+        // Prepare response
+        let response = json!({
+            "comparison_result": comparison_result,
+            "merge_result": merge_result,
+            "experimental_mode": experimental_mode
+        });
+
+        Ok(response)
+    }
+
+    fn validate_parameters(&self, params: &Value) -> Result<()> {
+        // Validate source_directories parameter
+        let directories_value = params
+            .get("source_directories")
+            .ok_or_else(|| WorkflowError::validation("source_directories parameter is required"))?;
+
+        let directories_array = directories_value
+            .as_array()
+            .ok_or_else(|| WorkflowError::validation("source_directories must be an array"))?;
+
+        if directories_array.is_empty() {
+            return Err(WorkflowError::validation("source_directories array cannot be empty"));
+        }
+
+        // Validate each directory path
+        for (index, dir_value) in directories_array.iter().enumerate() {
+            if !dir_value.is_string() {
+                return Err(WorkflowError::validation(format!(
+                    "source_directories[{}] must be a string", 
+                    index
+                )));
+            }
+        }
+
+        // Validate optional merge_strategy parameter
+        if let Some(strategy) = params.get("merge_strategy") {
+            if let Some(strategy_str) = strategy.as_str() {
+                if !matches!(strategy_str, "SizeBased" | "DateBased" | "Manual" | "Intelligent") {
+                    return Err(WorkflowError::validation(
+                        "merge_strategy must be one of: SizeBased, DateBased, Manual, Intelligent"
+                    ));
+                }
+            } else {
+                return Err(WorkflowError::validation("merge_strategy must be a string"));
+            }
+        }
+
+        // Validate optional duplicate_handling parameter
+        if let Some(handling) = params.get("duplicate_handling") {
+            if let Some(handling_str) = handling.as_str() {
+                if !matches!(handling_str, "Skip" | "Rename" | "KeepNewer" | "KeepLarger" | "Merge") {
+                    return Err(WorkflowError::validation(
+                        "duplicate_handling must be one of: Skip, Rename, KeepNewer, KeepLarger, Merge"
+                    ));
+                }
+            } else {
+                return Err(WorkflowError::validation("duplicate_handling must be a string"));
+            }
+        }
+
+        // Validate optional numeric parameters
+        if let Some(depth) = params.get("max_recursion_depth") {
+            if !depth.is_number() {
+                return Err(WorkflowError::validation("max_recursion_depth must be a number"));
+            }
+            if let Some(depth_val) = depth.as_u64() {
+                if depth_val == 0 || depth_val > 100 {
+                    return Err(WorkflowError::validation("max_recursion_depth must be between 1 and 100"));
+                }
+            }
+        }
+
+        if let Some(threshold) = params.get("min_confidence_threshold") {
+            if let Some(threshold_val) = threshold.as_f64() {
+                if threshold_val < 0.0 || threshold_val > 1.0 {
+                    return Err(WorkflowError::validation("min_confidence_threshold must be between 0.0 and 1.0"));
+                }
+            } else {
+                return Err(WorkflowError::validation("min_confidence_threshold must be a number"));
+            }
+        }
+
+        // Validate optional boolean parameters
+        if let Some(experimental) = params.get("experimental_mode") {
+            if !experimental.is_boolean() {
+                return Err(WorkflowError::validation("experimental_mode must be a boolean"));
             }
         }
 
