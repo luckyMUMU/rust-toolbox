@@ -319,14 +319,14 @@ mod tests {
     fn test_error_recoverability() {
         assert!(!FileManagementError::not_found("/test").is_recoverable());
         assert!(!FileManagementError::permission_denied("/test").is_recoverable());
-        assert!(FileManagementError::conflict("test conflict").is_recoverable());
+        assert!(FileManagementError::conflict("/test/path", "test conflict").is_recoverable());
         assert!(FileManagementError::text_processing("test error").is_recoverable());
     }
 
     #[test]
     fn test_error_categories() {
         assert_eq!(FileManagementError::not_found("/test").category(), "not_found");
-        assert_eq!(FileManagementError::conflict("test").category(), "conflict");
+        assert_eq!(FileManagementError::conflict("/test/path", "test").category(), "conflict");
         assert_eq!(FileManagementError::text_processing("test").category(), "text_processing");
     }
 

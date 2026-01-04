@@ -4,9 +4,12 @@
 //! tools, utilities, and error handling.
 
 pub mod ac_automaton;
+pub mod batch_processor;
+pub mod batch_processor_tool;
 pub mod classification_tool;
 pub mod error;
 pub mod plugin;
+pub mod progress_tracker;
 pub mod registry;
 pub mod rule_config;
 pub mod text_processor_tool;
@@ -18,6 +21,18 @@ pub use plugin::{
 };
 pub use error::{FileManagementError, FileManagementResult};
 pub use registry::FileManagementToolRegistry;
+pub use batch_processor::{
+    BatchProcessor, BatchProcessorConfig, BatchItem, BatchResult, BatchStatus,
+    BatchProgress, BatchItemResult, BatchItemStatus, BatchPerformanceMetrics,
+};
+pub use batch_processor_tool::{
+    BatchProcessorTool, BatchProcessorParams, BatchProcessorResult,
+    BatchProcessingMode, BatchItemParams,
+};
+pub use progress_tracker::{
+    ProgressTracker, ProgressTrackerConfig, ProgressEvent, AggregatedStats,
+    PerformanceTrend, ToolUsageStats,
+};
 pub use text_processor_tool::{
     TextProcessorTool, TextProcessorParams, TextProcessorResult,
     TextOperation, ChineseProcessingConfig, TextOutputFormat,

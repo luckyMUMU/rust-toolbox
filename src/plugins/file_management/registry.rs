@@ -352,28 +352,12 @@ impl FileManagementToolRegistry {
     fn register_batch_processor_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
         debug!("Registering batch processor tool");
 
-        let executor = Arc::new(PlaceholderExecutor::new("batch-processor"));
+        let batch_tool = super::batch_processor_tool::BatchProcessorTool::new(
+            self.config.clone(),
+            self.plugin_info.clone(),
+        );
 
-        let tool = BasicTool::builder()
-            .name("batch-processor")
-            .version("1.0.0")
-            .description("Generic batch processing for any tool")
-            .category("batch-processing")
-            .tags(vec!["batch", "parallel", "processing"])
-            .parameters_schema(json!({
-                "type": "object",
-                "properties": {
-                    "tool_name": {"type": "string", "description": "Name of tool to run in batch"},
-                    "batch_items": {"type": "array", "description": "Array of parameter objects for each batch item"},
-                    "max_concurrency": {"type": "number", "default": 4},
-                    "continue_on_error": {"type": "boolean", "default": true}
-                },
-                "required": ["tool_name", "batch_items"]
-            }))
-            .plugin_info(self.plugin_info.clone())
-            .executor(executor)
-            .build()?;
-
+        let tool = batch_tool.create_tool()?;
         let tool_arc = Arc::new(tool);
         self.registered_tools.insert("batch-processor".to_string(), tool_arc.clone());
         
