@@ -104,9 +104,23 @@ impl FileManagementError {
     }
 
     /// Create a conflict error
-    pub fn conflict<S: Into<String>>(message: S) -> Self {
+    pub fn conflict<P: AsRef<std::path::Path>, S: Into<String>>(path: P, message: S) -> Self {
+        Self::Conflict {
+            message: format!("{}: {}", path.as_ref().display(), message.into()),
+        }
+    }
+
+    /// Create a simple conflict error with just a message
+    pub fn conflict_simple<S: Into<String>>(message: S) -> Self {
         Self::Conflict {
             message: message.into(),
+        }
+    }
+
+    /// Create an unsupported operation error
+    pub fn unsupported_operation<S: Into<String>>(message: S) -> Self {
+        Self::Other {
+            message: format!("Unsupported operation: {}", message.into()),
         }
     }
 

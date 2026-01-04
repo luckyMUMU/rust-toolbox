@@ -8,6 +8,7 @@ use super::plugin::FileManagementConfig;
 use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info, warn, error};
 
@@ -193,14 +194,15 @@ impl FileManagementToolRegistry {
                             "properties": {
                                 "source": {"type": "string"},
                                 "destination": {"type": "string"},
-                                "operation_type": {"type": "string", "enum": ["Move", "Copy", "Link"], "default": "Move"}
+                                "operation_type": {"type": "string", "enum": ["Move", "Copy", "Link", "HardLink"], "default": "Move"}
                             },
                             "required": ["source", "destination"]
                         }
                     },
-                    "conflict_resolution": {"type": "string", "enum": ["Skip", "Overwrite", "Rename", "Fail"], "default": "Rename"},
+                    "conflict_resolution": {"type": "string", "enum": ["Skip", "Overwrite", "Rename", "Fail", "Ask", "Merge", "KeepBoth", "KeepNewer", "KeepLarger"], "default": "Rename"},
                     "check_disk_space": {"type": "boolean", "default": true},
-                    "create_directories": {"type": "boolean", "default": true}
+                    "create_directories": {"type": "boolean", "default": true},
+                    "experimental_mode": {"type": "boolean", "default": false}
                 },
                 "required": ["operations"]
             }),
@@ -222,7 +224,7 @@ impl FileManagementToolRegistry {
             updated_at: chrono::Utc::now(),
         };
 
-        let executor = Arc::new(PlaceholderExecutor::new("file-mover"));
+        let executor = Arc::new(FileMoverExecutor::new(self.config.clone()));
 
         let tool = BasicTool::builder()
             .name(&tool_info.name)
@@ -606,6 +608,312 @@ impl ToolExecutor for AcMatcherExecutor {
         if let Some(find_overlapping) = params.get("find_overlapping") {
             if !find_overlapping.is_boolean() {
                 return Err(WorkflowError::validation("find_overlapping must be a boolean"));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// File mover executor that implements actual file operations
+pub struct FileMoverExecutor {
+    config: FileManagementConfig,
+}
+
+impl FileMoverExecutor {
+    pub fn new(config: FileManagementConfig) -> Self {
+        Self { config }
+    }
+
+    /// Parse file operations from parameters
+    fn parse_operations(&self, operations_value: &Value) -> Result<Vec<(String, String, super::utils::FileOperationType)>> {
+        let operations_array = operations_value
+            .as_array()
+            .ok_or_else(|| WorkflowError::validation("operations must be an array"))?;
+
+        let mut operations = Vec::new();
+
+        for (index, op_obj) in operations_array.iter().enumerate() {
+            let op_obj = op_obj
+                .as_object()
+                .ok_or_else(|| WorkflowError::validation(format!("operations[{}] must be an object", index)))?;
+
+            let source = op_obj
+                .get("source")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| WorkflowError::validation(format!("operations[{}].source is required and must be a string", index)))?;
+
+            let destination = op_obj
+                .get("destination")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| WorkflowError::validation(format!("operations[{}].destination is required and must be a string", index)))?;
+
+            let operation_type_str = op_obj
+                .get("operation_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Move");
+
+            let operation_type = match operation_type_str {
+                "Move" => super::utils::FileOperationType::Move,
+                "Copy" => super::utils::FileOperationType::Copy,
+                "Link" => super::utils::FileOperationType::Link,
+                "HardLink" => super::utils::FileOperationType::HardLink,
+                _ => return Err(WorkflowError::validation(format!(
+                    "operations[{}].operation_type must be one of: Move, Copy, Link, HardLink", 
+                    index
+                ))),
+            };
+
+            operations.push((source.to_string(), destination.to_string(), operation_type));
+        }
+
+        Ok(operations)
+    }
+
+    /// Parse conflict resolution strategy
+    fn parse_conflict_resolution(&self, params: &Value) -> super::utils::ConflictResolution {
+        let conflict_str = params
+            .get("conflict_resolution")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Rename");
+
+        match conflict_str {
+            "Skip" => super::utils::ConflictResolution::Skip,
+            "Overwrite" => super::utils::ConflictResolution::Overwrite,
+            "Rename" => super::utils::ConflictResolution::Rename,
+            "Fail" => super::utils::ConflictResolution::Fail,
+            "Ask" => super::utils::ConflictResolution::Ask,
+            "Merge" => super::utils::ConflictResolution::Merge,
+            "KeepBoth" => super::utils::ConflictResolution::KeepBoth,
+            "KeepNewer" => super::utils::ConflictResolution::KeepNewer,
+            "KeepLarger" => super::utils::ConflictResolution::KeepLarger,
+            _ => super::utils::ConflictResolution::Rename, // Default fallback
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ToolExecutor for FileMoverExecutor {
+    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+        debug!("Executing file mover tool with parameters: {}", params);
+
+        // Parse operations
+        let operations_value = params
+            .get("operations")
+            .ok_or_else(|| WorkflowError::validation("operations parameter is required"))?;
+
+        let operations = self.parse_operations(operations_value)?;
+
+        if operations.is_empty() {
+            return Ok(json!({
+                "operations_completed": 0,
+                "operations_failed": 0,
+                "operations_skipped": 0,
+                "total_bytes_moved": 0,
+                "duration_ms": 0,
+                "errors": [],
+                "preflight_check": {
+                    "total_operations": 0,
+                    "validation_errors": [],
+                    "total_estimated_bytes": 0,
+                    "is_valid": true
+                }
+            }));
+        }
+
+        // Parse configuration
+        let conflict_resolution = self.parse_conflict_resolution(&params);
+        let check_disk_space = params
+            .get("check_disk_space")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let create_directories = params
+            .get("create_directories")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        // Check if we're in experimental mode (check for experimental_mode parameter)
+        let experimental_mode = params
+            .get("experimental_mode")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        // Create file operation manager
+        let file_manager = super::utils::FileOperationManager::with_config(
+            self.config.temp_directory.clone(),
+            experimental_mode,
+            conflict_resolution,
+            create_directories,
+            check_disk_space,
+        );
+
+        // Perform preflight check
+        let operations_for_preflight: Vec<(PathBuf, PathBuf, super::utils::FileOperationType)> = operations
+            .iter()
+            .map(|(source, destination, op_type)| {
+                (PathBuf::from(source), PathBuf::from(destination), op_type.clone())
+            })
+            .collect();
+
+        let preflight_result = file_manager.preflight_check(&operations_for_preflight)?;
+
+        // If preflight check fails, return early with errors
+        if !preflight_result.is_valid {
+            return Ok(json!({
+                "operations_completed": 0,
+                "operations_failed": operations.len(),
+                "operations_skipped": 0,
+                "total_bytes_moved": 0,
+                "duration_ms": 0,
+                "errors": preflight_result.validation_errors,
+                "preflight_check": preflight_result,
+                "experimental_mode": experimental_mode
+            }));
+        }
+
+        let start_time = std::time::Instant::now();
+        let mut operations_completed = 0;
+        let mut operations_failed = 0;
+        let mut operations_skipped = 0;
+        let mut total_bytes_moved = 0;
+        let mut errors = Vec::new();
+
+        // Execute operations
+        for (source, destination, operation_type) in operations {
+            debug!("Executing {:?} operation: {} -> {}", operation_type, source, destination);
+
+            let result = match operation_type {
+                super::utils::FileOperationType::Move => {
+                    file_manager.move_file(&source, &destination).await
+                }
+                super::utils::FileOperationType::Copy => {
+                    file_manager.copy_file(&source, &destination).await
+                }
+                super::utils::FileOperationType::Link => {
+                    file_manager.link_file(&source, &destination).await
+                }
+                super::utils::FileOperationType::HardLink => {
+                    file_manager.hard_link_file(&source, &destination).await
+                }
+            };
+
+            match result {
+                Ok(op_result) => {
+                    operations_completed += 1;
+                    total_bytes_moved += op_result.bytes_moved;
+                    debug!("Operation completed successfully: {} bytes moved", op_result.bytes_moved);
+                }
+                Err(e) => {
+                    operations_failed += 1;
+                    let error_info = json!({
+                        "source": source,
+                        "destination": destination,
+                        "operation_type": format!("{:?}", operation_type),
+                        "error": e.to_string(),
+                        "error_category": e.category()
+                    });
+                    errors.push(error_info);
+                    warn!("Operation failed: {} -> {}: {}", source, destination, e);
+                }
+            }
+        }
+
+        let duration_ms = start_time.elapsed().as_millis() as u64;
+
+        let response = json!({
+            "operations_completed": operations_completed,
+            "operations_failed": operations_failed,
+            "operations_skipped": operations_skipped,
+            "total_bytes_moved": total_bytes_moved,
+            "duration_ms": duration_ms,
+            "errors": errors,
+            "experimental_mode": experimental_mode,
+            "preflight_check": preflight_result
+        });
+
+        info!(
+            "File mover completed: {} completed, {} failed, {} bytes moved in {}ms",
+            operations_completed, operations_failed, total_bytes_moved, duration_ms
+        );
+
+        Ok(response)
+    }
+
+    fn validate_parameters(&self, params: &Value) -> Result<()> {
+        // Validate operations parameter
+        let operations_value = params
+            .get("operations")
+            .ok_or_else(|| WorkflowError::validation("operations parameter is required"))?;
+
+        let operations_array = operations_value
+            .as_array()
+            .ok_or_else(|| WorkflowError::validation("operations must be an array"))?;
+
+        if operations_array.is_empty() {
+            return Err(WorkflowError::validation("operations array cannot be empty"));
+        }
+
+        // Validate each operation
+        for (index, op_obj) in operations_array.iter().enumerate() {
+            let op_obj = op_obj
+                .as_object()
+                .ok_or_else(|| WorkflowError::validation(format!("operations[{}] must be an object", index)))?;
+
+            // Check required fields
+            if !op_obj.get("source").and_then(|v| v.as_str()).is_some() {
+                return Err(WorkflowError::validation(format!(
+                    "operations[{}].source is required and must be a string", 
+                    index
+                )));
+            }
+
+            if !op_obj.get("destination").and_then(|v| v.as_str()).is_some() {
+                return Err(WorkflowError::validation(format!(
+                    "operations[{}].destination is required and must be a string", 
+                    index
+                )));
+            }
+
+            // Validate optional operation_type field
+            if let Some(op_type) = op_obj.get("operation_type") {
+                if let Some(op_type_str) = op_type.as_str() {
+                    if !matches!(op_type_str, "Move" | "Copy" | "Link" | "HardLink") {
+                        return Err(WorkflowError::validation(format!(
+                            "operations[{}].operation_type must be one of: Move, Copy, Link, HardLink", 
+                            index
+                        )));
+                    }
+                } else {
+                    return Err(WorkflowError::validation(format!(
+                        "operations[{}].operation_type must be a string", 
+                        index
+                    )));
+                }
+            }
+        }
+
+        // Validate optional parameters
+        if let Some(conflict_resolution) = params.get("conflict_resolution") {
+            if let Some(conflict_str) = conflict_resolution.as_str() {
+                if !matches!(conflict_str, "Skip" | "Overwrite" | "Rename" | "Fail" | "Ask" | "Merge" | "KeepBoth" | "KeepNewer" | "KeepLarger") {
+                    return Err(WorkflowError::validation(
+                        "conflict_resolution must be one of: Skip, Overwrite, Rename, Fail, Ask, Merge, KeepBoth, KeepNewer, KeepLarger"
+                    ));
+                }
+            } else {
+                return Err(WorkflowError::validation("conflict_resolution must be a string"));
+            }
+        }
+
+        if let Some(check_disk_space) = params.get("check_disk_space") {
+            if !check_disk_space.is_boolean() {
+                return Err(WorkflowError::validation("check_disk_space must be a boolean"));
+            }
+        }
+
+        if let Some(create_directories) = params.get("create_directories") {
+            if !create_directories.is_boolean() {
+                return Err(WorkflowError::validation("create_directories must be a boolean"));
             }
         }
 

@@ -5,11 +5,201 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
+use uuid::Uuid;
+
+/// Disk space information for a filesystem
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiskSpaceInfo {
+    pub path: PathBuf,
+    pub total_bytes: u64,
+    pub available_bytes: u64,
+    pub used_bytes: u64,
+    pub usage_percentage: f64,
+}
+
+/// Information about insufficient space for a specific path
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InsufficientSpaceInfo {
+    pub path: PathBuf,
+    pub required_bytes: u64,
+    pub available_bytes: u64,
+    pub deficit_bytes: u64,
+}
+
+/// Result of batch space checking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchSpaceCheckResult {
+    pub total_required_bytes: u64,
+    pub path_requirements: HashMap<PathBuf, u64>,
+    pub insufficient_paths: Vec<InsufficientSpaceInfo>,
+    pub has_sufficient_space: bool,
+}
+
+/// Result of preflight checks for file operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreflightCheckResult {
+    pub total_operations: usize,
+    pub validation_errors: Vec<String>,
+    pub total_estimated_bytes: u64,
+    pub space_check: Option<BatchSpaceCheckResult>,
+    pub is_valid: bool,
+}
+
+/// File operation types
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum FileOperationType {
+    Move,
+    Copy,
+    Link,
+    HardLink,
+}
+
+/// Conflict resolution strategies
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ConflictResolution {
+    /// Skip the operation if target exists
+    Skip,
+    /// Overwrite the target file/directory
+    Overwrite,
+    /// Rename the target to avoid conflicts
+    Rename,
+    /// Fail the operation if target exists
+    Fail,
+    /// Ask the user what to do (requires human decision integration)
+    Ask,
+    /// Merge directories (for directory conflicts only)
+    Merge,
+    /// Keep both files with different names
+    KeepBoth,
+    /// Compare and keep newer file
+    KeepNewer,
+    /// Compare and keep larger file
+    KeepLarger,
+}
+
+/// Conflict resolution context for decision making
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConflictContext {
+    pub source_path: PathBuf,
+    pub target_path: PathBuf,
+    pub source_metadata: Option<ConflictFileMetadata>,
+    pub target_metadata: Option<ConflictFileMetadata>,
+    pub operation_type: FileOperationType,
+    pub suggested_resolution: ConflictResolution,
+}
+
+/// File metadata for conflict resolution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConflictFileMetadata {
+    pub size: u64,
+    pub modified: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_directory: bool,
+    pub permissions: Option<String>,
+}
+
+impl ConflictContext {
+    pub fn new(
+        source_path: PathBuf,
+        target_path: PathBuf,
+        operation_type: FileOperationType,
+    ) -> Self {
+        let source_metadata = Self::get_file_metadata(&source_path);
+        let target_metadata = Self::get_file_metadata(&target_path);
+        
+        // Suggest a resolution based on metadata
+        let suggested_resolution = Self::suggest_resolution(
+            &source_metadata,
+            &target_metadata,
+            &operation_type,
+        );
+
+        Self {
+            source_path,
+            target_path,
+            source_metadata,
+            target_metadata,
+            operation_type,
+            suggested_resolution,
+        }
+    }
+
+    fn get_file_metadata(path: &Path) -> Option<ConflictFileMetadata> {
+        if let Ok(metadata) = std::fs::metadata(path) {
+            let modified = metadata.modified()
+                .ok()
+                .and_then(|time| {
+                    time.duration_since(std::time::UNIX_EPOCH)
+                        .ok()
+                        .map(|duration| {
+                            chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+                                .unwrap_or_else(chrono::Utc::now)
+                        })
+                });
+
+            Some(ConflictFileMetadata {
+                size: metadata.len(),
+                modified,
+                is_directory: metadata.is_dir(),
+                permissions: None, // Could be enhanced with platform-specific permissions
+            })
+        } else {
+            None
+        }
+    }
+
+    fn suggest_resolution(
+        source_metadata: &Option<ConflictFileMetadata>,
+        target_metadata: &Option<ConflictFileMetadata>,
+        operation_type: &FileOperationType,
+    ) -> ConflictResolution {
+        match (source_metadata, target_metadata) {
+            (Some(source), Some(target)) => {
+                // If both are directories, suggest merge
+                if source.is_directory && target.is_directory {
+                    return ConflictResolution::Merge;
+                }
+
+                // If source is newer, suggest overwrite
+                if let (Some(source_time), Some(target_time)) = (&source.modified, &target.modified) {
+                    if source_time > target_time {
+                        return ConflictResolution::Overwrite;
+                    } else if target_time > source_time {
+                        return ConflictResolution::KeepBoth;
+                    }
+                }
+
+                // If source is larger, suggest overwrite
+                if source.size > target.size {
+                    ConflictResolution::Overwrite
+                } else {
+                    ConflictResolution::KeepBoth
+                }
+            }
+            _ => ConflictResolution::Rename,
+        }
+    }
+}
+
+/// Result of a file operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileOperationResult {
+    pub operation_type: FileOperationType,
+    pub source_path: PathBuf,
+    pub target_path: PathBuf,
+    pub success: bool,
+    pub bytes_moved: u64,
+    pub duration_ms: u64,
+    pub error: Option<String>,
+    pub renamed_target: Option<PathBuf>,
+}
 
 /// File operation manager for safe file operations
 pub struct FileOperationManager {
     dry_run: bool,
     temp_directory: PathBuf,
+    conflict_resolution: ConflictResolution,
+    create_directories: bool,
+    check_disk_space: bool,
 }
 
 impl FileOperationManager {
@@ -18,6 +208,26 @@ impl FileOperationManager {
         Self {
             dry_run,
             temp_directory,
+            conflict_resolution: ConflictResolution::Rename,
+            create_directories: true,
+            check_disk_space: true,
+        }
+    }
+
+    /// Create a new file operation manager with configuration
+    pub fn with_config(
+        temp_directory: PathBuf,
+        dry_run: bool,
+        conflict_resolution: ConflictResolution,
+        create_directories: bool,
+        check_disk_space: bool,
+    ) -> Self {
+        Self {
+            dry_run,
+            temp_directory,
+            conflict_resolution,
+            create_directories,
+            check_disk_space,
         }
     }
 
@@ -31,12 +241,308 @@ impl FileOperationManager {
         self.dry_run = dry_run;
     }
 
+    /// Set conflict resolution strategy
+    pub fn set_conflict_resolution(&mut self, strategy: ConflictResolution) {
+        self.conflict_resolution = strategy;
+    }
+
     /// Get available disk space for a path
     pub fn get_available_space<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<u64> {
-        // This is a simplified implementation
-        // In a real implementation, you would use platform-specific APIs
-        // For now, we'll return a large number to avoid blocking operations
-        Ok(u64::MAX)
+        let path = path.as_ref();
+        
+        // Try to get the parent directory if path doesn't exist
+        let check_path = if path.exists() {
+            path
+        } else if let Some(parent) = path.parent() {
+            parent
+        } else {
+            Path::new(".")
+        };
+
+        // Platform-specific disk space checking
+        #[cfg(unix)]
+        {
+            self.get_unix_disk_space(check_path)
+        }
+
+        #[cfg(windows)]
+        {
+            self.get_windows_disk_space(check_path)
+        }
+
+        #[cfg(not(any(unix, windows)))]
+        {
+            // Fallback for other platforms
+            Ok(1024 * 1024 * 1024 * 10) // 10GB estimate
+        }
+    }
+
+    #[cfg(unix)]
+    fn get_unix_disk_space(&self, path: &Path) -> FileManagementResult<u64> {
+        use std::ffi::CString;
+        use std::mem;
+        use std::os::raw::{c_char, c_int};
+
+        // Define statvfs structure (simplified)
+        #[repr(C)]
+        struct StatVfs {
+            f_bsize: u64,    // File system block size
+            f_frsize: u64,   // Fragment size
+            f_blocks: u64,   // Size of fs in f_frsize units
+            f_bfree: u64,    // Number of free blocks
+            f_bavail: u64,   // Number of free blocks for unprivileged users
+            f_files: u64,    // Number of inodes
+            f_ffree: u64,    // Number of free inodes
+            f_favail: u64,   // Number of free inodes for unprivileged users
+            f_fsid: u64,     // File system ID
+            f_flag: u64,     // Mount flags
+            f_namemax: u64,  // Maximum filename length
+        }
+
+        extern "C" {
+            fn statvfs(path: *const c_char, buf: *mut StatVfs) -> c_int;
+        }
+
+        let path_cstring = CString::new(path.to_string_lossy().as_bytes())
+            .map_err(|_| FileManagementError::invalid_path(path, "Path contains null bytes"))?;
+
+        let mut stat: StatVfs = unsafe { mem::zeroed() };
+        let result = unsafe { statvfs(path_cstring.as_ptr(), &mut stat) };
+
+        if result == 0 {
+            // Available space = available blocks * block size
+            let available_space = stat.f_bavail * stat.f_frsize;
+            Ok(available_space)
+        } else {
+            // Fallback to a reasonable estimate if statvfs fails
+            warn!("statvfs failed for path {}, using fallback estimate", path.display());
+            Ok(1024 * 1024 * 1024 * 10) // 10GB estimate
+        }
+    }
+
+    #[cfg(windows)]
+    fn get_windows_disk_space(&self, path: &Path) -> FileManagementResult<u64> {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        // Windows API function
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailableToCaller: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+
+        // Convert path to wide string
+        let wide_path: Vec<u16> = OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let mut free_bytes_available: u64 = 0;
+        let mut total_bytes: u64 = 0;
+        let mut total_free_bytes: u64 = 0;
+
+        let result = unsafe {
+            GetDiskFreeSpaceExW(
+                wide_path.as_ptr(),
+                &mut free_bytes_available,
+                &mut total_bytes,
+                &mut total_free_bytes,
+            )
+        };
+
+        if result != 0 {
+            Ok(free_bytes_available)
+        } else {
+            // Fallback to a reasonable estimate if Windows API fails
+            warn!("GetDiskFreeSpaceExW failed for path {}, using fallback estimate", path.display());
+            Ok(1024 * 1024 * 1024 * 10) // 10GB estimate
+        }
+    }
+
+    /// Get detailed disk space information
+    pub fn get_disk_space_info<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<DiskSpaceInfo> {
+        let path = path.as_ref();
+        let available_space = self.get_available_space(path)?;
+        
+        // Get total space (simplified - in a real implementation you'd get this from the OS)
+        let total_space = available_space * 2; // Rough estimate
+        let used_space = total_space - available_space;
+        let usage_percentage = (used_space as f64 / total_space as f64) * 100.0;
+
+        Ok(DiskSpaceInfo {
+            path: path.to_path_buf(),
+            total_bytes: total_space,
+            available_bytes: available_space,
+            used_bytes: used_space,
+            usage_percentage,
+        })
+    }
+
+    /// Check if multiple operations would have sufficient space
+    pub fn check_batch_space_requirements<P: AsRef<Path>>(
+        &self,
+        operations: &[(P, u64)], // (target_path, required_bytes)
+    ) -> FileManagementResult<BatchSpaceCheckResult> {
+        let mut total_required = 0;
+        let mut path_requirements: HashMap<PathBuf, u64> = HashMap::new();
+        let mut insufficient_paths = Vec::new();
+
+        // Group requirements by filesystem/drive
+        for (path, required_bytes) in operations {
+            let path = path.as_ref();
+            total_required += required_bytes;
+
+            // Get the root path for this operation
+            let root_path = self.get_filesystem_root(path)?;
+            *path_requirements.entry(root_path).or_insert(0) += required_bytes;
+        }
+
+        // Check each filesystem
+        for (root_path, required_bytes) in &path_requirements {
+            let available = self.get_available_space(root_path)?;
+            if available < *required_bytes {
+                insufficient_paths.push(InsufficientSpaceInfo {
+                    path: root_path.clone(),
+                    required_bytes: *required_bytes,
+                    available_bytes: available,
+                    deficit_bytes: required_bytes - available,
+                });
+            }
+        }
+
+        Ok(BatchSpaceCheckResult {
+            total_required_bytes: total_required,
+            path_requirements,
+            insufficient_paths: insufficient_paths.clone(),
+            has_sufficient_space: insufficient_paths.is_empty(),
+        })
+    }
+
+    /// Get the filesystem root for a given path
+    fn get_filesystem_root<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<PathBuf> {
+        let path = path.as_ref();
+        
+        #[cfg(windows)]
+        {
+            // On Windows, get the drive letter
+            if let Some(prefix) = path.components().next() {
+                if let std::path::Component::Prefix(prefix_component) = prefix {
+                    return Ok(PathBuf::from(format!("{}\\", prefix_component.as_os_str().to_string_lossy())));
+                }
+            }
+            Ok(PathBuf::from("C:\\")) // Fallback to C: drive
+        }
+
+        #[cfg(unix)]
+        {
+            // On Unix, find the mount point
+            // This is a simplified implementation - in production you'd parse /proc/mounts
+            let mut current_path = path;
+            loop {
+                if current_path.exists() {
+                    return Ok(current_path.to_path_buf());
+                }
+                if let Some(parent) = current_path.parent() {
+                    current_path = parent;
+                } else {
+                    break;
+                }
+            }
+            Ok(PathBuf::from("/")) // Fallback to root
+        }
+
+        #[cfg(not(any(unix, windows)))]
+        {
+            Ok(path.to_path_buf())
+        }
+    }
+
+    /// Pre-flight check for a batch of operations
+    pub fn preflight_check<P: AsRef<Path>>(
+        &self,
+        operations: &[(P, P, FileOperationType)], // (source, target, operation_type)
+    ) -> FileManagementResult<PreflightCheckResult> {
+        let mut space_requirements = Vec::new();
+        let mut validation_errors = Vec::new();
+        let mut total_estimated_bytes = 0;
+
+        for (source, target, operation_type) in operations {
+            let source_path = source.as_ref();
+            let target_path = target.as_ref();
+
+            // Validate paths
+            if let Err(e) = self.validate_path(source_path) {
+                validation_errors.push(format!("Source path {}: {}", source_path.display(), e));
+                continue;
+            }
+
+            if let Err(e) = self.validate_path(target_path) {
+                validation_errors.push(format!("Target path {}: {}", target_path.display(), e));
+                continue;
+            }
+
+            // Check if source exists
+            if !source_path.exists() {
+                validation_errors.push(format!("Source path does not exist: {}", source_path.display()));
+                continue;
+            }
+
+            // Calculate space requirements
+            let required_bytes = match operation_type {
+                FileOperationType::Move => {
+                    // Move operations don't require additional space if on same filesystem
+                    let source_root = self.get_filesystem_root(source_path)?;
+                    let target_root = self.get_filesystem_root(target_path)?;
+                    
+                    if source_root == target_root {
+                        0 // Same filesystem, no additional space needed
+                    } else {
+                        // Different filesystem, need space for copy
+                        if source_path.is_file() {
+                            PathUtils::get_file_size(source_path)?
+                        } else {
+                            PathUtils::get_directory_size(source_path)?
+                        }
+                    }
+                }
+                FileOperationType::Copy => {
+                    // Copy operations always require space
+                    if source_path.is_file() {
+                        PathUtils::get_file_size(source_path)?
+                    } else {
+                        PathUtils::get_directory_size(source_path)?
+                    }
+                }
+                FileOperationType::Link | FileOperationType::HardLink => {
+                    // Links don't require significant additional space
+                    0
+                }
+            };
+
+            if required_bytes > 0 {
+                space_requirements.push((target_path.to_path_buf(), required_bytes));
+                total_estimated_bytes += required_bytes;
+            }
+        }
+
+        // Check space requirements
+        let space_check = if !space_requirements.is_empty() {
+            Some(self.check_batch_space_requirements(&space_requirements)?)
+        } else {
+            None
+        };
+
+        Ok(PreflightCheckResult {
+            total_operations: operations.len(),
+            validation_errors: validation_errors.clone(),
+            total_estimated_bytes,
+            space_check: space_check.clone(),
+            is_valid: validation_errors.is_empty() && space_check.as_ref().map_or(true, |sc| sc.has_sufficient_space),
+        })
     }
 
     /// Check if a file operation would have sufficient space
@@ -45,6 +551,10 @@ impl FileOperationManager {
         target_path: P,
         required_bytes: u64,
     ) -> FileManagementResult<()> {
+        if !self.check_disk_space {
+            return Ok(());
+        }
+
         let available = self.get_available_space(&target_path)?;
         if available < required_bytes {
             return Err(FileManagementError::insufficient_space(required_bytes, available));
@@ -88,6 +598,564 @@ impl FileOperationManager {
         }
 
         Ok(())
+    }
+
+    /// Move a file or directory
+    pub async fn move_file<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        source: P1,
+        target: P2,
+    ) -> FileManagementResult<FileOperationResult> {
+        self.execute_operation(source, target, FileOperationType::Move).await
+    }
+
+    /// Copy a file or directory
+    pub async fn copy_file<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        source: P1,
+        target: P2,
+    ) -> FileManagementResult<FileOperationResult> {
+        self.execute_operation(source, target, FileOperationType::Copy).await
+    }
+
+    /// Create a symbolic link
+    pub async fn link_file<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        source: P1,
+        target: P2,
+    ) -> FileManagementResult<FileOperationResult> {
+        self.execute_operation(source, target, FileOperationType::Link).await
+    }
+
+    /// Create a hard link
+    pub async fn hard_link_file<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        source: P1,
+        target: P2,
+    ) -> FileManagementResult<FileOperationResult> {
+        self.execute_operation(source, target, FileOperationType::HardLink).await
+    }
+
+    /// Execute a file operation with atomic behavior and error recovery
+    async fn execute_operation<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        source: P1,
+        target: P2,
+        operation_type: FileOperationType,
+    ) -> FileManagementResult<FileOperationResult> {
+        let start_time = std::time::Instant::now();
+        let source_path = source.as_ref().to_path_buf();
+        let mut target_path = target.as_ref().to_path_buf();
+
+        // Validate paths
+        self.validate_path(&source_path)?;
+        self.validate_path(&target_path)?;
+
+        // Check source exists
+        if !source_path.exists() {
+            return Err(FileManagementError::not_found(&source_path));
+        }
+
+        // Get source size for space checking
+        let source_size = if source_path.is_file() {
+            PathUtils::get_file_size(&source_path)?
+        } else {
+            PathUtils::get_directory_size(&source_path)?
+        };
+
+        // Check disk space requirements (except for links)
+        if matches!(operation_type, FileOperationType::Move | FileOperationType::Copy) {
+            self.check_space_requirements(&target_path, source_size)?;
+        }
+
+        // Create target directory if needed
+        if self.create_directories {
+            if let Some(parent) = target_path.parent() {
+                if !parent.exists() {
+                    if self.dry_run {
+                        debug!("Would create directory: {}", parent.display());
+                    } else {
+                        std::fs::create_dir_all(parent).map_err(|e| {
+                            FileManagementError::io(
+                                format!("Failed to create directory {}", parent.display()),
+                                e,
+                            )
+                        })?;
+                    }
+                }
+            }
+        }
+
+        // Handle conflicts
+        let final_target = self.resolve_conflict(&source_path, &target_path, &operation_type).await?;
+        if final_target != target_path {
+            target_path = final_target;
+        }
+
+        let bytes_moved = if self.dry_run {
+            debug!(
+                "Would {} {} to {}",
+                match operation_type {
+                    FileOperationType::Move => "move",
+                    FileOperationType::Copy => "copy",
+                    FileOperationType::Link => "link",
+                    FileOperationType::HardLink => "hard link",
+                },
+                source_path.display(),
+                target_path.display()
+            );
+            source_size
+        } else {
+            self.perform_operation(&source_path, &target_path, &operation_type).await?
+        };
+
+        let duration = start_time.elapsed().as_millis() as u64;
+
+        Ok(FileOperationResult {
+            operation_type,
+            source_path,
+            target_path: target_path.clone(),
+            success: true,
+            bytes_moved,
+            duration_ms: duration,
+            error: None,
+            renamed_target: if target_path != target.as_ref() {
+                Some(target_path)
+            } else {
+                None
+            },
+        })
+    }
+
+    /// Resolve file conflicts based on the configured strategy
+    async fn resolve_conflict<P: AsRef<Path>>(&self, source_path: &Path, target_path: P, operation_type: &FileOperationType) -> FileManagementResult<PathBuf> {
+        let target_path = target_path.as_ref();
+        
+        if !target_path.exists() {
+            return Ok(target_path.to_path_buf());
+        }
+
+        let conflict_context = ConflictContext::new(
+            source_path.to_path_buf(),
+            target_path.to_path_buf(),
+            operation_type.clone(),
+        );
+
+        match self.conflict_resolution {
+            ConflictResolution::Skip => {
+                Err(FileManagementError::conflict_simple(
+                    format!("Target exists and conflict resolution is set to skip: {}", target_path.display())
+                ))
+            }
+            ConflictResolution::Overwrite => {
+                debug!("Overwriting existing target: {}", target_path.display());
+                Ok(target_path.to_path_buf())
+            }
+            ConflictResolution::Rename => {
+                let new_path = PathUtils::generate_unique_name(target_path);
+                debug!("Renaming target to avoid conflict: {} -> {}", target_path.display(), new_path.display());
+                Ok(new_path)
+            }
+            ConflictResolution::Fail => {
+                Err(FileManagementError::conflict_simple(
+                    format!("Target exists and conflict resolution is set to fail: {}", target_path.display())
+                ))
+            }
+            ConflictResolution::Ask => {
+                // For now, use the suggested resolution - in a real implementation this would prompt the user
+                warn!("Human decision required for conflict, using suggested resolution: {:?}", conflict_context.suggested_resolution);
+                self.apply_suggested_resolution(&conflict_context).await
+            }
+            ConflictResolution::Merge => {
+                self.resolve_merge_conflict(&conflict_context).await
+            }
+            ConflictResolution::KeepBoth => {
+                let new_path = PathUtils::generate_unique_name(target_path);
+                debug!("Keeping both files, renaming target: {} -> {}", target_path.display(), new_path.display());
+                Ok(new_path)
+            }
+            ConflictResolution::KeepNewer => {
+                self.resolve_by_date(&conflict_context, true).await
+            }
+            ConflictResolution::KeepLarger => {
+                self.resolve_by_size(&conflict_context, true).await
+            }
+        }
+    }
+
+    /// Apply the suggested resolution from conflict context
+    async fn apply_suggested_resolution(&self, context: &ConflictContext) -> FileManagementResult<PathBuf> {
+        match context.suggested_resolution {
+            ConflictResolution::Overwrite => Ok(context.target_path.clone()),
+            ConflictResolution::Rename | ConflictResolution::KeepBoth => {
+                Ok(PathUtils::generate_unique_name(&context.target_path))
+            }
+            ConflictResolution::Merge => self.resolve_merge_conflict(context).await,
+            _ => Ok(context.target_path.clone()),
+        }
+    }
+
+    /// Resolve merge conflicts for directories
+    async fn resolve_merge_conflict(&self, context: &ConflictContext) -> FileManagementResult<PathBuf> {
+        if let (Some(source_meta), Some(target_meta)) = (&context.source_metadata, &context.target_metadata) {
+            if source_meta.is_directory && target_meta.is_directory {
+                // For directory merges, we return the target path and handle merging in the operation
+                debug!("Directory merge conflict resolved: merging into {}", context.target_path.display());
+                return Ok(context.target_path.clone());
+            }
+        }
+        
+        // For non-directories, fall back to rename
+        Ok(PathUtils::generate_unique_name(&context.target_path))
+    }
+
+    /// Resolve conflict by comparing file dates
+    async fn resolve_by_date(&self, context: &ConflictContext, keep_newer: bool) -> FileManagementResult<PathBuf> {
+        if let (Some(source_meta), Some(target_meta)) = (&context.source_metadata, &context.target_metadata) {
+            if let (Some(source_time), Some(target_time)) = (&source_meta.modified, &target_meta.modified) {
+                let source_is_newer = source_time > target_time;
+                
+                if (keep_newer && source_is_newer) || (!keep_newer && !source_is_newer) {
+                    debug!("Resolving by date: overwriting target (source is {})", 
+                           if source_is_newer { "newer" } else { "older" });
+                    return Ok(context.target_path.clone());
+                } else {
+                    debug!("Resolving by date: keeping target (target is {})", 
+                           if source_is_newer { "older" } else { "newer" });
+                    return Err(FileManagementError::conflict_simple(
+                        "Target is newer/older, skipping operation"
+                    ));
+                }
+            }
+        }
+        
+        // If we can't compare dates, fall back to rename
+        Ok(PathUtils::generate_unique_name(&context.target_path))
+    }
+
+    /// Resolve conflict by comparing file sizes
+    async fn resolve_by_size(&self, context: &ConflictContext, keep_larger: bool) -> FileManagementResult<PathBuf> {
+        if let (Some(source_meta), Some(target_meta)) = (&context.source_metadata, &context.target_metadata) {
+            let source_is_larger = source_meta.size > target_meta.size;
+            
+            if (keep_larger && source_is_larger) || (!keep_larger && !source_is_larger) {
+                debug!("Resolving by size: overwriting target (source is {})", 
+                       if source_is_larger { "larger" } else { "smaller" });
+                return Ok(context.target_path.clone());
+            } else {
+                debug!("Resolving by size: keeping target (target is {})", 
+                       if source_is_larger { "smaller" } else { "larger" });
+                return Err(FileManagementError::conflict_simple(
+                    "Target is larger/smaller, skipping operation"
+                ));
+            }
+        }
+        
+        // If we can't compare sizes, fall back to rename
+        Ok(PathUtils::generate_unique_name(&context.target_path))
+    }
+
+    /// Perform the actual file operation
+    async fn perform_operation(
+        &self,
+        source_path: &Path,
+        target_path: &Path,
+        operation_type: &FileOperationType,
+    ) -> FileManagementResult<u64> {
+        match operation_type {
+            FileOperationType::Move => {
+                self.perform_move(source_path, target_path).await
+            }
+            FileOperationType::Copy => {
+                self.perform_copy(source_path, target_path).await
+            }
+            FileOperationType::Link => {
+                self.perform_symlink(source_path, target_path).await
+            }
+            FileOperationType::HardLink => {
+                self.perform_hardlink(source_path, target_path).await
+            }
+        }
+    }
+
+    /// Perform atomic move operation
+    async fn perform_move(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+        let source_size = if source_path.is_file() {
+            PathUtils::get_file_size(source_path)?
+        } else {
+            PathUtils::get_directory_size(source_path)?
+        };
+
+        // Try atomic rename first (works if on same filesystem)
+        match std::fs::rename(source_path, target_path) {
+            Ok(_) => {
+                debug!("Atomic move successful: {} -> {}", source_path.display(), target_path.display());
+                Ok(source_size)
+            }
+            Err(e) => {
+                // If atomic rename fails, fall back to copy + delete
+                warn!("Atomic move failed, falling back to copy+delete: {}", e);
+                
+                // Create a temporary target to ensure atomicity
+                let temp_target = self.create_temp_path(target_path)?;
+                
+                // Copy to temporary location first
+                let copied_size = self.perform_copy(source_path, &temp_target).await?;
+                
+                // Atomically move temp to final location
+                std::fs::rename(&temp_target, target_path).map_err(|e| {
+                    // Clean up temp file on failure
+                    let _ = std::fs::remove_file(&temp_target);
+                    FileManagementError::io(
+                        format!("Failed to move temp file to target: {} -> {}", 
+                               temp_target.display(), target_path.display()),
+                        e,
+                    )
+                })?;
+                
+                // Remove source after successful copy
+                if source_path.is_dir() {
+                    std::fs::remove_dir_all(source_path).map_err(|e| {
+                        FileManagementError::io(
+                            format!("Failed to remove source directory after move: {}", source_path.display()),
+                            e,
+                        )
+                    })?;
+                } else {
+                    std::fs::remove_file(source_path).map_err(|e| {
+                        FileManagementError::io(
+                            format!("Failed to remove source file after move: {}", source_path.display()),
+                            e,
+                        )
+                    })?;
+                }
+                
+                Ok(copied_size)
+            }
+        }
+    }
+
+    /// Perform copy operation
+    async fn perform_copy(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+        if source_path.is_file() {
+            self.copy_file_atomic(source_path, target_path).await
+        } else {
+            // Check if target exists and is a directory for potential merging
+            if target_path.exists() && target_path.is_dir() && self.conflict_resolution == ConflictResolution::Merge {
+                self.merge_directories(source_path, target_path).await
+            } else {
+                self.copy_directory_recursive(source_path, target_path).await
+            }
+        }
+    }
+
+    /// Merge source directory into existing target directory
+    fn merge_directories<'a>(&'a self, source_path: &'a Path, target_path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<u64>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut total_bytes = 0;
+            
+            // Read source directory
+            let mut entries = tokio::fs::read_dir(source_path).await.map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read source directory {}", source_path.display()),
+                    e,
+                )
+            })?;
+            
+            while let Some(entry) = entries.next_entry().await.map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read directory entry in {}", source_path.display()),
+                    e,
+                )
+            })? {
+                let entry_path = entry.path();
+                let entry_name = entry.file_name();
+                let target_entry = target_path.join(entry_name);
+                
+                if entry_path.is_dir() {
+                    if target_entry.exists() && target_entry.is_dir() {
+                        // Recursively merge subdirectories
+                        total_bytes += self.merge_directories(&entry_path, &target_entry).await?;
+                    } else {
+                        // Copy directory normally
+                        total_bytes += self.copy_directory_recursive(&entry_path, &target_entry).await?;
+                    }
+                } else {
+                    // For files, apply conflict resolution
+                    if target_entry.exists() {
+                        let resolved_target = self.resolve_conflict(&entry_path, &target_entry, &FileOperationType::Copy).await?;
+                        total_bytes += self.copy_file_atomic(&entry_path, &resolved_target).await?;
+                    } else {
+                        total_bytes += self.copy_file_atomic(&entry_path, &target_entry).await?;
+                    }
+                }
+            }
+            
+            Ok(total_bytes)
+        })
+    }
+
+    /// Atomic file copy
+    async fn copy_file_atomic(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+        let temp_target = self.create_temp_path(target_path)?;
+        
+        // Copy to temporary file first
+        let bytes_copied = tokio::fs::copy(source_path, &temp_target).await.map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to copy {} to temp file {}", source_path.display(), temp_target.display()),
+                e,
+            )
+        })?;
+        
+        // Atomically move temp file to final location
+        std::fs::rename(&temp_target, target_path).map_err(|e| {
+            // Clean up temp file on failure
+            let _ = std::fs::remove_file(&temp_target);
+            FileManagementError::io(
+                format!("Failed to move temp file to target: {} -> {}", 
+                       temp_target.display(), target_path.display()),
+                e,
+            )
+        })?;
+        
+        Ok(bytes_copied)
+    }
+
+    /// Recursive directory copy
+    fn copy_directory_recursive<'a>(&'a self, source_path: &'a Path, target_path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<u64>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut total_bytes = 0;
+            
+            // Create target directory
+            tokio::fs::create_dir_all(target_path).await.map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to create target directory {}", target_path.display()),
+                    e,
+                )
+            })?;
+            
+            // Read source directory
+            let mut entries = tokio::fs::read_dir(source_path).await.map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read source directory {}", source_path.display()),
+                    e,
+                )
+            })?;
+            
+            while let Some(entry) = entries.next_entry().await.map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to read directory entry in {}", source_path.display()),
+                    e,
+                )
+            })? {
+                let entry_path = entry.path();
+                let entry_name = entry.file_name();
+                let target_entry = target_path.join(entry_name);
+                
+                if entry_path.is_dir() {
+                    total_bytes += self.copy_directory_recursive(&entry_path, &target_entry).await?;
+                } else {
+                    total_bytes += self.copy_file_atomic(&entry_path, &target_entry).await?;
+                }
+            }
+            
+            Ok(total_bytes)
+        })
+    }
+
+    /// Create symbolic link
+    async fn perform_symlink(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            symlink(source_path, target_path).map_err(|e| {
+                FileManagementError::io(
+                    format!("Failed to create symlink {} -> {}", target_path.display(), source_path.display()),
+                    e,
+                )
+            })?;
+        }
+        
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::{symlink_dir, symlink_file};
+            if source_path.is_dir() {
+                symlink_dir(source_path, target_path).map_err(|e| {
+                    FileManagementError::io(
+                        format!("Failed to create directory symlink {} -> {}", target_path.display(), source_path.display()),
+                        e,
+                    )
+                })?;
+            } else {
+                symlink_file(source_path, target_path).map_err(|e| {
+                    FileManagementError::io(
+                        format!("Failed to create file symlink {} -> {}", target_path.display(), source_path.display()),
+                        e,
+                    )
+                })?;
+            }
+        }
+        
+        #[cfg(not(any(unix, windows)))]
+        {
+            return Err(FileManagementError::unsupported_operation(
+                "Symbolic links not supported on this platform"
+            ));
+        }
+        
+        Ok(0) // Symlinks don't consume additional space
+    }
+
+    /// Create hard link
+    async fn perform_hardlink(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+        if source_path.is_dir() {
+            return Err(FileManagementError::unsupported_operation(
+                "Hard links to directories are not supported"
+            ));
+        }
+        
+        std::fs::hard_link(source_path, target_path).map_err(|e| {
+            FileManagementError::io(
+                format!("Failed to create hard link {} -> {}", target_path.display(), source_path.display()),
+                e,
+            )
+        })?;
+        
+        Ok(0) // Hard links don't consume additional space
+    }
+
+    /// Create a temporary path for atomic operations
+    fn create_temp_path(&self, target_path: &Path) -> FileManagementResult<PathBuf> {
+        let temp_name = format!(
+            ".tmp_{}_{}", 
+            target_path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("file"),
+            uuid::Uuid::new_v4().simple()
+        );
+        
+        let temp_path = if let Some(parent) = target_path.parent() {
+            parent.join(temp_name)
+        } else {
+            self.temp_directory.join(temp_name)
+        };
+        
+        Ok(temp_path)
+    }
+
+    /// Batch operation for multiple files
+    pub async fn batch_operation<P1: AsRef<Path>, P2: AsRef<Path>>(
+        &self,
+        operations: Vec<(P1, P2, FileOperationType)>,
+    ) -> Vec<FileManagementResult<FileOperationResult>> {
+        let mut results = Vec::new();
+        
+        for (source, target, op_type) in operations {
+            let result = self.execute_operation(source, target, op_type).await;
+            results.push(result);
+        }
+        
+        results
     }
 }
 
@@ -777,8 +1845,9 @@ impl PathUtils {
 
         // Fallback with timestamp
         let timestamp = chrono::Utc::now().timestamp();
+        let uuid = Uuid::new_v4().simple();
         let new_name = if let Some(ext) = extension {
-            format!("{}_{}_{}.{}", stem, timestamp, rand::random::<u32>(), ext)
+            format!("{}_{}_{}.{}", stem, timestamp, uuid, ext)
         } else {
             format!("{}_{}", stem, timestamp)
         };
@@ -841,7 +1910,7 @@ impl ValidationUtils {
         }
 
         // Try to create a temporary file to test writability
-        let test_file = path.join(format!(".test_write_{}", rand::random::<u32>()));
+        let test_file = path.join(format!(".test_write_{}", Uuid::new_v4().simple()));
         match std::fs::write(&test_file, b"test") {
             Ok(_) => {
                 let _ = std::fs::remove_file(&test_file);
