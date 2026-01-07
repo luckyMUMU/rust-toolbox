@@ -3,7 +3,7 @@
 use crate::core::PluginInfo;
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::ToolNode;
+use crate::tools::{ToolNode, ToolRegistry};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
@@ -40,6 +40,7 @@ pub struct PluginManager {
     plugins: Arc<RwLock<HashMap<String, Box<dyn Plugin>>>>,
     plugin_configs: Arc<RwLock<HashMap<String, PluginConfig>>>,
     runtime_manager: RuntimeManager,
+    tool_registry: Option<Arc<RwLock<dyn ToolRegistry>>>,
 }
 
 impl PluginManager {
@@ -49,7 +50,24 @@ impl PluginManager {
             plugins: Arc::new(RwLock::new(HashMap::new())),
             plugin_configs: Arc::new(RwLock::new(HashMap::new())),
             runtime_manager: RuntimeManager::new(),
+            tool_registry: None,
         }
+    }
+
+    /// Create a new plugin manager with a tool registry
+    pub fn with_tool_registry(tool_registry: Arc<RwLock<dyn ToolRegistry>>) -> Self {
+        Self {
+            plugins: Arc::new(RwLock::new(HashMap::new())),
+            plugin_configs: Arc::new(RwLock::new(HashMap::new())),
+            runtime_manager: RuntimeManager::new(),
+            tool_registry: Some(tool_registry),
+        }
+    }
+
+    /// Set the tool registry for plugin integration
+    pub fn set_tool_registry(&mut self, tool_registry: Arc<RwLock<dyn ToolRegistry>>) {
+        self.tool_registry = Some(tool_registry);
+        info!("Tool registry set for plugin manager");
     }
     
     /// Load a plugin with configuration
@@ -69,6 +87,9 @@ impl PluginManager {
             error!("Failed to initialize plugin {}: {}", plugin_name, e);
             WorkflowError::plugin(format!("Failed to initialize plugin {}: {}", plugin_name, e))
         })?;
+
+        // Register plugin tools with the main tool registry
+        self.register_plugin_tools(&plugin_name, &*plugin)?;
         
         // Store plugin and configuration
         {
@@ -95,6 +116,9 @@ impl PluginManager {
     /// Unload a plugin
     pub fn unload_plugin(&self, name: &str) -> Result<()> {
         info!("Unloading plugin: {}", name);
+
+        // Unregister plugin tools from the main tool registry
+        self.unregister_plugin_tools(name)?;
         
         let mut plugin = {
             let mut plugins = self.plugins.write().map_err(|_| {
@@ -225,6 +249,78 @@ impl PluginManager {
             .get(plugin_name)
             .map(|plugin| plugin.get_tools())
             .ok_or_else(|| WorkflowError::not_found(format!("Plugin not found: {}", plugin_name)))
+    }
+
+    /// Register plugin tools with the main tool registry
+    fn register_plugin_tools(&self, plugin_name: &str, plugin: &dyn Plugin) -> Result<()> {
+        if let Some(tool_registry) = &self.tool_registry {
+            let tools = plugin.get_tools();
+            info!("Registering {} tools from plugin '{}' with main tool registry", tools.len(), plugin_name);
+            
+            let mut registry = tool_registry.write().map_err(|_| {
+                WorkflowError::ConcurrentAccess {
+                    message: "Failed to acquire write lock on tool registry".to_string(),
+                }
+            })?;
+            
+            for tool in tools {
+                if let Err(e) = registry.register_tool(tool.clone()) {
+                    error!("Failed to register tool '{}' from plugin '{}': {}", tool.name(), plugin_name, e);
+                    // Continue registering other tools even if one fails
+                } else {
+                    debug!("Registered tool '{}' from plugin '{}'", tool.name(), plugin_name);
+                }
+            }
+            
+            info!("Completed tool registration for plugin '{}'", plugin_name);
+        } else {
+            debug!("No tool registry available - plugin tools will only be accessible through plugin");
+        }
+        
+        Ok(())
+    }
+
+    /// Unregister plugin tools from the main tool registry
+    fn unregister_plugin_tools(&self, plugin_name: &str) -> Result<()> {
+        if let Some(tool_registry) = &self.tool_registry {
+            // Get the plugin to access its tools
+            let tools = {
+                let plugins = self.plugins.read().map_err(|_| {
+                    WorkflowError::ConcurrentAccess {
+                        message: "Failed to acquire read lock on plugins".to_string(),
+                    }
+                })?;
+                
+                if let Some(plugin) = plugins.get(plugin_name) {
+                    plugin.get_tools()
+                } else {
+                    Vec::new()
+                }
+            };
+            
+            if !tools.is_empty() {
+                info!("Unregistering {} tools from plugin '{}' from main tool registry", tools.len(), plugin_name);
+                
+                let mut registry = tool_registry.write().map_err(|_| {
+                    WorkflowError::ConcurrentAccess {
+                        message: "Failed to acquire write lock on tool registry".to_string(),
+                    }
+                })?;
+                
+                for tool in tools {
+                    if let Err(e) = registry.unregister_tool(tool.name()) {
+                        warn!("Failed to unregister tool '{}' from plugin '{}': {}", tool.name(), plugin_name, e);
+                        // Continue unregistering other tools even if one fails
+                    } else {
+                        debug!("Unregistered tool '{}' from plugin '{}'", tool.name(), plugin_name);
+                    }
+                }
+                
+                info!("Completed tool unregistration for plugin '{}'", plugin_name);
+            }
+        }
+        
+        Ok(())
     }
     
     /// Validate plugin configuration

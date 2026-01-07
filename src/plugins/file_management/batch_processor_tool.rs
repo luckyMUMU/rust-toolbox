@@ -52,6 +52,9 @@ pub struct BatchProcessorParams {
     
     /// Batch processing mode
     pub processing_mode: Option<BatchProcessingMode>,
+    
+    /// Enable experimental mode
+    pub experimental_mode: Option<bool>,
 }
 
 /// Parameters for a single batch item
@@ -124,6 +127,9 @@ pub struct BatchProcessorResult {
     
     /// Progress events (if tracking enabled)
     pub progress_events: Option<Vec<ProgressEvent>>,
+    
+    /// Whether this was run in experimental mode
+    pub experimental_mode: bool,
 }
 
 /// Summary of batch progress
@@ -288,6 +294,11 @@ impl BatchProcessorTool {
                         "enum": ["Parallel", "Sequential", "PriorityBased", "Adaptive"],
                         "description": "Batch processing mode",
                         "default": "Parallel"
+                    },
+                    "experimental_mode": {
+                        "type": "boolean",
+                        "description": "Run in experimental mode (simulation only)",
+                        "default": false
                     }
                 },
                 "required": ["tool_name", "batch_items"]
@@ -349,6 +360,10 @@ impl BatchProcessorTool {
                     "progress_events": {
                         "type": "array",
                         "description": "Progress events (if tracking enabled)"
+                    },
+                    "experimental_mode": {
+                        "type": "boolean",
+                        "description": "Whether the operation was run in experimental mode"
                     }
                 }
             }),
@@ -465,6 +480,7 @@ impl BatchProcessorExecutor {
         batch_result: BatchResult,
         processing_mode: BatchProcessingMode,
         progress_events: Option<Vec<ProgressEvent>>,
+        experimental_mode: bool,
     ) -> BatchProcessorResult {
         // Convert progress
         let progress_summary = BatchProgressSummary {
@@ -537,7 +553,76 @@ impl BatchProcessorExecutor {
             error_summary,
             performance_metrics,
             progress_events,
+            experimental_mode,
         }
+    }
+    
+    /// Simulate batch processing in experimental mode
+    async fn simulate_batch_processing(&self, params: &BatchProcessorParams) -> Result<Value> {
+        info!("Simulating batch processing for {} items", params.batch_items.len());
+        
+        let start_time = std::time::Instant::now();
+        let processing_mode = params.processing_mode.clone().unwrap_or_default();
+        
+        // Simulate processing time based on batch size and concurrency
+        let max_concurrency = params.max_concurrency.unwrap_or(4);
+        let estimated_item_duration_ms = 100; // Simulate 100ms per item
+        let estimated_total_duration_ms = (params.batch_items.len() as u64 * estimated_item_duration_ms) / max_concurrency as u64;
+        
+        // Create simulated results
+        let item_results: Vec<BatchItemResultSummary> = params.batch_items.iter().map(|item| {
+            BatchItemResultSummary {
+                id: item.id.clone(),
+                status: "Completed".to_string(),
+                duration_ms: estimated_item_duration_ms,
+                retry_attempts: 0,
+                has_result: true,
+                has_error: false,
+                error_type: None,
+            }
+        }).collect();
+        
+        let progress_summary = BatchProgressSummary {
+            total_items: params.batch_items.len(),
+            completed_items: params.batch_items.len(),
+            failed_items: 0,
+            skipped_items: 0,
+            progress_percentage: 100.0,
+            processing_rate: params.batch_items.len() as f64 / (estimated_total_duration_ms as f64 / 1000.0),
+            estimated_time_remaining_ms: Some(0),
+        };
+        
+        let error_summary = BatchErrorSummary {
+            total_errors: 0,
+            error_types: HashMap::new(),
+            most_common_error: None,
+            permanently_failed_items: Vec::new(),
+        };
+        
+        let performance_metrics = BatchPerformanceMetricsSummary {
+            average_item_duration_ms: estimated_item_duration_ms,
+            min_item_duration_ms: estimated_item_duration_ms,
+            max_item_duration_ms: estimated_item_duration_ms,
+            throughput: params.batch_items.len() as f64 / (estimated_total_duration_ms as f64 / 1000.0),
+            concurrency_utilization: 1.0,
+        };
+        
+        let simulated_result = BatchProcessorResult {
+            batch_id: uuid::Uuid::new_v4().to_string(),
+            tool_name: params.tool_name.clone(),
+            processing_mode,
+            status: BatchStatus::Completed,
+            total_duration_ms: start_time.elapsed().as_millis() as u64,
+            progress_summary,
+            item_results,
+            error_summary,
+            performance_metrics,
+            progress_events: None,
+            experimental_mode: true,
+        };
+        
+        info!("Batch processing simulation completed for {} items", params.batch_items.len());
+        Ok(serde_json::to_value(simulated_result)?)
     }
 }
 
@@ -548,6 +633,12 @@ impl ToolExecutor for BatchProcessorExecutor {
         
         // Parse parameters
         let batch_params = self.parse_parameters(&params)?;
+        
+        // Check if we're in experimental mode
+        let experimental_mode = batch_params.experimental_mode.unwrap_or(false);
+        if experimental_mode {
+            info!("Running batch processor tool in experimental mode");
+        }
         
         debug!("Batch processing {} items with tool '{}'", 
                batch_params.batch_items.len(), 
@@ -560,6 +651,11 @@ impl ToolExecutor for BatchProcessorExecutor {
         
         if batch_params.batch_items.len() > 10000 {
             return Err(WorkflowError::validation("Batch size exceeds maximum limit of 10000 items"));
+        }
+        
+        // In experimental mode, simulate the batch processing
+        if experimental_mode {
+            return self.simulate_batch_processing(&batch_params).await;
         }
         
         // Create configurations
@@ -626,7 +722,8 @@ impl ToolExecutor for BatchProcessorExecutor {
         
         // Convert result
         let processing_mode = batch_params.processing_mode.unwrap_or_default();
-        let tool_result = self.convert_batch_result(batch_result, processing_mode, progress_events);
+        let experimental_mode = batch_params.experimental_mode.unwrap_or(false);
+        let tool_result = self.convert_batch_result(batch_result, processing_mode, progress_events, experimental_mode);
         
         info!(
             "Batch processing completed: {} total, {} completed, {} failed",

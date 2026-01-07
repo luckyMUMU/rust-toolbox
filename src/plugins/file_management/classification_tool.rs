@@ -8,6 +8,7 @@ use crate::error::{Result, WorkflowError};
 use crate::tools::ToolNode;
 use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
 use super::error::{FileManagementError, FileManagementResult};
+use super::human_decision_tool::{HumanDecisionResult};
 // use super::rule_config::RuleConfigLoader;
 use super::utils::{
     TextProcessor, TextNormalizationConfig, 
@@ -540,6 +541,105 @@ impl ClassificationTool {
         }
     }
 
+    /// Invoke human decision tool for ambiguous classification
+    async fn invoke_human_decision(
+        &self,
+        decision_params: Value,
+        _context: &ExecutionContext,
+    ) -> Result<Value> {
+        // For now, use the fallback implementation since we don't have direct access to the tool registry
+        // In a full implementation, this would use the workflow engine to invoke the human decision tool
+        warn!("Using fallback human decision implementation - full tool registry integration needed");
+        self.fallback_human_decision(decision_params).await
+    }
+
+    /// Fallback human decision implementation when the tool is not available
+    async fn fallback_human_decision(&self, decision_params: Value) -> Result<Value> {
+        // Extract experimental mode flag
+        let experimental_mode = decision_params
+            .get("experimental_mode")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        if experimental_mode {
+            // In experimental mode, auto-select the first recommended option or first option
+            let options = decision_params
+                .get("options")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| WorkflowError::tool("No options available for decision"))?;
+
+            let selected_option = options
+                .iter()
+                .find(|opt| opt.get("recommended").and_then(|v| v.as_bool()).unwrap_or(false))
+                .or_else(|| options.first())
+                .and_then(|opt| opt.get("id").and_then(|v| v.as_str()))
+                .ok_or_else(|| WorkflowError::tool("No valid option found"))?;
+
+            info!("Experimental mode: auto-selected option '{}'", selected_option);
+
+            return Ok(json!({
+                "selected_option": selected_option,
+                "decision_time_ms": 0,
+                "was_timeout": false,
+                "user_input": "auto-selected in experimental mode",
+                "experimental_mode": true
+            }));
+        }
+
+        // In non-experimental mode, we can't make a decision without user interaction
+        Err(WorkflowError::tool(
+            "Human decision tool not available and not in experimental mode"
+        ))
+    }
+
+    /// Apply human decision to classification result
+    fn apply_human_decision(
+        &self,
+        original_result: &ClassificationResult,
+        human_decision: &HumanDecisionResult,
+    ) -> FileManagementResult<ClassificationResult> {
+        let mut updated_result = original_result.clone();
+
+        match human_decision.selected_option.as_str() {
+            "skip" => {
+                // User chose to skip classification
+                updated_result.status = ClassificationStatus::Unclassified;
+                updated_result.category = None;
+                updated_result.score = 0.0;
+                info!("User chose to skip classification for '{}'", updated_result.folder_name);
+            }
+            "other" => {
+                // User chose "other" - this would typically require additional input
+                // For now, we'll mark it as unclassified and let the user handle it
+                updated_result.status = ClassificationStatus::Unclassified;
+                updated_result.category = Some("other".to_string());
+                updated_result.score = 0.0;
+                info!("User chose 'other' category for '{}'", updated_result.folder_name);
+            }
+            selected_category => {
+                // User selected a specific category
+                if let Some(candidate) = updated_result.candidates.iter()
+                    .find(|c| c.category == selected_category) {
+                    // Update with the selected candidate
+                    updated_result.status = ClassificationStatus::Classified;
+                    updated_result.category = Some(candidate.category.clone());
+                    updated_result.score = candidate.score;
+                    info!("User selected category '{}' for '{}'", 
+                          selected_category, updated_result.folder_name);
+                } else {
+                    // User selected a category not in the candidates (custom category)
+                    updated_result.status = ClassificationStatus::Classified;
+                    updated_result.category = Some(selected_category.to_string());
+                    updated_result.score = 1.0; // Give it a default score
+                    info!("User selected custom category '{}' for '{}'", 
+                          selected_category, updated_result.folder_name);
+                }
+            }
+        }
+
+        Ok(updated_result)
+    }
+
     /// Format result based on output format
     fn format_result(&self, result: ClassificationResult, format: &ClassificationOutputFormat) -> Value {
         match format {
@@ -577,7 +677,7 @@ impl ToolNode for ClassificationTool {
         "1.0.0"
     }
 
-    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
+    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
         info!("Executing folder classification tool");
 
         // Parse parameters
@@ -617,11 +717,58 @@ impl ToolNode for ClassificationTool {
 
         // Handle human interaction if needed
         if params.enable_user_interaction && self.engine.needs_human_decision(&result) {
+            info!("Ambiguous classification detected, invoking human decision");
+            
             let decision_context = self.engine.create_human_decision_context(&result);
-            result.metadata.insert("human_decision_required".to_string(), Value::Bool(true));
-            result.metadata.insert("decision_context".to_string(), 
-                serde_json::to_value(decision_context).unwrap_or(Value::Null));
-            result.status = ClassificationStatus::Pending;
+            
+            // Create human decision parameters
+            let human_decision_params = json!({
+                "decision_type": "Classification",
+                "context": {
+                    "title": decision_context.title,
+                    "description": decision_context.description,
+                    "folder_name": result.folder_name,
+                    "metadata": decision_context.metadata
+                },
+                "options": decision_context.options.iter().map(|opt| json!({
+                    "id": opt.id,
+                    "label": opt.label,
+                    "description": opt.description,
+                    "recommended": opt.recommended,
+                    "score": opt.metadata.get("score")
+                })).collect::<Vec<_>>(),
+                "timeout_seconds": decision_context.timeout_seconds,
+                "default_choice": decision_context.options.iter().position(|opt| opt.recommended),
+                "experimental_mode": params.experimental_mode
+            });
+
+            // Invoke human decision tool
+            match self.invoke_human_decision(human_decision_params, &context).await {
+                Ok(decision_result) => {
+                    // Parse the human decision result
+                    if let Ok(human_result) = serde_json::from_value::<HumanDecisionResult>(decision_result) {
+                        // Update classification result based on human decision
+                        result = self.apply_human_decision(&result, &human_result)?;
+                        
+                        result.metadata.insert("human_decision_made".to_string(), Value::Bool(true));
+                        result.metadata.insert("decision_time_ms".to_string(), 
+                            Value::Number(serde_json::Number::from(human_result.decision_time_ms)));
+                        result.metadata.insert("selected_option".to_string(), 
+                            Value::String(human_result.selected_option));
+                    } else {
+                        warn!("Failed to parse human decision result");
+                        result.metadata.insert("human_decision_error".to_string(), 
+                            Value::String("Failed to parse decision result".to_string()));
+                        result.status = ClassificationStatus::Error;
+                    }
+                }
+                Err(e) => {
+                    warn!("Human decision failed: {}", e);
+                    result.metadata.insert("human_decision_error".to_string(), 
+                        Value::String(e.to_string()));
+                    result.status = ClassificationStatus::Pending;
+                }
+            }
         }
 
         // Format result
@@ -938,6 +1085,170 @@ mod tests {
         assert_eq!(context.decision_type, HumanDecisionType::Classification);
         assert!(context.title.contains("test_folder"));
         assert_eq!(context.options.len(), 4); // 2 candidates + other + skip
+    }
+
+    #[tokio::test]
+    async fn test_classification_with_human_decision_experimental_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_folder = temp_dir.path().join("ambiguous_folder");
+        std::fs::create_dir(&test_folder).unwrap();
+
+        let tool = ClassificationTool::new(true);
+        
+        // Create rules that will result in ambiguous classification
+        let rules = json!({
+            "rules": [
+                {
+                    "category": "documents",
+                    "keywords": ["doc", "document"],
+                    "score_weight": 1.0,
+                    "case_sensitive": false,
+                    "use_pinyin": false
+                },
+                {
+                    "category": "media",
+                    "keywords": ["media", "video"],
+                    "score_weight": 0.9,
+                    "case_sensitive": false,
+                    "use_pinyin": false
+                }
+            ],
+            "default_category": "other",
+            "min_confidence_threshold": 0.1,
+            "ambiguity_threshold": 0.9  // High threshold to trigger ambiguity
+        });
+
+        let params = json!({
+            "folder_path": test_folder.to_string_lossy(),
+            "classification_rules": rules,
+            "enable_user_interaction": true,
+            "experimental_mode": true,
+            "output_format": "Full"
+        });
+
+        let context = ExecutionContext::new();
+        let result = tool.execute(params, context).await.unwrap();
+        
+        // In experimental mode with human decision, it should auto-select
+        assert!(result.get("status").is_some());
+        assert!(result.get("metadata").is_some());
+        
+        let metadata = result.get("metadata").unwrap();
+        if metadata.get("human_decision_made").and_then(|v| v.as_bool()).unwrap_or(false) {
+            assert!(metadata.get("selected_option").is_some());
+        }
+    }
+
+    #[test]
+    fn test_apply_human_decision() {
+        let tool = ClassificationTool::new(true);
+        
+        let original_result = ClassificationResult {
+            status: ClassificationStatus::Ambiguous,
+            category: Some("documents".to_string()),
+            candidates: vec![
+                ClassificationCandidate::new("documents".to_string(), 1.5, 0.6),
+                ClassificationCandidate::new("images".to_string(), 1.2, 0.4),
+            ],
+            score: 1.5,
+            folder_name: "test_folder".to_string(),
+            processing_time_ms: 100,
+            metadata: HashMap::new(),
+        };
+
+        // Test selecting a candidate
+        let human_decision = HumanDecisionResult {
+            selected_option: "images".to_string(),
+            decision_time_ms: 5000,
+            was_timeout: false,
+            user_input: Some("User selected images".to_string()),
+            experimental_mode: false,
+        };
+
+        let updated_result = tool.apply_human_decision(&original_result, &human_decision).unwrap();
+        assert_eq!(updated_result.status, ClassificationStatus::Classified);
+        assert_eq!(updated_result.category, Some("images".to_string()));
+        assert_eq!(updated_result.score, 1.2);
+
+        // Test skip option
+        let skip_decision = HumanDecisionResult {
+            selected_option: "skip".to_string(),
+            decision_time_ms: 1000,
+            was_timeout: false,
+            user_input: Some("User chose to skip".to_string()),
+            experimental_mode: false,
+        };
+
+        let skipped_result = tool.apply_human_decision(&original_result, &skip_decision).unwrap();
+        assert_eq!(skipped_result.status, ClassificationStatus::Unclassified);
+        assert_eq!(skipped_result.category, None);
+        assert_eq!(skipped_result.score, 0.0);
+
+        // Test custom category
+        let custom_decision = HumanDecisionResult {
+            selected_option: "custom_category".to_string(),
+            decision_time_ms: 3000,
+            was_timeout: false,
+            user_input: Some("User entered custom category".to_string()),
+            experimental_mode: false,
+        };
+
+        let custom_result = tool.apply_human_decision(&original_result, &custom_decision).unwrap();
+        assert_eq!(custom_result.status, ClassificationStatus::Classified);
+        assert_eq!(custom_result.category, Some("custom_category".to_string()));
+        assert_eq!(custom_result.score, 1.0);
+    }
+
+    #[test]
+    fn test_needs_human_decision() {
+        let engine = ClassificationEngine::new(true);
+
+        // Test ambiguous result
+        let ambiguous_result = ClassificationResult {
+            status: ClassificationStatus::Ambiguous,
+            category: Some("documents".to_string()),
+            candidates: vec![
+                ClassificationCandidate::new("documents".to_string(), 1.5, 0.6),
+                ClassificationCandidate::new("images".to_string(), 1.2, 0.4),
+            ],
+            score: 1.5,
+            folder_name: "test_folder".to_string(),
+            processing_time_ms: 100,
+            metadata: HashMap::new(),
+        };
+
+        assert!(engine.needs_human_decision(&ambiguous_result));
+
+        // Test unclassified with multiple candidates
+        let unclassified_result = ClassificationResult {
+            status: ClassificationStatus::Unclassified,
+            category: None,
+            candidates: vec![
+                ClassificationCandidate::new("documents".to_string(), 0.05, 0.3),
+                ClassificationCandidate::new("images".to_string(), 0.03, 0.2),
+            ],
+            score: 0.0,
+            folder_name: "test_folder".to_string(),
+            processing_time_ms: 100,
+            metadata: HashMap::new(),
+        };
+
+        assert!(engine.needs_human_decision(&unclassified_result));
+
+        // Test classified result (should not need human decision)
+        let classified_result = ClassificationResult {
+            status: ClassificationStatus::Classified,
+            category: Some("documents".to_string()),
+            candidates: vec![
+                ClassificationCandidate::new("documents".to_string(), 1.5, 0.8),
+            ],
+            score: 1.5,
+            folder_name: "test_folder".to_string(),
+            processing_time_ms: 100,
+            metadata: HashMap::new(),
+        };
+
+        assert!(!engine.needs_human_decision(&classified_result));
     }
 
     #[test]

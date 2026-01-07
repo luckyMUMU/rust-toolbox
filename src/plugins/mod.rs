@@ -2,6 +2,7 @@
 
 pub mod docker;
 pub mod file_management;
+pub mod integration;
 pub mod manager;
 pub mod native;
 pub mod nodejs;
@@ -17,6 +18,7 @@ pub use docker::{
 pub use file_management::{
     FileManagementPlugin, FileManagementPluginBuilder, FileManagementConfig,
 };
+pub use integration::{IntegratedPluginSystem, IntegratedPluginSystemBuilder};
 pub use manager::{PluginManager, RuntimeManager};
 pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder, NativeToolExecutor};
 pub use nodejs::{

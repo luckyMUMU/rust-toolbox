@@ -4,13 +4,17 @@
 //! tools, utilities, and error handling.
 
 pub mod ac_automaton;
+pub mod batch_confirmation_tool;
 pub mod batch_processor;
 pub mod batch_processor_tool;
 pub mod classification_tool;
 pub mod error;
+pub mod human_decision_tool;
 pub mod plugin;
 pub mod progress_tracker;
 pub mod registry;
+pub mod result_confirmation_tool;
+pub mod result_review_tool;
 pub mod rule_config;
 pub mod text_processor_tool;
 pub mod utils;
@@ -21,6 +25,10 @@ pub use plugin::{
 };
 pub use error::{FileManagementError, FileManagementResult};
 pub use registry::FileManagementToolRegistry;
+pub use human_decision_tool::{
+    HumanDecisionParams, DecisionContext, DecisionOption, HumanDecisionResult,
+    HumanDecisionExecutor, create_human_decision_tool,
+};
 pub use batch_processor::{
     BatchProcessor, BatchProcessorConfig, BatchItem, BatchResult, BatchStatus,
     BatchProgress, BatchItemResult, BatchItemStatus, BatchPerformanceMetrics,
@@ -57,4 +65,26 @@ pub use utils::{
 pub use ac_automaton::{
     Pattern, AutomatonNode, PatternMatch, AutomatonConfig, AutomatonStats,
     AutomatonError, AutomatonResult,
+};
+pub use result_review_tool::{
+    ResultReviewTool, ResultReviewConfig, ResultReviewParams, ReviewMode,
+    ConfirmationOptions, DefaultAction, ExperimentalResult, OperationImpact,
+    RiskLevel, ResultReviewResult, ReviewSummary, ConfirmationDetail,
+    ConfirmationDecision, create_result_review_tool, create_result_review_tool_with_config,
+};
+pub use batch_confirmation_tool::{
+    BatchConfirmationTool, BatchConfirmationConfig, BatchConfirmationParams,
+    ConfirmationStrategy, BatchOptions, UserPreferences, OperationBatch,
+    BatchSummary, RiskDistribution, ReversibilitySummary, RecommendedAction,
+    BatchConfirmationResult, ProcessedBatch, BatchDecision, BatchDecisionType,
+    ConfirmationMethod, OperationModification, ModificationType, OverallSummary,
+    create_batch_confirmation_tool, create_batch_confirmation_tool_with_config,
+};
+pub use result_confirmation_tool::{
+    ResultConfirmationTool, ResultConfirmationConfig, ResultConfirmationParams,
+    ConfirmationMode, ReviewOptions, RollbackOptions, BackupStrategy,
+    ResultConfirmationResult, ConfirmationPhase, PhaseType, PhaseOutput,
+    RollbackPlan, RollbackOperation, RollbackType, ExecutionSummary,
+    RiskAssessment, ResourceRequirements,
+    create_result_confirmation_tool, create_result_confirmation_tool_with_config,
 };

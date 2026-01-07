@@ -70,6 +70,19 @@ impl FileManagementToolRegistry {
             tools.push(tool);
         }
 
+        // 5. Result review and confirmation tools
+        if let Ok(tool) = self.register_result_review_tool() {
+            tools.push(tool);
+        }
+
+        if let Ok(tool) = self.register_batch_confirmation_tool() {
+            tools.push(tool);
+        }
+
+        if let Ok(tool) = self.register_result_confirmation_tool() {
+            tools.push(tool);
+        }
+
         info!("Registered {} file management tools", tools.len());
         Ok(tools)
     }
@@ -119,7 +132,8 @@ impl FileManagementToolRegistry {
                         }
                     },
                     "case_sensitive": {"type": "boolean", "default": false},
-                    "find_overlapping": {"type": "boolean", "default": false}
+                    "find_overlapping": {"type": "boolean", "default": false},
+                    "experimental_mode": {"type": "boolean", "default": false, "description": "Run in experimental mode (simulation only)"}
                 },
                 "required": ["text", "patterns"]
             }),
@@ -129,7 +143,8 @@ impl FileManagementToolRegistry {
                     "matches": {"type": "array"},
                     "total_matches": {"type": "number"},
                     "categories_found": {"type": "array", "items": {"type": "string"}},
-                    "statistics": {"type": "object"}
+                    "statistics": {"type": "object"},
+                    "experimental_mode": {"type": "boolean", "description": "Whether the operation was run in experimental mode"}
                 }
             }),
             plugin_name: Some(self.plugin_info.name.clone()),
@@ -368,53 +383,46 @@ impl FileManagementToolRegistry {
     fn register_human_decision_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
         debug!("Registering human decision tool");
 
-        let executor = Arc::new(PlaceholderExecutor::new("human-decision"));
-
-        let tool = BasicTool::builder()
-            .name("human-decision")
-            .version("1.0.0")
-            .description("Human decision-making for ambiguous scenarios")
-            .category("human-interaction")
-            .tags(vec!["human", "decision", "interactive"])
-            .parameters_schema(json!({
-                "type": "object",
-                "properties": {
-                    "decision_type": {"type": "string", "enum": ["Classification", "FileConflict", "MergeStrategy", "Custom"]},
-                    "context": {
-                        "type": "object",
-                        "properties": {
-                            "title": {"type": "string"},
-                            "description": {"type": "string"},
-                            "folder_name": {"type": "string"},
-                            "metadata": {"type": "object"}
-                        },
-                        "required": ["title", "description"]
-                    },
-                    "options": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string"},
-                                "label": {"type": "string"},
-                                "description": {"type": "string"},
-                                "score": {"type": "number"},
-                                "recommended": {"type": "boolean", "default": false}
-                            },
-                            "required": ["id", "label"]
-                        }
-                    },
-                    "timeout_seconds": {"type": "number"},
-                    "default_choice": {"type": "number"}
-                },
-                "required": ["decision_type", "context", "options"]
-            }))
-            .plugin_info(self.plugin_info.clone())
-            .executor(executor)
-            .build()?;
+        let tool = super::human_decision_tool::create_human_decision_tool(
+            self.config.clone(),
+            self.plugin_info.clone(),
+        )?;
 
         let tool_arc = Arc::new(tool);
         self.registered_tools.insert("human-decision".to_string(), tool_arc.clone());
+        
+        Ok(tool_arc)
+    }
+
+    /// Register the result review tool
+    fn register_result_review_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
+        debug!("Registering result review tool");
+
+        let tool = super::result_review_tool::ResultReviewTool::with_default_config();
+        let tool_arc = Arc::new(tool);
+        self.registered_tools.insert("result-reviewer".to_string(), tool_arc.clone());
+        
+        Ok(tool_arc)
+    }
+
+    /// Register the batch confirmation tool
+    fn register_batch_confirmation_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
+        debug!("Registering batch confirmation tool");
+
+        let tool = super::batch_confirmation_tool::BatchConfirmationTool::with_default_config();
+        let tool_arc = Arc::new(tool);
+        self.registered_tools.insert("batch-confirmer".to_string(), tool_arc.clone());
+        
+        Ok(tool_arc)
+    }
+
+    /// Register the comprehensive result confirmation tool
+    fn register_result_confirmation_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
+        debug!("Registering comprehensive result confirmation tool");
+
+        let tool = super::result_confirmation_tool::ResultConfirmationTool::with_default_config();
+        let tool_arc = Arc::new(tool);
+        self.registered_tools.insert("result-confirmer".to_string(), tool_arc.clone());
         
         Ok(tool_arc)
     }
@@ -535,6 +543,16 @@ impl ToolExecutor for AcMatcherExecutor {
     async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
         debug!("Executing AC matcher tool with parameters: {}", params);
 
+        // Check if we're in experimental mode
+        let experimental_mode = params
+            .get("experimental_mode")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        if experimental_mode {
+            info!("Running AC matcher tool in experimental mode");
+        }
+
         // Extract parameters
         let text = params
             .get("text")
@@ -569,11 +587,20 @@ impl ToolExecutor for AcMatcherExecutor {
                     "categories_found": [],
                     "text_length": text.chars().count(),
                     "coverage_ratio": 0.0
-                }
+                },
+                "experimental_mode": experimental_mode
             }));
         }
 
         debug!("Building automaton with {} patterns", patterns.len());
+
+        // In experimental mode, log what would be done
+        if experimental_mode {
+            debug!("Experimental mode: Would build automaton with {} patterns for text of length {}", 
+                   patterns.len(), text.chars().count());
+            debug!("Experimental mode: Would search for patterns with case_sensitive={}, find_overlapping={}", 
+                   case_sensitive, find_overlapping);
+        }
 
         // Build automaton
         let matcher = self.build_automaton(patterns, case_sensitive, find_overlapping)?;
@@ -609,10 +636,16 @@ impl ToolExecutor for AcMatcherExecutor {
                 "min_score": statistics.min_score,
                 "text_length": statistics.text_length,
                 "coverage_ratio": statistics.coverage_ratio
-            }
+            },
+            "experimental_mode": experimental_mode
         });
 
-        info!("AC matcher completed successfully: {} matches found", statistics.total_matches);
+        if experimental_mode {
+            info!("AC matcher experimental mode completed: {} matches would be found", statistics.total_matches);
+        } else {
+            info!("AC matcher completed successfully: {} matches found", statistics.total_matches);
+        }
+        
         Ok(response)
     }
 
@@ -664,6 +697,12 @@ impl ToolExecutor for AcMatcherExecutor {
         if let Some(find_overlapping) = params.get("find_overlapping") {
             if !find_overlapping.is_boolean() {
                 return Err(WorkflowError::validation("find_overlapping must be a boolean"));
+            }
+        }
+
+        if let Some(experimental_mode) = params.get("experimental_mode") {
+            if !experimental_mode.is_boolean() {
+                return Err(WorkflowError::validation("experimental_mode must be a boolean"));
             }
         }
 

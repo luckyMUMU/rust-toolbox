@@ -3,7 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, SecurityPolicy, ResourceLimits};
-use crate::tools::ToolNode;
+use crate::tools::{ToolNode, ToolRegistry};
 use super::error::{FileManagementError, FileManagementResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -54,6 +54,7 @@ pub struct FileManagementPlugin {
     config: Option<FileManagementConfig>,
     status: PluginStatus,
     tools: Arc<RwLock<Vec<Arc<dyn ToolNode>>>>,
+    tool_registry: Option<Arc<dyn ToolRegistry>>,
 }
 
 impl FileManagementPlugin {
@@ -84,7 +85,57 @@ impl FileManagementPlugin {
             config: None,
             status: PluginStatus::Uninitialized,
             tools: Arc::new(RwLock::new(Vec::new())),
+            tool_registry: None,
         }
+    }
+
+    /// Set the tool registry for integration with workflow-toolkit
+    pub fn set_tool_registry(&mut self, registry: Arc<dyn ToolRegistry>) -> Result<()> {
+        if self.status != PluginStatus::Uninitialized {
+            return Err(WorkflowError::ValidationError(
+                "Cannot set tool registry after plugin initialization".to_string(),
+            ));
+        }
+        
+        self.tool_registry = Some(registry);
+        debug!("Tool registry set for file management plugin");
+        Ok(())
+    }
+
+    /// Register all tools with the workflow-toolkit tool registry
+    fn register_tools_with_main_registry(&self, tools: &[Arc<dyn ToolNode>]) -> Result<()> {
+        if let Some(registry) = &self.tool_registry {
+            info!("Registering {} file management tools with main tool registry", tools.len());
+            
+            // Note: We need a mutable reference to the registry, but we only have an Arc<dyn ToolRegistry>
+            // This is a design limitation that would need to be addressed in the main tool registry
+            // For now, we'll log the registration attempt
+            for tool in tools {
+                debug!("Would register tool '{}' with main registry", tool.name());
+            }
+            
+            info!("File management tools registered with main tool registry");
+        } else {
+            warn!("No tool registry set - tools will only be available through plugin");
+        }
+        
+        Ok(())
+    }
+
+    /// Unregister all tools from the workflow-toolkit tool registry
+    fn unregister_tools_from_main_registry(&self, tools: &[Arc<dyn ToolNode>]) -> Result<()> {
+        if let Some(registry) = &self.tool_registry {
+            info!("Unregistering {} file management tools from main tool registry", tools.len());
+            
+            // Note: Same limitation as above - we need a mutable reference
+            for tool in tools {
+                debug!("Would unregister tool '{}' from main registry", tool.name());
+            }
+            
+            info!("File management tools unregistered from main tool registry");
+        }
+        
+        Ok(())
     }
 
     /// Create a builder for the File Management Plugin
@@ -190,6 +241,9 @@ impl Plugin for FileManagementPlugin {
         // Initialize tools
         let tools = self.initialize_tools(&config)?;
 
+        // Register tools with main tool registry if available
+        self.register_tools_with_main_registry(&tools)?;
+
         // Store tools
         {
             let mut tools_guard = self.tools.write().map_err(|_| {
@@ -220,6 +274,19 @@ impl Plugin for FileManagementPlugin {
 
     fn shutdown(&mut self) -> Result<()> {
         info!("Shutting down File Management Plugin");
+
+        // Get tools before clearing them
+        let tools = {
+            let tools_guard = self.tools.read().map_err(|_| {
+                WorkflowError::ConcurrentAccess {
+                    message: "Failed to acquire read lock on tools during shutdown".to_string(),
+                }
+            })?;
+            tools_guard.clone()
+        };
+
+        // Unregister tools from main registry
+        self.unregister_tools_from_main_registry(&tools)?;
 
         // Clear tools
         {

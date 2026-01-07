@@ -64,6 +64,7 @@ pub struct TextProcessorParams {
     pub normalization_config: Option<TextNormalizationConfig>,
     pub chinese_processing: Option<ChineseProcessingConfig>,
     pub output_format: Option<TextOutputFormat>,
+    pub experimental_mode: Option<bool>,
 }
 
 /// Output format options
@@ -92,6 +93,7 @@ pub struct TextProcessorResult {
     pub chinese_type: Option<ChineseTextType>,
     pub metadata: HashMap<String, Value>,
     pub processing_time_ms: u64,
+    pub experimental_mode: bool,
 }
 
 /// Text Processor Tool implementation
@@ -149,6 +151,8 @@ impl TextProcessorTool {
     /// Process text with all specified operations
     fn process_text(&self, params: &TextProcessorParams) -> FileManagementResult<TextProcessorResult> {
         let start_time = std::time::Instant::now();
+        let experimental_mode = params.experimental_mode.unwrap_or(false);
+        
         let mut result = TextProcessorResult {
             original: params.text.clone(),
             processed: params.text.clone(),
@@ -159,7 +163,16 @@ impl TextProcessorTool {
             chinese_type: None,
             metadata: HashMap::new(),
             processing_time_ms: 0,
+            experimental_mode,
         };
+
+        if experimental_mode {
+            debug!("Running text processor in experimental mode for {} operations", params.operations.len());
+            // In experimental mode, log what would be done but still perform the operations
+            // since text processing is non-destructive
+            result.metadata.insert("experimental_mode_note".to_string(), 
+                Value::String("Text processing operations are non-destructive and safe to execute".to_string()));
+        }
 
         // Apply text operations in sequence
         for operation in &params.operations {
@@ -255,6 +268,12 @@ impl ToolNode for TextProcessorTool {
         let params: TextProcessorParams = serde_json::from_value(params)
             .map_err(|e| WorkflowError::ValidationError(format!("Invalid parameters: {}", e)))?;
 
+        // Check if we're in experimental mode
+        let experimental_mode = params.experimental_mode.unwrap_or(false);
+        if experimental_mode {
+            info!("Running text processor tool in experimental mode");
+        }
+
         // Validate parameters
         if params.text.is_empty() {
             return Err(WorkflowError::ValidationError("Text cannot be empty".to_string()));
@@ -272,7 +291,12 @@ impl ToolNode for TextProcessorTool {
         let output_format = params.output_format.unwrap_or_default();
         let formatted_result = self.format_result(result, &output_format);
 
-        info!("Text processor tool completed successfully");
+        if experimental_mode {
+            info!("Text processor tool experimental mode completed successfully");
+        } else {
+            info!("Text processor tool completed successfully");
+        }
+        
         Ok(formatted_result)
     }
 
@@ -369,6 +393,11 @@ impl ToolNode for TextProcessorTool {
                         "type": "string",
                         "enum": ["Simple", "Detailed", "Structured"],
                         "default": "Simple"
+                    },
+                    "experimental_mode": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Run in experimental mode (simulation only)"
                     }
                 },
                 "required": ["text", "operations"]
@@ -385,7 +414,8 @@ impl ToolNode for TextProcessorTool {
                     "segments": {"type": "array", "items": {"type": "string"}},
                     "chinese_type": {"type": "string"},
                     "metadata": {"type": "object"},
-                    "processing_time_ms": {"type": "number"}
+                    "processing_time_ms": {"type": "number"},
+                    "experimental_mode": {"type": "boolean", "description": "Whether the operation was run in experimental mode"}
                 }
             }),
             plugin_name: self.plugin_info.as_ref().map(|p| p.name.clone()),
