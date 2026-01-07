@@ -202,7 +202,7 @@ This implementation plan develops file management tools as plugins for the exist
     - _Requirements: 9.1, 9.4_
 
 - [ ] 11. Create enhanced workflow templates
-  - [-] 11.1 Design interactive classification workflow template
+  - [x] 11.1 Design interactive classification workflow template
     - Complete folder classification with human decision support
     - Experimental mode with confirmation steps
     - _Requirements: 8.1, 11.5, 12.5_

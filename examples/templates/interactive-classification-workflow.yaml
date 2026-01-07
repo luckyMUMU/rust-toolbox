@@ -1,0 +1,260 @@
+name: "interactive-folder-classification"
+version: "1.0.0"
+description: "Interactive folder classification with human decision support and experimental mode"
+
+metadata:
+  author: "File Management Tools"
+  category: "file-management"
+  created: "2024-01-01"
+  tags: ["classification", "interactive", "experimental"]
+
+# Template parameters that users can customize
+parameters:
+  source_directory:
+    type: "string"
+    description: "Directory containing folders to classify"
+    required: true
+  
+  output_directory:
+    type: "string"
+    description: "Root directory for organized folders"
+    required: true
+  
+  classification_rules:
+    type: "object"
+    description: "Classification rules configuration (JSON object or file path)"
+    required: true
+  
+  experimental_mode:
+    type: "boolean"
+    description: "Run in experimental mode (simulate operations without executing)"
+    default: true
+  
+  enable_user_interaction:
+    type: "boolean"
+    description: "Enable human decision-making for ambiguous classifications"
+    default: true
+  
+  decision_timeout:
+    type: "integer"
+    description: "Timeout for human decisions in seconds"
+    default: 300
+  
+  batch_size:
+    type: "integer"
+    description: "Number of folders to process in each batch"
+    default: 10
+  
+  confidence_threshold:
+    type: "number"
+    description: "Minimum confidence score for automatic classification"
+    default: 0.8
+
+nodes:
+  # Step 1: Scan source directory for folders
+  - id: "scan_folders"
+    node_type: "Tool"
+    tool_name: "directory-scanner"
+    parameters:
+      directory: "${source_directory}"
+      recursive: false
+      filter_type: "directories"
+      include_hidden: false
+    timeout: "60s"
+    metadata:
+      description: "Scan source directory for folders to classify"
+
+  # Step 2: Validate classification rules
+  - id: "validate_rules"
+    node_type: "Tool"
+    tool_name: "rule-validator"
+    parameters:
+      rules: "${classification_rules}"
+      validate_patterns: true
+      check_categories: true
+    timeout: "30s"
+    metadata:
+      description: "Validate classification rules before processing"
+
+  # Step 3: Process folders in batches with classification
+  - id: "classify_batch"
+    node_type: "Tool"
+    tool_name: "batch-processor"
+    parameters:
+      items: "${scan_folders.folders}"
+      batch_size: "${batch_size}"
+      tool_name: "folder-classifier"
+      tool_params:
+        classification_rules: "${classification_rules}"
+        experimental_mode: "${experimental_mode}"
+        enable_user_interaction: "${enable_user_interaction}"
+        decision_timeout: "${decision_timeout}"
+        confidence_threshold: "${confidence_threshold}"
+      parallel_execution: true
+      max_concurrent: 3
+    timeout: "1800s"  # 30 minutes for large batches
+    metadata:
+      description: "Classify folders in parallel batches"
+
+  # Step 4: Review classification results (always shown)
+  - id: "review_results"
+    node_type: "Tool"
+    tool_name: "result-reviewer"
+    parameters:
+      results: "${classify_batch.results}"
+      mode: "classification"
+      show_statistics: true
+      show_unclassified: true
+      show_ambiguous: true
+    timeout: "120s"
+    metadata:
+      description: "Review classification results and statistics"
+
+  # Step 5: Conditional experimental mode confirmation
+  - id: "experimental_confirmation"
+    node_type: "Condition"
+    parameters:
+      condition: "${experimental_mode} == true"
+    metadata:
+      description: "Check if running in experimental mode"
+
+  # Step 6: Human confirmation for experimental mode
+  - id: "confirm_execution"
+    node_type: "Tool"
+    tool_name: "human-decision"
+    parameters:
+      decision_type: "Custom"
+      context:
+        title: "Confirm File Operations"
+        description: "Review experimental results and confirm execution of file operations"
+        metadata:
+          total_folders: "${scan_folders.folder_count}"
+          classified_folders: "${classify_batch.classified_count}"
+          unclassified_folders: "${classify_batch.unclassified_count}"
+      options:
+        - id: "execute"
+          label: "Execute file operations"
+          description: "Proceed with moving folders to classified locations"
+          recommended: true
+        - id: "modify"
+          label: "Modify classification rules"
+          description: "Go back and adjust classification rules"
+        - id: "cancel"
+          label: "Cancel operations"
+          description: "Cancel all file operations"
+      timeout_seconds: "${decision_timeout}"
+      default_choice: 0
+    timeout: "600s"
+    metadata:
+      description: "Get user confirmation for file operations"
+
+  # Step 7: Conditional execution based on confirmation
+  - id: "execution_decision"
+    node_type: "Condition"
+    parameters:
+      condition: "!${experimental_mode} || ${confirm_execution.selected_option} == 'execute'"
+    metadata:
+      description: "Decide whether to execute file operations"
+
+  # Step 8: Execute file operations
+  - id: "execute_moves"
+    node_type: "Tool"
+    tool_name: "file-mover"
+    parameters:
+      operations: "${classify_batch.move_operations}"
+      conflict_resolution: "Rename"
+      check_disk_space: true
+      create_directories: true
+      experimental_mode: false  # Always execute for real at this point
+      progress_reporting: true
+    timeout: "3600s"  # 1 hour for large operations
+    metadata:
+      description: "Execute file move operations"
+
+  # Step 9: Generate final report
+  - id: "generate_report"
+    node_type: "Tool"
+    tool_name: "operation-reporter"
+    parameters:
+      classification_results: "${classify_batch.results}"
+      move_results: "${execute_moves.results}"
+      output_format: "detailed"
+      include_statistics: true
+      save_to_file: true
+      report_path: "${output_directory}/classification_report.json"
+    timeout: "60s"
+    metadata:
+      description: "Generate detailed operation report"
+
+  # Step 10: Cleanup and finalization
+  - id: "cleanup"
+    node_type: "Tool"
+    tool_name: "cleanup-processor"
+    parameters:
+      remove_empty_directories: true
+      source_directory: "${source_directory}"
+      dry_run: false
+    timeout: "120s"
+    metadata:
+      description: "Clean up empty directories after classification"
+
+edges:
+  # Linear flow with conditional branches
+  - from: "scan_folders"
+    to: "validate_rules"
+  
+  - from: "validate_rules"
+    to: "classify_batch"
+  
+  - from: "classify_batch"
+    to: "review_results"
+  
+  - from: "review_results"
+    to: "experimental_confirmation"
+  
+  # Experimental mode branch
+  - from: "experimental_confirmation"
+    to: "confirm_execution"
+    condition: "${experimental_mode} == true"
+  
+  # Direct execution branch (non-experimental)
+  - from: "experimental_confirmation"
+    to: "execution_decision"
+    condition: "${experimental_mode} == false"
+  
+  - from: "confirm_execution"
+    to: "execution_decision"
+  
+  # Execute operations if confirmed
+  - from: "execution_decision"
+    to: "execute_moves"
+    condition: "!${experimental_mode} || ${confirm_execution.selected_option} == 'execute'"
+  
+  # Skip to report if cancelled
+  - from: "execution_decision"
+    to: "generate_report"
+    condition: "${experimental_mode} && ${confirm_execution.selected_option} != 'execute'"
+  
+  - from: "execute_moves"
+    to: "generate_report"
+  
+  - from: "generate_report"
+    to: "cleanup"
+
+global_config:
+  timeout: "7200s"  # 2 hours total
+  parallel_limit: 5
+  enable_caching: true
+  checkpoint_interval: "300s"  # 5 minutes
+  retry_policy:
+    max_attempts: 3
+    initial_delay: "5s"
+    max_delay: "60s"
+    backoff_multiplier: 2.0
+  error_handling:
+    continue_on_error: false
+    save_state_on_error: true
+  logging:
+    level: "info"
+    include_timestamps: true
+    log_file: "${output_directory}/workflow.log"

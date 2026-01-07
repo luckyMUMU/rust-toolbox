@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "description": "Example classification rules for folder organization",
+  "categories": {
+    "documents": {
+      "description": "Document and text files",
+      "keywords": [
+        {"pattern": "doc", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "pdf", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "text", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "report", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "manual", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "guide", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Documents"
+    },
+    "media": {
+      "description": "Images, videos, and audio files",
+      "keywords": [
+        {"pattern": "photo", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "image", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "video", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "audio", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "music", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "movie", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "pic", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Media"
+    },
+    "software": {
+      "description": "Software, applications, and development files",
+      "keywords": [
+        {"pattern": "app", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "software", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "program", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "tool", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "utility", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "dev", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "code", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Software"
+    },
+    "projects": {
+      "description": "Project folders and work-related content",
+      "keywords": [
+        {"pattern": "project", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "work", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "client", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "task", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "assignment", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Projects"
+    },
+    "archive": {
+      "description": "Old or archived content",
+      "keywords": [
+        {"pattern": "old", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "archive", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "backup", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "temp", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "tmp", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "deprecated", "weight": 0.9, "case_sensitive": false}
+      ],
+      "target_directory": "Archive"
+    }
+  },
+  "settings": {
+    "minimum_score_threshold": 0.5,
+    "ambiguous_threshold": 0.3,
+    "enable_fuzzy_matching": true,
+    "case_sensitive": false,
+    "enable_chinese_processing": false,
+    "max_categories_per_folder": 3
+  },
+  "text_processing": {
+    "normalize_case": true,
+    "remove_special_chars": true,
+    "convert_underscores": true,
+    "split_camel_case": true
+  }
+}
