@@ -41,6 +41,26 @@ This directory contains workflow templates for the File Management Tools plugin,
 - **11.5**: Human decision-making modes
 - **12.5**: Experimental mode with confirmation steps
 
+### 3. Interactive Batch Processing (`interactive-batch-processing-workflow.yaml`)
+
+**Purpose**: Generic batch file operation workflow with human oversight and decision points.
+
+**Features**:
+- ✅ Generic batch processing for any file operation (move, copy, classify, merge, custom)
+- ✅ Configurable batch sizes and concurrent processing
+- ✅ Human decision-making for conflicts and ambiguous scenarios
+- ✅ Experimental mode with detailed operation preview
+- ✅ Comprehensive error handling and recovery strategies
+- ✅ Progress tracking and performance metrics
+- ✅ Backup creation before operations
+- ✅ Flexible filtering criteria for source items
+- ✅ Automatic cleanup and finalization
+- ✅ Tool composition with decision points
+
+**Requirements Validated**:
+- **8.3**: Workflow templates for batch file operations
+- **8.4**: Templates configurable through workflow parameters
+
 ## Usage Examples
 
 ### Interactive Folder Classification
@@ -116,6 +136,61 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
   --param experimental_mode=false
 ```
 
+### Interactive Batch Processing
+
+#### Basic Batch Move Operation
+
+```bash
+# Run batch move operation in experimental mode
+cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+  --param source_directory="/path/to/source/files" \
+  --param target_directory="/path/to/target/location" \
+  --param operation_type="move" \
+  --param experimental_mode=true \
+  --param enable_user_interaction=true
+```
+
+#### Batch Copy with Conflict Resolution
+
+```bash
+# Run batch copy with automatic conflict resolution
+cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+  --param source_directory="/path/to/documents" \
+  --param target_directory="/path/to/backup" \
+  --param operation_type="copy" \
+  --param conflict_resolution="Rename" \
+  --param batch_size=25 \
+  --param max_concurrent_batches=3 \
+  --param create_backup=true
+```
+
+#### Custom Batch Operations
+
+```bash
+# Run custom batch operations with filtering
+cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+  --param source_directory="/path/to/media" \
+  --param target_directory="/path/to/processed" \
+  --param operation_type="custom" \
+  --param operation_config='{"custom_tool":"media-processor","resize_images":true}' \
+  --param filter_criteria='{"file_extensions":[".jpg",".png",".mp4"],"min_size_bytes":10240}' \
+  --param experimental_mode=true
+```
+
+#### Production Batch Processing
+
+```bash
+# Run production batch processing without user interaction
+cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+  --param source_directory="/data/files" \
+  --param target_directory="/data/organized" \
+  --param operation_type="move" \
+  --param experimental_mode=false \
+  --param enable_user_interaction=false \
+  --param conflict_resolution="Skip" \
+  --param progress_reporting=true
+```
+
 ### Custom Configuration
 
 ```bash
@@ -172,6 +247,74 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 | `max_merge_depth` | integer | `3` | Maximum directory depth for recursive merging |
 | `enable_size_analysis` | boolean | `true` | Perform detailed size analysis before merging |
 | `backup_before_merge` | boolean | `false` | Create backup before performing merge operations |
+
+### Interactive Batch Processing
+
+#### Required Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `source_directory` | string | Directory containing files/folders to process |
+| `target_directory` | string | Target directory for processed items |
+
+#### Optional Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `operation_type` | string | `"move"` | Type of operation: move, copy, classify, merge, custom |
+| `operation_config` | object | `{}` | Configuration specific to the operation type |
+| `experimental_mode` | boolean | `true` | Run in experimental mode (simulate operations) |
+| `enable_user_interaction` | boolean | `true` | Enable human decision-making for ambiguous scenarios |
+| `decision_timeout` | integer | `300` | Timeout for human decisions (seconds) |
+| `batch_size` | integer | `20` | Number of items to process in each batch |
+| `max_concurrent_batches` | integer | `3` | Maximum number of batches to process concurrently |
+| `conflict_resolution` | string | `"UserDecision"` | How to handle conflicts: Skip, Rename, Overwrite, UserDecision |
+| `progress_reporting` | boolean | `true` | Enable detailed progress reporting |
+| `create_backup` | boolean | `false` | Create backup before operations |
+| `filter_criteria` | object | `{}` | Criteria for filtering items to process |
+
+#### Filter Criteria Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_hidden` | boolean | `false` | Include hidden files and directories |
+| `min_size_bytes` | integer | `0` | Minimum file size in bytes |
+| `max_size_bytes` | integer | `null` | Maximum file size in bytes (null for no limit) |
+| `file_extensions` | array | `[]` | List of file extensions to include (empty for all) |
+| `exclude_patterns` | array | `[]` | List of patterns to exclude |
+
+#### Operation Config Examples
+
+**Move Operation:**
+```json
+{
+  "preserve_structure": true,
+  "create_target_dirs": true,
+  "verify_moves": true
+}
+```
+
+**Copy Operation:**
+```json
+{
+  "preserve_timestamps": true,
+  "preserve_permissions": true,
+  "verify_checksums": true,
+  "copy_mode": "incremental"
+}
+```
+
+**Custom Operation:**
+```json
+{
+  "custom_tool": "media-processor",
+  "custom_params": {
+    "resize_images": true,
+    "target_resolution": "1920x1080",
+    "compress_videos": true
+  }
+}
+```
 
 ## Classification Rules Format
 
@@ -249,6 +392,27 @@ The interactive merge workflow follows this sequence:
 16. **📋 Generate Report**: Create comprehensive merge report
 17. **🧹 Cleanup**: Remove empty directories after merge
 
+### Interactive Batch Processing Workflow
+
+The interactive batch processing workflow follows this sequence:
+
+1. **📁 Scan Source Items**: Discover and filter items in the source directory
+2. **✅ Validate Configuration**: Verify operation configuration and target paths
+3. **📊 Analyze Items**: Create batch processing plan and detect conflicts
+4. **📋 Review Plan**: Display processing plan and statistics
+5. **⚠️ Handle Conflicts**: Resolve conflicts (user decisions or automatic)
+6. **✅ Finalize Plan**: Complete processing plan with all resolutions
+7. **📊 Review Final Plan**: Display final processing plan
+8. **❓ Experimental Check**: Branch based on experimental mode
+9. **👤 Confirm Execution**: Get user confirmation (if experimental mode)
+10. **💾 Create Backup**: Create backup before operations (if enabled)
+11. **⚡ Execute Batches**: Perform batch processing with progress tracking
+12. **🔍 Verify Results**: Verify batch operations completed successfully
+13. **🚨 Handle Failures**: Handle any failures with user decisions (if needed)
+14. **📋 Generate Report**: Create comprehensive batch processing report
+15. **🧹 Cleanup**: Clean up after batch processing operations
+16. **📊 Final Summary**: Generate final status summary
+
 ## Human Decision Points
 
 ### Interactive Classification Workflow
@@ -312,6 +476,44 @@ If errors occur during merge execution:
 - Offer rollback options for completed operations
 - Allow continuation with modified strategy
 - Maintain operation state for recovery
+
+### Interactive Batch Processing Workflow
+
+The batch processing workflow includes comprehensive human decision points:
+
+#### 1. Conflict Resolution
+When file conflicts are detected during batch processing:
+- Display conflict details (file names, sizes, locations)
+- Present resolution options:
+  - **Skip**: Skip processing this item and continue with others
+  - **Rename**: Rename the item to avoid conflict and process it
+  - **Overwrite**: Overwrite the existing item (use with caution)
+  - **Abort Batch**: Stop processing this batch due to conflicts
+- Allow batch resolution for similar conflicts
+
+#### 2. Batch Plan Confirmation
+In experimental mode:
+- Show detailed batch processing plan with all operations
+- Display estimated duration and space requirements
+- Show batch breakdown and concurrency settings
+- Allow final confirmation or configuration changes
+
+#### 3. Failure Handling
+When operations fail during batch processing:
+- Display failure details and statistics
+- Present recovery options:
+  - **Retry Failed**: Attempt to retry the failed operations
+  - **Skip Failed**: Continue with successful operations, skip failures
+  - **Rollback All**: Rollback all operations including successful ones
+  - **Manual Review**: Mark for manual review and continue
+- Allow selective retry or rollback strategies
+
+#### 4. Operation Configuration
+For custom operations:
+- Present operation-specific configuration options
+- Allow modification of batch sizes and concurrency
+- Enable/disable progress reporting and verification
+- Configure backup and recovery settings
 
 ## Advanced Features
 
@@ -394,6 +596,22 @@ This will demonstrate:
 1. Experimental mode with user decisions for merge strategies
 2. Production mode with automatic merge strategy
 3. Custom strategy with target directory and backup creation
+
+### Interactive Batch Processing Example
+
+```bash
+# Build the project
+cargo build --example interactive-batch-processing-example
+
+# Run the example
+cargo run --example interactive-batch-processing-example
+```
+
+This will demonstrate:
+1. Batch file moving with conflict resolution
+2. Batch file copying with user decisions
+3. Custom batch operations with experimental mode
+4. Error handling and recovery scenarios
 
 ## Integration with Workflow Toolkit
 

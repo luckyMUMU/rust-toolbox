@@ -1,0 +1,585 @@
+name: "interactive-batch-processing"
+version: "1.0.0"
+description: "Generic batch file operation workflow with human oversight and decision points"
+
+metadata:
+  author: "File Management Tools"
+  category: "file-management"
+  created: "2024-01-01"
+  tags: ["batch", "interactive", "experimental", "file-operations"]
+
+# Template parameters that users can customize
+parameters:
+  source_directory:
+    type: "string"
+    description: "Directory containing files/folders to process"
+    required: true
+  
+  target_directory:
+    type: "string"
+    description: "Target directory for processed items"
+    required: true
+  
+  operation_type:
+    type: "string"
+    description: "Type of file operation to perform"
+    enum: ["move", "copy", "classify", "merge", "custom"]
+    default: "move"
+  
+  operation_config:
+    type: "object"
+    description: "Configuration specific to the operation type"
+    required: false
+    default: {}
+  
+  experimental_mode:
+    type: "boolean"
+    description: "Run in experimental mode (simulate operations without executing)"
+    default: true
+  
+  enable_user_interaction:
+    type: "boolean"
+    description: "Enable human decision-making for ambiguous scenarios"
+    default: true
+  
+  decision_timeout:
+    type: "integer"
+    description: "Timeout for human decisions in seconds"
+    default: 300
+  
+  batch_size:
+    type: "integer"
+    description: "Number of items to process in each batch"
+    default: 20
+  
+  max_concurrent_batches:
+    type: "integer"
+    description: "Maximum number of batches to process concurrently"
+    default: 3
+  
+  conflict_resolution:
+    type: "string"
+    description: "How to handle file conflicts"
+    enum: ["Skip", "Rename", "Overwrite", "UserDecision"]
+    default: "UserDecision"
+  
+  progress_reporting:
+    type: "boolean"
+    description: "Enable detailed progress reporting"
+    default: true
+  
+  create_backup:
+    type: "boolean"
+    description: "Create backup before operations"
+    default: false
+  
+  filter_criteria:
+    type: "object"
+    description: "Criteria for filtering items to process"
+    required: false
+    default:
+      include_hidden: false
+      min_size_bytes: 0
+      max_size_bytes: null
+      file_extensions: []
+      exclude_patterns: []
+
+nodes:
+  # Step 1: Scan and filter source items
+  - id: "scan_source_items"
+    node_type: "Tool"
+    tool_name: "directory-scanner"
+    parameters:
+      directory: "${source_directory}"
+      recursive: true
+      filter_type: "all"  # files and directories
+      include_hidden: "${filter_criteria.include_hidden}"
+      min_size: "${filter_criteria.min_size_bytes}"
+      max_size: "${filter_criteria.max_size_bytes}"
+      file_extensions: "${filter_criteria.file_extensions}"
+      exclude_patterns: "${filter_criteria.exclude_patterns}"
+      collect_metadata: true
+    timeout: "300s"
+    metadata:
+      description: "Scan source directory and apply filtering criteria"
+
+  # Step 2: Validate operation configuration
+  - id: "validate_operation_config"
+    node_type: "Tool"
+    tool_name: "config-validator"
+    parameters:
+      operation_type: "${operation_type}"
+      operation_config: "${operation_config}"
+      target_directory: "${target_directory}"
+      validate_paths: true
+      check_permissions: true
+    timeout: "60s"
+    metadata:
+      description: "Validate operation configuration and target paths"
+
+  # Step 3: Analyze items and create processing plan
+  - id: "analyze_items"
+    node_type: "Tool"
+    tool_name: "batch-analyzer"
+    parameters:
+      items: "${scan_source_items.items}"
+      operation_type: "${operation_type}"
+      operation_config: "${operation_config}"
+      target_directory: "${target_directory}"
+      batch_size: "${batch_size}"
+      detect_conflicts: true
+      estimate_duration: true
+      calculate_space_requirements: true
+    timeout: "240s"
+    metadata:
+      description: "Analyze items and create batch processing plan"
+
+  # Step 4: Review processing plan
+  - id: "review_processing_plan"
+    node_type: "Tool"
+    tool_name: "result-reviewer"
+    parameters:
+      results: "${analyze_items.analysis}"
+      mode: "batch_processing_plan"
+      show_statistics: true
+      show_batch_breakdown: true
+      show_conflict_summary: true
+      show_space_requirements: true
+      show_estimated_duration: true
+    timeout: "120s"
+    metadata:
+      description: "Review batch processing plan and statistics"
+
+  # Step 5: Handle conflicts if any detected
+  - id: "check_conflicts"
+    node_type: "Condition"
+    parameters:
+      condition: "${analyze_items.has_conflicts} == true && ${conflict_resolution} == 'UserDecision'"
+    metadata:
+      description: "Check if user decisions needed for conflict resolution"
+
+  # Step 6: Resolve conflicts with human decisions
+  - id: "resolve_conflicts"
+    node_type: "Tool"
+    tool_name: "batch-processor"
+    parameters:
+      items: "${analyze_items.conflicts}"
+      batch_size: 5
+      tool_name: "human-decision"
+      tool_params:
+        decision_type: "FileConflict"
+        context:
+          title: "Resolve File Operation Conflict"
+          description: "A conflict was detected during batch processing"
+        options:
+          - id: "skip"
+            label: "Skip this item"
+            description: "Skip processing this item and continue with others"
+            recommended: false
+          - id: "rename"
+            label: "Rename and process"
+            description: "Rename the item to avoid conflict and process it"
+            recommended: true
+          - id: "overwrite"
+            label: "Overwrite existing"
+            description: "Overwrite the existing item (use with caution)"
+            recommended: false
+          - id: "abort_batch"
+            label: "Abort this batch"
+            description: "Stop processing this batch due to conflicts"
+            recommended: false
+        timeout_seconds: "${decision_timeout}"
+        default_choice: 1  # Default to rename
+      sequential_execution: true
+    timeout: "1800s"
+    metadata:
+      description: "Resolve conflicts with human decisions"
+
+  # Step 7: Apply automatic conflict resolution (if not user decision)
+  - id: "apply_auto_conflict_resolution"
+    node_type: "Tool"
+    tool_name: "conflict-resolver"
+    parameters:
+      conflicts: "${analyze_items.conflicts}"
+      resolution_strategy: "${conflict_resolution}"
+      preserve_originals: true
+    timeout: "120s"
+    metadata:
+      description: "Apply automatic conflict resolution strategy"
+
+  # Step 8: Route conflict resolution results
+  - id: "conflict_resolution_routing"
+    node_type: "Condition"
+    parameters:
+      condition: "${check_conflicts.result} == true"
+    metadata:
+      description: "Route to appropriate conflict resolution results"
+
+  # Step 9: Finalize processing plan with conflict resolutions
+  - id: "finalize_processing_plan"
+    node_type: "Tool"
+    tool_name: "plan-finalizer"
+    parameters:
+      base_plan: "${analyze_items.plan}"
+      conflict_resolutions: "${conflict_resolution_routing.result ? resolve_conflicts.results : apply_auto_conflict_resolution.results}"
+      operation_type: "${operation_type}"
+      validate_plan: true
+      optimize_batches: true
+    timeout: "180s"
+    metadata:
+      description: "Finalize processing plan with all resolutions"
+
+  # Step 10: Review final processing plan
+  - id: "review_final_plan"
+    node_type: "Tool"
+    tool_name: "result-reviewer"
+    parameters:
+      results: "${finalize_processing_plan.final_plan}"
+      mode: "final_batch_plan"
+      show_operation_details: true
+      show_batch_details: true
+      show_file_counts: true
+      show_size_changes: true
+      show_estimated_duration: true
+    timeout: "120s"
+    metadata:
+      description: "Review final processing plan before execution"
+
+  # Step 11: Experimental mode confirmation
+  - id: "experimental_confirmation"
+    node_type: "Condition"
+    parameters:
+      condition: "${experimental_mode} == true"
+    metadata:
+      description: "Check if running in experimental mode"
+
+  # Step 12: Human confirmation for experimental mode
+  - id: "confirm_batch_execution"
+    node_type: "Tool"
+    tool_name: "human-decision"
+    parameters:
+      decision_type: "Custom"
+      context:
+        title: "Confirm Batch Operations"
+        description: "Review batch processing plan and confirm execution"
+        metadata:
+          operation_type: "${operation_type}"
+          total_items: "${analyze_items.total_items}"
+          total_batches: "${finalize_processing_plan.batch_count}"
+          estimated_duration: "${finalize_processing_plan.estimated_duration}"
+          space_required: "${analyze_items.space_required}"
+      options:
+        - id: "execute"
+          label: "Execute batch operations"
+          description: "Proceed with batch processing according to the plan"
+          recommended: true
+        - id: "modify_config"
+          label: "Modify configuration"
+          description: "Go back and adjust operation configuration"
+        - id: "change_batches"
+          label: "Adjust batch settings"
+          description: "Modify batch size or concurrency settings"
+        - id: "cancel"
+          label: "Cancel operations"
+          description: "Cancel all batch operations"
+      timeout_seconds: "${decision_timeout}"
+      default_choice: 0
+    timeout: "600s"
+    metadata:
+      description: "Get user confirmation for batch operations"
+
+  # Step 13: Conditional execution based on confirmation
+  - id: "execution_decision"
+    node_type: "Condition"
+    parameters:
+      condition: "!${experimental_mode} || ${confirm_batch_execution.selected_option} == 'execute'"
+    metadata:
+      description: "Decide whether to execute batch operations"
+
+  # Step 14: Create backup (if enabled)
+  - id: "backup_check"
+    node_type: "Condition"
+    parameters:
+      condition: "${create_backup} == true && ${execution_decision.result} == true"
+    metadata:
+      description: "Check if backup should be created before operations"
+
+  # Step 15: Execute backup creation
+  - id: "create_source_backup"
+    node_type: "Tool"
+    tool_name: "backup-creator"
+    parameters:
+      source_directory: "${source_directory}"
+      backup_location: "${target_directory}/backup_${timestamp}"
+      include_metadata: true
+      compression: true
+      verify_backup: true
+    timeout: "1800s"
+    metadata:
+      description: "Create backup of source directory before operations"
+
+  # Step 16: Execute batch processing with progress tracking
+  - id: "execute_batch_processing"
+    node_type: "Tool"
+    tool_name: "batch-processor"
+    parameters:
+      processing_plan: "${finalize_processing_plan.final_plan}"
+      operation_type: "${operation_type}"
+      operation_config: "${operation_config}"
+      batch_size: "${batch_size}"
+      max_concurrent: "${max_concurrent_batches}"
+      experimental_mode: false  # Always execute for real at this point
+      progress_reporting: "${progress_reporting}"
+      enable_rollback: true
+      verify_operations: true
+    timeout: "7200s"  # 2 hours for large batch operations
+    metadata:
+      description: "Execute batch processing operations with progress tracking"
+
+  # Step 17: Verify batch processing results
+  - id: "verify_batch_results"
+    node_type: "Tool"
+    tool_name: "batch-verifier"
+    parameters:
+      batch_results: "${execute_batch_processing.results}"
+      original_plan: "${finalize_processing_plan.final_plan}"
+      verify_file_integrity: true
+      check_operation_completeness: true
+      validate_target_structure: true
+    timeout: "300s"
+    metadata:
+      description: "Verify batch operations completed successfully"
+
+  # Step 18: Handle partial failures (if any)
+  - id: "check_failures"
+    node_type: "Condition"
+    parameters:
+      condition: "${verify_batch_results.has_failures} == true && ${enable_user_interaction} == true"
+    metadata:
+      description: "Check if there are failures that need user attention"
+
+  # Step 19: Handle failures with human decisions
+  - id: "handle_failures"
+    node_type: "Tool"
+    tool_name: "human-decision"
+    parameters:
+      decision_type: "Custom"
+      context:
+        title: "Handle Batch Processing Failures"
+        description: "Some operations failed during batch processing"
+        metadata:
+          failed_operations: "${verify_batch_results.failed_count}"
+          successful_operations: "${verify_batch_results.success_count}"
+          failure_details: "${verify_batch_results.failures}"
+      options:
+        - id: "retry_failed"
+          label: "Retry failed operations"
+          description: "Attempt to retry the failed operations"
+          recommended: true
+        - id: "skip_failed"
+          label: "Skip failed operations"
+          description: "Continue with successful operations, skip failures"
+        - id: "rollback_all"
+          label: "Rollback all operations"
+          description: "Rollback all operations including successful ones"
+        - id: "manual_review"
+          label: "Manual review required"
+          description: "Mark for manual review and continue"
+      timeout_seconds: "${decision_timeout}"
+      default_choice: 1  # Default to skip failed
+    timeout: "600s"
+    metadata:
+      description: "Handle failures with user decisions"
+
+  # Step 20: Execute failure handling
+  - id: "execute_failure_handling"
+    node_type: "Tool"
+    tool_name: "failure-handler"
+    parameters:
+      failure_strategy: "${handle_failures.selected_option || 'skip_failed'}"
+      failed_operations: "${verify_batch_results.failures}"
+      batch_results: "${execute_batch_processing.results}"
+      enable_rollback: true
+    timeout: "1800s"
+    metadata:
+      description: "Execute failure handling strategy"
+
+  # Step 21: Generate comprehensive report
+  - id: "generate_batch_report"
+    node_type: "Tool"
+    tool_name: "operation-reporter"
+    parameters:
+      processing_plan: "${finalize_processing_plan.final_plan}"
+      batch_results: "${execute_batch_processing.results}"
+      verification_results: "${verify_batch_results.results}"
+      failure_handling: "${execute_failure_handling.results || null}"
+      operation_type: "${operation_type}"
+      output_format: "detailed"
+      include_statistics: true
+      include_performance_metrics: true
+      include_before_after: true
+      save_to_file: true
+      report_path: "${target_directory}/batch_processing_report.json"
+    timeout: "180s"
+    metadata:
+      description: "Generate comprehensive batch processing report"
+
+  # Step 22: Cleanup and finalization
+  - id: "cleanup_processing"
+    node_type: "Tool"
+    tool_name: "cleanup-processor"
+    parameters:
+      source_directory: "${source_directory}"
+      target_directory: "${target_directory}"
+      remove_empty_directories: true
+      cleanup_temp_files: true
+      operation_type: "${operation_type}"
+    timeout: "240s"
+    metadata:
+      description: "Clean up after batch processing operations"
+
+  # Step 23: Final status summary
+  - id: "final_status_summary"
+    node_type: "Tool"
+    tool_name: "status-summarizer"
+    parameters:
+      batch_results: "${execute_batch_processing.results}"
+      verification_results: "${verify_batch_results.results}"
+      cleanup_results: "${cleanup_processing.results}"
+      show_summary_statistics: true
+      show_performance_summary: true
+    timeout: "60s"
+    metadata:
+      description: "Generate final status summary"
+
+edges:
+  # Main workflow flow
+  - from: "scan_source_items"
+    to: "validate_operation_config"
+  
+  - from: "validate_operation_config"
+    to: "analyze_items"
+  
+  - from: "analyze_items"
+    to: "review_processing_plan"
+  
+  - from: "review_processing_plan"
+    to: "check_conflicts"
+  
+  # Conflict resolution branches
+  - from: "check_conflicts"
+    to: "resolve_conflicts"
+    condition: "${analyze_items.has_conflicts} == true && ${conflict_resolution} == 'UserDecision'"
+  
+  - from: "check_conflicts"
+    to: "apply_auto_conflict_resolution"
+    condition: "${analyze_items.has_conflicts} == true && ${conflict_resolution} != 'UserDecision'"
+  
+  - from: "check_conflicts"
+    to: "conflict_resolution_routing"
+    condition: "${analyze_items.has_conflicts} == false"
+  
+  # Conflict resolution routing
+  - from: "resolve_conflicts"
+    to: "conflict_resolution_routing"
+  
+  - from: "apply_auto_conflict_resolution"
+    to: "conflict_resolution_routing"
+  
+  - from: "conflict_resolution_routing"
+    to: "finalize_processing_plan"
+  
+  - from: "finalize_processing_plan"
+    to: "review_final_plan"
+  
+  - from: "review_final_plan"
+    to: "experimental_confirmation"
+  
+  # Experimental mode branches
+  - from: "experimental_confirmation"
+    to: "confirm_batch_execution"
+    condition: "${experimental_mode} == true"
+  
+  - from: "experimental_confirmation"
+    to: "execution_decision"
+    condition: "${experimental_mode} == false"
+  
+  - from: "confirm_batch_execution"
+    to: "execution_decision"
+  
+  # Backup creation branch
+  - from: "execution_decision"
+    to: "backup_check"
+    condition: "${execution_decision.result} == true"
+  
+  - from: "execution_decision"
+    to: "generate_batch_report"
+    condition: "${execution_decision.result} == false"
+  
+  - from: "backup_check"
+    to: "create_source_backup"
+    condition: "${create_backup} == true"
+  
+  - from: "backup_check"
+    to: "execute_batch_processing"
+    condition: "${create_backup} == false"
+  
+  - from: "create_source_backup"
+    to: "execute_batch_processing"
+  
+  # Execution and verification flow
+  - from: "execute_batch_processing"
+    to: "verify_batch_results"
+  
+  - from: "verify_batch_results"
+    to: "check_failures"
+  
+  # Failure handling branches
+  - from: "check_failures"
+    to: "handle_failures"
+    condition: "${verify_batch_results.has_failures} == true && ${enable_user_interaction} == true"
+  
+  - from: "check_failures"
+    to: "execute_failure_handling"
+    condition: "${verify_batch_results.has_failures} == true && ${enable_user_interaction} == false"
+  
+  - from: "check_failures"
+    to: "generate_batch_report"
+    condition: "${verify_batch_results.has_failures} == false"
+  
+  - from: "handle_failures"
+    to: "execute_failure_handling"
+  
+  - from: "execute_failure_handling"
+    to: "generate_batch_report"
+  
+  # Final flow
+  - from: "generate_batch_report"
+    to: "cleanup_processing"
+  
+  - from: "cleanup_processing"
+    to: "final_status_summary"
+
+global_config:
+  timeout: "14400s"  # 4 hours total
+  parallel_limit: "${max_concurrent_batches}"
+  enable_caching: true
+  checkpoint_interval: "300s"  # 5 minutes
+  retry_policy:
+    max_attempts: 3
+    initial_delay: "10s"
+    max_delay: "180s"
+    backoff_multiplier: 2.0
+  error_handling:
+    continue_on_error: true  # Continue with other batches if one fails
+    save_state_on_error: true
+    rollback_on_critical_error: true
+  logging:
+    level: "info"
+    include_timestamps: true
+    include_performance_metrics: true
+    log_file: "${target_directory}/batch_processing_workflow.log"
+  resource_limits:
+    max_memory_mb: 4096
+    max_disk_usage_gb: 20
+    max_concurrent_operations: "${max_concurrent_batches}"

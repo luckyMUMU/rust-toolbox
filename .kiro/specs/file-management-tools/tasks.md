@@ -212,7 +212,7 @@ This implementation plan develops file management tools as plugins for the exist
     - Support for different merge strategies and confirmation
     - _Requirements: 8.2, 11.5_
 
-  - [ ] 11.3 Design batch processing workflow template
+  - [x] 11.3 Design batch processing workflow template
     - Generic batch file operation workflow with human oversight
     - Demonstrate tool composition with decision points
     - _Requirements: 8.3, 8.4_
