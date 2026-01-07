@@ -1,0 +1,521 @@
+name: "interactive-folder-merge"
+version: "1.0.0"
+description: "Interactive folder merging with human decision support and multiple merge strategies"
+
+metadata:
+  author: "File Management Tools"
+  category: "file-management"
+  created: "2024-01-01"
+  tags: ["merge", "interactive", "experimental", "deduplication"]
+
+# Template parameters that users can customize
+parameters:
+  source_directories:
+    type: "array"
+    description: "List of directories to scan for mergeable folders"
+    required: true
+    items:
+      type: "string"
+  
+  target_directory:
+    type: "string"
+    description: "Target directory for merged folders (optional, uses first source if not specified)"
+    required: false
+  
+  merge_strategy:
+    type: "string"
+    description: "Default merge strategy to use"
+    enum: ["SmallerToLarger", "LargerToSmaller", "UserDecision", "TargetDirectory"]
+    default: "UserDecision"
+  
+  experimental_mode:
+    type: "boolean"
+    description: "Run in experimental mode (simulate operations without executing)"
+    default: true
+  
+  enable_user_interaction:
+    type: "boolean"
+    description: "Enable human decision-making for merge strategies and conflicts"
+    default: true
+  
+  decision_timeout:
+    type: "integer"
+    description: "Timeout for human decisions in seconds"
+    default: 300
+  
+  duplicate_handling:
+    type: "string"
+    description: "How to handle duplicate files during merge"
+    enum: ["Skip", "Rename", "Overwrite", "UserDecision"]
+    default: "UserDecision"
+  
+  minimum_folder_size:
+    type: "integer"
+    description: "Minimum folder size in bytes to consider for merging"
+    default: 0
+  
+  max_merge_depth:
+    type: "integer"
+    description: "Maximum directory depth for recursive merging"
+    default: 3
+  
+  enable_size_analysis:
+    type: "boolean"
+    description: "Perform detailed size analysis before merging"
+    default: true
+  
+  backup_before_merge:
+    type: "boolean"
+    description: "Create backup before performing merge operations"
+    default: false
+
+nodes:
+  # Step 1: Scan all source directories for folders
+  - id: "scan_directories"
+    node_type: "Tool"
+    tool_name: "directory-scanner"
+    parameters:
+      directories: "${source_directories}"
+      recursive: true
+      max_depth: "${max_merge_depth}"
+      filter_type: "directories"
+      include_hidden: false
+      collect_metadata: true
+    timeout: "120s"
+    metadata:
+      description: "Scan source directories for mergeable folders"
+
+  # Step 2: Find common folder names across directories
+  - id: "find_common_folders"
+    node_type: "Tool"
+    tool_name: "folder-merger"
+    parameters:
+      scanned_directories: "${scan_directories.directories}"
+      operation: "find_common"
+      minimum_size: "${minimum_folder_size}"
+      enable_size_analysis: "${enable_size_analysis}"
+      case_sensitive: false
+    timeout: "180s"
+    metadata:
+      description: "Identify folders with identical names for potential merging"
+
+  # Step 3: Analyze merge candidates and calculate statistics
+  - id: "analyze_merge_candidates"
+    node_type: "Tool"
+    tool_name: "merge-analyzer"
+    parameters:
+      common_folders: "${find_common_folders.common_folders}"
+      calculate_sizes: true
+      detect_duplicates: true
+      estimate_space_savings: true
+      check_conflicts: true
+    timeout: "300s"
+    metadata:
+      description: "Analyze merge candidates and calculate potential space savings"
+
+  # Step 4: Review merge analysis results
+  - id: "review_merge_analysis"
+    node_type: "Tool"
+    tool_name: "result-reviewer"
+    parameters:
+      results: "${analyze_merge_candidates.analysis}"
+      mode: "merge_analysis"
+      show_statistics: true
+      show_size_breakdown: true
+      show_conflict_summary: true
+      show_space_savings: true
+    timeout: "120s"
+    metadata:
+      description: "Review merge analysis and statistics"
+
+  # Step 5: Determine merge strategy for each folder group
+  - id: "determine_merge_strategies"
+    node_type: "Condition"
+    parameters:
+      condition: "${merge_strategy} == 'UserDecision' && ${enable_user_interaction} == true"
+    metadata:
+      description: "Check if user decisions are needed for merge strategies"
+
+  # Step 6: Human decision for merge strategies (if needed)
+  - id: "decide_merge_strategies"
+    node_type: "Tool"
+    tool_name: "batch-processor"
+    parameters:
+      items: "${analyze_merge_candidates.folder_groups}"
+      batch_size: 1
+      tool_name: "human-decision"
+      tool_params:
+        decision_type: "MergeStrategy"
+        context:
+          title: "Choose Merge Strategy for Folder Group"
+          description: "Select how to merge this group of folders with identical names"
+        options:
+          - id: "smaller_to_larger"
+            label: "Merge smaller folders into largest folder"
+            description: "Safer option, preserves largest folder structure"
+            recommended: true
+          - id: "larger_to_smaller"
+            label: "Merge larger folders into smallest folder"
+            description: "May require more disk space initially"
+          - id: "to_target"
+            label: "Merge all folders to target directory"
+            description: "Create new merged folder in target location"
+          - id: "skip"
+            label: "Skip this folder group"
+            description: "Do not merge this group of folders"
+        timeout_seconds: "${decision_timeout}"
+        default_choice: 0
+      sequential_execution: true
+    timeout: "1800s"  # 30 minutes for decisions
+    metadata:
+      description: "Get user decisions for merge strategies"
+
+  # Step 7: Apply default merge strategy (if no user interaction)
+  - id: "apply_default_strategy"
+    node_type: "Tool"
+    tool_name: "strategy-applier"
+    parameters:
+      folder_groups: "${analyze_merge_candidates.folder_groups}"
+      default_strategy: "${merge_strategy}"
+      target_directory: "${target_directory}"
+    timeout: "60s"
+    metadata:
+      description: "Apply default merge strategy to all folder groups"
+
+  # Step 8: Merge strategy decision routing
+  - id: "merge_strategy_routing"
+    node_type: "Condition"
+    parameters:
+      condition: "${determine_merge_strategies.result} == true"
+    metadata:
+      description: "Route to appropriate merge strategy results"
+
+  # Step 9: Create merge execution plan
+  - id: "create_merge_plan"
+    node_type: "Tool"
+    tool_name: "folder-merger"
+    parameters:
+      folder_groups: "${merge_strategy_routing.result ? decide_merge_strategies.results : apply_default_strategy.results}"
+      operation: "create_plan"
+      duplicate_handling: "${duplicate_handling}"
+      experimental_mode: "${experimental_mode}"
+      backup_before_merge: "${backup_before_merge}"
+      enable_progress_tracking: true
+    timeout: "240s"
+    metadata:
+      description: "Create detailed execution plan for merge operations"
+
+  # Step 10: Handle duplicate file conflicts (if user decision required)
+  - id: "handle_duplicate_conflicts"
+    node_type: "Condition"
+    parameters:
+      condition: "${duplicate_handling} == 'UserDecision' && ${create_merge_plan.has_conflicts} == true"
+    metadata:
+      description: "Check if user decisions needed for duplicate file conflicts"
+
+  # Step 11: Resolve duplicate conflicts with user input
+  - id: "resolve_conflicts"
+    node_type: "Tool"
+    tool_name: "batch-processor"
+    parameters:
+      items: "${create_merge_plan.conflicts}"
+      batch_size: 5
+      tool_name: "human-decision"
+      tool_params:
+        decision_type: "FileConflict"
+        context:
+          title: "Resolve Duplicate File Conflict"
+          description: "Multiple files with the same name found during merge"
+        options:
+          - id: "keep_larger"
+            label: "Keep larger file"
+            description: "Keep the file with larger size"
+            recommended: true
+          - id: "keep_newer"
+            label: "Keep newer file"
+            description: "Keep the file with more recent modification date"
+          - id: "rename_all"
+            label: "Rename and keep all"
+            description: "Rename files to avoid conflicts and keep all versions"
+          - id: "skip_merge"
+            label: "Skip this merge"
+            description: "Skip merging this particular folder due to conflicts"
+        timeout_seconds: "${decision_timeout}"
+        default_choice: 0
+      parallel_execution: false
+    timeout: "1800s"
+    metadata:
+      description: "Resolve duplicate file conflicts with user decisions"
+
+  # Step 12: Finalize merge plan with conflict resolutions
+  - id: "finalize_merge_plan"
+    node_type: "Tool"
+    tool_name: "plan-finalizer"
+    parameters:
+      base_plan: "${create_merge_plan.plan}"
+      conflict_resolutions: "${handle_duplicate_conflicts.result ? resolve_conflicts.results : []}"
+      validate_plan: true
+      estimate_duration: true
+    timeout: "120s"
+    metadata:
+      description: "Finalize merge plan with all conflict resolutions"
+
+  # Step 13: Review final merge plan
+  - id: "review_final_plan"
+    node_type: "Tool"
+    tool_name: "result-reviewer"
+    parameters:
+      results: "${finalize_merge_plan.final_plan}"
+      mode: "merge_plan"
+      show_operation_details: true
+      show_file_counts: true
+      show_size_changes: true
+      show_estimated_duration: true
+    timeout: "180s"
+    metadata:
+      description: "Review final merge plan before execution"
+
+  # Step 14: Experimental mode confirmation
+  - id: "experimental_confirmation"
+    node_type: "Condition"
+    parameters:
+      condition: "${experimental_mode} == true"
+    metadata:
+      description: "Check if running in experimental mode"
+
+  # Step 15: Human confirmation for experimental mode
+  - id: "confirm_merge_execution"
+    node_type: "Tool"
+    tool_name: "human-decision"
+    parameters:
+      decision_type: "Custom"
+      context:
+        title: "Confirm Merge Operations"
+        description: "Review merge plan and confirm execution of folder merge operations"
+        metadata:
+          total_folder_groups: "${analyze_merge_candidates.total_groups}"
+          total_operations: "${finalize_merge_plan.operation_count}"
+          estimated_space_savings: "${analyze_merge_candidates.space_savings}"
+          estimated_duration: "${finalize_merge_plan.estimated_duration}"
+      options:
+        - id: "execute"
+          label: "Execute merge operations"
+          description: "Proceed with merging folders according to the plan"
+          recommended: true
+        - id: "modify_strategy"
+          label: "Modify merge strategies"
+          description: "Go back and adjust merge strategies"
+        - id: "cancel"
+          label: "Cancel operations"
+          description: "Cancel all merge operations"
+      timeout_seconds: "${decision_timeout}"
+      default_choice: 0
+    timeout: "600s"
+    metadata:
+      description: "Get user confirmation for merge operations"
+
+  # Step 16: Conditional execution based on confirmation
+  - id: "execution_decision"
+    node_type: "Condition"
+    parameters:
+      condition: "!${experimental_mode} || ${confirm_merge_execution.selected_option} == 'execute'"
+    metadata:
+      description: "Decide whether to execute merge operations"
+
+  # Step 17: Create backup (if enabled)
+  - id: "create_backup"
+    node_type: "Condition"
+    parameters:
+      condition: "${backup_before_merge} == true && ${execution_decision.result} == true"
+    metadata:
+      description: "Check if backup should be created before merge"
+
+  # Step 18: Execute backup creation
+  - id: "execute_backup"
+    node_type: "Tool"
+    tool_name: "backup-creator"
+    parameters:
+      source_directories: "${source_directories}"
+      backup_location: "${target_directory}/backup_${timestamp}"
+      compression: true
+      verify_backup: true
+    timeout: "1800s"
+    metadata:
+      description: "Create backup of source directories before merge"
+
+  # Step 19: Execute merge operations
+  - id: "execute_merge"
+    node_type: "Tool"
+    tool_name: "folder-merger"
+    parameters:
+      merge_plan: "${finalize_merge_plan.final_plan}"
+      operation: "execute"
+      experimental_mode: false  # Always execute for real at this point
+      progress_reporting: true
+      verify_operations: true
+      rollback_on_error: true
+    timeout: "7200s"  # 2 hours for large merge operations
+    metadata:
+      description: "Execute folder merge operations"
+
+  # Step 20: Verify merge results
+  - id: "verify_merge_results"
+    node_type: "Tool"
+    tool_name: "merge-verifier"
+    parameters:
+      merge_results: "${execute_merge.results}"
+      original_plan: "${finalize_merge_plan.final_plan}"
+      verify_file_integrity: true
+      check_space_savings: true
+    timeout: "300s"
+    metadata:
+      description: "Verify merge operations completed successfully"
+
+  # Step 21: Generate comprehensive report
+  - id: "generate_merge_report"
+    node_type: "Tool"
+    tool_name: "operation-reporter"
+    parameters:
+      merge_analysis: "${analyze_merge_candidates.analysis}"
+      merge_plan: "${finalize_merge_plan.final_plan}"
+      merge_results: "${execute_merge.results}"
+      verification_results: "${verify_merge_results.results}"
+      output_format: "detailed"
+      include_statistics: true
+      include_before_after: true
+      save_to_file: true
+      report_path: "${target_directory || source_directories[0]}/merge_report.json"
+    timeout: "120s"
+    metadata:
+      description: "Generate comprehensive merge operation report"
+
+  # Step 22: Cleanup empty directories
+  - id: "cleanup_empty_directories"
+    node_type: "Tool"
+    tool_name: "cleanup-processor"
+    parameters:
+      source_directories: "${source_directories}"
+      remove_empty_directories: true
+      recursive: true
+      dry_run: false
+    timeout: "180s"
+    metadata:
+      description: "Clean up empty directories after merge operations"
+
+edges:
+  # Main workflow flow
+  - from: "scan_directories"
+    to: "find_common_folders"
+  
+  - from: "find_common_folders"
+    to: "analyze_merge_candidates"
+  
+  - from: "analyze_merge_candidates"
+    to: "review_merge_analysis"
+  
+  - from: "review_merge_analysis"
+    to: "determine_merge_strategies"
+  
+  # Strategy decision branches
+  - from: "determine_merge_strategies"
+    to: "decide_merge_strategies"
+    condition: "${merge_strategy} == 'UserDecision' && ${enable_user_interaction} == true"
+  
+  - from: "determine_merge_strategies"
+    to: "apply_default_strategy"
+    condition: "${merge_strategy} != 'UserDecision' || ${enable_user_interaction} == false"
+  
+  # Strategy routing
+  - from: "decide_merge_strategies"
+    to: "merge_strategy_routing"
+  
+  - from: "apply_default_strategy"
+    to: "merge_strategy_routing"
+  
+  - from: "merge_strategy_routing"
+    to: "create_merge_plan"
+  
+  # Conflict resolution branches
+  - from: "create_merge_plan"
+    to: "handle_duplicate_conflicts"
+  
+  - from: "handle_duplicate_conflicts"
+    to: "resolve_conflicts"
+    condition: "${duplicate_handling} == 'UserDecision' && ${create_merge_plan.has_conflicts} == true"
+  
+  - from: "handle_duplicate_conflicts"
+    to: "finalize_merge_plan"
+    condition: "${duplicate_handling} != 'UserDecision' || ${create_merge_plan.has_conflicts} == false"
+  
+  - from: "resolve_conflicts"
+    to: "finalize_merge_plan"
+  
+  - from: "finalize_merge_plan"
+    to: "review_final_plan"
+  
+  - from: "review_final_plan"
+    to: "experimental_confirmation"
+  
+  # Experimental mode branches
+  - from: "experimental_confirmation"
+    to: "confirm_merge_execution"
+    condition: "${experimental_mode} == true"
+  
+  - from: "experimental_confirmation"
+    to: "execution_decision"
+    condition: "${experimental_mode} == false"
+  
+  - from: "confirm_merge_execution"
+    to: "execution_decision"
+  
+  # Backup creation branch
+  - from: "execution_decision"
+    to: "create_backup"
+    condition: "${execution_decision.result} == true"
+  
+  - from: "execution_decision"
+    to: "generate_merge_report"
+    condition: "${execution_decision.result} == false"
+  
+  - from: "create_backup"
+    to: "execute_backup"
+    condition: "${backup_before_merge} == true"
+  
+  - from: "create_backup"
+    to: "execute_merge"
+    condition: "${backup_before_merge} == false"
+  
+  - from: "execute_backup"
+    to: "execute_merge"
+  
+  # Execution and verification flow
+  - from: "execute_merge"
+    to: "verify_merge_results"
+  
+  - from: "verify_merge_results"
+    to: "generate_merge_report"
+  
+  - from: "generate_merge_report"
+    to: "cleanup_empty_directories"
+
+global_config:
+  timeout: "10800s"  # 3 hours total
+  parallel_limit: 3
+  enable_caching: true
+  checkpoint_interval: "300s"  # 5 minutes
+  retry_policy:
+    max_attempts: 3
+    initial_delay: "10s"
+    max_delay: "120s"
+    backoff_multiplier: 2.0
+  error_handling:
+    continue_on_error: false
+    save_state_on_error: true
+    rollback_on_critical_error: true
+  logging:
+    level: "info"
+    include_timestamps: true
+    log_file: "${target_directory || source_directories[0]}/merge_workflow.log"
+  resource_limits:
+    max_memory_mb: 2048
+    max_disk_usage_gb: 10

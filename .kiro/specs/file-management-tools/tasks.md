@@ -207,7 +207,7 @@ This implementation plan develops file management tools as plugins for the exist
     - Experimental mode with confirmation steps
     - _Requirements: 8.1, 11.5, 12.5_
 
-  - [ ] 11.2 Design interactive merge workflow template
+  - [x] 11.2 Design interactive merge workflow template
     - Intelligent folder merging with user decisions
     - Support for different merge strategies and confirmation
     - _Requirements: 8.2, 11.5_
