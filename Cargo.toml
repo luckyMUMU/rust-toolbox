@@ -91,6 +91,9 @@ tar = "0.4"
 # TOML支持
 toml = "0.8"
 
+# 压缩支持
+flate2 = "1.0"
+
 [dev-dependencies]
 proptest = "1.6"
 tokio-test = "0.4"

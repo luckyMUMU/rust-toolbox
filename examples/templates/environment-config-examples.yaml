@@ -1,0 +1,405 @@
+# Environment Configuration Examples for File Management Tools
+# This file demonstrates how to use environment variables and different configurations
+# for various deployment scenarios
+
+# Development Environment Configuration
+development:
+  # Basic settings with environment variable substitution
+  source_directory: "${HOME}/dev/test-data"
+  output_directory: "${HOME}/dev/organized"
+  classification_rules: "${WORKFLOW_CONFIG_DIR}/classification-rules-example.json"
+  
+  # Safety settings for development
+  experimental_mode: true
+  enable_user_interaction: true
+  create_backups: true
+  
+  # Performance settings for development
+  batch_size: 5
+  max_concurrent_batches: 2
+  decision_timeout: 300
+  
+  # Debug settings
+  debug_logging: true
+  verbose_output: true
+  
+  # Environment-specific overrides
+  global_config:
+    logging:
+      level: "debug"
+      output: "console"
+    error_handling:
+      continue_on_error: true
+      save_state_on_error: true
+
+---
+# Testing Environment Configuration
+testing:
+  # Test data paths
+  source_directory: "${TEST_DATA_DIR}/input"
+  output_directory: "${TEST_DATA_DIR}/output"
+  classification_rules: "${TEST_CONFIG_DIR}/test-rules.json"
+  
+  # Test-specific settings
+  experimental_mode: true
+  enable_user_interaction: false  # Automated testing
+  create_backups: false  # Not needed for tests
+  
+  # Small batches for testing
+  batch_size: 3
+  max_concurrent_batches: 1
+  decision_timeout: 10  # Short timeout for tests
+  
+  # Test validation
+  verify_operations: true
+  detailed_reporting: true
+  
+  global_config:
+    logging:
+      level: "info"
+      output: "file"
+      file: "${TEST_LOG_DIR}/workflow-test.log"
+    performance:
+      enable_profiling: true
+      memory_tracking: true
+
+---
+# Production Environment Configuration
+production:
+  # Production paths with environment variables
+  source_directory: "${PROD_INPUT_DIR}"
+  output_directory: "${PROD_OUTPUT_DIR}"
+  classification_rules: "${PROD_CONFIG_DIR}/production-rules.json"
+  
+  # Production safety settings
+  experimental_mode: false
+  enable_user_interaction: true
+  create_backups: true
+  backup_directory: "${PROD_BACKUP_DIR}"
+  
+  # Optimized performance settings
+  batch_size: "${BATCH_SIZE:-50}"  # Default to 50 if not set
+  max_concurrent_batches: "${MAX_CONCURRENT:-8}"
+  decision_timeout: "${DECISION_TIMEOUT:-600}"
+  
+  # Production monitoring
+  audit_logging: true
+  performance_tracking: true
+  
+  global_config:
+    logging:
+      level: "${LOG_LEVEL:-info}"
+      output: "file"
+      file: "${LOG_DIR}/workflow-production.log"
+      rotation: "daily"
+      retention_days: 30
+    security:
+      validate_paths: true
+      check_permissions: true
+      prevent_system_access: true
+    monitoring:
+      enable_metrics: true
+      metrics_endpoint: "${METRICS_ENDPOINT}"
+      alert_on_errors: true
+
+---
+# Enterprise Environment Configuration
+enterprise:
+  # Enterprise paths with strict validation
+  source_directory: "${ENTERPRISE_INPUT_DIR}"
+  output_directory: "${ENTERPRISE_OUTPUT_DIR}"
+  classification_rules: "${ENTERPRISE_CONFIG_DIR}/enterprise-rules.json"
+  
+  # Enterprise governance settings
+  experimental_mode: false
+  enable_user_interaction: true
+  require_approval: true
+  governance_mode: true
+  
+  # Enterprise performance settings
+  batch_size: "${ENTERPRISE_BATCH_SIZE:-100}"
+  max_concurrent_batches: "${ENTERPRISE_CONCURRENT:-16}"
+  decision_timeout: "${ENTERPRISE_TIMEOUT:-1800}"  # 30 minutes
+  
+  # Compliance and audit
+  audit_logging: true
+  compliance_mode: true
+  data_classification: true
+  retention_enforcement: true
+  
+  global_config:
+    logging:
+      level: "info"
+      output: "structured"
+      file: "${ENTERPRISE_LOG_DIR}/workflow-audit.log"
+      format: "json"
+      include_metadata: true
+    security:
+      encryption_at_rest: true
+      encryption_in_transit: true
+      access_control: "rbac"
+      audit_all_operations: true
+    compliance:
+      framework: "${COMPLIANCE_FRAMEWORK:-SOX}"
+      data_retention_days: "${DATA_RETENTION_DAYS:-2555}"  # 7 years
+      require_dual_approval: true
+    integration:
+      ldap_authentication: true
+      sso_enabled: true
+      webhook_notifications: true
+      webhook_url: "${ENTERPRISE_WEBHOOK_URL}"
+
+---
+# High-Performance Configuration for Large Datasets
+high_performance:
+  # Large dataset paths
+  source_directory: "${BULK_INPUT_DIR}"
+  output_directory: "${BULK_OUTPUT_DIR}"
+  classification_rules: "${BULK_CONFIG_DIR}/optimized-rules.json"
+  
+  # Performance-optimized settings
+  experimental_mode: false
+  enable_user_interaction: false  # Fully automated
+  create_backups: false  # Optional for bulk processing
+  
+  # High-performance settings
+  batch_size: "${BULK_BATCH_SIZE:-500}"
+  max_concurrent_batches: "${BULK_CONCURRENT:-32}"
+  decision_timeout: 60  # Short timeout for automated processing
+  
+  # Memory and I/O optimization
+  streaming_mode: true
+  memory_limit: "${BULK_MEMORY_LIMIT:-16GB}"
+  async_io: true
+  
+  global_config:
+    performance:
+      thread_pool_size: "${BULK_THREADS:-16}"
+      memory_pool_size: "${BULK_MEMORY_POOL:-8GB}"
+      io_buffer_size: "1MB"
+      enable_compression: true
+    optimization:
+      cache_metadata: true
+      parallel_processing: true
+      batch_optimization: true
+    monitoring:
+      performance_metrics: true
+      bottleneck_detection: true
+      resource_monitoring: true
+
+---
+# Secure Environment Configuration
+secure:
+  # Secure paths with validation
+  source_directory: "${SECURE_INPUT_DIR}"
+  output_directory: "${SECURE_OUTPUT_DIR}"
+  classification_rules: "${SECURE_CONFIG_DIR}/secure-rules.json"
+  
+  # Security-first settings
+  experimental_mode: true  # Always test first in secure environments
+  enable_user_interaction: true
+  create_backups: true
+  verify_operations: true
+  
+  # Conservative performance settings
+  batch_size: 10
+  max_concurrent_batches: 2
+  decision_timeout: 900  # 15 minutes for careful decisions
+  
+  global_config:
+    security:
+      validate_all_paths: true
+      check_file_permissions: true
+      prevent_privilege_escalation: true
+      sandbox_operations: true
+      encrypt_temporary_files: true
+    audit:
+      log_all_operations: true
+      include_file_hashes: true
+      track_user_actions: true
+      secure_log_storage: true
+    access_control:
+      restrict_to_user_directories: true
+      validate_path_traversal: true
+      check_write_permissions: true
+      prevent_system_modifications: true
+
+---
+# Multi-User Environment Configuration
+multi_user:
+  # User-specific paths using environment variables
+  source_directory: "${USER_HOME}/Documents/ToOrganize"
+  output_directory: "${USER_HOME}/Documents/Organized"
+  classification_rules: "${SHARED_CONFIG_DIR}/shared-rules.json"
+  
+  # Multi-user settings
+  experimental_mode: true
+  enable_user_interaction: true
+  create_backups: true
+  user_isolation: true
+  
+  # Balanced performance for shared resources
+  batch_size: "${USER_BATCH_SIZE:-25}"
+  max_concurrent_batches: "${USER_CONCURRENT:-4}"
+  decision_timeout: "${USER_TIMEOUT:-300}"
+  
+  global_config:
+    multi_tenancy:
+      enable_user_isolation: true
+      per_user_quotas: true
+      shared_resource_limits: true
+    logging:
+      per_user_logs: true
+      log_directory: "${USER_LOG_DIR}"
+      include_user_id: true
+    security:
+      user_permission_checks: true
+      prevent_cross_user_access: true
+      audit_user_actions: true
+
+---
+# Cloud Environment Configuration
+cloud:
+  # Cloud storage paths
+  source_directory: "${CLOUD_INPUT_BUCKET}/incoming"
+  output_directory: "${CLOUD_OUTPUT_BUCKET}/organized"
+  classification_rules: "${CLOUD_CONFIG_BUCKET}/cloud-rules.json"
+  
+  # Cloud-optimized settings
+  experimental_mode: false
+  enable_user_interaction: false  # Automated cloud processing
+  create_backups: true
+  backup_directory: "${CLOUD_BACKUP_BUCKET}"
+  
+  # Cloud performance settings
+  batch_size: "${CLOUD_BATCH_SIZE:-100}"
+  max_concurrent_batches: "${CLOUD_CONCURRENT:-16}"
+  decision_timeout: 300
+  
+  # Cloud-specific features
+  auto_scaling: true
+  distributed_processing: true
+  
+  global_config:
+    cloud:
+      provider: "${CLOUD_PROVIDER:-aws}"
+      region: "${CLOUD_REGION:-us-east-1}"
+      auto_scaling_enabled: true
+      cost_optimization: true
+    storage:
+      use_cloud_storage: true
+      storage_class: "${STORAGE_CLASS:-standard}"
+      lifecycle_management: true
+    monitoring:
+      cloud_metrics: true
+      cost_tracking: true
+      performance_monitoring: true
+    networking:
+      vpc_enabled: true
+      security_groups: "${SECURITY_GROUPS}"
+      encryption_in_transit: true
+
+---
+# Disaster Recovery Configuration
+disaster_recovery:
+  # Primary and backup paths
+  source_directory: "${DR_PRIMARY_INPUT}"
+  output_directory: "${DR_PRIMARY_OUTPUT}"
+  classification_rules: "${DR_CONFIG_DIR}/dr-rules.json"
+  
+  # Disaster recovery settings
+  experimental_mode: true  # Always test in DR scenarios
+  enable_user_interaction: true
+  create_backups: true
+  
+  # Conservative settings for DR
+  batch_size: 20
+  max_concurrent_batches: 4
+  decision_timeout: 600
+  
+  # DR-specific configuration
+  backup_locations:
+    - "${DR_BACKUP_LOCATION_1}"
+    - "${DR_BACKUP_LOCATION_2}"
+  
+  global_config:
+    disaster_recovery:
+      enable_replication: true
+      replication_targets: 
+        - "${DR_REPLICA_1}"
+        - "${DR_REPLICA_2}"
+      consistency_checks: true
+      automated_failover: false
+    backup:
+      backup_frequency: "hourly"
+      backup_retention: "30d"
+      verify_backups: true
+      cross_region_backup: true
+    monitoring:
+      health_checks: true
+      availability_monitoring: true
+      recovery_time_tracking: true
+
+# Environment Variable Documentation
+# 
+# Required Environment Variables:
+# - HOME: User home directory
+# - USER: Current username
+# 
+# Optional Environment Variables with Defaults:
+# - BATCH_SIZE: Number of items per batch (default: 25)
+# - MAX_CONCURRENT: Maximum concurrent batches (default: 4)
+# - DECISION_TIMEOUT: Timeout for human decisions in seconds (default: 300)
+# - LOG_LEVEL: Logging level (default: info)
+# 
+# Environment-Specific Variables:
+# Development:
+# - WORKFLOW_CONFIG_DIR: Configuration directory for development
+# 
+# Testing:
+# - TEST_DATA_DIR: Test data directory
+# - TEST_CONFIG_DIR: Test configuration directory
+# - TEST_LOG_DIR: Test log directory
+# 
+# Production:
+# - PROD_INPUT_DIR: Production input directory
+# - PROD_OUTPUT_DIR: Production output directory
+# - PROD_CONFIG_DIR: Production configuration directory
+# - PROD_BACKUP_DIR: Production backup directory
+# - LOG_DIR: Production log directory
+# - METRICS_ENDPOINT: Metrics collection endpoint
+# 
+# Enterprise:
+# - ENTERPRISE_*: Enterprise-specific paths and settings
+# - COMPLIANCE_FRAMEWORK: Compliance framework (SOX, GDPR, HIPAA, etc.)
+# - DATA_RETENTION_DAYS: Data retention period in days
+# 
+# Cloud:
+# - CLOUD_*: Cloud provider specific settings
+# - CLOUD_PROVIDER: Cloud provider (aws, azure, gcp)
+# - CLOUD_REGION: Cloud region
+# - STORAGE_CLASS: Storage class for cloud storage
+# 
+# Security:
+# - SECURE_*: Security-specific paths and settings
+# 
+# Usage Examples:
+# 
+# 1. Development with custom batch size:
+#    export BATCH_SIZE=10
+#    cargo run -- workflow execute template.yaml --config development
+# 
+# 2. Production with environment-specific settings:
+#    export PROD_INPUT_DIR="/data/incoming"
+#    export PROD_OUTPUT_DIR="/data/organized"
+#    export LOG_LEVEL="warn"
+#    cargo run -- workflow execute template.yaml --config production
+# 
+# 3. Testing with custom test directory:
+#    export TEST_DATA_DIR="/tmp/test-data"
+#    cargo run -- workflow execute template.yaml --config testing
+# 
+# 4. Enterprise with compliance settings:
+#    export COMPLIANCE_FRAMEWORK="GDPR"
+#    export DATA_RETENTION_DAYS="2555"
+#    cargo run -- workflow execute template.yaml --config enterprise

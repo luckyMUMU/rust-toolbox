@@ -58,6 +58,9 @@ async fn main() -> Result<()> {
             max_batch_size: 1000,
             default_experimental_mode: false,
             human_decision_timeout: Some(300),
+            error_recovery: Default::default(),
+            monitoring: Default::default(),
+            performance: Default::default(),
         })?,
         security_policy: SecurityPolicy {
             allow_file_system_access: true,

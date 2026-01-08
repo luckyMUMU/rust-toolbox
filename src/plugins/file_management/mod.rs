@@ -9,7 +9,10 @@ pub mod batch_processor;
 pub mod batch_processor_tool;
 pub mod classification_tool;
 pub mod error;
+pub mod error_recovery;
 pub mod human_decision_tool;
+pub mod monitoring;
+pub mod performance;
 pub mod plugin;
 pub mod progress_tracker;
 pub mod registry;
@@ -87,4 +90,17 @@ pub use result_confirmation_tool::{
     RollbackPlan, RollbackOperation, RollbackType, ExecutionSummary,
     RiskAssessment, ResourceRequirements,
     create_result_confirmation_tool, create_result_confirmation_tool_with_config,
+};
+pub use performance::{
+    OptimizedFileOperationManager, PerformanceStats, MemoryPoolStats, CacheStats,
+    CachedResult, StreamingUtils, CompressionUtils,
+};
+pub use error_recovery::{
+    ErrorRecoveryManager, RecoveryConfig, RecoveryStats, RecoveryAttempt,
+    RecoverySession, RecoveryStrategy,
+};
+pub use monitoring::{
+    FileManagementMonitor, MonitoringConfig, MonitoringStats, AuditEntry,
+    AuditResult, ResourceUsage, OperationMetrics, ErrorTracker, Alert,
+    AlertType, AlertSeverity,
 };

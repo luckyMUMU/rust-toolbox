@@ -1,0 +1,216 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Chinese Text Classification Rules",
+    "description": "Classification rules optimized for Chinese text processing with pinyin support",
+    "author": "Workflow Toolkit Team",
+    "created": "2024-01-08",
+    "language": "zh-CN",
+    "use_cases": [
+      "Chinese document organization",
+      "Mixed Chinese-English content",
+      "Traditional/Simplified Chinese handling"
+    ]
+  },
+  "categories": {
+    "文档": {
+      "description": "文档和文本文件",
+      "keywords": [
+        {"pattern": "文档", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "文件", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "报告", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "手册", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "指南", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "说明", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "合同", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "协议", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "发票", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "收据", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "doc", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "pdf", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "文档",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "媒体": {
+      "description": "图片、视频、音频文件",
+      "keywords": [
+        {"pattern": "照片", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "图片", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "视频", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "音频", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "音乐", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "电影", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "相册", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "截图", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "录音", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "photo", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "video", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "image", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "媒体",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "软件": {
+      "description": "软件、应用程序和开发工具",
+      "keywords": [
+        {"pattern": "软件", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "应用", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "程序", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "工具", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "实用程序", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "安装包", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "安装程序", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "app", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "software", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "软件",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "项目": {
+      "description": "项目文件夹和工作相关内容",
+      "keywords": [
+        {"pattern": "项目", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "工作", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "客户", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "任务", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "作业", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "工程", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "方案", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "project", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "work", "weight": 0.6, "case_sensitive": false}
+      ],
+      "target_directory": "项目",
+      "confidence_threshold": 0.6,
+      "priority": 1
+    },
+    "开发": {
+      "description": "源代码、开发项目和编程资源",
+      "keywords": [
+        {"pattern": "开发", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "代码", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "源码", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "编程", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "脚本", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "库", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "框架", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "dev", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "code", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "src", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "开发",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "个人": {
+      "description": "个人文件、家庭内容和私人文档",
+      "keywords": [
+        {"pattern": "个人", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "私人", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "家庭", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "家人", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "日记", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "回忆", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "假期", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "旅行", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "personal", "weight": 0.6, "case_sensitive": false}
+      ],
+      "target_directory": "个人",
+      "confidence_threshold": 0.6,
+      "priority": 1
+    },
+    "财务": {
+      "description": "财务文档、银行、税务和会计",
+      "keywords": [
+        {"pattern": "财务", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "银行", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "税务", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "会计", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "预算", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "支出", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "收入", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "投资", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "账单", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true}
+      ],
+      "target_directory": "财务",
+      "confidence_threshold": 0.8,
+      "priority": 3
+    },
+    "教育": {
+      "description": "教育材料、课程、教程和学习资源",
+      "keywords": [
+        {"pattern": "教育", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "课程", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "教程", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "学习", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "研究", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "课堂", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "培训", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "认证", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "考试", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "作业", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true}
+      ],
+      "target_directory": "教育",
+      "confidence_threshold": 0.6,
+      "priority": 1
+    },
+    "存档": {
+      "description": "旧文件、备份和存档内容",
+      "keywords": [
+        {"pattern": "旧", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "存档", "weight": 1.0, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "备份", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "临时", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "废弃", "weight": 0.9, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "过时", "weight": 0.8, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "历史", "weight": 0.7, "case_sensitive": false, "enable_pinyin": true},
+        {"pattern": "old", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "archive", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "backup", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "存档",
+      "confidence_threshold": 0.6,
+      "priority": 0
+    }
+  },
+  "settings": {
+    "minimum_score_threshold": 0.4,
+    "ambiguous_threshold": 0.2,
+    "enable_fuzzy_matching": true,
+    "case_sensitive": false,
+    "enable_chinese_processing": true,
+    "max_categories_per_folder": 3,
+    "conflict_resolution": "highest_score",
+    "enable_regex_patterns": false,
+    "unicode_normalization": "NFC"
+  },
+  "chinese_processing": {
+    "enable_pinyin_conversion": true,
+    "pinyin_style": "Normal",
+    "include_tone_numbers": false,
+    "generate_pinyin_combinations": true,
+    "fuzzy_pinyin_matching": true,
+    "traditional_to_simplified": true,
+    "detect_chinese_text": true,
+    "multi_pronunciation_handling": true,
+    "pinyin_variants": {
+      "文档": ["wendang", "wen_dang"],
+      "项目": ["xiangmu", "xiang_mu"],
+      "开发": ["kaifa", "kai_fa"],
+      "软件": ["ruanjian", "ruan_jian"]
+    }
+  },
+  "text_processing": {
+    "normalize_case": true,
+    "remove_special_chars": true,
+    "convert_underscores": true,
+    "split_camel_case": true,
+    "remove_numbers": false,
+    "min_word_length": 1,
+    "chinese_word_segmentation": true,
+    "mixed_language_handling": true
+  }
+}

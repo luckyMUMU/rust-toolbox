@@ -1,0 +1,606 @@
+# Workflow Composition Examples for File Management Tools
+# This file demonstrates advanced workflow patterns that combine multiple tools
+# and showcase human decision integration with complex scenarios
+
+# Example 1: Multi-Stage Classification with Learning
+# This workflow demonstrates progressive classification with human feedback
+multi_stage_classification_with_learning:
+  name: "Multi-Stage Classification with Learning"
+  description: "Advanced classification workflow that learns from human decisions"
+  
+  parameters:
+    source_directory: "${HOME}/Documents/ToClassify"
+    output_directory: "${HOME}/Documents/Classified"
+    classification_rules: "examples/templates/classification-rules-comprehensive.json"
+    learning_enabled: true
+    confidence_threshold: 0.85
+    
+  steps:
+    # Stage 1: Load historical decision data for learning
+    - name: "load_decision_history"
+      tool: "decision-analyzer"
+      condition: "{{ learning_enabled }}"
+      params:
+        history_file: "classification_decisions.json"
+        analyze_patterns: true
+        suggest_rule_improvements: true
+        
+    # Stage 2: Update classification rules based on learning
+    - name: "update_classification_rules"
+      tool: "rule-optimizer"
+      condition: "{{ load_decision_history.has_improvements }}"
+      params:
+        current_rules: "{{ classification_rules }}"
+        decision_patterns: "{{ load_decision_history.patterns }}"
+        improvement_suggestions: "{{ load_decision_history.suggestions }}"
+        confidence_target: 0.1
+        
+    # Stage 3: Text preprocessing for better classification
+    - name: "preprocess_folder_names"
+      tool: "text-processor"
+      params:
+        operations: ["NormalizeCase", "ConvertTraditional", "GeneratePinyin"]
+        chinese_processing:
+          pinyin_style: "Normal"
+          generate_combinations: true
+          
+    # Stage 4: High-confidence automatic classification
+    - name: "auto_classify_high_confidence"
+      tool: "folder-classifier"
+      params:
+        folder_path: "{{ source_directory }}"
+        classification_rules: "{{ update_classification_rules.optimized_rules || classification_rules }}"
+        preprocessed_text: "{{ preprocess_folder_names.processed }}"
+        confidence_threshold: "{{ confidence_threshold }}"
+        experimental_mode: false
+        enable_user_interaction: false
+        
+    # Stage 5: Human review for ambiguous results
+    - name: "human_review_ambiguous"
+      tool: "human-decision"
+      condition: "{{ auto_classify_high_confidence.ambiguous_count > 0 }}"
+      params:
+        decision_type: "Classification"
+        context:
+          title: "Review Ambiguous Classifications"
+          description: "Please review folders that need manual classification"
+          metadata:
+            total_folders: "{{ auto_classify_high_confidence.total_processed }}"
+            auto_classified: "{{ auto_classify_high_confidence.auto_classified_count }}"
+            ambiguous: "{{ auto_classify_high_confidence.ambiguous_count }}"
+        items: "{{ auto_classify_high_confidence.ambiguous_results }}"
+        timeout_seconds: 300
+        enable_batch_decisions: true
+        
+    # Stage 6: Execute all classifications
+    - name: "execute_classifications"
+      tool: "file-mover"
+      params:
+        operations: "{{ auto_classify_high_confidence.operations + human_review_ambiguous.operations }}"
+        conflict_resolution: "Rename"
+        experimental_mode: false
+        create_backup: true
+        
+    # Stage 7: Update decision history for learning
+    - name: "update_decision_history"
+      tool: "decision-tracker"
+      condition: "{{ learning_enabled && human_review_ambiguous.completed }}"
+      params:
+        history_file: "classification_decisions.json"
+        new_decisions: "{{ human_review_ambiguous.decisions }}"
+        classification_context: "{{ auto_classify_high_confidence.context }}"
+        update_patterns: true
+        
+    # Stage 8: Generate learning effectiveness report
+    - name: "generate_learning_report"
+      tool: "learning-analyzer"
+      condition: "{{ learning_enabled }}"
+      params:
+        previous_accuracy: "{{ load_decision_history.accuracy_baseline }}"
+        current_decisions: "{{ human_review_ambiguous.decisions }}"
+        rule_changes: "{{ update_classification_rules.changes }}"
+        generate_improvement_report: true
+
+---
+# Example 2: Intelligent Folder Consolidation with Conflict Resolution
+# This workflow demonstrates complex merge operations with human decision points
+intelligent_folder_consolidation:
+  name: "Intelligent Folder Consolidation"
+  description: "Consolidate duplicate folders with smart conflict resolution"
+  
+  parameters:
+    source_directories:
+      - "${HOME}/Downloads"
+      - "${HOME}/Desktop"
+      - "${HOME}/Documents/Temp"
+    target_directory: "${HOME}/Consolidated"
+    backup_directory: "${HOME}/Backups/Consolidation"
+    merge_strategy: "UserDecision"
+    
+  steps:
+    # Stage 1: Comprehensive analysis of all source directories
+    - name: "analyze_all_sources"
+      tool: "folder-merger"
+      params:
+        source_directories: "{{ source_directories }}"
+        analysis_only: true
+        enable_size_analysis: true
+        detect_duplicates: true
+        minimum_folder_size: 1024
+        
+    # Stage 2: Create backup before any operations
+    - name: "create_consolidation_backup"
+      tool: "file-mover"
+      params:
+        operations: "{{ analyze_all_sources.backup_operations }}"
+        target_directory: "{{ backup_directory }}"
+        operation_type: "Copy"
+        preserve_structure: true
+        verify_operations: true
+        
+    # Stage 3: Human decision for merge strategies
+    - name: "decide_merge_strategies"
+      tool: "human-decision"
+      params:
+        decision_type: "MergeStrategy"
+        context:
+          title: "Folder Merge Strategy Selection"
+          description: "Choose how to merge duplicate folders found across locations"
+          metadata:
+            total_duplicates: "{{ analyze_all_sources.duplicate_count }}"
+            potential_space_savings: "{{ analyze_all_sources.space_savings }}"
+        options: "{{ analyze_all_sources.merge_options }}"
+        timeout_seconds: 600
+        enable_batch_decisions: true
+        group_similar_decisions: true
+        
+    # Stage 4: Detect and resolve file conflicts within merges
+    - name: "resolve_file_conflicts"
+      tool: "human-decision"
+      condition: "{{ decide_merge_strategies.has_file_conflicts }}"
+      params:
+        decision_type: "FileConflict"
+        context:
+          title: "Duplicate File Resolution"
+          description: "Resolve conflicts for files with the same name but different content"
+          metadata:
+            conflict_count: "{{ decide_merge_strategies.conflict_count }}"
+        conflicts: "{{ decide_merge_strategies.file_conflicts }}"
+        batch_resolution: true
+        timeout_seconds: 300
+        options:
+          - id: "keep_larger"
+            label: "Keep larger file"
+            description: "Keep the file with larger size"
+          - id: "keep_newer"
+            label: "Keep newer file"
+            description: "Keep the file with more recent modification date"
+          - id: "rename_all"
+            label: "Rename and keep all"
+            description: "Rename files to avoid conflicts and keep all versions"
+          - id: "manual_review"
+            label: "Mark for manual review"
+            description: "Skip automatic resolution and review manually later"
+            
+    # Stage 5: Execute merge operations with resolved strategies
+    - name: "execute_merge_operations"
+      tool: "folder-merger"
+      params:
+        source_directories: "{{ source_directories }}"
+        target_directory: "{{ target_directory }}"
+        merge_strategies: "{{ decide_merge_strategies.strategies }}"
+        conflict_resolutions: "{{ resolve_file_conflicts.resolutions }}"
+        experimental_mode: false
+        verify_operations: true
+        progress_reporting: true
+        
+    # Stage 6: Verify merge results and handle any failures
+    - name: "verify_merge_results"
+      tool: "verification-checker"
+      params:
+        merge_results: "{{ execute_merge_operations.results }}"
+        verify_file_integrity: true
+        check_space_savings: true
+        validate_folder_structure: true
+        
+    # Stage 7: Handle merge failures if any occurred
+    - name: "handle_merge_failures"
+      tool: "human-decision"
+      condition: "{{ execute_merge_operations.failed_operations > 0 }}"
+      params:
+        decision_type: "Custom"
+        context:
+          title: "Merge Operation Failures"
+          description: "Some merge operations failed and need attention"
+          metadata:
+            failed_count: "{{ execute_merge_operations.failed_operations }}"
+            success_count: "{{ execute_merge_operations.successful_operations }}"
+            errors: "{{ execute_merge_operations.error_summary }}"
+        options:
+          - id: "retry_failed"
+            label: "Retry failed operations"
+            recommended: true
+          - id: "manual_intervention"
+            label: "Mark for manual intervention"
+          - id: "rollback_all"
+            label: "Rollback all operations"
+        timeout_seconds: 300
+        
+    # Stage 8: Cleanup empty directories after successful merges
+    - name: "cleanup_empty_directories"
+      tool: "file-mover"
+      condition: "{{ verify_merge_results.success }}"
+      params:
+        operation_type: "Cleanup"
+        directories: "{{ source_directories }}"
+        remove_empty_only: true
+        recursive: true
+        preserve_structure: false
+        
+    # Stage 9: Generate comprehensive consolidation report
+    - name: "generate_consolidation_report"
+      tool: "report-generator"
+      params:
+        analysis_results: "{{ analyze_all_sources.summary }}"
+        merge_results: "{{ execute_merge_operations.results }}"
+        verification_results: "{{ verify_merge_results.summary }}"
+        space_savings: "{{ verify_merge_results.space_savings }}"
+        include_recommendations: true
+
+---
+# Example 3: Batch Processing with Progressive Error Handling
+# This workflow shows robust batch processing with comprehensive error recovery
+robust_batch_processing:
+  name: "Robust Batch Processing with Error Recovery"
+  description: "Batch file processing with progressive error handling and recovery"
+  
+  parameters:
+    source_directory: "/data/incoming"
+    target_directory: "/data/processed"
+    operation_type: "move"
+    batch_size: 25
+    max_concurrent_batches: 4
+    error_threshold: 5
+    
+  steps:
+    # Stage 1: Comprehensive analysis and batch preparation
+    - name: "analyze_and_prepare_batches"
+      tool: "batch-processor"
+      params:
+        source_directory: "{{ source_directory }}"
+        target_directory: "{{ target_directory }}"
+        operation_type: "{{ operation_type }}"
+        analysis_only: true
+        batch_size: "{{ batch_size }}"
+        filter_criteria:
+          min_size_bytes: 1024
+          exclude_patterns: ["*.tmp", "*.lock", "*.partial"]
+          include_hidden: false
+        estimate_duration: true
+        check_disk_space: true
+        
+    # Stage 2: Execute test batch for validation
+    - name: "execute_test_batch"
+      tool: "batch-processor"
+      params:
+        operations: "{{ analyze_and_prepare_batches.test_batch }}"
+        experimental_mode: false
+        max_concurrent_batches: 1
+        detailed_logging: true
+        verify_operations: true
+        
+    # Stage 3: Human review of test batch results
+    - name: "review_test_batch_results"
+      tool: "human-decision"
+      params:
+        decision_type: "Custom"
+        context:
+          title: "Test Batch Results Review"
+          description: "Review the results of the test batch before proceeding with full processing"
+          metadata:
+            test_batch_size: "{{ analyze_and_prepare_batches.test_batch_size }}"
+            successful_operations: "{{ execute_test_batch.operations_completed }}"
+            failed_operations: "{{ execute_test_batch.operations_failed }}"
+            processing_time: "{{ execute_test_batch.duration_ms }}"
+            estimated_total_time: "{{ analyze_and_prepare_batches.estimated_duration }}"
+            errors: "{{ execute_test_batch.errors }}"
+        options:
+          - id: "continue_full_processing"
+            label: "Continue with full batch processing"
+            description: "Proceed with processing all remaining batches"
+            recommended: "{{ execute_test_batch.operations_failed == 0 }}"
+          - id: "adjust_batch_size"
+            label: "Adjust batch size and retry"
+            description: "Modify batch size based on test results"
+          - id: "change_settings"
+            label: "Change processing settings"
+            description: "Modify concurrency or other settings"
+          - id: "abort_processing"
+            label: "Abort batch processing"
+            description: "Stop processing due to test results"
+        timeout_seconds: 300
+        
+    # Stage 4: Adjust settings based on test results (if requested)
+    - name: "adjust_processing_settings"
+      tool: "settings-adjuster"
+      condition: "{{ review_test_batch_results.selected_option == 'adjust_batch_size' || review_test_batch_results.selected_option == 'change_settings' }}"
+      params:
+        current_settings:
+          batch_size: "{{ batch_size }}"
+          max_concurrent_batches: "{{ max_concurrent_batches }}"
+        test_results: "{{ execute_test_batch.performance_metrics }}"
+        optimization_target: "reliability"
+        
+    # Stage 5: Execute main batch processing
+    - name: "execute_main_batch_processing"
+      tool: "batch-processor"
+      condition: "{{ review_test_batch_results.selected_option != 'abort_processing' }}"
+      params:
+        operations: "{{ analyze_and_prepare_batches.main_batches }}"
+        batch_size: "{{ adjust_processing_settings.optimized_batch_size || batch_size }}"
+        max_concurrent_batches: "{{ adjust_processing_settings.optimized_concurrency || max_concurrent_batches }}"
+        experimental_mode: false
+        continue_on_error: true
+        max_consecutive_errors: "{{ error_threshold }}"
+        progress_reporting: true
+        checkpoint_frequency: 10
+        
+    # Stage 6: Monitor processing and handle intermediate failures
+    - name: "monitor_and_handle_failures"
+      tool: "process-monitor"
+      condition: "{{ execute_main_batch_processing.in_progress }}"
+      params:
+        process_id: "{{ execute_main_batch_processing.process_id }}"
+        failure_threshold: "{{ error_threshold }}"
+        auto_pause_on_threshold: true
+        notification_on_issues: true
+        
+    # Stage 7: Handle batch processing failures
+    - name: "handle_processing_failures"
+      tool: "human-decision"
+      condition: "{{ execute_main_batch_processing.operations_failed > 0 }}"
+      params:
+        decision_type: "Custom"
+        context:
+          title: "Batch Processing Failures Detected"
+          description: "Some operations failed during batch processing and require attention"
+          metadata:
+            total_operations: "{{ execute_main_batch_processing.total_operations }}"
+            successful_operations: "{{ execute_main_batch_processing.operations_completed }}"
+            failed_operations: "{{ execute_main_batch_processing.operations_failed }}"
+            error_rate: "{{ execute_main_batch_processing.error_rate }}"
+            common_errors: "{{ execute_main_batch_processing.error_analysis }}"
+        options:
+          - id: "retry_failed_operations"
+            label: "Retry failed operations"
+            description: "Attempt to retry all failed operations with current settings"
+            recommended: "{{ execute_main_batch_processing.error_rate < 0.1 }}"
+          - id: "retry_with_different_settings"
+            label: "Retry with modified settings"
+            description: "Retry failed operations with adjusted settings"
+          - id: "manual_review_failures"
+            label: "Mark failures for manual review"
+            description: "Skip failed operations and mark them for manual intervention"
+          - id: "rollback_successful_operations"
+            label: "Rollback all operations"
+            description: "Undo all successful operations and start over"
+        timeout_seconds: 600
+        
+    # Stage 8: Execute retry operations (if requested)
+    - name: "retry_failed_operations"
+      tool: "batch-processor"
+      condition: "{{ handle_processing_failures.selected_option == 'retry_failed_operations' || handle_processing_failures.selected_option == 'retry_with_different_settings' }}"
+      params:
+        operations: "{{ execute_main_batch_processing.failed_operations }}"
+        batch_size: "{{ handle_processing_failures.selected_option == 'retry_with_different_settings' ? 5 : batch_size }}"
+        max_concurrent_batches: "{{ handle_processing_failures.selected_option == 'retry_with_different_settings' ? 1 : max_concurrent_batches }}"
+        experimental_mode: false
+        retry_strategy: "exponential_backoff"
+        max_retry_attempts: 3
+        
+    # Stage 9: Final verification and cleanup
+    - name: "final_verification_and_cleanup"
+      tool: "verification-processor"
+      params:
+        main_results: "{{ execute_main_batch_processing.results }}"
+        retry_results: "{{ retry_failed_operations.results }}"
+        verify_file_integrity: true
+        check_target_structure: true
+        cleanup_temporary_files: true
+        
+    # Stage 10: Generate comprehensive processing report
+    - name: "generate_processing_report"
+      tool: "report-generator"
+      params:
+        analysis_phase: "{{ analyze_and_prepare_batches.summary }}"
+        test_phase: "{{ execute_test_batch.results }}"
+        main_processing: "{{ execute_main_batch_processing.results }}"
+        retry_phase: "{{ retry_failed_operations.results }}"
+        verification: "{{ final_verification_and_cleanup.summary }}"
+        include_performance_metrics: true
+        include_error_analysis: true
+        include_recommendations: true
+        generate_charts: true
+
+---
+# Example 4: Enterprise Document Workflow with Compliance
+# This workflow demonstrates enterprise-grade document processing with compliance
+enterprise_document_workflow:
+  name: "Enterprise Document Processing with Compliance"
+  description: "Enterprise document workflow with governance, compliance, and audit"
+  
+  parameters:
+    source_directories:
+      - "${ENTERPRISE_INTAKE_DIR}"
+      - "${DEPARTMENT_SHARED_DIR}"
+    compliance_rules: "${COMPLIANCE_CONFIG_DIR}/enterprise-compliance.json"
+    retention_policies: "${COMPLIANCE_CONFIG_DIR}/retention-policies.json"
+    governance_mode: true
+    audit_enabled: true
+    
+  steps:
+    # Stage 1: Compliance validation and risk assessment
+    - name: "validate_compliance_and_assess_risk"
+      tool: "compliance-validator"
+      params:
+        source_directories: "{{ source_directories }}"
+        compliance_rules: "{{ compliance_rules }}"
+        check_data_classification: true
+        validate_retention_requirements: true
+        scan_for_sensitive_data: true
+        assess_privacy_impact: true
+        
+    # Stage 2: Governance approval for high-risk operations
+    - name: "governance_approval_process"
+      tool: "human-decision"
+      condition: "{{ validate_compliance_and_assess_risk.requires_governance_approval }}"
+      params:
+        decision_type: "Custom"
+        context:
+          title: "Governance Approval Required"
+          description: "High-risk document operations require governance committee approval"
+          metadata:
+            risk_level: "{{ validate_compliance_and_assess_risk.risk_level }}"
+            affected_documents: "{{ validate_compliance_and_assess_risk.affected_document_count }}"
+            sensitive_data_detected: "{{ validate_compliance_and_assess_risk.sensitive_data_summary }}"
+            compliance_impact: "{{ validate_compliance_and_assess_risk.compliance_impact }}"
+            estimated_processing_time: "{{ validate_compliance_and_assess_risk.estimated_duration }}"
+        options:
+          - id: "approve_full_processing"
+            label: "Approve full document processing"
+            description: "Approve processing of all documents including high-risk items"
+          - id: "approve_with_restrictions"
+            label: "Approve with additional restrictions"
+            description: "Approve processing with additional safety measures"
+          - id: "approve_low_risk_only"
+            label: "Approve low-risk documents only"
+            description: "Process only documents classified as low-risk"
+          - id: "reject_and_escalate"
+            label: "Reject and escalate to senior governance"
+            description: "Reject current request and escalate to senior governance committee"
+        timeout_seconds: 3600  # 1 hour for governance decisions
+        escalation_enabled: true
+        escalation_timeout: 7200  # 2 hours for escalation
+        
+    # Stage 3: Document classification with compliance constraints
+    - name: "classify_documents_with_compliance"
+      tool: "folder-classifier"
+      condition: "{{ governance_approval_process.selected_option != 'reject_and_escalate' }}"
+      params:
+        folder_path: "{{ source_directories }}"
+        classification_rules: "{{ compliance_rules }}"
+        compliance_mode: true
+        data_classification_enforcement: true
+        retention_policy_validation: true
+        experimental_mode: true  # Always preview in enterprise mode
+        
+    # Stage 4: Human review for compliance-sensitive classifications
+    - name: "compliance_review_classifications"
+      tool: "human-decision"
+      condition: "{{ classify_documents_with_compliance.compliance_sensitive_count > 0 }}"
+      params:
+        decision_type: "Classification"
+        context:
+          title: "Compliance-Sensitive Document Review"
+          description: "Review classifications for documents with compliance implications"
+          metadata:
+            total_documents: "{{ classify_documents_with_compliance.total_processed }}"
+            compliance_sensitive: "{{ classify_documents_with_compliance.compliance_sensitive_count }}"
+            retention_implications: "{{ classify_documents_with_compliance.retention_summary }}"
+        items: "{{ classify_documents_with_compliance.compliance_sensitive_results }}"
+        timeout_seconds: 1800  # 30 minutes for compliance review
+        require_justification: true
+        audit_decisions: true
+        
+    # Stage 5: Apply retention policies and data lifecycle management
+    - name: "apply_retention_and_lifecycle_policies"
+      tool: "retention-manager"
+      params:
+        classified_documents: "{{ classify_documents_with_compliance.results }}"
+        compliance_reviewed: "{{ compliance_review_classifications.results }}"
+        retention_policies: "{{ retention_policies }}"
+        schedule_future_actions: true
+        compliance_tracking: true
+        legal_hold_check: true
+        
+    # Stage 6: Execute document operations with audit trail
+    - name: "execute_document_operations_with_audit"
+      tool: "file-mover"
+      params:
+        operations: "{{ apply_retention_and_lifecycle_policies.approved_operations }}"
+        conflict_resolution: "Rename"
+        experimental_mode: false
+        audit_logging: true
+        compliance_verification: true
+        data_lineage_tracking: true
+        
+    # Stage 7: Post-processing compliance verification
+    - name: "post_processing_compliance_verification"
+      tool: "compliance-verifier"
+      params:
+        processed_documents: "{{ execute_document_operations_with_audit.results }}"
+        compliance_rules: "{{ compliance_rules }}"
+        verify_data_classification: true
+        check_retention_compliance: true
+        validate_access_controls: true
+        
+    # Stage 8: Generate comprehensive audit report
+    - name: "generate_enterprise_audit_report"
+      tool: "audit-reporter"
+      params:
+        compliance_validation: "{{ validate_compliance_and_assess_risk.audit_trail }}"
+        governance_decisions: "{{ governance_approval_process.audit_trail }}"
+        classification_results: "{{ classify_documents_with_compliance.audit_trail }}"
+        compliance_review: "{{ compliance_review_classifications.audit_trail }}"
+        retention_actions: "{{ apply_retention_and_lifecycle_policies.audit_trail }}"
+        operations_executed: "{{ execute_document_operations_with_audit.audit_trail }}"
+        compliance_verification: "{{ post_processing_compliance_verification.audit_trail }}"
+        report_format: "enterprise_comprehensive"
+        include_compliance_attestation: true
+        include_risk_assessment: true
+        include_recommendations: true
+        
+    # Stage 9: Notification and stakeholder communication
+    - name: "notify_stakeholders"
+      tool: "notification-sender"
+      params:
+        audit_report: "{{ generate_enterprise_audit_report.report }}"
+        stakeholders:
+          - type: "governance_committee"
+            notification_method: "email"
+          - type: "compliance_officer"
+            notification_method: "secure_portal"
+          - type: "department_heads"
+            notification_method: "dashboard"
+        include_executive_summary: true
+        schedule_follow_up: true
+
+# Usage Instructions:
+# 
+# These workflow compositions demonstrate advanced patterns for combining
+# file management tools with human decision points. Each example shows:
+# 
+# 1. Multi-stage processing with conditional logic
+# 2. Human decision integration at critical points
+# 3. Error handling and recovery strategies
+# 4. Comprehensive reporting and audit trails
+# 5. Learning and optimization capabilities
+# 
+# To use these examples:
+# 
+# 1. Copy the desired workflow to a new YAML file
+# 2. Adjust parameters for your environment
+# 3. Set required environment variables
+# 4. Ensure all referenced tools are available
+# 5. Run with: cargo run -- workflow execute your-workflow.yaml
+# 
+# Key Features Demonstrated:
+# 
+# - Progressive processing with validation steps
+# - Human decision points with rich context
+# - Batch processing with error recovery
+# - Compliance and governance integration
+# - Learning from human decisions
+# - Comprehensive audit and reporting
+# - Flexible error handling strategies
+# - Performance optimization based on results

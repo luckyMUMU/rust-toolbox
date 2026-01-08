@@ -1,0 +1,238 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Comprehensive Classification Rules",
+    "description": "Comprehensive folder classification rules covering common organizational patterns",
+    "author": "Workflow Toolkit Team",
+    "created": "2024-01-08",
+    "last_modified": "2024-01-08",
+    "use_cases": [
+      "Personal file organization",
+      "Professional document management",
+      "Media library organization",
+      "Development project structure"
+    ]
+  },
+  "categories": {
+    "documents": {
+      "description": "Document and text files including PDFs, Word docs, presentations",
+      "keywords": [
+        {"pattern": "doc", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "pdf", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "text", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "report", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "manual", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "guide", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "presentation", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "slide", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "contract", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "agreement", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "invoice", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "receipt", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Documents",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "media": {
+      "description": "Images, videos, audio files, and multimedia content",
+      "keywords": [
+        {"pattern": "photo", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "image", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "video", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "audio", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "music", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "movie", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "pic", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "camera", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "screenshot", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "recording", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "album", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "gallery", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Media",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "software": {
+      "description": "Software, applications, installers, and development tools",
+      "keywords": [
+        {"pattern": "app", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "software", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "program", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "tool", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "utility", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "installer", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "setup", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "binary", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "executable", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "package", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "Software",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "projects": {
+      "description": "Project folders, work-related content, and client materials",
+      "keywords": [
+        {"pattern": "project", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "work", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "client", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "task", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "assignment", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "job", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "contract", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "proposal", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "deliverable", "weight": 0.8, "case_sensitive": false}
+      ],
+      "target_directory": "Projects",
+      "confidence_threshold": 0.6,
+      "priority": 1
+    },
+    "development": {
+      "description": "Source code, development projects, and programming resources",
+      "keywords": [
+        {"pattern": "dev", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "code", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "src", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "source", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "repo", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "repository", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "git", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "programming", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "coding", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "script", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "library", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "framework", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "Development",
+      "confidence_threshold": 0.7,
+      "priority": 2
+    },
+    "personal": {
+      "description": "Personal files, family content, and private documents",
+      "keywords": [
+        {"pattern": "personal", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "private", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "family", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "home", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "diary", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "journal", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "memories", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "vacation", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "holiday", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "Personal",
+      "confidence_threshold": 0.6,
+      "priority": 1
+    },
+    "financial": {
+      "description": "Financial documents, banking, taxes, and accounting",
+      "keywords": [
+        {"pattern": "finance", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "bank", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "tax", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "accounting", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "budget", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "expense", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "income", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "investment", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "statement", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "receipt", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "Financial",
+      "confidence_threshold": 0.8,
+      "priority": 3
+    },
+    "education": {
+      "description": "Educational materials, courses, tutorials, and learning resources",
+      "keywords": [
+        {"pattern": "education", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "course", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "tutorial", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "learning", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "study", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "lesson", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "training", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "certification", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "exam", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "homework", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "Education",
+      "confidence_threshold": 0.6,
+      "priority": 1
+    },
+    "archive": {
+      "description": "Old files, backups, and archived content",
+      "keywords": [
+        {"pattern": "old", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "archive", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "backup", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "temp", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "tmp", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "deprecated", "weight": 0.9, "case_sensitive": false},
+        {"pattern": "legacy", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "obsolete", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "unused", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "historical", "weight": 0.7, "case_sensitive": false}
+      ],
+      "target_directory": "Archive",
+      "confidence_threshold": 0.6,
+      "priority": 0
+    },
+    "downloads": {
+      "description": "Downloaded files and internet content",
+      "keywords": [
+        {"pattern": "download", "weight": 1.0, "case_sensitive": false},
+        {"pattern": "internet", "weight": 0.8, "case_sensitive": false},
+        {"pattern": "web", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "browser", "weight": 0.7, "case_sensitive": false},
+        {"pattern": "saved", "weight": 0.6, "case_sensitive": false},
+        {"pattern": "cached", "weight": 0.6, "case_sensitive": false}
+      ],
+      "target_directory": "Downloads",
+      "confidence_threshold": 0.5,
+      "priority": 0
+    }
+  },
+  "settings": {
+    "minimum_score_threshold": 0.4,
+    "ambiguous_threshold": 0.2,
+    "enable_fuzzy_matching": true,
+    "case_sensitive": false,
+    "enable_chinese_processing": false,
+    "max_categories_per_folder": 3,
+    "conflict_resolution": "highest_score",
+    "enable_regex_patterns": false,
+    "unicode_normalization": "NFC"
+  },
+  "text_processing": {
+    "normalize_case": true,
+    "remove_special_chars": true,
+    "convert_underscores": true,
+    "split_camel_case": true,
+    "remove_numbers": false,
+    "min_word_length": 2,
+    "stop_words": ["the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"]
+  },
+  "advanced_features": {
+    "learning_mode": {
+      "enabled": false,
+      "confidence_improvement_target": 0.1,
+      "decision_history_file": "classification_decisions.json",
+      "auto_update_rules": false
+    },
+    "performance_optimization": {
+      "cache_compiled_patterns": true,
+      "parallel_processing": true,
+      "batch_size_optimization": true,
+      "memory_efficient_mode": false
+    },
+    "validation": {
+      "validate_target_directories": true,
+      "check_write_permissions": true,
+      "verify_disk_space": true,
+      "prevent_system_directories": true
+    }
+  }
+}

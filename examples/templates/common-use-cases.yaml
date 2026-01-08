@@ -1,0 +1,546 @@
+# Common Use Cases for File Management Tools
+# This file contains workflow configurations for typical file organization scenarios
+
+# Use Case 1: Personal Desktop Cleanup
+# Scenario: Organize a messy desktop with mixed file types
+personal_desktop_cleanup:
+  name: "Personal Desktop Organization"
+  description: "Clean up and organize desktop files into appropriate folders"
+  
+  # Configuration
+  source_directory: "${HOME}/Desktop"
+  output_directory: "${HOME}/Desktop/Organized"
+  classification_rules: "examples/templates/classification-rules-example.json"
+  
+  # Settings optimized for personal use
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 10
+  decision_timeout: 180
+  create_backups: true
+  
+  # Human decision configuration
+  human_decisions:
+    ambiguous_threshold: 0.3
+    confidence_threshold: 0.8
+    enable_batch_decisions: true
+    remember_preferences: true
+
+---
+# Use Case 2: Downloads Folder Organization
+# Scenario: Automatically organize downloaded files by type and date
+downloads_organization:
+  name: "Downloads Folder Organization"
+  description: "Organize downloaded files by type with date-based subfolders"
+  
+  source_directory: "${HOME}/Downloads"
+  output_directory: "${HOME}/Downloads/Organized"
+  classification_rules: |
+    {
+      "categories": {
+        "documents": {
+          "keywords": [
+            {"pattern": "pdf", "weight": 1.0},
+            {"pattern": "doc", "weight": 1.0},
+            {"pattern": "txt", "weight": 0.8}
+          ],
+          "target_directory": "Documents/${YEAR}/${MONTH}"
+        },
+        "images": {
+          "keywords": [
+            {"pattern": "jpg", "weight": 1.0},
+            {"pattern": "png", "weight": 1.0},
+            {"pattern": "gif", "weight": 0.9}
+          ],
+          "target_directory": "Images/${YEAR}/${MONTH}"
+        },
+        "software": {
+          "keywords": [
+            {"pattern": "exe", "weight": 1.0},
+            {"pattern": "msi", "weight": 1.0},
+            {"pattern": "dmg", "weight": 1.0}
+          ],
+          "target_directory": "Software"
+        }
+      }
+    }
+  
+  # Automated processing for downloads
+  experimental_mode: false
+  enable_user_interaction: false
+  batch_size: 50
+  conflict_resolution: "Rename"
+  
+  # Date-based organization
+  use_date_folders: true
+  date_format: "YYYY/MM"
+
+---
+# Use Case 3: Project Archive Organization
+# Scenario: Organize old project folders by client and year
+project_archive_organization:
+  name: "Project Archive Organization"
+  description: "Organize completed projects by client and completion year"
+  
+  source_directory: "${HOME}/Projects/Completed"
+  output_directory: "${HOME}/Projects/Archive"
+  classification_rules: |
+    {
+      "categories": {
+        "client_a": {
+          "keywords": [
+            {"pattern": "clienta", "weight": 1.0},
+            {"pattern": "client_a", "weight": 1.0},
+            {"pattern": "acme", "weight": 0.9}
+          ],
+          "target_directory": "ClientA/${YEAR}"
+        },
+        "client_b": {
+          "keywords": [
+            {"pattern": "clientb", "weight": 1.0},
+            {"pattern": "client_b", "weight": 1.0},
+            {"pattern": "beta", "weight": 0.9}
+          ],
+          "target_directory": "ClientB/${YEAR}"
+        },
+        "internal": {
+          "keywords": [
+            {"pattern": "internal", "weight": 1.0},
+            {"pattern": "company", "weight": 0.8},
+            {"pattern": "training", "weight": 0.7}
+          ],
+          "target_directory": "Internal/${YEAR}"
+        }
+      }
+    }
+  
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 5
+  decision_timeout: 300
+  
+  # Project-specific settings
+  analyze_folder_structure: true
+  preserve_project_structure: true
+  create_project_summaries: true
+
+---
+# Use Case 4: Media Library Organization
+# Scenario: Organize photos and videos by date and event
+media_library_organization:
+  name: "Media Library Organization"
+  description: "Organize photos and videos by date and detected events"
+  
+  source_directory: "${HOME}/Pictures/Unsorted"
+  output_directory: "${HOME}/Pictures/Organized"
+  classification_rules: |
+    {
+      "categories": {
+        "vacation": {
+          "keywords": [
+            {"pattern": "vacation", "weight": 1.0},
+            {"pattern": "holiday", "weight": 0.9},
+            {"pattern": "trip", "weight": 0.8},
+            {"pattern": "travel", "weight": 0.8}
+          ],
+          "target_directory": "Vacations/${YEAR}"
+        },
+        "family": {
+          "keywords": [
+            {"pattern": "family", "weight": 1.0},
+            {"pattern": "birthday", "weight": 0.9},
+            {"pattern": "wedding", "weight": 0.9},
+            {"pattern": "celebration", "weight": 0.8}
+          ],
+          "target_directory": "Family/${YEAR}"
+        },
+        "work_events": {
+          "keywords": [
+            {"pattern": "conference", "weight": 1.0},
+            {"pattern": "meeting", "weight": 0.8},
+            {"pattern": "presentation", "weight": 0.8}
+          ],
+          "target_directory": "Work/${YEAR}"
+        }
+      }
+    }
+  
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 20
+  decision_timeout: 120
+  
+  # Media-specific settings
+  extract_metadata: true
+  use_exif_dates: true
+  detect_faces: false  # Privacy consideration
+  create_thumbnails: true
+
+---
+# Use Case 5: Development Project Cleanup
+# Scenario: Organize development projects by language and status
+development_project_cleanup:
+  name: "Development Project Organization"
+  description: "Organize development projects by programming language and status"
+  
+  source_directory: "${HOME}/dev/projects"
+  output_directory: "${HOME}/dev/organized"
+  classification_rules: |
+    {
+      "categories": {
+        "rust_projects": {
+          "keywords": [
+            {"pattern": "rust", "weight": 1.0},
+            {"pattern": "cargo", "weight": 0.9},
+            {"pattern": "rs", "weight": 0.8}
+          ],
+          "target_directory": "Rust/${STATUS}"
+        },
+        "python_projects": {
+          "keywords": [
+            {"pattern": "python", "weight": 1.0},
+            {"pattern": "py", "weight": 0.9},
+            {"pattern": "django", "weight": 0.8},
+            {"pattern": "flask", "weight": 0.8}
+          ],
+          "target_directory": "Python/${STATUS}"
+        },
+        "javascript_projects": {
+          "keywords": [
+            {"pattern": "javascript", "weight": 1.0},
+            {"pattern": "js", "weight": 0.9},
+            {"pattern": "node", "weight": 0.8},
+            {"pattern": "react", "weight": 0.8}
+          ],
+          "target_directory": "JavaScript/${STATUS}"
+        }
+      }
+    }
+  
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 3
+  decision_timeout: 240
+  
+  # Development-specific settings
+  analyze_git_status: true
+  detect_build_systems: true
+  preserve_git_history: true
+  create_project_index: true
+
+---
+# Use Case 6: Document Management System
+# Scenario: Organize business documents with compliance requirements
+document_management_system:
+  name: "Business Document Management"
+  description: "Organize business documents with compliance and retention policies"
+  
+  source_directory: "${BUSINESS_DOCS_INPUT}"
+  output_directory: "${BUSINESS_DOCS_OUTPUT}"
+  classification_rules: |
+    {
+      "categories": {
+        "contracts": {
+          "keywords": [
+            {"pattern": "contract", "weight": 1.0},
+            {"pattern": "agreement", "weight": 0.9},
+            {"pattern": "legal", "weight": 0.8}
+          ],
+          "target_directory": "Legal/Contracts/${YEAR}",
+          "retention_years": 7,
+          "confidentiality": "high"
+        },
+        "financial": {
+          "keywords": [
+            {"pattern": "invoice", "weight": 1.0},
+            {"pattern": "receipt", "weight": 0.9},
+            {"pattern": "financial", "weight": 0.8}
+          ],
+          "target_directory": "Financial/${YEAR}/${QUARTER}",
+          "retention_years": 7,
+          "confidentiality": "high"
+        },
+        "hr_documents": {
+          "keywords": [
+            {"pattern": "employee", "weight": 1.0},
+            {"pattern": "hr", "weight": 0.9},
+            {"pattern": "personnel", "weight": 0.8}
+          ],
+          "target_directory": "HR/${YEAR}",
+          "retention_years": 5,
+          "confidentiality": "very_high"
+        }
+      }
+    }
+  
+  experimental_mode: false
+  enable_user_interaction: true
+  batch_size: 10
+  decision_timeout: 600
+  
+  # Compliance settings
+  audit_logging: true
+  compliance_mode: true
+  require_approval: true
+  data_classification: true
+  retention_enforcement: true
+
+---
+# Use Case 7: Backup Organization
+# Scenario: Organize backup files by date and source system
+backup_organization:
+  name: "Backup File Organization"
+  description: "Organize backup files by creation date and source system"
+  
+  source_directory: "${BACKUP_INPUT_DIR}"
+  output_directory: "${BACKUP_OUTPUT_DIR}"
+  classification_rules: |
+    {
+      "categories": {
+        "database_backups": {
+          "keywords": [
+            {"pattern": "database", "weight": 1.0},
+            {"pattern": "db", "weight": 0.9},
+            {"pattern": "sql", "weight": 0.8},
+            {"pattern": "backup", "weight": 0.7}
+          ],
+          "target_directory": "Database/${YEAR}/${MONTH}"
+        },
+        "system_backups": {
+          "keywords": [
+            {"pattern": "system", "weight": 1.0},
+            {"pattern": "server", "weight": 0.9},
+            {"pattern": "config", "weight": 0.8}
+          ],
+          "target_directory": "System/${YEAR}/${MONTH}"
+        },
+        "user_backups": {
+          "keywords": [
+            {"pattern": "user", "weight": 1.0},
+            {"pattern": "home", "weight": 0.8},
+            {"pattern": "personal", "weight": 0.7}
+          ],
+          "target_directory": "Users/${YEAR}/${MONTH}"
+        }
+      }
+    }
+  
+  experimental_mode: false
+  enable_user_interaction: false
+  batch_size: 100
+  
+  # Backup-specific settings
+  verify_backup_integrity: true
+  compress_old_backups: true
+  cleanup_duplicates: true
+  retention_policy: "3_months"
+
+---
+# Use Case 8: Research Paper Organization
+# Scenario: Organize academic papers by topic and publication year
+research_paper_organization:
+  name: "Research Paper Organization"
+  description: "Organize academic papers and research materials by topic and year"
+  
+  source_directory: "${HOME}/Research/Papers"
+  output_directory: "${HOME}/Research/Organized"
+  classification_rules: |
+    {
+      "categories": {
+        "machine_learning": {
+          "keywords": [
+            {"pattern": "machine learning", "weight": 1.0},
+            {"pattern": "neural network", "weight": 0.9},
+            {"pattern": "deep learning", "weight": 0.9},
+            {"pattern": "ai", "weight": 0.7}
+          ],
+          "target_directory": "MachineLearning/${YEAR}"
+        },
+        "computer_vision": {
+          "keywords": [
+            {"pattern": "computer vision", "weight": 1.0},
+            {"pattern": "image processing", "weight": 0.9},
+            {"pattern": "opencv", "weight": 0.8}
+          ],
+          "target_directory": "ComputerVision/${YEAR}"
+        },
+        "natural_language": {
+          "keywords": [
+            {"pattern": "nlp", "weight": 1.0},
+            {"pattern": "natural language", "weight": 1.0},
+            {"pattern": "text processing", "weight": 0.8}
+          ],
+          "target_directory": "NLP/${YEAR}"
+        }
+      }
+    }
+  
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 15
+  decision_timeout: 180
+  
+  # Research-specific settings
+  extract_paper_metadata: true
+  create_bibliography: true
+  tag_by_authors: true
+  detect_citations: true
+
+---
+# Use Case 9: Email Attachment Organization
+# Scenario: Organize email attachments by sender and date
+email_attachment_organization:
+  name: "Email Attachment Organization"
+  description: "Organize email attachments by sender domain and date received"
+  
+  source_directory: "${HOME}/Mail/Attachments"
+  output_directory: "${HOME}/Mail/Organized"
+  classification_rules: |
+    {
+      "categories": {
+        "work_attachments": {
+          "keywords": [
+            {"pattern": "company.com", "weight": 1.0},
+            {"pattern": "work", "weight": 0.8},
+            {"pattern": "business", "weight": 0.7}
+          ],
+          "target_directory": "Work/${YEAR}/${MONTH}"
+        },
+        "personal_attachments": {
+          "keywords": [
+            {"pattern": "gmail", "weight": 0.8},
+            {"pattern": "personal", "weight": 0.9},
+            {"pattern": "family", "weight": 0.7}
+          ],
+          "target_directory": "Personal/${YEAR}/${MONTH}"
+        },
+        "vendor_attachments": {
+          "keywords": [
+            {"pattern": "invoice", "weight": 1.0},
+            {"pattern": "receipt", "weight": 0.9},
+            {"pattern": "vendor", "weight": 0.8}
+          ],
+          "target_directory": "Vendors/${YEAR}/${MONTH}"
+        }
+      }
+    }
+  
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 25
+  decision_timeout: 120
+  
+  # Email-specific settings
+  preserve_email_metadata: true
+  extract_sender_info: true
+  detect_attachment_type: true
+  create_sender_index: true
+
+---
+# Use Case 10: Temporary File Cleanup
+# Scenario: Clean up and organize temporary files and caches
+temporary_file_cleanup:
+  name: "Temporary File Cleanup"
+  description: "Clean up temporary files and organize by application and age"
+  
+  source_directory: "${TEMP_DIR}"
+  output_directory: "${TEMP_DIR}/Organized"
+  classification_rules: |
+    {
+      "categories": {
+        "browser_cache": {
+          "keywords": [
+            {"pattern": "cache", "weight": 1.0},
+            {"pattern": "browser", "weight": 0.9},
+            {"pattern": "chrome", "weight": 0.8},
+            {"pattern": "firefox", "weight": 0.8}
+          ],
+          "target_directory": "BrowserCache",
+          "auto_delete_days": 30
+        },
+        "application_temp": {
+          "keywords": [
+            {"pattern": "temp", "weight": 1.0},
+            {"pattern": "tmp", "weight": 1.0},
+            {"pattern": "temporary", "weight": 0.9}
+          ],
+          "target_directory": "ApplicationTemp",
+          "auto_delete_days": 7
+        },
+        "log_files": {
+          "keywords": [
+            {"pattern": "log", "weight": 1.0},
+            {"pattern": "debug", "weight": 0.8},
+            {"pattern": "trace", "weight": 0.7}
+          ],
+          "target_directory": "Logs/${YEAR}/${MONTH}",
+          "auto_delete_days": 90
+        }
+      }
+    }
+  
+  experimental_mode: true
+  enable_user_interaction: true
+  batch_size: 100
+  
+  # Cleanup-specific settings
+  check_file_age: true
+  safe_delete_mode: true
+  preserve_recent_files: true
+  create_cleanup_report: true
+
+# Usage Instructions:
+# 
+# 1. Copy the desired use case configuration to a new YAML file
+# 2. Adjust paths and settings for your environment
+# 3. Set required environment variables
+# 4. Run the workflow:
+#    cargo run -- workflow execute your-config.yaml
+# 
+# Environment Variables by Use Case:
+# 
+# Personal Desktop Cleanup:
+# - HOME: User home directory
+# 
+# Downloads Organization:
+# - HOME: User home directory
+# - YEAR: Current year (auto-detected if not set)
+# - MONTH: Current month (auto-detected if not set)
+# 
+# Project Archive:
+# - HOME: User home directory
+# - YEAR: Project completion year
+# 
+# Media Library:
+# - HOME: User home directory
+# - YEAR: Photo/video year (from EXIF if available)
+# 
+# Development Cleanup:
+# - HOME: User home directory
+# - STATUS: Project status (active, completed, archived)
+# 
+# Document Management:
+# - BUSINESS_DOCS_INPUT: Input directory for business documents
+# - BUSINESS_DOCS_OUTPUT: Output directory for organized documents
+# - YEAR: Document year
+# - QUARTER: Financial quarter (Q1, Q2, Q3, Q4)
+# 
+# Backup Organization:
+# - BACKUP_INPUT_DIR: Backup files input directory
+# - BACKUP_OUTPUT_DIR: Organized backup output directory
+# - YEAR: Backup year
+# - MONTH: Backup month
+# 
+# Research Papers:
+# - HOME: User home directory
+# - YEAR: Publication year
+# 
+# Email Attachments:
+# - HOME: User home directory
+# - YEAR: Email year
+# - MONTH: Email month
+# 
+# Temporary Cleanup:
+# - TEMP_DIR: Temporary files directory (usually /tmp or %TEMP%)
+# - YEAR: Current year
+# - MONTH: Current month
