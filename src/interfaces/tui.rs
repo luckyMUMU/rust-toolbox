@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::io;
+use std::collections::HashMap;
 
 // Ratatui and crossterm imports
 use ratatui::{
@@ -347,11 +348,65 @@ pub enum TaskStatus {
 /// Widget trait for TUI components
 #[async_trait]
 pub trait Widget: Send + Sync {
+    /// Render the widget to the given frame area
     async fn render(&mut self, frame: &mut Frame, area: Rect);
+    
+    /// Handle an event and return the resulting action
     async fn handle_event(&mut self, event: Event) -> Result<Action>;
+    
+    /// Update the widget state (called periodically)
     async fn update(&mut self) -> Result<()>;
+    
+    /// Get the widget title for display
     fn title(&self) -> &str;
+    
+    /// Get help text for keyboard shortcuts
     fn help_text(&self) -> Vec<(&str, &str)>; // (key, description)
+    
+    /// Initialize the widget (called once when registered)
+    async fn initialize(&mut self) -> Result<()> {
+        Ok(())
+    }
+    
+    /// Cleanup the widget (called when unregistering)
+    async fn cleanup(&mut self) -> Result<()> {
+        Ok(())
+    }
+    
+    /// Called when the widget becomes active (gains focus)
+    async fn on_activate(&mut self) -> Result<()> {
+        Ok(())
+    }
+    
+    /// Called when the widget becomes inactive (loses focus)
+    async fn on_deactivate(&mut self) -> Result<()> {
+        Ok(())
+    }
+    
+    /// Check if the widget can handle a specific event type
+    fn can_handle_event(&self, event: &Event) -> bool {
+        match event {
+            Event::Key(_) => true,
+            Event::Mouse(_) => false, // Default: no mouse support
+            Event::Resize(_, _) => true,
+            _ => false,
+        }
+    }
+    
+    /// Get the widget's preferred size constraints
+    fn size_constraints(&self) -> (Option<u16>, Option<u16>) {
+        (None, None) // (min_width, min_height)
+    }
+    
+    /// Check if the widget needs periodic updates
+    fn needs_update(&self) -> bool {
+        false
+    }
+    
+    /// Get the widget's update interval in milliseconds
+    fn update_interval(&self) -> u64 {
+        1000 // Default: 1 second
+    }
 }
 
 /// Information about a workflow for display
@@ -427,6 +482,12 @@ impl TuiApp {
     
     /// Run the TUI application main loop
     pub async fn run(&mut self) -> Result<()> {
+        // Initialize all widgets
+        self.router.initialize_widgets().await?;
+        
+        // Start periodic data refresh
+        self.state.start_periodic_refresh(Duration::from_secs(30)).await?;
+        
         // Start the event handling loop
         self.event_handler.start_event_loop().await?;
         
@@ -492,6 +553,9 @@ impl TuiApp {
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
         
+        // Cleanup widgets before exit
+        self.router.cleanup_widgets().await?;
+        
         Ok(())
     }
     
@@ -524,10 +588,14 @@ impl TuiApp {
         let header_style = self.theme.header_style();
         let status_bar_style = self.theme.status_bar_style();
         
-        // Get connection status before drawing
+        // Get data from state before drawing
         let rt = tokio::runtime::Handle::current();
-        let connection_status = rt.block_on(async {
-            self.state.connection_status().await
+        let (connection_status, data_freshness, breadcrumb, system_status) = rt.block_on(async {
+            let connection = self.state.connection_status().await;
+            let freshness = self.state.data_freshness_status().await;
+            let breadcrumb = self.router.get_breadcrumb();
+            let system = self.state.get_system_status().await;
+            (connection, freshness, breadcrumb, system)
         });
         
         self.terminal.draw(|frame| {
@@ -538,33 +606,74 @@ impl TuiApp {
                 .direction(Direction::Vertical)
                 .constraints([
                     Constraint::Length(3), // Header
+                    Constraint::Length(2), // Breadcrumb
                     Constraint::Min(0),    // Main content
                     Constraint::Length(3), // Status bar
                 ])
                 .split(size);
             
-            // Render header
-            let title = Paragraph::new("工作流工具包 TUI v1.0.0")
+            // Render header with system info
+            let header_text = format!(
+                "工作流工具包 TUI v1.0.0 | CPU: {:.1}% | 内存: {:.1}% | 活跃工作流: {}",
+                system_status.cpu_usage,
+                system_status.memory_usage,
+                system_status.active_workflows
+            );
+            let title = Paragraph::new(header_text)
                 .style(header_style)
                 .block(Block::default().borders(Borders::ALL));
             frame.render_widget(title, chunks[0]);
             
-            // Render main content (placeholder for now)
-            let content = Paragraph::new("TUI核心框架已建立\n\n使用F1-F6切换视图\nCtrl+Q退出")
-                .block(Block::default().borders(Borders::ALL).title("主内容区"));
-            frame.render_widget(content, chunks[1]);
+            // Render breadcrumb navigation
+            let breadcrumb_text = if breadcrumb.len() > 1 {
+                breadcrumb.join(" > ")
+            } else {
+                current_view_name.clone()
+            };
+            let breadcrumb_widget = Paragraph::new(breadcrumb_text)
+                .style(Style::default().fg(Color::Cyan))
+                .block(Block::default().borders(Borders::BOTTOM));
+            frame.render_widget(breadcrumb_widget, chunks[1]);
             
-            // Render status bar
+            // Render main content
+            if let Some(widget) = self.router.get_current_widget_mut() {
+                // Use async block to render widget
+                let rt = tokio::runtime::Handle::current();
+                let _ = rt.block_on(async {
+                    widget.render(frame, chunks[2]).await
+                });
+            } else {
+                // Fallback content when no widget is available
+                let content = Paragraph::new(format!(
+                    "TUI核心框架已建立\n\n当前视图: {}\n\n使用F1-F6切换视图\nCtrl+Q退出\n\n数据状态: {}\n连接状态: {}",
+                    current_view_name,
+                    data_freshness,
+                    connection_status
+                ))
+                .block(Block::default().borders(Borders::ALL).title("主内容区"))
+                .wrap(Wrap { trim: true });
+                frame.render_widget(content, chunks[2]);
+            }
+            
+            // Render enhanced status bar
             let status_text = format!(
-                "视图: {} | 快捷键: F1-F6切换视图, Ctrl+Q退出 | 状态: {}",
+                "视图: {} | 快捷键: F1-F6切换视图, Ctrl+Q退出 | 连接: {} | 数据: {} | 健康: {:?}",
                 current_view_name,
-                connection_status
+                connection_status,
+                data_freshness,
+                system_status.system_health
             );
             
+            let status_style = match system_status.system_health {
+                SystemHealth::Healthy => status_bar_style,
+                SystemHealth::Warning => status_bar_style.fg(Color::Yellow),
+                SystemHealth::Critical => status_bar_style.fg(Color::Red),
+            };
+            
             let status = Paragraph::new(status_text)
-                .style(status_bar_style)
+                .style(status_style)
                 .block(Block::default().borders(Borders::ALL));
-            frame.render_widget(status, chunks[2]);
+            frame.render_widget(status, chunks[3]);
         })?;
         
         Ok(())
@@ -591,23 +700,76 @@ impl Router {
         }
     }
     
+    /// Navigate to a specific view, managing the view stack
     pub fn navigate_to(&mut self, view: ViewType) {
         if view != self.current_view {
+            // Notify current widget it's being deactivated
+            if let Some(widget) = self.widgets.get_mut(&self.current_view) {
+                let _ = tokio::runtime::Handle::current().block_on(async {
+                    widget.on_deactivate().await
+                });
+            }
+            
             self.view_stack.push(self.current_view.clone());
-            self.current_view = view;
+            self.current_view = view.clone();
+            
+            // Notify new widget it's being activated
+            if let Some(widget) = self.widgets.get_mut(&view) {
+                let _ = tokio::runtime::Handle::current().block_on(async {
+                    widget.on_activate().await
+                });
+            }
+            
+            tracing::debug!("Navigated to view: {:?}", view);
         }
     }
     
+    /// Go back to the previous view in the stack
     pub fn go_back(&mut self) {
         if let Some(previous_view) = self.view_stack.pop() {
-            self.current_view = previous_view;
+            // Notify current widget it's being deactivated
+            if let Some(widget) = self.widgets.get_mut(&self.current_view) {
+                let _ = tokio::runtime::Handle::current().block_on(async {
+                    widget.on_deactivate().await
+                });
+            }
+            
+            self.current_view = previous_view.clone();
+            
+            // Notify previous widget it's being reactivated
+            if let Some(widget) = self.widgets.get_mut(&previous_view) {
+                let _ = tokio::runtime::Handle::current().block_on(async {
+                    widget.on_activate().await
+                });
+            }
+            
+            tracing::debug!("Went back to view: {:?}", previous_view);
         }
     }
     
+    /// Go forward in the view stack (if available)
+    pub fn go_forward(&mut self) {
+        // For now, forward navigation is not implemented
+        // This would require maintaining a forward stack as well
+        tracing::debug!("Forward navigation not implemented yet");
+    }
+    
+    /// Get the current widget mutably
     pub fn get_current_widget_mut(&mut self) -> Option<&mut Box<dyn Widget>> {
         self.widgets.get_mut(&self.current_view)
     }
     
+    /// Get the current widget immutably
+    pub fn get_current_widget(&self) -> Option<&Box<dyn Widget>> {
+        self.widgets.get(&self.current_view)
+    }
+    
+    /// Get the current view type
+    pub fn current_view(&self) -> &ViewType {
+        &self.current_view
+    }
+    
+    /// Get the current view name for display
     pub fn current_view_name(&self) -> &str {
         match self.current_view {
             ViewType::WorkflowList => "工作流列表",
@@ -619,8 +781,118 @@ impl Router {
         }
     }
     
+    /// Register a widget for a specific view type
     pub fn register_widget(&mut self, view_type: ViewType, widget: Box<dyn Widget>) {
+        tracing::debug!("Registered widget for view: {:?}", view_type);
         self.widgets.insert(view_type, widget);
+    }
+    
+    /// Unregister a widget for a specific view type
+    pub fn unregister_widget(&mut self, view_type: &ViewType) -> Option<Box<dyn Widget>> {
+        let widget = self.widgets.remove(view_type);
+        if widget.is_some() {
+            tracing::debug!("Unregistered widget for view: {:?}", view_type);
+        }
+        widget
+    }
+    
+    /// Check if a widget is registered for a view type
+    pub fn has_widget(&self, view_type: &ViewType) -> bool {
+        self.widgets.contains_key(view_type)
+    }
+    
+    /// Get the view stack depth
+    pub fn stack_depth(&self) -> usize {
+        self.view_stack.len()
+    }
+    
+    /// Check if we can go back
+    pub fn can_go_back(&self) -> bool {
+        !self.view_stack.is_empty()
+    }
+    
+    /// Get the previous view in the stack (without popping)
+    pub fn previous_view(&self) -> Option<&ViewType> {
+        self.view_stack.last()
+    }
+    
+    /// Clear the view stack
+    pub fn clear_stack(&mut self) {
+        self.view_stack.clear();
+        tracing::debug!("Cleared view stack");
+    }
+    
+    /// Get all registered view types
+    pub fn registered_views(&self) -> Vec<ViewType> {
+        self.widgets.keys().cloned().collect()
+    }
+    
+    /// Initialize all widgets
+    pub async fn initialize_widgets(&mut self) -> Result<()> {
+        for (view_type, widget) in &mut self.widgets {
+            widget.initialize().await.map_err(|e| {
+                tracing::error!("Failed to initialize widget for {:?}: {}", view_type, e);
+                e
+            })?;
+        }
+        tracing::info!("Initialized all widgets");
+        Ok(())
+    }
+    
+    /// Cleanup all widgets
+    pub async fn cleanup_widgets(&mut self) -> Result<()> {
+        for (view_type, widget) in &mut self.widgets {
+            widget.cleanup().await.map_err(|e| {
+                tracing::error!("Failed to cleanup widget for {:?}: {}", view_type, e);
+                e
+            })?;
+        }
+        tracing::info!("Cleaned up all widgets");
+        Ok(())
+    }
+    
+    /// Update the current widget
+    pub async fn update_current_widget(&mut self) -> Result<()> {
+        if let Some(widget) = self.widgets.get_mut(&self.current_view) {
+            widget.update().await?;
+        }
+        Ok(())
+    }
+    
+    /// Handle an event with the current widget
+    pub async fn handle_event_with_current_widget(&mut self, event: Event) -> Result<Action> {
+        if let Some(widget) = self.widgets.get_mut(&self.current_view) {
+            widget.handle_event(event).await
+        } else {
+            Ok(Action::None)
+        }
+    }
+    
+    /// Get breadcrumb navigation path
+    pub fn get_breadcrumb(&self) -> Vec<String> {
+        let mut breadcrumb = Vec::new();
+        
+        // Add all views in the stack
+        for view in &self.view_stack {
+            breadcrumb.push(self.view_type_to_name(view).to_string());
+        }
+        
+        // Add current view
+        breadcrumb.push(self.current_view_name().to_string());
+        
+        breadcrumb
+    }
+    
+    /// Convert view type to display name
+    fn view_type_to_name(&self, view_type: &ViewType) -> &str {
+        match view_type {
+            ViewType::WorkflowList => "工作流列表",
+            ViewType::ExecutionMonitor => "执行监控",
+            ViewType::ToolManager => "工具管理",
+            ViewType::PluginManager => "插件管理",
+            ViewType::SystemStatus => "系统状态",
+            ViewType::LogViewer => "日志查看器",
+        }
     }
 }
 
@@ -638,48 +910,64 @@ impl AppState {
         }
     }
     
+    /// Refresh all data from backend systems
     pub async fn refresh_all(&self) -> Result<()> {
-        // Concurrent refresh of all data
-        let (workflows_result, executions_result, tools_result, plugins_result, system_result) = tokio::join!(
+        tracing::info!("Starting full data refresh");
+        
+        // Update connection status to connecting
+        *self.connection_status.write().await = ConnectionStatus::Connecting;
+        
+        // Concurrent refresh of all data sources
+        let (workflows_result, executions_result, tools_result, plugins_result, system_result, logs_result) = tokio::join!(
             self.refresh_workflows(),
             self.refresh_executions(),
             self.refresh_tools(),
             self.refresh_plugins(),
-            self.refresh_system_status()
+            self.refresh_system_status(),
+            self.refresh_logs()
         );
         
-        workflows_result?;
-        executions_result?;
-        tools_result?;
-        plugins_result?;
-        system_result?;
+        // Check results and update connection status
+        let mut errors = Vec::new();
         
-        *self.last_update.write().await = chrono::Utc::now();
-        Ok(())
-    }
-    
-    pub async fn get_workflows(&self) -> Vec<WorkflowInfo> {
-        self.workflows.read().await.clone()
-    }
-    
-    pub async fn get_executions(&self) -> Vec<ExecutionInfo> {
-        self.executions.read().await.clone()
-    }
-    
-    pub async fn get_system_status(&self) -> SystemStatus {
-        self.system_status.read().await.clone()
-    }
-    
-    pub async fn connection_status(&self) -> String {
-        match &*self.connection_status.read().await {
-            ConnectionStatus::Connected => "已连接".to_string(),
-            ConnectionStatus::Connecting => "连接中...".to_string(),
-            ConnectionStatus::Disconnected => "未连接".to_string(),
-            ConnectionStatus::Error(err) => format!("错误: {}", err),
+        if let Err(e) = workflows_result {
+            errors.push(format!("workflows: {}", e));
+        }
+        if let Err(e) = executions_result {
+            errors.push(format!("executions: {}", e));
+        }
+        if let Err(e) = tools_result {
+            errors.push(format!("tools: {}", e));
+        }
+        if let Err(e) = plugins_result {
+            errors.push(format!("plugins: {}", e));
+        }
+        if let Err(e) = system_result {
+            errors.push(format!("system: {}", e));
+        }
+        if let Err(e) = logs_result {
+            errors.push(format!("logs: {}", e));
+        }
+        
+        if errors.is_empty() {
+            *self.connection_status.write().await = ConnectionStatus::Connected;
+            *self.last_update.write().await = chrono::Utc::now();
+            tracing::info!("Full data refresh completed successfully");
+            Ok(())
+        } else {
+            let error_msg = errors.join(", ");
+            *self.connection_status.write().await = ConnectionStatus::Error(error_msg.clone());
+            tracing::error!("Data refresh failed: {}", error_msg);
+            Err(crate::error::WorkflowError::ValidationError(
+                format!("Data refresh failed: {}", error_msg)
+            ))
         }
     }
     
-    async fn refresh_workflows(&self) -> Result<()> {
+    /// Refresh only workflows data
+    pub async fn refresh_workflows(&self) -> Result<()> {
+        tracing::debug!("Refreshing workflows data");
+        
         // Mock implementation - will be replaced with actual backend calls
         let workflows = vec![
             WorkflowInfo {
@@ -700,13 +988,26 @@ impl AppState {
                 execution_count: 142,
                 tags: vec!["监控".to_string(), "系统".to_string()],
             },
+            WorkflowInfo {
+                name: "文件备份".to_string(),
+                version: "1.2.1".to_string(),
+                description: Some("定期备份重要文件".to_string()),
+                status: WorkflowStatus::Completed,
+                last_execution: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
+                execution_count: 87,
+                tags: vec!["备份".to_string(), "文件".to_string()],
+            },
         ];
         
         *self.workflows.write().await = workflows;
+        tracing::debug!("Workflows data refreshed");
         Ok(())
     }
     
-    async fn refresh_executions(&self) -> Result<()> {
+    /// Refresh only executions data
+    pub async fn refresh_executions(&self) -> Result<()> {
+        tracing::debug!("Refreshing executions data");
+        
         // Mock implementation
         let executions = vec![
             ExecutionInfo {
@@ -726,39 +1027,411 @@ impl AppState {
                         completed_at: Some(chrono::Utc::now() - chrono::Duration::minutes(4)),
                         error: None,
                     },
+                    TaskInfo {
+                        name: "检查内存使用率".to_string(),
+                        status: TaskStatus::Completed,
+                        progress: 1.0,
+                        started_at: Some(chrono::Utc::now() - chrono::Duration::minutes(4)),
+                        completed_at: Some(chrono::Utc::now() - chrono::Duration::minutes(3)),
+                        error: None,
+                    },
+                    TaskInfo {
+                        name: "检查磁盘空间".to_string(),
+                        status: TaskStatus::Running,
+                        progress: 0.3,
+                        started_at: Some(chrono::Utc::now() - chrono::Duration::minutes(3)),
+                        completed_at: None,
+                        error: None,
+                    },
+                ],
+            },
+            ExecutionInfo {
+                id: "exec-002".to_string(),
+                workflow_name: "文件备份".to_string(),
+                status: ExecutionStatus::Completed,
+                started_at: chrono::Utc::now() - chrono::Duration::hours(1),
+                completed_at: Some(chrono::Utc::now() - chrono::Duration::minutes(45)),
+                progress: 1.0,
+                current_task: None,
+                tasks: vec![
+                    TaskInfo {
+                        name: "扫描文件".to_string(),
+                        status: TaskStatus::Completed,
+                        progress: 1.0,
+                        started_at: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
+                        completed_at: Some(chrono::Utc::now() - chrono::Duration::minutes(55)),
+                        error: None,
+                    },
+                    TaskInfo {
+                        name: "创建备份".to_string(),
+                        status: TaskStatus::Completed,
+                        progress: 1.0,
+                        started_at: Some(chrono::Utc::now() - chrono::Duration::minutes(55)),
+                        completed_at: Some(chrono::Utc::now() - chrono::Duration::minutes(45)),
+                        error: None,
+                    },
                 ],
             },
         ];
         
         *self.executions.write().await = executions;
+        tracing::debug!("Executions data refreshed");
         Ok(())
     }
     
-    async fn refresh_tools(&self) -> Result<()> {
-        // Mock implementation
+    /// Refresh only tools data
+    pub async fn refresh_tools(&self) -> Result<()> {
+        tracing::debug!("Refreshing tools data");
+        
+        // Mock implementation - will be replaced with actual tool registry calls
+        let tools = vec![
+            ToolInfo {
+                name: "文件分类器".to_string(),
+                version: "1.0.0".to_string(),
+                description: "自动分类文件的工具".to_string(),
+                plugin_name: Some("file_management".to_string()),
+                category: Some("文件管理".to_string()),
+                tags: vec!["分类".to_string(), "自动化".to_string()],
+                parameters_schema: serde_json::Value::Object(serde_json::Map::new()),
+                return_schema: serde_json::Value::Object(serde_json::Map::new()),
+                dependencies: Vec::new(),
+                version_requirements: HashMap::new(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            },
+            ToolInfo {
+                name: "批量处理器".to_string(),
+                version: "1.1.0".to_string(),
+                description: "批量处理文件的工具".to_string(),
+                plugin_name: Some("file_management".to_string()),
+                category: Some("文件管理".to_string()),
+                tags: vec!["批量".to_string(), "处理".to_string()],
+                parameters_schema: serde_json::Value::Object(serde_json::Map::new()),
+                return_schema: serde_json::Value::Object(serde_json::Map::new()),
+                dependencies: Vec::new(),
+                version_requirements: HashMap::new(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            },
+        ];
+        
+        *self.tools.write().await = tools;
+        tracing::debug!("Tools data refreshed");
         Ok(())
     }
     
-    async fn refresh_plugins(&self) -> Result<()> {
-        // Mock implementation
+    /// Refresh only plugins data
+    pub async fn refresh_plugins(&self) -> Result<()> {
+        tracing::debug!("Refreshing plugins data");
+        
+        // Mock implementation - will be replaced with actual plugin manager calls
+        let plugins = vec![
+            PluginInfo {
+                name: "file_management".to_string(),
+                version: "1.0.0".to_string(),
+                description: Some("文件管理插件".to_string()),
+                plugin_type: crate::core::PluginType::Native,
+                author: Some("Workflow Toolkit Team".to_string()),
+                metadata: std::collections::HashMap::new(),
+            },
+        ];
+        
+        *self.plugins.write().await = plugins;
+        tracing::debug!("Plugins data refreshed");
         Ok(())
     }
     
-    async fn refresh_system_status(&self) -> Result<()> {
-        // Mock implementation using system information
+    /// Refresh only system status data
+    pub async fn refresh_system_status(&self) -> Result<()> {
+        tracing::debug!("Refreshing system status data");
+        
+        // Use actual system information where possible
         let status = SystemStatus {
-            cpu_usage: 25.5,
-            memory_usage: 45.2,
-            memory_total: 16_000_000_000,
-            memory_used: 7_200_000_000,
-            active_workflows: self.executions.read().await.len() as u32,
-            system_health: SystemHealth::Healthy,
-            uptime: Duration::from_secs(86400), // 1 day
-            network_status: NetworkStatus::Connected,
+            cpu_usage: self.get_cpu_usage().await,
+            memory_usage: self.get_memory_usage().await,
+            memory_total: self.get_memory_total().await,
+            memory_used: self.get_memory_used().await,
+            active_workflows: self.executions.read().await.iter()
+                .filter(|e| matches!(e.status, ExecutionStatus::Running | ExecutionStatus::Pending))
+                .count() as u32,
+            system_health: self.calculate_system_health().await,
+            uptime: self.get_system_uptime().await,
+            network_status: self.check_network_status().await,
         };
         
         *self.system_status.write().await = status;
+        tracing::debug!("System status data refreshed");
         Ok(())
+    }
+    
+    /// Refresh only logs data
+    pub async fn refresh_logs(&self) -> Result<()> {
+        tracing::debug!("Refreshing logs data");
+        
+        // Mock implementation - will be replaced with actual log collection
+        let logs = vec![
+            LogEntry {
+                timestamp: chrono::Utc::now() - chrono::Duration::minutes(1),
+                level: LogLevel::Info,
+                message: "系统监控工作流已启动".to_string(),
+                source: Some("workflow_engine".to_string()),
+            },
+            LogEntry {
+                timestamp: chrono::Utc::now() - chrono::Duration::minutes(2),
+                level: LogLevel::Debug,
+                message: "检查CPU使用率: 25.5%".to_string(),
+                source: Some("system_monitor".to_string()),
+            },
+            LogEntry {
+                timestamp: chrono::Utc::now() - chrono::Duration::minutes(3),
+                level: LogLevel::Warn,
+                message: "内存使用率较高: 78.2%".to_string(),
+                source: Some("system_monitor".to_string()),
+            },
+        ];
+        
+        *self.logs.write().await = logs;
+        tracing::debug!("Logs data refreshed");
+        Ok(())
+    }
+    
+    // Getter methods for accessing data
+    
+    /// Get workflows data (cloned for thread safety)
+    pub async fn get_workflows(&self) -> Vec<WorkflowInfo> {
+        self.workflows.read().await.clone()
+    }
+    
+    /// Get executions data (cloned for thread safety)
+    pub async fn get_executions(&self) -> Vec<ExecutionInfo> {
+        self.executions.read().await.clone()
+    }
+    
+    /// Get tools data (cloned for thread safety)
+    pub async fn get_tools(&self) -> Vec<ToolInfo> {
+        self.tools.read().await.clone()
+    }
+    
+    /// Get plugins data (cloned for thread safety)
+    pub async fn get_plugins(&self) -> Vec<PluginInfo> {
+        self.plugins.read().await.clone()
+    }
+    
+    /// Get system status data (cloned for thread safety)
+    pub async fn get_system_status(&self) -> SystemStatus {
+        self.system_status.read().await.clone()
+    }
+    
+    /// Get logs data (cloned for thread safety)
+    pub async fn get_logs(&self) -> Vec<LogEntry> {
+        self.logs.read().await.clone()
+    }
+    
+    /// Get connection status as a display string
+    pub async fn connection_status(&self) -> String {
+        match &*self.connection_status.read().await {
+            ConnectionStatus::Connected => "已连接".to_string(),
+            ConnectionStatus::Connecting => "连接中...".to_string(),
+            ConnectionStatus::Disconnected => "未连接".to_string(),
+            ConnectionStatus::Error(err) => format!("错误: {}", err),
+        }
+    }
+    
+    /// Get the last update timestamp
+    pub async fn last_update(&self) -> DateTime<Utc> {
+        *self.last_update.read().await
+    }
+    
+    /// Get time since last update
+    pub async fn time_since_last_update(&self) -> chrono::Duration {
+        chrono::Utc::now() - *self.last_update.read().await
+    }
+    
+    // Data modification methods
+    
+    /// Add a new workflow
+    pub async fn add_workflow(&self, workflow: WorkflowInfo) -> Result<()> {
+        self.workflows.write().await.push(workflow);
+        tracing::debug!("Added new workflow");
+        Ok(())
+    }
+    
+    /// Update an existing workflow
+    pub async fn update_workflow(&self, name: &str, workflow: WorkflowInfo) -> Result<()> {
+        let mut workflows = self.workflows.write().await;
+        if let Some(existing) = workflows.iter_mut().find(|w| w.name == name) {
+            *existing = workflow;
+            tracing::debug!("Updated workflow: {}", name);
+            Ok(())
+        } else {
+            Err(crate::error::WorkflowError::ValidationError(
+                format!("Workflow not found: {}", name)
+            ))
+        }
+    }
+    
+    /// Remove a workflow
+    pub async fn remove_workflow(&self, name: &str) -> Result<()> {
+        let mut workflows = self.workflows.write().await;
+        let initial_len = workflows.len();
+        workflows.retain(|w| w.name != name);
+        
+        if workflows.len() < initial_len {
+            tracing::debug!("Removed workflow: {}", name);
+            Ok(())
+        } else {
+            Err(crate::error::WorkflowError::ValidationError(
+                format!("Workflow not found: {}", name)
+            ))
+        }
+    }
+    
+    /// Add a new execution
+    pub async fn add_execution(&self, execution: ExecutionInfo) -> Result<()> {
+        self.executions.write().await.push(execution);
+        tracing::debug!("Added new execution");
+        Ok(())
+    }
+    
+    /// Update an existing execution
+    pub async fn update_execution(&self, id: &str, execution: ExecutionInfo) -> Result<()> {
+        let mut executions = self.executions.write().await;
+        if let Some(existing) = executions.iter_mut().find(|e| e.id == id) {
+            *existing = execution;
+            tracing::debug!("Updated execution: {}", id);
+            Ok(())
+        } else {
+            Err(crate::error::WorkflowError::ValidationError(
+                format!("Execution not found: {}", id)
+            ))
+        }
+    }
+    
+    /// Add a log entry
+    pub async fn add_log_entry(&self, entry: LogEntry) -> Result<()> {
+        let mut logs = self.logs.write().await;
+        logs.push(entry);
+        
+        // Keep only the last 1000 log entries to prevent memory issues
+        if logs.len() > 1000 {
+            let excess = logs.len() - 1000;
+            logs.drain(0..excess);
+        }
+        
+        Ok(())
+    }
+    
+    /// Clear all logs
+    pub async fn clear_logs(&self) -> Result<()> {
+        self.logs.write().await.clear();
+        tracing::debug!("Cleared all logs");
+        Ok(())
+    }
+    
+    /// Set connection status
+    pub async fn set_connection_status(&self, status: ConnectionStatus) {
+        *self.connection_status.write().await = status;
+    }
+    
+    // Helper methods for system status
+    
+    async fn get_cpu_usage(&self) -> f64 {
+        // Mock implementation - would use sysinfo or similar
+        25.5
+    }
+    
+    async fn get_memory_usage(&self) -> f64 {
+        // Mock implementation
+        45.2
+    }
+    
+    async fn get_memory_total(&self) -> u64 {
+        // Mock implementation
+        16_000_000_000
+    }
+    
+    async fn get_memory_used(&self) -> u64 {
+        // Mock implementation
+        7_200_000_000
+    }
+    
+    async fn calculate_system_health(&self) -> SystemHealth {
+        let cpu = self.get_cpu_usage().await;
+        let memory = self.get_memory_usage().await;
+        
+        if cpu > 90.0 || memory > 90.0 {
+            SystemHealth::Critical
+        } else if cpu > 70.0 || memory > 70.0 {
+            SystemHealth::Warning
+        } else {
+            SystemHealth::Healthy
+        }
+    }
+    
+    async fn get_system_uptime(&self) -> Duration {
+        // Mock implementation
+        Duration::from_secs(86400) // 1 day
+    }
+    
+    async fn check_network_status(&self) -> NetworkStatus {
+        // Mock implementation - would check actual network connectivity
+        NetworkStatus::Connected
+    }
+    
+    /// Start periodic data refresh
+    pub async fn start_periodic_refresh(&self, interval: Duration) -> Result<()> {
+        let state = Arc::new(self.clone());
+        
+        tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(interval);
+            
+            loop {
+                interval_timer.tick().await;
+                
+                if let Err(e) = state.refresh_all().await {
+                    tracing::error!("Periodic refresh failed: {}", e);
+                }
+            }
+        });
+        
+        tracing::info!("Started periodic data refresh with interval: {:?}", interval);
+        Ok(())
+    }
+    
+    /// Check if data is stale (older than threshold)
+    pub async fn is_data_stale(&self, threshold: chrono::Duration) -> bool {
+        self.time_since_last_update().await > threshold
+    }
+    
+    /// Get data freshness status
+    pub async fn data_freshness_status(&self) -> String {
+        let time_since = self.time_since_last_update().await;
+        
+        if time_since < chrono::Duration::seconds(30) {
+            "最新".to_string()
+        } else if time_since < chrono::Duration::minutes(5) {
+            format!("{}秒前", time_since.num_seconds())
+        } else if time_since < chrono::Duration::hours(1) {
+            format!("{}分钟前", time_since.num_minutes())
+        } else {
+            format!("{}小时前", time_since.num_hours())
+        }
+    }
+}
+
+// Clone implementation for AppState to support Arc sharing
+impl Clone for AppState {
+    fn clone(&self) -> Self {
+        Self {
+            workflows: Arc::clone(&self.workflows),
+            executions: Arc::clone(&self.executions),
+            tools: Arc::clone(&self.tools),
+            plugins: Arc::clone(&self.plugins),
+            system_status: Arc::clone(&self.system_status),
+            logs: Arc::clone(&self.logs),
+            connection_status: Arc::clone(&self.connection_status),
+            last_update: Arc::clone(&self.last_update),
+        }
     }
 }
 
