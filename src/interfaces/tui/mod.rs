@@ -16,7 +16,7 @@ pub use layout::{LayoutManager, LayoutConstraints, LayoutDirection, LayoutNode};
 pub use theme::{Theme, ColorScheme, StyleScheme, ThemeManager};
 pub use event::{EventHandler, TuiEvent, EventResult};
 pub use action::{Action, ActionDispatcher, ActionResult};
-pub use widgets::WorkflowListWidget;
+pub use widgets::{WorkflowListWidget, ExecutionMonitorWidget};
 
 use crate::error::Result;
 use async_trait::async_trait;
