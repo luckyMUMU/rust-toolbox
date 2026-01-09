@@ -17,6 +17,9 @@ use ratatui::{
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
@@ -69,6 +72,17 @@ impl From<ExecutionLogEntry> for LogEntry {
     }
 }
 
+/// Export mode options
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExportMode {
+    /// Export all visible logs (filtered/searched)
+    All,
+    /// Export only the selected log entry
+    Selected,
+    /// Export logs within a date range
+    DateRange,
+}
+
 /// Log viewer state
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogViewerState {
@@ -78,8 +92,10 @@ pub enum LogViewerState {
     Search,
     /// Filter mode
     Filter,
-    /// Export mode
+    /// Export mode - choosing export options
     Export,
+    /// Export confirmation mode
+    ExportConfirm,
 }
 
 /// Log viewer widget implementation
@@ -112,6 +128,11 @@ pub struct LogViewerWidget {
     
     // Input handling
     input_buffer: String,
+    
+    // Export functionality
+    export_mode: ExportMode,
+    export_path: Option<PathBuf>,
+    last_export_path: Option<PathBuf>,
     
     // Performance tracking
     last_update: Instant,
@@ -159,6 +180,9 @@ impl LogViewerWidget {
             search_results: Vec::new(),
             current_search_index: 0,
             input_buffer: String::new(),
+            export_mode: ExportMode::All,
+            export_path: None,
+            last_export_path: None,
             last_update: Instant::now(),
             update_count: 0,
             log_receiver: None,
@@ -469,6 +493,65 @@ impl LogViewerWidget {
         }
     }
     
+    /// Start export mode
+    fn start_export(&mut self) {
+        self.state = LogViewerState::Export;
+        self.export_mode = ExportMode::All;
+    }
+    
+    /// Confirm export with current settings
+    async fn confirm_export(&mut self) -> Result<Option<Action>, WidgetError> {
+        let export_result = match self.export_mode {
+            ExportMode::All => {
+                self.export_logs(self.export_path.clone()).await
+            }
+            ExportMode::Selected => {
+                match self.export_selected_log(self.export_path.clone()).await? {
+                    Some(path) => Ok(path),
+                    None => return Ok(Some(Action::ShowError("没有选中的日志条目".to_string()))),
+                }
+            }
+            ExportMode::DateRange => {
+                // For now, treat as all logs - could be enhanced later
+                self.export_logs(self.export_path.clone()).await
+            }
+        };
+        
+        match export_result {
+            Ok(path) => {
+                self.last_export_path = Some(path.clone());
+                self.state = LogViewerState::Normal;
+                self.export_path = None;
+                Ok(Some(Action::Custom(
+                    "export_success".to_string(),
+                    serde_json::json!({
+                        "path": path.to_string_lossy(),
+                        "mode": format!("{:?}", self.export_mode)
+                    })
+                )))
+            }
+            Err(e) => {
+                self.state = LogViewerState::Normal;
+                Ok(Some(Action::ShowError(format!("导出失败: {}", e))))
+            }
+        }
+    }
+    
+    /// Cancel export mode
+    fn cancel_export(&mut self) {
+        self.state = LogViewerState::Normal;
+        self.export_path = None;
+    }
+    
+    /// Cycle through export modes
+    fn cycle_export_mode(&mut self) {
+        self.export_mode = match self.export_mode {
+            ExportMode::All => ExportMode::Selected,
+            ExportMode::Selected => ExportMode::DateRange,
+            ExportMode::DateRange => ExportMode::All,
+        };
+    }
+    
     /// Clear all logs
     fn clear_logs(&mut self) {
         self.logs.clear();
@@ -476,6 +559,221 @@ impl LogViewerWidget {
         self.search_results.clear();
         self.selected_index = 0;
         self.update_selection();
+    }
+    
+    /// Export logs to file
+    pub async fn export_logs(&self, export_path: Option<PathBuf>) -> Result<PathBuf, WidgetError> {
+        let export_path = export_path.unwrap_or_else(|| {
+            let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+            PathBuf::from(format!("logs_export_{}.txt", timestamp))
+        });
+        
+        // Collect logs to export (filtered logs if any filter is active)
+        let logs_to_export: Vec<&LogEntry> = if self.search_query.is_empty() {
+            self.filtered_logs.iter()
+                .filter_map(|&index| self.logs.get(index))
+                .collect()
+        } else {
+            self.search_results.iter()
+                .filter_map(|&result_index| {
+                    self.filtered_logs.get(result_index)
+                        .and_then(|&log_index| self.logs.get(log_index))
+                })
+                .collect()
+        };
+        
+        // Create export file
+        let mut file = File::create(&export_path)
+            .map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to create export file: {}", e) 
+            })?;
+        
+        // Write header with export metadata
+        writeln!(file, "# 日志导出文件").map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        writeln!(file, "# 导出时间: {}", Utc::now().format("%Y-%m-%d %H:%M:%S UTC")).map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        writeln!(file, "# 总日志条目: {}", self.logs.len()).map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        writeln!(file, "# 导出条目: {}", logs_to_export.len()).map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        
+        if let Some(ref level) = self.level_filter {
+            let level_name = match level {
+                LogLevel::Error => "错误",
+                LogLevel::Warn => "警告", 
+                LogLevel::Info => "信息",
+                LogLevel::Debug => "调试",
+                LogLevel::Trace => "跟踪",
+            };
+            writeln!(file, "# 级别过滤: {}+", level_name).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+        }
+        
+        if !self.search_query.is_empty() {
+            writeln!(file, "# 搜索查询: {}", self.search_query).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+        }
+        
+        writeln!(file, "#").map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        writeln!(file, "# 格式: [时间戳] [级别] [来源] 消息").map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        writeln!(file, "#").map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        writeln!(file).map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        
+        // Write log entries with enhanced metadata
+        for log in logs_to_export {
+            let level_name = match log.level {
+                LogLevel::Error => "ERROR",
+                LogLevel::Warn => "WARN ",
+                LogLevel::Info => "INFO ",
+                LogLevel::Debug => "DEBUG",
+                LogLevel::Trace => "TRACE",
+            };
+            
+            let source = log.source.as_deref().unwrap_or("unknown");
+            let timestamp = log.timestamp.format("%Y-%m-%d %H:%M:%S%.3f UTC");
+            
+            // Write main log line
+            writeln!(file, "[{}] [{}] [{}] {}", 
+                timestamp, level_name, source, log.message).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            
+            // Write additional metadata if available
+            if log.execution_id.is_some() || log.workflow_id.is_some() || log.node_id.is_some() {
+                write!(file, "    元数据:").map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to write to export file: {}", e) 
+                })?;
+                
+                if let Some(ref exec_id) = log.execution_id {
+                    write!(file, " 执行ID={}", exec_id).map_err(|e| WidgetError::StateError { 
+                        message: format!("Failed to write to export file: {}", e) 
+                    })?;
+                }
+                
+                if let Some(ref workflow_id) = log.workflow_id {
+                    write!(file, " 工作流ID={}", workflow_id).map_err(|e| WidgetError::StateError { 
+                        message: format!("Failed to write to export file: {}", e) 
+                    })?;
+                }
+                
+                if let Some(ref node_id) = log.node_id {
+                    write!(file, " 节点ID={}", node_id).map_err(|e| WidgetError::StateError { 
+                        message: format!("Failed to write to export file: {}", e) 
+                    })?;
+                }
+                
+                writeln!(file).map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to write to export file: {}", e) 
+                })?;
+            }
+            
+            writeln!(file).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?; // Empty line between entries
+        }
+        
+        // Write footer
+        writeln!(file, "# 导出完成: {}", Utc::now().format("%Y-%m-%d %H:%M:%S UTC")).map_err(|e| WidgetError::StateError { 
+            message: format!("Failed to write to export file: {}", e) 
+        })?;
+        
+        file.flush()
+            .map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to flush export file: {}", e) 
+            })?;
+        
+        Ok(export_path)
+    }
+    
+    /// Export selected log entry with full metadata
+    pub async fn export_selected_log(&self, export_path: Option<PathBuf>) -> Result<Option<PathBuf>, WidgetError> {
+        if let Some(selected_log) = self.selected_log() {
+            let export_path = export_path.unwrap_or_else(|| {
+                let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+                PathBuf::from(format!("log_entry_{}.txt", timestamp))
+            });
+            
+            let mut file = File::create(&export_path)
+                .map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to create export file: {}", e) 
+                })?;
+            
+            // Write detailed log entry with all metadata
+            writeln!(file, "# 单条日志导出").map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file, "# 导出时间: {}", Utc::now().format("%Y-%m-%d %H:%M:%S UTC")).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            
+            writeln!(file, "日志ID: {}", selected_log.id).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file, "时间戳: {}", selected_log.timestamp.format("%Y-%m-%d %H:%M:%S%.3f UTC")).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file, "级别: {:?}", selected_log.level).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file, "来源: {}", selected_log.source.as_deref().unwrap_or("unknown")).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            
+            if let Some(ref exec_id) = selected_log.execution_id {
+                writeln!(file, "执行ID: {}", exec_id).map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to write to export file: {}", e) 
+                })?;
+            }
+            
+            if let Some(ref workflow_id) = selected_log.workflow_id {
+                writeln!(file, "工作流ID: {}", workflow_id).map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to write to export file: {}", e) 
+                })?;
+            }
+            
+            if let Some(ref node_id) = selected_log.node_id {
+                writeln!(file, "节点ID: {}", node_id).map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to write to export file: {}", e) 
+                })?;
+            }
+            
+            writeln!(file).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file, "消息:").map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            writeln!(file, "{}", selected_log.message).map_err(|e| WidgetError::StateError { 
+                message: format!("Failed to write to export file: {}", e) 
+            })?;
+            
+            file.flush()
+                .map_err(|e| WidgetError::StateError { 
+                    message: format!("Failed to flush export file: {}", e) 
+                })?;
+            
+            Ok(Some(export_path))
+        } else {
+            Ok(None)
+        }
     }
     
     /// Get the currently selected log entry
@@ -509,7 +807,9 @@ impl LogViewerWidget {
             LogLevel::Trace => theme.styles.log_trace,
         };
         
+        // Enhanced timestamp display with more precision
         let timestamp = log.timestamp.format("%H:%M:%S%.3f").to_string();
+        let date = log.timestamp.format("%m-%d").to_string();
         let source = log.source.as_deref().unwrap_or("unknown");
         
         // Create message spans with search highlighting
@@ -527,22 +827,63 @@ impl LogViewerWidget {
             vec![Span::styled(format!("[{}]", source), theme.styles.text_dimmed)]
         };
         
-        let mut line_spans = vec![
+        // Main log line with enhanced metadata display
+        let mut main_line_spans = vec![
             Span::styled(level_symbol, level_style),
+            Span::raw(" "),
+            Span::styled(date, theme.styles.text_dimmed),
             Span::raw(" "),
             Span::styled(timestamp, theme.styles.text_dimmed),
             Span::raw(" "),
         ];
         
         // Add highlighted source spans
-        line_spans.extend(source_spans);
-        line_spans.push(Span::raw(" "));
+        main_line_spans.extend(source_spans);
+        main_line_spans.push(Span::raw(" "));
         
         // Add highlighted message spans
-        line_spans.extend(message_spans);
+        main_line_spans.extend(message_spans);
         
-        let content = vec![Line::from(line_spans)];
-        ListItem::new(content)
+        let mut content_lines = vec![Line::from(main_line_spans)];
+        
+        // Add metadata line if execution context is available
+        if log.execution_id.is_some() || log.workflow_id.is_some() || log.node_id.is_some() {
+            let mut metadata_spans = vec![
+                Span::raw("    "),
+                Span::styled("└─ ", theme.styles.text_dimmed),
+            ];
+            
+            let mut metadata_parts = Vec::new();
+            
+            if let Some(ref exec_id) = log.execution_id {
+                let short_id = if exec_id.len() > 8 { 
+                    format!("{}...", &exec_id[..8]) 
+                } else { 
+                    exec_id.clone() 
+                };
+                metadata_parts.push(format!("执行:{}", short_id));
+            }
+            
+            if let Some(ref workflow_id) = log.workflow_id {
+                let short_id = if workflow_id.len() > 12 { 
+                    format!("{}...", &workflow_id[..12]) 
+                } else { 
+                    workflow_id.clone() 
+                };
+                metadata_parts.push(format!("工作流:{}", short_id));
+            }
+            
+            if let Some(ref node_id) = log.node_id {
+                metadata_parts.push(format!("节点:{}", node_id));
+            }
+            
+            let metadata_text = metadata_parts.join(" | ");
+            metadata_spans.push(Span::styled(metadata_text, theme.styles.text_dimmed));
+            
+            content_lines.push(Line::from(metadata_spans));
+        }
+        
+        ListItem::new(content_lines)
     }
     
     /// Highlight search terms in text
@@ -740,6 +1081,95 @@ impl LogViewerWidget {
         frame.render_widget(help, chunks[1]);
     }
     
+    /// Render export overlay for export mode
+    fn render_export_overlay(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        if self.state != LogViewerState::Export {
+            return;
+        }
+        
+        let popup_area = self.centered_rect(70, 10, area);
+        
+        // Clear the area
+        frame.render_widget(Clear, popup_area);
+        
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Title
+                Constraint::Length(6), // Export options
+                Constraint::Length(1), // Help text
+            ])
+            .split(popup_area);
+        
+        // Title
+        let title = Paragraph::new("导出日志")
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("日志导出")
+                .border_style(theme.styles.widget_border_focused))
+            .style(theme.styles.text_normal);
+        
+        frame.render_widget(title, chunks[0]);
+        
+        // Export options
+        let export_options = vec![
+            Line::from(vec![
+                Span::styled(
+                    if matches!(self.export_mode, ExportMode::All) { "► " } else { "  " },
+                    theme.styles.list_item_selected
+                ),
+                Span::raw("导出所有可见日志 ("),
+                Span::styled(
+                    format!("{} 条", if self.search_query.is_empty() { 
+                        self.filtered_logs.len() 
+                    } else { 
+                        self.search_results.len() 
+                    }),
+                    theme.styles.text_dimmed
+                ),
+                Span::raw(")"),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    if matches!(self.export_mode, ExportMode::Selected) { "► " } else { "  " },
+                    theme.styles.list_item_selected
+                ),
+                Span::raw("导出选中的日志条目"),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    if matches!(self.export_mode, ExportMode::DateRange) { "► " } else { "  " },
+                    theme.styles.list_item_selected
+                ),
+                Span::raw("导出日期范围内的日志 (暂不可用)"),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("导出路径: "),
+                Span::styled(
+                    self.export_path.as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "自动生成".to_string()),
+                    theme.styles.text_dimmed
+                ),
+            ]),
+        ];
+        
+        let options = Paragraph::new(export_options)
+            .block(Block::default().borders(Borders::ALL))
+            .style(theme.styles.text_normal);
+        
+        frame.render_widget(options, chunks[1]);
+        
+        // Help text
+        let help_text = "↑/↓: 选择模式  Enter: 确认导出  Esc: 取消";
+        let help = Paragraph::new(help_text)
+            .style(theme.styles.text_dimmed)
+            .block(Block::default().borders(Borders::NONE));
+        
+        frame.render_widget(help, chunks[2]);
+    }
+    
     /// Create a centered rectangle
     fn centered_rect(&self, percent_x: u16, height: u16, r: Rect) -> Rect {
         let popup_layout = Layout::default()
@@ -824,6 +1254,9 @@ impl Widget for LogViewerWidget {
         // Render input overlay if in search mode
         self.render_input_overlay(frame, area, theme);
         
+        // Render export overlay if in export mode
+        self.render_export_overlay(frame, area, theme);
+        
         Ok(())
     }
     
@@ -876,6 +1309,16 @@ impl Widget for LogViewerWidget {
                 ("exec:id", "按执行ID过滤"),
                 ("workflow:id", "按工作流ID过滤"),
             ],
+            LogViewerState::Export => vec![
+                ("↑/↓", "选择导出模式"),
+                ("Enter", "确认导出"),
+                ("Esc", "取消导出"),
+                ("", ""),
+                ("导出模式:", ""),
+                ("全部", "导出所有可见日志"),
+                ("选中", "导出当前选中日志"),
+                ("范围", "按日期范围导出"),
+            ],
             _ => vec![
                 ("↑/↓", "上下导航"),
                 ("PgUp/PgDn", "翻页"),
@@ -913,6 +1356,26 @@ impl LogViewerWidget {
                     }
                     KeyCode::Char(c) => {
                         self.input_buffer.push(c);
+                        Ok(None)
+                    }
+                    _ => Ok(None),
+                }
+            }
+            LogViewerState::Export => {
+                match key_event.code {
+                    KeyCode::Enter => {
+                        self.confirm_export().await
+                    }
+                    KeyCode::Esc => {
+                        self.cancel_export();
+                        Ok(None)
+                    }
+                    KeyCode::Up => {
+                        self.cycle_export_mode();
+                        Ok(None)
+                    }
+                    KeyCode::Down => {
+                        self.cycle_export_mode();
                         Ok(None)
                     }
                     _ => Ok(None),
@@ -985,7 +1448,8 @@ impl LogViewerWidget {
                         Ok(None)
                     }
                     KeyCode::Char('e') => {
-                        Ok(Some(Action::ExportLogs))
+                        self.start_export();
+                        Ok(None)
                     }
                     KeyCode::Char('r') | KeyCode::F(5) => {
                         Ok(Some(Action::Refresh))
