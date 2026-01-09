@@ -2,7 +2,6 @@
 //! 
 //! This module defines the core Widget trait and related types for the TUI system.
 
-use crate::error::Result;
 use async_trait::async_trait;
 use ratatui::{Frame, layout::Rect};
 use ratatui::crossterm::event::Event;
@@ -10,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::time::{Duration, Instant};
-use chrono::{DateTime, Utc};
 
 use super::action::Action;
 use super::theme::Theme;
@@ -463,11 +461,11 @@ pub trait Widget: Send + Sync {
     }
     
     /// Validate the widget's current state
-    fn validate(&self) -> Result<(), WidgetError> {
+    fn validate(&self) -> std::result::Result<(), WidgetError> {
         match self.context().state {
-            WidgetState::Error(ref msg) => Err(WorkflowError::Other(
-                format!("Widget state error: {}", msg).into()
-            )),
+            WidgetState::Error(ref msg) => Err(WidgetError::StateError {
+                message: format!("Widget state error: {}", msg)
+            }),
             _ => Ok(()),
         }
     }
@@ -588,7 +586,7 @@ impl Widget for BaseWidget {
         self.update_frequency.clone()
     }
     
-    async fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) -> Result<(), WidgetError> {
+    async fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) -> std::result::Result<(), WidgetError> {
         use ratatui::widgets::{Block, Borders, Paragraph};
         use ratatui::text::Text;
         
@@ -611,7 +609,7 @@ impl Widget for BaseWidget {
         Ok(())
     }
     
-    async fn handle_event(&mut self, _event: Event) -> Result<Option<Action>, WidgetError> {
+    async fn handle_event(&mut self, _event: Event) -> std::result::Result<Option<Action>, WidgetError> {
         Ok(None)
     }
 }

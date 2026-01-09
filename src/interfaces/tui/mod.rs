@@ -8,6 +8,7 @@ pub mod layout;
 pub mod theme;
 pub mod event;
 pub mod action;
+pub mod widgets;
 
 // Re-export public types
 pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
@@ -15,6 +16,7 @@ pub use layout::{LayoutManager, LayoutConstraints, LayoutDirection, LayoutNode};
 pub use theme::{Theme, ColorScheme, StyleScheme, ThemeManager};
 pub use event::{EventHandler, TuiEvent, EventResult};
 pub use action::{Action, ActionDispatcher, ActionResult};
+pub use widgets::WorkflowListWidget;
 
 use crate::error::Result;
 use async_trait::async_trait;
