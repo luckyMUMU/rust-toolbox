@@ -168,7 +168,7 @@
     - **验证需求: 需求 3.4**
 
 - [ ] 9. 实现LogViewerWidget
-  - [-] 9.1 实现LogViewerWidget基础功能
+  - [x] 9.1 实现LogViewerWidget基础功能
     - 日志流显示和自动滚动
     - 手动导航和滚动控制
     - _需求: 6.1, 6.4_
