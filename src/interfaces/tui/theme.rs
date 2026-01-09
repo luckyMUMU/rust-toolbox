@@ -103,6 +103,10 @@ pub struct StyleScheme {
     pub log_info: Style,
     pub log_debug: Style,
     pub log_trace: Style,
+    
+    // Search and filter styles
+    pub search_highlight: Style,
+    pub filter_active: Style,
 }
 
 impl Theme {
@@ -427,6 +431,15 @@ impl StyleScheme {
                 .fg(colors.text_secondary),
             log_trace: Style::default()
                 .fg(colors.text_disabled),
+            
+            // Search and filter styles
+            search_highlight: Style::default()
+                .fg(colors.background)
+                .bg(colors.accent)
+                .add_modifier(Modifier::BOLD),
+            filter_active: Style::default()
+                .fg(colors.accent)
+                .add_modifier(Modifier::BOLD),
         }
     }
 }

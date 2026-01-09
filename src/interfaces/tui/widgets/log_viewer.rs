@@ -209,32 +209,109 @@ impl LogViewerWidget {
         self.update_selection();
     }
     
-    /// Check if log level matches filter
+    /// Check if log level matches filter (hierarchical filtering)
     fn level_matches(&self, filter: &LogLevel, log_level: &LogLevel) -> bool {
-        match filter {
-            LogLevel::Error => matches!(log_level, LogLevel::Error),
-            LogLevel::Warn => matches!(log_level, LogLevel::Error | LogLevel::Warn),
-            LogLevel::Info => matches!(log_level, LogLevel::Error | LogLevel::Warn | LogLevel::Info),
-            LogLevel::Debug => matches!(log_level, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug),
-            LogLevel::Trace => true, // Show all levels
-        }
+        use LogLevel::*;
+        
+        let filter_priority = match filter {
+            Error => 4,
+            Warn => 3,
+            Info => 2,
+            Debug => 1,
+            Trace => 0,
+        };
+        
+        let log_priority = match log_level {
+            Error => 4,
+            Warn => 3,
+            Info => 2,
+            Debug => 1,
+            Trace => 0,
+        };
+        
+        // Show logs at the filter level and above (higher priority)
+        log_priority >= filter_priority
     }
     
-    /// Apply search filter
+    /// Apply search filter with enhanced search capabilities
     fn apply_search(&mut self) {
         self.search_results.clear();
+        
+        if self.search_query.is_empty() {
+            return;
+        }
+        
         let query = self.search_query.to_lowercase();
+        
+        // Support for advanced search syntax
+        let (search_terms, source_filter, execution_filter) = self.parse_search_query(&query);
         
         for (result_index, &log_index) in self.filtered_logs.iter().enumerate() {
             if let Some(log) = self.logs.get(log_index) {
-                if log.message.to_lowercase().contains(&query) ||
-                   log.source.as_ref().map_or(false, |s| s.to_lowercase().contains(&query)) {
+                let mut matches = false;
+                
+                // Check message content
+                if search_terms.iter().any(|term| log.message.to_lowercase().contains(term)) {
+                    matches = true;
+                }
+                
+                // Check source filter
+                if let Some(ref source_term) = source_filter {
+                    if log.source.as_ref().map_or(false, |s| s.to_lowercase().contains(source_term)) {
+                        matches = true;
+                    } else if !search_terms.is_empty() {
+                        matches = false; // Source filter is restrictive
+                    }
+                }
+                
+                // Check execution filter
+                if let Some(ref exec_term) = execution_filter {
+                    if log.execution_id.as_ref().map_or(false, |id| id.to_lowercase().contains(exec_term)) ||
+                       log.workflow_id.as_ref().map_or(false, |id| id.to_lowercase().contains(exec_term)) {
+                        matches = true;
+                    } else if !search_terms.is_empty() {
+                        matches = false; // Execution filter is restrictive
+                    }
+                }
+                
+                // Check source in general search if no specific filters
+                if source_filter.is_none() && execution_filter.is_none() {
+                    if log.source.as_ref().map_or(false, |s| s.to_lowercase().contains(&query)) {
+                        matches = true;
+                    }
+                }
+                
+                if matches {
                     self.search_results.push(result_index);
                 }
             }
         }
         
         self.current_search_index = 0;
+    }
+    
+    /// Parse search query for advanced syntax
+    /// Supports: source:term, exec:term, workflow:term
+    fn parse_search_query(&self, query: &str) -> (Vec<String>, Option<String>, Option<String>) {
+        let mut search_terms = Vec::new();
+        let mut source_filter = None;
+        let mut execution_filter = None;
+        
+        let parts: Vec<&str> = query.split_whitespace().collect();
+        
+        for part in parts {
+            if let Some(source_term) = part.strip_prefix("source:") {
+                source_filter = Some(source_term.to_string());
+            } else if let Some(exec_term) = part.strip_prefix("exec:") {
+                execution_filter = Some(exec_term.to_string());
+            } else if let Some(workflow_term) = part.strip_prefix("workflow:") {
+                execution_filter = Some(workflow_term.to_string());
+            } else {
+                search_terms.push(part.to_string());
+            }
+        }
+        
+        (search_terms, source_filter, execution_filter)
     }
     
     /// Update selection and scroll state
@@ -435,28 +512,84 @@ impl LogViewerWidget {
         let timestamp = log.timestamp.format("%H:%M:%S%.3f").to_string();
         let source = log.source.as_deref().unwrap_or("unknown");
         
-        // Highlight search terms if searching
-        let message = if !search_query.is_empty() && 
-                         log.message.to_lowercase().contains(&search_query.to_lowercase()) {
-            // Simple highlighting - in a real implementation, you'd want more sophisticated highlighting
-            log.message.clone()
+        // Create message spans with search highlighting
+        let message_spans = if !search_query.is_empty() {
+            Self::highlight_search_terms(&log.message, search_query, theme)
         } else {
-            log.message.clone()
+            vec![Span::styled(log.message.clone(), theme.styles.text_normal)]
         };
         
-        let content = vec![
-            Line::from(vec![
-                Span::styled(level_symbol, level_style),
-                Span::raw(" "),
-                Span::styled(timestamp, theme.styles.text_dimmed),
-                Span::raw(" "),
-                Span::styled(format!("[{}]", source), theme.styles.text_dimmed),
-                Span::raw(" "),
-                Span::styled(message, theme.styles.text_normal),
-            ]),
+        // Create source spans with search highlighting
+        let source_spans = if !search_query.is_empty() && 
+                              log.source.as_ref().map_or(false, |s| s.to_lowercase().contains(&search_query.to_lowercase())) {
+            Self::highlight_search_terms(source, search_query, theme)
+        } else {
+            vec![Span::styled(format!("[{}]", source), theme.styles.text_dimmed)]
+        };
+        
+        let mut line_spans = vec![
+            Span::styled(level_symbol, level_style),
+            Span::raw(" "),
+            Span::styled(timestamp, theme.styles.text_dimmed),
+            Span::raw(" "),
         ];
         
+        // Add highlighted source spans
+        line_spans.extend(source_spans);
+        line_spans.push(Span::raw(" "));
+        
+        // Add highlighted message spans
+        line_spans.extend(message_spans);
+        
+        let content = vec![Line::from(line_spans)];
         ListItem::new(content)
+    }
+    
+    /// Highlight search terms in text
+    fn highlight_search_terms<'a>(text: &'a str, search_query: &str, theme: &'a Theme) -> Vec<Span<'a>> {
+        if search_query.is_empty() {
+            return vec![Span::styled(text.to_string(), theme.styles.text_normal)];
+        }
+        
+        let mut spans = Vec::new();
+        let text_lower = text.to_lowercase();
+        let query_lower = search_query.to_lowercase();
+        let mut last_end = 0;
+        
+        // Find all occurrences of the search term (case-insensitive)
+        for (start, _) in text_lower.match_indices(&query_lower) {
+            // Add text before the match
+            if start > last_end {
+                spans.push(Span::styled(
+                    text[last_end..start].to_string(),
+                    theme.styles.text_normal
+                ));
+            }
+            
+            // Add the highlighted match
+            let end = start + search_query.len();
+            spans.push(Span::styled(
+                text[start..end].to_string(),
+                theme.styles.search_highlight
+            ));
+            
+            last_end = end;
+        }
+        
+        // Add remaining text after the last match
+        if last_end < text.len() {
+            spans.push(Span::styled(
+                text[last_end..].to_string(),
+                theme.styles.text_normal
+            ));
+        }
+        
+        // If no matches found, return the original text
+        if spans.is_empty() {
+            spans.push(Span::styled(text.to_string(), theme.styles.text_normal));
+        }
+        
+        spans
     }
     
     /// Format log entry for display
@@ -536,18 +669,27 @@ impl LogViewerWidget {
         };
         title.push_str(&format!(" ({}/{})", visible_count, self.logs.len()));
         
-        // Add filter status
+        // Add filter status with level name
         if let Some(ref level) = self.level_filter {
-            title.push_str(&format!(" [过滤: {:?}]", level));
+            let level_name = match level {
+                LogLevel::Error => "错误",
+                LogLevel::Warn => "警告",
+                LogLevel::Info => "信息", 
+                LogLevel::Debug => "调试",
+                LogLevel::Trace => "跟踪",
+            };
+            title.push_str(&format!(" [过滤: {}+]", level_name));
         }
         
-        // Add search status
+        // Add search status with advanced syntax info
         if !self.search_query.is_empty() {
             title.push_str(&format!(" [搜索: {}]", self.search_query));
             if !self.search_results.is_empty() {
                 title.push_str(&format!(" ({}/{})", 
                     self.current_search_index + 1, 
                     self.search_results.len()));
+            } else {
+                title.push_str(" (无结果)");
             }
         }
         
@@ -565,11 +707,20 @@ impl LogViewerWidget {
             return;
         }
         
-        let popup_area = self.centered_rect(60, 3, area);
+        let popup_area = self.centered_rect(80, 5, area);
         
         // Clear the area
         frame.render_widget(Clear, popup_area);
         
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Input field
+                Constraint::Length(2), // Help text
+            ])
+            .split(popup_area);
+        
+        // Input field
         let input_text = format!("搜索: {}", self.input_buffer);
         let input = Paragraph::new(input_text)
             .block(Block::default()
@@ -578,7 +729,15 @@ impl LogViewerWidget {
                 .border_style(theme.styles.widget_border_focused))
             .style(theme.styles.text_normal);
         
-        frame.render_widget(input, popup_area);
+        frame.render_widget(input, chunks[0]);
+        
+        // Help text
+        let help_text = "语法: text source:name exec:id workflow:id";
+        let help = Paragraph::new(help_text)
+            .style(theme.styles.text_dimmed)
+            .block(Block::default().borders(Borders::NONE));
+        
+        frame.render_widget(help, chunks[1]);
     }
     
     /// Create a centered rectangle
@@ -710,18 +869,25 @@ impl Widget for LogViewerWidget {
                 ("Enter", "确认搜索"),
                 ("Esc", "取消搜索"),
                 ("Backspace", "删除字符"),
+                ("", ""),
+                ("搜索语法:", ""),
+                ("text", "搜索消息内容"),
+                ("source:name", "按来源过滤"),
+                ("exec:id", "按执行ID过滤"),
+                ("workflow:id", "按工作流ID过滤"),
             ],
             _ => vec![
                 ("↑/↓", "上下导航"),
                 ("PgUp/PgDn", "翻页"),
                 ("Home/End", "首页/末页"),
-                ("/", "搜索"),
+                ("/", "搜索 (支持高级语法)"),
                 ("n/N", "下一个/上一个搜索结果"),
-                ("f", "过滤级别"),
+                ("f", "循环过滤级别 (ERROR→WARN→INFO→DEBUG→TRACE→ALL)"),
                 ("c", "清除日志"),
                 ("a", "切换自动滚动"),
                 ("e", "导出日志"),
                 ("Esc", "清除搜索/过滤"),
+                ("r/F5", "刷新"),
             ],
         }
     }
