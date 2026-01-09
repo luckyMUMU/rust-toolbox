@@ -8,5 +8,5 @@ pub mod mcp;
 mod mcp_test;
 
 pub use cli::CliInterface;
-pub use tui::TuiInterface;
+pub use tui::{TuiInterface, TuiApp, Widget, WidgetRegistry, LayoutManager, Theme, ThemeManager};
 pub use mcp::McpServer;

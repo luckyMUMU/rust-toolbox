@@ -2,6 +2,22 @@
 //! 
 //! This module provides the TUI (Terminal User Interface) implementation
 //! for the workflow toolkit using ratatui and crossterm.
+//! 
+//! This module now includes the enhanced Widget system with proper layout management,
+//! theme support, and event handling.
+
+pub mod widget;
+pub mod layout;
+pub mod theme;
+pub mod event;
+pub mod action;
+
+// Re-export the new widget system
+pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
+pub use layout::{LayoutManager, LayoutConstraints, LayoutDirection, LayoutNode};
+pub use theme::{Theme, ColorScheme, StyleScheme, ThemeManager};
+pub use event::{EventHandler, TuiEvent, EventResult};
+pub use action::{Action, ActionDispatcher, ActionResult};
 
 use crate::error::Result;
 use crate::workflow::WorkflowExecution;
@@ -33,14 +49,15 @@ use ratatui::{
     Frame, Terminal,
 };
 use tokio::sync::mpsc;
-use async_trait::async_trait;
+use super::tui::{WidgetRegistry, ThemeManager, EventHandler, ActionDispatcher};
 
-/// Main TUI application structure with ratatui integration
+/// Main TUI application structure with enhanced widget system
 pub struct TuiApp {
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    widget_registry: super::tui::WidgetRegistry,
     router: Router,
     state: AppState,
-    theme: Theme,
+    theme_manager: ThemeManager,
     event_handler: EventHandler,
     action_dispatcher: ActionDispatcher,
     should_quit: bool,
@@ -470,9 +487,10 @@ impl TuiApp {
         
         Ok(Self {
             terminal,
+            widget_registry: WidgetRegistry::new(),
             router: Router::new(),
             state: AppState::new(),
-            theme: Theme::default(),
+            theme_manager: ThemeManager::new(),
             event_handler: EventHandler::new(),
             action_dispatcher: ActionDispatcher::new(),
             should_quit: false,
@@ -482,8 +500,8 @@ impl TuiApp {
     
     /// Run the TUI application main loop
     pub async fn run(&mut self) -> Result<()> {
-        // Initialize all widgets
-        self.router.initialize_widgets().await?;
+        // Initialize widget registry
+        self.widget_registry.initialize_all().await?;
         
         // Start periodic data refresh
         self.state.start_periodic_refresh(Duration::from_secs(30)).await?;
@@ -553,8 +571,8 @@ impl TuiApp {
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
         
-        // Cleanup widgets before exit
-        self.router.cleanup_widgets().await?;
+        // Cleanup widget registry before exit
+        self.widget_registry.cleanup_all().await?;
         
         Ok(())
     }
@@ -585,8 +603,14 @@ impl TuiApp {
     
     fn render(&mut self) -> Result<()> {
         let current_view_name = self.router.current_view_name().to_string();
-        let header_style = self.theme.header_style();
-        let status_bar_style = self.theme.status_bar_style();
+        
+        // Get current theme
+        let theme = self.theme_manager.current_theme()
+            .unwrap_or(&Theme::default())
+            .clone();
+        
+        let header_style = theme.styles.header;
+        let status_bar_style = theme.styles.status_bar;
         
         // Get data from state before drawing
         let rt = tokio::runtime::Handle::current();
