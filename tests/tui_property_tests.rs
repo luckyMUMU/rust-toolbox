@@ -4,7 +4,8 @@
 //! for the TUI system using property-based testing with proptest.
 
 use proptest::prelude::*;
-use workflow_toolkit::interfaces::tui::{Theme, ViewType};
+use workflow_toolkit::interfaces::tui::{Theme};
+use workflow_toolkit::interfaces::tui::action::ViewType;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
 };

@@ -152,7 +152,7 @@ impl LayoutManager {
     }
     
     /// Set the root layout node
-    pub fn set_root_node(&mut self, node: LayoutNode) -> Result<(), LayoutError> {
+    pub fn set_root_node(&mut self, node: LayoutNode) -> std::result::Result<(), LayoutError> {
         self.validate_layout_node(&node)?;
         self.root_node = Some(node);
         self.clear_cache();
@@ -165,7 +165,7 @@ impl LayoutManager {
     }
     
     /// Update terminal size and recalculate layouts
-    pub fn update_terminal_size(&mut self, width: u16, height: u16) -> Result<(), LayoutError> {
+    pub fn update_terminal_size(&mut self, width: u16, height: u16) -> std::result::Result<(), LayoutError> {
         if width < self.min_terminal_size.0 || height < self.min_terminal_size.1 {
             return Err(LayoutError::TerminalTooSmall {
                 min_width: self.min_terminal_size.0,
@@ -187,7 +187,7 @@ impl LayoutManager {
     }
     
     /// Calculate layout for the current terminal size
-    pub fn calculate_layout(&mut self) -> Result<LayoutResult, LayoutError> {
+    pub fn calculate_layout(&mut self) -> std::result::Result<LayoutResult, LayoutError> {
         let cache_key = format!("{}x{}", self.terminal_size.0, self.terminal_size.1);
         
         // Check cache first
@@ -244,7 +244,7 @@ impl LayoutManager {
         widget_areas: &mut HashMap<WidgetId, Rect>,
         overflow_widgets: &mut Vec<WidgetId>,
         hidden_widgets: &mut Vec<WidgetId>,
-    ) -> Result<(), LayoutError> {
+    ) -> std::result::Result<(), LayoutError> {
         if !node.is_visible {
             if let Some(ref widget_id) = node.widget_id {
                 hidden_widgets.push(widget_id.clone());
