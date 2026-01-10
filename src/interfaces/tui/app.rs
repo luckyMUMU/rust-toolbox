@@ -6,6 +6,7 @@
 use crate::error::Result;
 use crate::interfaces::tui::{
     Widget, WidgetId, Theme, ThemeManager, EventHandler, ActionDispatcher,
+    FocusManager, FocusCapability, HelpSystem, NavigationStack, EscKeyBehavior, NavigationTrigger,
     widgets::{
         WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, 
         ToolManagerWidget, PluginManagerWidget, SystemStatusWidget
@@ -42,13 +43,17 @@ pub struct TuiApp {
     theme_manager: ThemeManager,
     event_handler: EventHandler,
     action_dispatcher: ActionDispatcher,
+    focus_manager: FocusManager,
+    help_system: HelpSystem,
+    navigation_stack: NavigationStack,
+    esc_behavior: EscKeyBehavior,
     pub should_quit: bool,
     tick_rate: Duration,
 }
 
 /// Router for managing view navigation and Widget lifecycle
 pub struct Router {
-    current_view: ViewType,
+    pub current_view: ViewType,
     view_stack: Vec<ViewType>,
     widgets: HashMap<ViewType, Box<dyn Widget>>,
 }
@@ -73,7 +78,8 @@ impl TuiApp {
         
         // Register all widgets with shared state
         router.register_widget(ViewType::WorkflowList, Box::new(WorkflowListWidget::new()));
-        router.register_widget(ViewType::ExecutionMonitor, Box::new(ExecutionMonitorWidget::new()));
+        // TODO: Fix ExecutionMonitorWidget Widget trait implementation
+        // router.register_widget(ViewType::ExecutionMonitor, Box::new(ExecutionMonitorWidget::new()));
         router.register_widget(ViewType::LogViewer, Box::new(LogViewerWidget::new()));
         router.register_widget(ViewType::ToolManager, Box::new(ToolManagerWidget::new()));
         router.register_widget(ViewType::PluginManager, Box::new(PluginManagerWidget::new()));
@@ -82,6 +88,20 @@ impl TuiApp {
         // Initialize all widgets
         router.initialize_widgets().await?;
         
+        // Set up focus management
+        let mut focus_manager = FocusManager::new();
+        Self::setup_focus_orders(&mut focus_manager);
+        
+        // Set up help system
+        let help_system = HelpSystem::new();
+        
+        // Set up navigation stack
+        let mut navigation_stack = NavigationStack::new();
+        navigation_stack.push_state(ViewType::WorkflowList, NavigationTrigger::Startup)?;
+        
+        // Set up Esc key behavior
+        let esc_behavior = EscKeyBehavior::default();
+        
         Ok(Self {
             terminal,
             router,
@@ -89,6 +109,10 @@ impl TuiApp {
             theme_manager: ThemeManager::new(),
             event_handler: EventHandler::new(),
             action_dispatcher: ActionDispatcher::new(),
+            focus_manager,
+            help_system,
+            navigation_stack,
+            esc_behavior,
             should_quit: false,
             tick_rate: Duration::from_millis(16), // 60 FPS
         })
@@ -97,6 +121,73 @@ impl TuiApp {
     /// Get shared state for widgets
     pub fn shared_state(&self) -> Arc<SharedAppState> {
         Arc::clone(&self.shared_state)
+    }
+    
+    /// Setup focus orders for all views
+    fn setup_focus_orders(focus_manager: &mut FocusManager) {
+        // Register focusable widgets
+        focus_manager.register_focusable_widget(
+            WidgetId::from("workflow_list"),
+            FocusCapability::new().with_priority(1)
+        );
+        focus_manager.register_focusable_widget(
+            WidgetId::from("execution_monitor"),
+            FocusCapability::new().with_priority(1)
+        );
+        focus_manager.register_focusable_widget(
+            WidgetId::from("tool_manager"),
+            FocusCapability::new().with_priority(1)
+        );
+        focus_manager.register_focusable_widget(
+            WidgetId::from("plugin_manager"),
+            FocusCapability::new().with_priority(1)
+        );
+        focus_manager.register_focusable_widget(
+            WidgetId::from("system_status"),
+            FocusCapability::new().with_priority(1)
+        );
+        focus_manager.register_focusable_widget(
+            WidgetId::from("log_viewer"),
+            FocusCapability::new().with_priority(1)
+        );
+        
+        // Set focus orders for each view
+        focus_manager.set_focus_order(
+            ViewType::WorkflowList,
+            vec![WidgetId::from("workflow_list")]
+        );
+        focus_manager.set_focus_order(
+            ViewType::ExecutionMonitor,
+            vec![WidgetId::from("execution_monitor")]
+        );
+        focus_manager.set_focus_order(
+            ViewType::ToolManager,
+            vec![WidgetId::from("tool_manager")]
+        );
+        focus_manager.set_focus_order(
+            ViewType::PluginManager,
+            vec![WidgetId::from("plugin_manager")]
+        );
+        focus_manager.set_focus_order(
+            ViewType::SystemStatus,
+            vec![WidgetId::from("system_status")]
+        );
+        focus_manager.set_focus_order(
+            ViewType::LogViewer,
+            vec![WidgetId::from("log_viewer")]
+        );
+    }
+    
+    /// Get default focus widget for a view
+    fn get_default_focus_for_view(&self, view: &ViewType) -> Option<WidgetId> {
+        match view {
+            ViewType::WorkflowList => Some(WidgetId::from("workflow_list")),
+            ViewType::ExecutionMonitor => Some(WidgetId::from("execution_monitor")),
+            ViewType::ToolManager => Some(WidgetId::from("tool_manager")),
+            ViewType::PluginManager => Some(WidgetId::from("plugin_manager")),
+            ViewType::SystemStatus => Some(WidgetId::from("system_status")),
+            ViewType::LogViewer => Some(WidgetId::from("log_viewer")),
+        }
     }
     
     /// Run the TUI application main loop
@@ -415,6 +506,23 @@ impl TuiApp {
     
     /// Handle keyboard events
     async fn handle_key_event(&mut self, key: event::KeyEvent) -> Result<Action> {
+        // First, try help system
+        if let Some(action) = self.help_system.handle_key_event(key)? {
+            return Ok(action);
+        }
+        
+        // Handle Esc key with navigation stack
+        if key.code == KeyCode::Esc {
+            if let Some(action) = self.navigation_stack.handle_esc_key(&self.esc_behavior)? {
+                return Ok(action);
+            }
+        }
+        
+        // Then, try focus navigation
+        if let Some(action) = self.focus_manager.handle_navigation_key(key, &self.router.current_view)? {
+            return Ok(action);
+        }
+        
         // Global shortcuts
         match key.code {
             KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -447,11 +555,68 @@ impl TuiApp {
             }
             Action::Navigate(view) => {
                 tracing::debug!("Navigating to view: {:?}", view);
-                self.router.navigate_to(view);
+                
+                // Update navigation stack
+                self.navigation_stack.push_state(view.clone(), NavigationTrigger::UserInitiated)?;
+                
+                // Update router
+                self.router.navigate_to(view.clone());
+                
+                // Update focus when changing views
+                if let Some(focused_widget) = self.get_default_focus_for_view(&view) {
+                    let _ = self.focus_manager.set_focus(
+                        Some(focused_widget), 
+                        crate::interfaces::tui::focus::FocusTrigger::ViewChange
+                    );
+                }
             }
             Action::GoBack => {
                 tracing::debug!("Going back to previous view");
-                self.router.go_back();
+                
+                // Use navigation stack to go back
+                if let Some(previous_view) = self.navigation_stack.pop_state()? {
+                    // Update router to match navigation stack
+                    self.router.navigate_to(previous_view.clone());
+                    
+                    // Update focus when going back
+                    if let Some(focused_widget) = self.get_default_focus_for_view(&previous_view) {
+                        let _ = self.focus_manager.set_focus(
+                            Some(focused_widget), 
+                            crate::interfaces::tui::focus::FocusTrigger::ViewChange
+                        );
+                    }
+                } else {
+                    // Fallback to router's go_back if navigation stack can't go back
+                    self.router.go_back();
+                    
+                    // Update focus when going back
+                    let current_view = self.router.current_view.clone();
+                    if let Some(focused_widget) = self.get_default_focus_for_view(&current_view) {
+                        let _ = self.focus_manager.set_focus(
+                            Some(focused_widget), 
+                            crate::interfaces::tui::focus::FocusTrigger::ViewChange
+                        );
+                    }
+                }
+            }
+            Action::FocusNext => {
+                // Focus navigation is handled by focus manager
+                tracing::debug!("Focus next handled by focus manager");
+            }
+            Action::FocusPrevious => {
+                // Focus navigation is handled by focus manager
+                tracing::debug!("Focus previous handled by focus manager");
+            }
+            Action::FocusWidget(widget_name) => {
+                let widget_id = WidgetId::from(widget_name);
+                let _ = self.focus_manager.set_focus(
+                    Some(widget_id), 
+                    crate::interfaces::tui::focus::FocusTrigger::Direct
+                );
+            }
+            Action::ToggleHelp => {
+                // Help toggle is handled by help system
+                tracing::debug!("Help toggled");
             }
             Action::Refresh => {
                 tracing::debug!("Refreshing data");
@@ -478,6 +643,14 @@ impl TuiApp {
             Action::ShowError(message) => {
                 tracing::error!("Application error: {}", message);
                 // In a full implementation, this would show an error dialog
+                // For now, we could use the navigation stack to show a modal
+                use crate::interfaces::tui::navigation::ModalDialog;
+                let error_modal = ModalDialog::error(
+                    "error_modal".to_string(),
+                    "错误".to_string(),
+                    message
+                );
+                self.navigation_stack.open_modal(error_modal)?;
             }
             _ => {
                 // Other actions will be handled by specific widgets or action handlers
@@ -492,6 +665,9 @@ impl TuiApp {
         // Update current widget
         self.router.update_current_widget().await?;
         
+        // Update help system animations
+        self.help_system.update_animation();
+        
         // Record performance metrics
         self.shared_state.record_widget_update("app").await?;
         
@@ -505,6 +681,13 @@ impl TuiApp {
             .clone();
         
         let current_view_name = self.router.current_view_name().to_string();
+        let nav_stats = self.navigation_stack.get_navigation_stats();
+        let has_modal = self.navigation_stack.has_modal();
+        let modal_data = if has_modal {
+            self.navigation_stack.current_modal().map(|m| (m.title.clone(), m.data.clone()))
+        } else {
+            None
+        };
         
         self.terminal.draw(|frame| {
             let size = frame.area();
@@ -526,35 +709,103 @@ impl TuiApp {
                 .block(Block::default().borders(Borders::ALL));
             frame.render_widget(header, chunks[0]);
             
-            // Render main content (current widget)
-            if let Some(widget) = self.router.get_current_widget_mut() {
-                // Use async block to render widget
-                let rt = tokio::runtime::Handle::current();
-                let _ = rt.block_on(async {
-                    widget.render(frame, chunks[1], &current_theme).await
-                });
-            } else {
-                // Fallback content when no widget is available
-                let content = Paragraph::new(format!(
-                    "当前视图: {}\n\n使用F1-F6切换视图\nCtrl+Q退出",
-                    current_view_name
-                ))
-                .block(Block::default().borders(Borders::ALL).title("主内容区"));
-                frame.render_widget(content, chunks[1]);
-            }
-            
-            // Render status bar
-            let status_text = format!(
-                "视图: {} | F1-F6: 切换视图 | Ctrl+Q: 退出 | ?: 帮助",
+            // Render main content (fallback for now)
+            let content = Paragraph::new(format!(
+                "当前视图: {}\n\n使用F1-F6切换视图\nCtrl+Q退出\n?显示帮助",
                 current_view_name
+            ))
+            .block(Block::default().borders(Borders::ALL).title("主内容区"));
+            frame.render_widget(content, chunks[1]);
+            
+            // Render status bar with navigation info
+            let status_text = format!(
+                "视图: {} | 导航: {}/{} | F1-F6: 切换视图 | Ctrl+Q: 退出 | ?: 帮助 | Esc: 返回",
+                current_view_name,
+                nav_stats.stack_size.saturating_sub(1), // Don't count current view
+                nav_stats.stack_size
             );
             let status = Paragraph::new(status_text)
                 .style(current_theme.styles.status_bar)
                 .block(Block::default().borders(Borders::ALL));
             frame.render_widget(status, chunks[2]);
+            
+            // Render modal dialog (if any)
+            if let Some((title, data)) = modal_data {
+                Self::render_modal_dialog_static(frame, size, &title, &data, &current_theme);
+            }
         })?;
         
         Ok(())
+    }
+    
+    /// Render a modal dialog (static version to avoid borrow checker issues)
+    fn render_modal_dialog_static(
+        frame: &mut Frame,
+        area: Rect,
+        title: &str,
+        data: &Option<serde_json::Value>,
+        theme: &Theme,
+    ) {
+        use ratatui::{
+            layout::{Alignment, Margin},
+            widgets::{Clear, Wrap},
+        };
+        
+        // Calculate modal size (medium size)
+        let modal_width = (area.width * 60 / 100).max(40).min(80);
+        let modal_height = (area.height * 50 / 100).max(15).min(30);
+        
+        // Center the modal
+        let modal_x = (area.width.saturating_sub(modal_width)) / 2;
+        let modal_y = (area.height.saturating_sub(modal_height)) / 2;
+        let modal_area = Rect {
+            x: area.x + modal_x,
+            y: area.y + modal_y,
+            width: modal_width,
+            height: modal_height,
+        };
+        
+        // Clear the background
+        frame.render_widget(Clear, modal_area);
+        
+        // Render modal background
+        let modal_block = Block::default()
+            .borders(Borders::ALL)
+            .title(title.to_string())
+            .style(theme.styles.widget_border);
+        frame.render_widget(modal_block, modal_area);
+        
+        // Render modal content
+        let content_area = modal_area.inner(Margin { horizontal: 1, vertical: 1 });
+        
+        if let Some(data) = data {
+            if let Some(message) = data.get("message").and_then(|v| v.as_str()) {
+                let content = Paragraph::new(message)
+                    .wrap(Wrap { trim: true })
+                    .alignment(Alignment::Left)
+                    .style(theme.styles.widget_border);
+                frame.render_widget(content, content_area);
+            } else if let Some(error) = data.get("error").and_then(|v| v.as_str()) {
+                let content = Paragraph::new(error)
+                    .wrap(Wrap { trim: true })
+                    .alignment(Alignment::Left)
+                    .style(theme.styles.error);
+                frame.render_widget(content, content_area);
+            }
+        }
+        
+        // Render buttons (simplified - just show "确定 (Enter)" at bottom)
+        let button_area = Rect {
+            x: content_area.x,
+            y: content_area.y + content_area.height.saturating_sub(2),
+            width: content_area.width,
+            height: 1,
+        };
+        
+        let buttons = Paragraph::new("确定 (Enter)")
+            .alignment(Alignment::Center)
+            .style(theme.styles.widget_border_focused);
+        frame.render_widget(buttons, button_area);
     }
 }
 
