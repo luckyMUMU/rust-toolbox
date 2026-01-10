@@ -19,6 +19,7 @@ pub enum Action {
     
     // Navigation actions
     Navigate(ViewType),
+    Back,
     GoBack,
     GoForward,
     
@@ -69,7 +70,10 @@ pub enum Action {
     ReloadPlugin(String),
     EnablePlugin(String),
     DisablePlugin(String),
+    TogglePlugin(String),
     ShowPluginDetails(String),
+    ShowPluginFilters,
+    ShowDependencyGraph,
     RefreshPlugins,
     
     // System actions
@@ -385,6 +389,7 @@ impl fmt::Display for Action {
             Action::Quit => write!(f, "Quit"),
             Action::Refresh => write!(f, "Refresh"),
             Action::Navigate(view) => write!(f, "Navigate({:?})", view),
+            Action::Back => write!(f, "Back"),
             Action::GoBack => write!(f, "GoBack"),
             Action::GoForward => write!(f, "GoForward"),
             Action::FocusNext => write!(f, "FocusNext"),
@@ -421,7 +426,10 @@ impl fmt::Display for Action {
             Action::ReloadPlugin(name) => write!(f, "ReloadPlugin({})", name),
             Action::EnablePlugin(name) => write!(f, "EnablePlugin({})", name),
             Action::DisablePlugin(name) => write!(f, "DisablePlugin({})", name),
+            Action::TogglePlugin(name) => write!(f, "TogglePlugin({})", name),
             Action::ShowPluginDetails(name) => write!(f, "ShowPluginDetails({})", name),
+            Action::ShowPluginFilters => write!(f, "ShowPluginFilters"),
+            Action::ShowDependencyGraph => write!(f, "ShowDependencyGraph"),
             Action::RefreshPlugins => write!(f, "RefreshPlugins"),
             Action::RefreshSystemStatus => write!(f, "RefreshSystemStatus"),
             Action::ShowSystemDetails => write!(f, "ShowSystemDetails"),

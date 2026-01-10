@@ -98,7 +98,21 @@ pub struct ToolExecutionRecord {
     pub success: bool,
     pub error_message: Option<String>,
     pub parameters: serde_json::Value,
-    pub result: Option<serde_json::Value>,
+}
+
+/// Tool performance metrics
+#[derive(Debug, Clone)]
+pub struct ToolPerformanceMetrics {
+    pub total_executions: usize,
+    pub successful_executions: usize,
+    pub failed_executions: usize,
+    pub success_rate: f64,
+    pub recent_success_rate: f64,
+    pub average_duration: Option<Duration>,
+    pub min_duration: Option<Duration>,
+    pub max_duration: Option<Duration>,
+    pub last_execution: Option<DateTime<Utc>>,
+    pub executions_per_hour: f64,
 }
 
 /// Tool execution statistics
@@ -937,7 +951,6 @@ impl ToolManagerWidget {
             success: false,
             error_message: None,
             parameters,
-            result: None,
         };
         
         // Add to history (will be updated when execution completes)
@@ -959,7 +972,6 @@ impl ToolManagerWidget {
                 record.completed_at = Some(completion_time);
                 record.duration = Some(completion_time.signed_duration_since(record.started_at).to_std().unwrap_or(Duration::from_secs(0)));
                 record.success = success;
-                record.result = result;
                 record.error_message = error.clone();
             }
         }
@@ -1502,7 +1514,7 @@ impl ToolManagerWidget {
             self.render_tool_parameters(frame, chunks[1], tool, theme);
             
             // Execution statistics and history
-            self.render_tool_info(frame, chunks[2], tool, theme);
+            self.render_tool_execution_info(frame, chunks[2], tool, theme);
             
             // Documentation and examples
             self.render_tool_documentation(frame, chunks[3], tool, theme);
@@ -1516,6 +1528,103 @@ impl ToolManagerWidget {
             
             frame.render_widget(no_selection, area);
         }
+    }
+    
+    /// Render tool parameters schema
+    fn render_tool_parameters(&self, frame: &mut Frame, area: Rect, tool: &ToolDisplayInfo, theme: &Theme) {
+        let mut param_lines = vec![
+            Line::from(vec![
+                Span::styled("参数配置:", Style::default().add_modifier(Modifier::BOLD)),
+            ]),
+        ];
+        
+        if tool.info.parameters_schema.is_null() {
+            param_lines.push(Line::from("  无参数"));
+        } else {
+            if let Some(properties) = tool.info.parameters_schema.get("properties").and_then(|v| v.as_object()) {
+                for (param_name, param_schema) in properties.iter().take(5) { // Show first 5 parameters
+                    let param_type = param_schema.get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    
+                    let required = tool.info.parameters_schema
+                        .get("required")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().any(|v| v.as_str() == Some(param_name)))
+                        .unwrap_or(false);
+                    
+                    let description = param_schema.get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("无描述");
+                    
+                    let default_value = param_schema.get("default")
+                        .map(|v| format!(" (默认: {})", v))
+                        .unwrap_or_default();
+                    
+                    param_lines.push(Line::from(vec![
+                        Span::raw("  • "),
+                        Span::styled(param_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                        if required {
+                            Span::styled(" *", Style::default().fg(Color::Red))
+                        } else {
+                            Span::raw("")
+                        },
+                        Span::raw(" ("),
+                        Span::styled(param_type, Style::default().fg(Color::Yellow)),
+                        Span::raw(")"),
+                        Span::styled(default_value, Style::default().fg(Color::Gray)),
+                    ]));
+                    
+                    if description.len() > 50 {
+                        param_lines.push(Line::from(vec![
+                            Span::raw("    "),
+                            Span::styled(&description[..47], Style::default().fg(Color::Gray)),
+                            Span::styled("...", Style::default().fg(Color::Gray)),
+                        ]));
+                    } else {
+                        param_lines.push(Line::from(vec![
+                            Span::raw("    "),
+                            Span::styled(description, Style::default().fg(Color::Gray)),
+                        ]));
+                    }
+                }
+                
+                if properties.len() > 5 {
+                    param_lines.push(Line::from(format!("  ... 还有 {} 个参数", properties.len() - 5)));
+                }
+            } else {
+                param_lines.push(Line::from("  参数配置格式错误"));
+            }
+        }
+        
+        // Show execution controls
+        param_lines.push(Line::from(""));
+        param_lines.push(Line::from(vec![
+            Span::styled("执行控制:", Style::default().add_modifier(Modifier::BOLD)),
+        ]));
+        
+        if self.is_tool_executing(&tool.info.name) {
+            param_lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled("⚡ 正在执行中...", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            ]));
+            param_lines.push(Line::from("  按 Ctrl+C 取消执行"));
+        } else {
+            param_lines.push(Line::from("  按 Enter 执行工具"));
+            if self.get_execution_history(&tool.info.name).is_some() {
+                param_lines.push(Line::from("  按 R 重试上次执行"));
+            }
+        }
+        
+        let params_paragraph = Paragraph::new(param_lines)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("参数和执行")
+                .border_style(theme.styles.widget_border))
+            .style(theme.styles.info)
+            .wrap(Wrap { trim: true });
+        
+        frame.render_widget(params_paragraph, area);
     }
     
     /// Render tool basic information
@@ -1586,7 +1695,7 @@ impl ToolManagerWidget {
             } else {
                 Line::from(vec![
                     Span::raw("执行统计: "),
-                    Span::styled("尚未执行", Style::default().fg(Color::DarkGray)),
+                    Span::styled("无执行记录", Style::default().fg(Color::Gray)),
                 ])
             },
         ];
@@ -1596,92 +1705,10 @@ impl ToolManagerWidget {
                 .borders(Borders::ALL)
                 .title("基本信息")
                 .border_style(theme.styles.widget_border))
-            .style(theme.styles.info);
-        
-        frame.render_widget(info_paragraph, area);
-    }
-    
-    /// Render tool parameters schema
-    fn render_tool_parameters(&self, frame: &mut Frame, area: Rect, tool: &ToolDisplayInfo, theme: &Theme) {
-        let param_lines = if !tool.info.parameters_schema.is_null() {
-            let mut lines = vec![Line::from("参数架构:")];
-            
-            // Parse and display schema information
-            if let Some(schema_type) = tool.info.parameters_schema.get("type").and_then(|v| v.as_str()) {
-                lines.push(Line::from(vec![
-                    Span::raw("  类型: "),
-                    Span::styled(schema_type, Style::default().fg(Color::Cyan)),
-                ]));
-            }
-            
-            if let Some(properties) = tool.info.parameters_schema.get("properties").and_then(|v| v.as_object()) {
-                lines.push(Line::from(vec![
-                    Span::raw("  参数数量: "),
-                    Span::styled(properties.len().to_string(), Style::default().fg(Color::Yellow)),
-                ]));
-                
-                // Show first few parameters
-                let mut param_count = 0;
-                for (param_name, param_schema) in properties.iter() {
-                    if param_count >= 3 { // Limit to first 3 parameters
-                        lines.push(Line::from("  ..."));
-                        break;
-                    }
-                    
-                    let param_type = param_schema.get("type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-                    
-                    let required = tool.info.parameters_schema
-                        .get("required")
-                        .and_then(|v| v.as_array())
-                        .map_or(false, |arr| arr.iter().any(|v| v.as_str() == Some(param_name)));
-                    
-                    lines.push(Line::from(vec![
-                        Span::raw("    "),
-                        Span::styled(param_name, Style::default().fg(Color::Green)),
-                        Span::raw(": "),
-                        Span::styled(param_type, Style::default().fg(Color::Blue)),
-                        if required {
-                            Span::styled(" (必需)", Style::default().fg(Color::Red))
-                        } else {
-                            Span::styled(" (可选)", Style::default().fg(Color::Gray))
-                        },
-                    ]));
-                    
-                    param_count += 1;
-                }
-            }
-            
-            // Show return schema if available
-            if !tool.info.return_schema.is_null() {
-                lines.push(Line::from(""));
-                lines.push(Line::from("返回值架构:"));
-                if let Some(return_type) = tool.info.return_schema.get("type").and_then(|v| v.as_str()) {
-                    lines.push(Line::from(vec![
-                        Span::raw("  类型: "),
-                        Span::styled(return_type, Style::default().fg(Color::Cyan)),
-                    ]));
-                }
-            }
-            
-            lines
-        } else {
-            vec![
-                Line::from("无参数架构信息"),
-                Line::from("该工具可能不需要参数或架构未定义"),
-            ]
-        };
-        
-        let params_paragraph = Paragraph::new(param_lines)
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .title("参数架构")
-                .border_style(theme.styles.widget_border))
             .style(theme.styles.info)
             .wrap(Wrap { trim: true });
         
-        frame.render_widget(params_paragraph, area);
+        frame.render_widget(info_paragraph, area);
     }
     
     /// Render tool execution statistics and history
@@ -2416,6 +2443,275 @@ impl ToolManagerWidget {
                 Ok(None)
             }
             _ => Ok(None),
+        }
+    }
+    
+    /// Show tool execution parameter input dialog
+    pub async fn show_parameter_input_dialog(&mut self, tool: &ToolDisplayInfo) -> Option<serde_json::Value> {
+        // In a real implementation, this would show an interactive parameter input dialog
+        // For now, we'll generate default parameters or use a simple input mechanism
+        
+        if tool.info.parameters_schema.is_null() {
+            // No parameters needed
+            return Some(serde_json::Value::Object(serde_json::Map::new()));
+        }
+        
+        // Generate parameters based on schema with some intelligent defaults
+        self.generate_execution_parameters(&tool.info.parameters_schema)
+    }
+    
+    /// Generate execution parameters with intelligent defaults
+    fn generate_execution_parameters(&self, schema: &serde_json::Value) -> Option<serde_json::Value> {
+        if let Some(properties) = schema.get("properties").and_then(|v| v.as_object()) {
+            let mut params = serde_json::Map::new();
+            
+            for (param_name, param_schema) in properties {
+                let param_value = match param_schema.get("type").and_then(|v| v.as_str()) {
+                    Some("string") => {
+                        // Use default if available, otherwise use intelligent defaults based on name
+                        if let Some(default) = param_schema.get("default") {
+                            default.clone()
+                        } else {
+                            match param_name.to_lowercase().as_str() {
+                                name if name.contains("path") || name.contains("file") => {
+                                    serde_json::Value::String("./".to_string())
+                                }
+                                name if name.contains("url") || name.contains("uri") => {
+                                    serde_json::Value::String("https://example.com".to_string())
+                                }
+                                name if name.contains("name") => {
+                                    serde_json::Value::String("example".to_string())
+                                }
+                                name if name.contains("message") || name.contains("text") => {
+                                    serde_json::Value::String("Hello, World!".to_string())
+                                }
+                                _ => serde_json::Value::String("".to_string())
+                            }
+                        }
+                    }
+                    Some("number") | Some("integer") => {
+                        if let Some(default) = param_schema.get("default") {
+                            default.clone()
+                        } else {
+                            // Use minimum if available, otherwise 0
+                            param_schema.get("minimum")
+                                .and_then(|v| v.as_i64())
+                                .map(|n| serde_json::Value::Number(serde_json::Number::from(n)))
+                                .unwrap_or_else(|| serde_json::Value::Number(serde_json::Number::from(0)))
+                        }
+                    }
+                    Some("boolean") => {
+                        if let Some(default) = param_schema.get("default") {
+                            default.clone()
+                        } else {
+                            serde_json::Value::Bool(false)
+                        }
+                    }
+                    Some("array") => {
+                        if let Some(default) = param_schema.get("default") {
+                            default.clone()
+                        } else {
+                            serde_json::Value::Array(vec![])
+                        }
+                    }
+                    Some("object") => {
+                        if let Some(default) = param_schema.get("default") {
+                            default.clone()
+                        } else {
+                            serde_json::Value::Object(serde_json::Map::new())
+                        }
+                    }
+                    _ => serde_json::Value::Null,
+                };
+                
+                params.insert(param_name.clone(), param_value);
+            }
+            
+            Some(serde_json::Value::Object(params))
+        } else {
+            Some(serde_json::Value::Object(serde_json::Map::new()))
+        }
+    }
+    
+    /// Execute tool with performance monitoring
+    pub async fn execute_tool_with_monitoring(&mut self, tool_name: &str, parameters: serde_json::Value) -> Result<serde_json::Value, String> {
+        let start_time = Utc::now();
+        
+        // Mark tool as executing
+        self.mark_tool_executing(tool_name);
+        
+        // Create execution record
+        let mut execution_record = ToolExecutionRecord {
+            started_at: start_time,
+            completed_at: None,
+            duration: None,
+            success: false,
+            error_message: None,
+            parameters: parameters.clone(),
+        };
+        
+        // Simulate tool execution (in a real implementation, this would call the actual tool)
+        let result = self.simulate_tool_execution(tool_name, &parameters).await;
+        
+        let end_time = Utc::now();
+        let duration = end_time.signed_duration_since(start_time).to_std().unwrap_or(Duration::from_secs(0));
+        
+        // Update execution record
+        execution_record.completed_at = Some(end_time);
+        execution_record.duration = Some(duration);
+        
+        match result {
+            Ok(output) => {
+                execution_record.success = true;
+                
+                // Mark tool as finished successfully
+                self.mark_tool_finished(tool_name, true, None);
+                
+                // Add to execution history
+                self.add_execution_record(tool_name, execution_record);
+                
+                Ok(output)
+            }
+            Err(error) => {
+                execution_record.success = false;
+                execution_record.error_message = Some(error.clone());
+                
+                // Mark tool as finished with error
+                self.mark_tool_finished(tool_name, false, Some(error.clone()));
+                
+                // Add to execution history
+                self.add_execution_record(tool_name, execution_record);
+                
+                Err(error)
+            }
+        }
+    }
+    
+    /// Simulate tool execution (placeholder for actual implementation)
+    async fn simulate_tool_execution(&self, tool_name: &str, parameters: &serde_json::Value) -> Result<serde_json::Value, String> {
+        // Simulate some processing time
+        tokio::time::sleep(Duration::from_millis(100 + (tool_name.len() * 10) as u64)).await;
+        
+        // Simulate different outcomes based on tool name and parameters
+        match tool_name {
+            name if name.contains("error") || name.contains("fail") => {
+                Err(format!("Simulated error in tool: {}", name))
+            }
+            name if name.contains("slow") => {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                Ok(serde_json::json!({
+                    "status": "completed",
+                    "message": format!("Slow tool {} completed successfully", name),
+                    "parameters": parameters,
+                    "execution_time": "2000ms"
+                }))
+            }
+            _ => {
+                Ok(serde_json::json!({
+                    "status": "success",
+                    "message": format!("Tool {} executed successfully", tool_name),
+                    "parameters": parameters,
+                    "timestamp": Utc::now().to_rfc3339()
+                }))
+            }
+        }
+    }
+    
+    /// Cancel tool execution
+    pub fn cancel_tool_execution(&mut self, tool_name: &str) -> bool {
+        if self.is_tool_executing(tool_name) {
+            // Mark tool as finished with cancellation
+            self.mark_tool_finished(tool_name, false, Some("Execution cancelled by user".to_string()));
+            true
+        } else {
+            false
+        }
+    }
+    
+    /// Get tool performance metrics
+    pub fn get_tool_performance_metrics(&self, tool_name: &str) -> Option<ToolPerformanceMetrics> {
+        if let Some(history) = self.get_execution_history(tool_name) {
+            if history.is_empty() {
+                return None;
+            }
+            
+            let total_executions = history.len();
+            let successful_executions = history.iter().filter(|r| r.success).count();
+            let failed_executions = total_executions - successful_executions;
+            
+            let durations: Vec<Duration> = history.iter()
+                .filter_map(|r| r.duration)
+                .collect();
+            
+            let average_duration = if !durations.is_empty() {
+                let total_ms: u64 = durations.iter().map(|d| d.as_millis() as u64).sum();
+                Some(Duration::from_millis(total_ms / durations.len() as u64))
+            } else {
+                None
+            };
+            
+            let min_duration = durations.iter().min().cloned();
+            let max_duration = durations.iter().max().cloned();
+            
+            // Calculate success rate trend (last 10 executions)
+            let recent_executions = history.iter().rev().take(10).collect::<Vec<_>>();
+            let recent_success_rate = if !recent_executions.is_empty() {
+                recent_executions.iter().filter(|r| r.success).count() as f64 / recent_executions.len() as f64
+            } else {
+                0.0
+            };
+            
+            Some(ToolPerformanceMetrics {
+                total_executions,
+                successful_executions,
+                failed_executions,
+                success_rate: successful_executions as f64 / total_executions as f64,
+                recent_success_rate,
+                average_duration,
+                min_duration,
+                max_duration,
+                last_execution: history.last().map(|r| r.started_at),
+                executions_per_hour: self.calculate_executions_per_hour(history),
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// Calculate executions per hour based on history
+    fn calculate_executions_per_hour(&self, history: &[ToolExecutionRecord]) -> f64 {
+        if history.len() < 2 {
+            return 0.0;
+        }
+        
+        let first_execution = history.first().unwrap().started_at;
+        let last_execution = history.last().unwrap().started_at;
+        let duration_hours = last_execution.signed_duration_since(first_execution).num_seconds() as f64 / 3600.0;
+        
+        if duration_hours > 0.0 {
+            history.len() as f64 / duration_hours
+        } else {
+            0.0
+        }
+    }
+    
+    /// Show tool execution result dialog
+    pub fn show_execution_result(&self, tool_name: &str, result: &Result<serde_json::Value, String>) -> String {
+        match result {
+            Ok(output) => {
+                format!(
+                    "✅ 工具 '{}' 执行成功\n\n结果:\n{}",
+                    tool_name,
+                    serde_json::to_string_pretty(output).unwrap_or_else(|_| "无法格式化结果".to_string())
+                )
+            }
+            Err(error) => {
+                format!(
+                    "❌ 工具 '{}' 执行失败\n\n错误信息:\n{}",
+                    tool_name,
+                    error
+                )
+            }
         }
     }
     

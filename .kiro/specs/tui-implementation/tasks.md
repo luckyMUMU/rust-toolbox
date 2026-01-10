@@ -207,7 +207,7 @@
     - 过滤器状态持久化
     - _需求: 4.2_
 
-  - [-] 9.5 实现工具执行和管理
+  - [ ] 9.5 实现工具执行和管理
     - 工具执行界面和参数输入
     - 执行结果显示和历史记录
     - 工具性能监控
@@ -218,8 +218,8 @@
     - **属性 14-16: 工具列表、过滤、详情显示**
     - **验证需求: 需求 4.1-4.3**
 
-- [ ] 10. 实现PluginManagerWidget
-  - [ ] 10.1 创建PluginManagerWidget基础结构
+- [-] 10. 实现PluginManagerWidget
+  - [x] 10.1 创建PluginManagerWidget基础结构
     - 创建Widget文件和基础结构
     - 实现Widget trait的所有必需方法
     - 设置插件数据模型和状态管理
@@ -265,7 +265,7 @@
     - **属性 17-18: 插件状态、信息显示**
     - **验证需求: 需求 4.4-4.6**
 
-- [ ] 11. 实现SystemStatusWidget
+- [-] 11. 实现SystemStatusWidget
   - [ ] 11.1 创建SystemStatusWidget基础结构
     - 创建Widget文件和基础结构
     - 实现Widget trait的所有必需方法
