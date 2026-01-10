@@ -144,15 +144,15 @@
     - **属性 24-28: 日志显示、过滤、搜索、滚动、元数据**
     - **验证需求: 需求 6.1-6.6**
 
-- [ ] 8. 完善ExecutionMonitorWidget
-  - [ ] 8.1 完善ExecutionMonitorWidget基础实现
+- [-] 8. 完善ExecutionMonitorWidget
+  - [x] 8.1 完善ExecutionMonitorWidget基础实现
     - 完成Widget trait实现（render, handle_event, update方法）
     - 实现执行状态显示和实时更新机制
     - 添加进度条和任务状态可视化
     - 实现节点状态详细信息显示
     - _需求: 3.1, 3.2, 3.3_
 
-  - [ ] 8.2 实现执行控制功能
+  - [x] 8.2 实现执行控制功能
     - 添加执行控制按钮（暂停、恢复、停止、取消）
     - 实现控制命令的后端集成
     - 添加操作确认对话框
@@ -179,11 +179,12 @@
     - **验证需求: 需求 3.1-3.5**
 
 - [ ] 9. 完善ToolManagerWidget
-  - [ ] 9.1 完善ToolManagerWidget基础实现
+  - [x] 9.1 完善ToolManagerWidget基础实现
     - 完成Widget trait实现（render, handle_event, update方法）
     - 实现工具数据模型和状态管理
     - 实现基础的工具列表显示
     - _需求: 4.1_
+    - **状态: 已完成** - ToolManagerWidget基础实现完成，包含完整的Widget trait实现、工具列表显示、过滤搜索、详情面板、帮助系统和键盘导航
 
   - [ ] 9.2 实现工具列表和选择功能
     - 工具列表的分页和虚拟滚动

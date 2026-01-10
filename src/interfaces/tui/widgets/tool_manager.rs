@@ -6,7 +6,7 @@ use crate::interfaces::tui::{
     Widget, WidgetId, WidgetContext, Theme
 };
 use crate::interfaces::tui::widget::{WidgetCapabilities, SizeConstraints, UpdateFrequency, WidgetError};
-use crate::interfaces::tui::action::{Action, SortOrder, InputMode};
+use crate::interfaces::tui::action::{Action, SortOrder, ViewType};
 use crate::core::ToolInfo;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -583,4 +583,491 @@ impl ToolManagerWidget {
                 first_line.extend(vec![
                     Span::raw(" v"),
                     Span::styled(&tool.info.version, Style::default().fg(Color::Gray)),
-                    Sp
+                    Span::raw(" ("),
+                    Span::styled(&tool.source, Style::default().fg(Color::Cyan)),
+                    Span::raw(")"),
+                ]);
+                
+                let second_line = vec![
+                    Span::raw("  "),
+                    Span::styled(&tool.info.description, Style::default().fg(Color::Gray)),
+                ];
+                
+                let third_line = vec![
+                    Span::raw("  最后执行: "),
+                    Span::styled(last_exec, Style::default().fg(Color::Yellow)),
+                    if let Some(count) = (tool.execution_count > 0).then_some(tool.execution_count) {
+                        Span::styled(format!(" | 执行次数: {}", count), Style::default().fg(Color::Magenta))
+                    } else {
+                        Span::raw("")
+                    },
+                    if let Some(rate) = tool.success_rate {
+                        Span::styled(format!(" | 成功率: {:.1}%", rate * 100.0), Style::default().fg(Color::Green))
+                    } else {
+                        Span::raw("")
+                    },
+                ];
+                
+                let content = vec![
+                    Line::from(first_line),
+                    Line::from(second_line),
+                    Line::from(third_line),
+                ];
+                
+                ListItem::new(content)
+            })
+            .collect();
+        
+        let title = if search_mode {
+            format!("工具管理器 - 搜索: {}", filter)
+        } else if !filter.is_empty() {
+            format!("工具管理器 - 过滤: {} ({}/{})", filter, self.filtered_tools.len(), self.tools.len())
+        } else {
+            format!("工具管理器 ({} 工具)", self.tools.len())
+        };
+        
+        let list = List::new(items)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .border_style(if self.context.has_focus {
+                    theme.styles.widget_border_focused
+                } else {
+                    theme.styles.widget_border
+                }))
+            .highlight_style(theme.styles.list_item_selected)
+            .highlight_symbol("► ");
+        
+        frame.render_stateful_widget(list, area, &mut self.list_state);
+        
+        // Render scrollbar if needed
+        if self.filtered_tools.len() > area.height as usize - 2 {
+            let scrollbar = Scrollbar::default()
+                .orientation(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(Some("↑"))
+                .end_symbol(Some("↓"));
+            
+            let scrollbar_area = Rect {
+                x: area.right() - 1,
+                y: area.y + 1,
+                width: 1,
+                height: area.height - 2,
+            };
+            
+            frame.render_stateful_widget(scrollbar, scrollbar_area, &mut self.scroll_state);
+        }
+        
+        // Render search/filter status
+        if search_mode || !filter.is_empty() {
+            self.render_search_status(frame, area, theme);
+        }
+    }
+    
+    /// Render search/filter status
+    fn render_search_status(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let status_text = if self.search_mode {
+            format!("搜索: {} (按 Enter 确认, Esc 取消)", self.filter)
+        } else {
+            format!("过滤: {} ({} 结果)", self.filter, self.filtered_tools.len())
+        };
+        
+        let status_area = Rect {
+            x: area.x + 2,
+            y: area.bottom().saturating_sub(1),
+            width: area.width.saturating_sub(4),
+            height: 1,
+        };
+        
+        let status = Paragraph::new(status_text)
+            .style(if self.search_mode {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Cyan)
+            });
+        
+        frame.render_widget(status, status_area);
+    }
+    
+    /// Render tool details panel
+    fn render_tool_details(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        if let Some(tool) = self.selected_tool() {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(8),  // Basic info
+                    Constraint::Length(6),  // Parameters
+                    Constraint::Min(0),     // Documentation
+                ])
+                .split(area);
+            
+            // Basic information
+            self.render_tool_info(frame, chunks[0], tool, theme);
+            
+            // Parameters schema
+            self.render_tool_parameters(frame, chunks[1], tool, theme);
+            
+            // Documentation
+            self.render_tool_documentation(frame, chunks[2], tool, theme);
+        } else {
+            let no_selection = Paragraph::new("未选择工具")
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .title("工具详情")
+                    .border_style(theme.styles.widget_border))
+                .style(theme.styles.info);
+            
+            frame.render_widget(no_selection, area);
+        }
+    }
+    
+    /// Render tool basic information
+    fn render_tool_info(&self, frame: &mut Frame, area: Rect, tool: &ToolDisplayInfo, theme: &Theme) {
+        let info_lines = vec![
+            Line::from(vec![
+                Span::raw("名称: "),
+                Span::styled(&tool.info.name, Style::default().add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::raw("版本: "),
+                Span::styled(&tool.info.version, Style::default().fg(Color::Cyan)),
+            ]),
+            Line::from(vec![
+                Span::raw("状态: "),
+                Span::styled(tool.status.symbol(), Style::default().fg(tool.status.color())),
+                Span::raw(" "),
+                Span::styled(tool.status.description(), Style::default().fg(tool.status.color())),
+            ]),
+            Line::from(vec![
+                Span::raw("来源: "),
+                Span::styled(&tool.source, Style::default().fg(Color::Magenta)),
+            ]),
+            Line::from(vec![
+                Span::raw("分类: "),
+                Span::styled(
+                    tool.info.category.as_deref().unwrap_or("未分类"), 
+                    Style::default().fg(Color::Yellow)
+                ),
+            ]),
+            Line::from(vec![
+                Span::raw("标签: "),
+                Span::styled(
+                    if tool.info.tags.is_empty() {
+                        "无".to_string()
+                    } else {
+                        tool.info.tags.join(", ")
+                    },
+                    Style::default().fg(Color::Green)
+                ),
+            ]),
+        ];
+        
+        let info_paragraph = Paragraph::new(info_lines)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("基本信息")
+                .border_style(theme.styles.widget_border))
+            .style(theme.styles.info);
+        
+        frame.render_widget(info_paragraph, area);
+    }
+    
+    /// Render tool parameters schema
+    fn render_tool_parameters(&self, frame: &mut Frame, area: Rect, tool: &ToolDisplayInfo, theme: &Theme) {
+        let param_lines = if !tool.info.parameters_schema.is_null() {
+            // Parse schema and display parameters
+            vec![
+                Line::from("参数架构:"),
+                Line::from(format!("  类型: {}", tool.info.parameters_schema.get("type").and_then(|v| v.as_str()).unwrap_or("unknown"))),
+                Line::from("  详细信息请参考文档"),
+            ]
+        } else {
+            vec![
+                Line::from("无参数架构信息"),
+                Line::from("该工具可能不需要参数或架构未定义"),
+            ]
+        };
+        
+        let params_paragraph = Paragraph::new(param_lines)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("参数")
+                .border_style(theme.styles.widget_border))
+            .style(theme.styles.info)
+            .wrap(Wrap { trim: true });
+        
+        frame.render_widget(params_paragraph, area);
+    }
+    
+    /// Render tool documentation
+    fn render_tool_documentation(&self, frame: &mut Frame, area: Rect, tool: &ToolDisplayInfo, theme: &Theme) {
+        let doc_lines = vec![
+            Line::from(vec![
+                Span::styled("描述:", Style::default().add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(tool.info.description.clone()),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("使用示例:", Style::default().add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from("请参考工具文档获取详细的使用示例和最佳实践。"),
+            Line::from(""),
+            if tool.execution_count > 0 {
+                Line::from(vec![
+                    Span::styled("执行统计:", Style::default().add_modifier(Modifier::BOLD)),
+                ])
+            } else {
+                Line::from("")
+            },
+            if tool.execution_count > 0 {
+                Line::from(format!("执行次数: {}", tool.execution_count))
+            } else {
+                Line::from("")
+            },
+            if let Some(rate) = tool.success_rate {
+                Line::from(format!("成功率: {:.1}%", rate * 100.0))
+            } else {
+                Line::from("")
+            },
+            if let Some(duration) = tool.average_duration {
+                Line::from(format!("平均执行时间: {}ms", duration.as_millis()))
+            } else {
+                Line::from("")
+            },
+        ];
+        
+        let doc_paragraph = Paragraph::new(doc_lines)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("文档")
+                .border_style(theme.styles.widget_border))
+            .style(theme.styles.info)
+            .wrap(Wrap { trim: true });
+        
+        frame.render_widget(doc_paragraph, area);
+    }
+    
+    /// Render help overlay
+    fn render_help(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let help_lines = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("工具管理器 - 帮助", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            ]),
+            Line::from(""),
+            Line::from("导航:"),
+            Line::from("  ↑/k        上一个工具"),
+            Line::from("  ↓/j        下一个工具"),
+            Line::from("  Home/g     第一个工具"),
+            Line::from("  End/G      最后一个工具"),
+            Line::from(""),
+            Line::from("操作:"),
+            Line::from("  Enter      执行选中的工具"),
+            Line::from("  Space      切换详情面板"),
+            Line::from("  r/F5       刷新工具列表"),
+            Line::from(""),
+            Line::from("过滤和搜索:"),
+            Line::from("  /          进入搜索模式"),
+            Line::from("  f          快速过滤"),
+            Line::from("  c          清除过滤"),
+            Line::from("  s          循环排序方式"),
+            Line::from(""),
+            Line::from("高级过滤语法:"),
+            Line::from("  status:available    按状态过滤"),
+            Line::from("  category:data       按分类过滤"),
+            Line::from("  tag:utility         按标签过滤"),
+            Line::from("  source:plugin       按来源过滤"),
+            Line::from("  version:1.0         按版本过滤"),
+            Line::from(""),
+            Line::from("其他:"),
+            Line::from("  ?          显示/隐藏帮助"),
+            Line::from("  Esc        返回"),
+            Line::from("  Ctrl+Q     退出"),
+            Line::from(""),
+            Line::from("按任意键关闭帮助"),
+        ];
+        
+        let help = Paragraph::new(help_lines)
+            .block(Block::default()
+                .borders(Borders::ALL)
+                .title("帮助")
+                .border_style(Style::default().fg(Color::Yellow))
+                .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+            .style(theme.styles.info)
+            .wrap(Wrap { trim: true });
+        
+        frame.render_widget(help, area);
+    }
+    
+    /// Handle key events
+    async fn handle_key_event(&mut self, key: KeyEvent) -> std::result::Result<Option<Action>, WidgetError> {
+        if self.show_help {
+            // Any key closes help
+            self.show_help = false;
+            return Ok(None);
+        }
+        
+        if self.search_mode {
+            return self.handle_search_key_event(key).await;
+        }
+        
+        match key.code {
+            // Navigation
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.select_previous();
+                Ok(None)
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.select_next();
+                Ok(None)
+            }
+            KeyCode::Home | KeyCode::Char('g') => {
+                self.select_first();
+                Ok(None)
+            }
+            KeyCode::End | KeyCode::Char('G') => {
+                self.select_last();
+                Ok(None)
+            }
+            
+            // Actions
+            KeyCode::Enter => {
+                if let Some(tool_name) = self.selected_tool_name() {
+                    Ok(Some(Action::ExecuteTool(tool_name)))
+                } else {
+                    Ok(None)
+                }
+            }
+            KeyCode::Char(' ') => {
+                self.toggle_details();
+                Ok(None)
+            }
+            KeyCode::Char('r') | KeyCode::F(5) => {
+                Ok(Some(Action::RefreshTools))
+            }
+            
+            // Filtering and searching
+            KeyCode::Char('/') => {
+                self.enter_search_mode();
+                Ok(None)
+            }
+            KeyCode::Char('f') => {
+                // Quick filter mode - could be enhanced
+                self.enter_search_mode();
+                Ok(None)
+            }
+            KeyCode::Char('c') => {
+                self.clear_filter();
+                Ok(None)
+            }
+            KeyCode::Char('s') => {
+                // Cycle through sort orders
+                self.cycle_sort_order();
+                Ok(None)
+            }
+            
+            // Help and navigation
+            KeyCode::Char('?') => {
+                self.toggle_help();
+                Ok(None)
+            }
+            KeyCode::Esc => {
+                Ok(Some(Action::Navigate(ViewType::WorkflowList)))
+            }
+            KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                Ok(Some(Action::Quit))
+            }
+            
+            _ => Ok(None),
+        }
+    }
+    
+    /// Handle key events in search mode
+    async fn handle_search_key_event(&mut self, key: KeyEvent) -> std::result::Result<Option<Action>, WidgetError> {
+        match key.code {
+            KeyCode::Enter => {
+                self.exit_search_mode();
+                Ok(None)
+            }
+            KeyCode::Esc => {
+                self.filter.clear();
+                self.apply_filter_and_sort();
+                self.update_selection();
+                self.exit_search_mode();
+                Ok(None)
+            }
+            KeyCode::Backspace => {
+                self.filter.pop();
+                self.apply_filter_and_sort();
+                self.update_selection();
+                Ok(None)
+            }
+            KeyCode::Char(c) => {
+                self.filter.push(c);
+                self.apply_filter_and_sort();
+                self.update_selection();
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
+    }
+    
+    /// Cycle through sort orders
+    fn cycle_sort_order(&mut self) {
+        self.sort_order = match self.sort_order {
+            SortOrder::NameAsc => SortOrder::NameDesc,
+            SortOrder::NameDesc => SortOrder::StatusAsc,
+            SortOrder::StatusAsc => SortOrder::StatusDesc,
+            SortOrder::StatusDesc => SortOrder::DateAsc,
+            SortOrder::DateAsc => SortOrder::DateDesc,
+            SortOrder::DateDesc => SortOrder::Custom("category_asc".to_string()),
+            SortOrder::Custom(ref custom) => match custom.as_str() {
+                "category_asc" => SortOrder::Custom("category_desc".to_string()),
+                "category_desc" => SortOrder::Custom("source_asc".to_string()),
+                "source_asc" => SortOrder::Custom("source_desc".to_string()),
+                "source_desc" => SortOrder::Custom("execution_count_desc".to_string()),
+                "execution_count_desc" => SortOrder::Custom("success_rate_desc".to_string()),
+                "success_rate_desc" => SortOrder::NameAsc,
+                _ => SortOrder::NameAsc,
+            },
+        };
+        
+        self.apply_filter_and_sort();
+        self.update_selection();
+    }
+    
+    /// Highlight text with search terms (static version for use in closures)
+    fn highlight_text_static<'a>(text: &'a str, search: &'a str, highlight_style: Style) -> Vec<Span<'a>> {
+        if search.is_empty() {
+            return vec![Span::styled(text, Style::default())];
+        }
+        
+        let search_lower = search.to_lowercase();
+        let text_lower = text.to_lowercase();
+        
+        let mut spans = Vec::new();
+        let mut last_end = 0;
+        
+        for (start, _) in text_lower.match_indices(&search_lower) {
+            // Add text before match
+            if start > last_end {
+                spans.push(Span::styled(&text[last_end..start], Style::default()));
+            }
+            
+            // Add highlighted match
+            let end = start + search.len();
+            spans.push(Span::styled(&text[start..end], highlight_style));
+            last_end = end;
+        }
+        
+        // Add remaining text
+        if last_end < text.len() {
+            spans.push(Span::styled(&text[last_end..], Style::default()));
+        }
+        
+        if spans.is_empty() {
+            vec![Span::styled(text, Style::default())]
+        } else {
+            spans
+        }
+    }
+}
