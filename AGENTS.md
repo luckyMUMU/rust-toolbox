@@ -5,7 +5,7 @@
 **Architecture:** Multi-interface workflow execution system
 
 ## OVERVIEW
-Workflow Toolkit is a multi-interface workflow engine with CLI, TUI, and MCP server support. Built with tokio async runtime, petgraph DAG scheduler, and extensible plugin system.
+Workflow Toolkit is a multi-interface workflow engine with CLI, TUI, and MCP server support. Built with tokio async runtime, petgraph DAG scheduler, and extensible plugin system for native, Python, Node.js, and Docker plugins.
 
 ## STRUCTURE
 ```
