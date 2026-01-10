@@ -7,6 +7,7 @@ use crate::error::Result;
 use crate::interfaces::tui::{
     Widget, WidgetId, Theme, ThemeManager, EventHandler, ActionDispatcher,
     FocusManager, FocusCapability, HelpSystem, NavigationStack, EscKeyBehavior, NavigationTrigger,
+    PlatformManager, PlatformConfig, TuiConfigManager, TuiConfig,
     widgets::{
         WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, 
         ToolManagerWidget, PluginManagerWidget, SystemStatusWidget
@@ -47,6 +48,8 @@ pub struct TuiApp {
     help_system: HelpSystem,
     navigation_stack: NavigationStack,
     esc_behavior: EscKeyBehavior,
+    platform_manager: PlatformManager,
+    config_manager: Option<Arc<TuiConfigManager>>,
     pub should_quit: bool,
     tick_rate: Duration,
 }
@@ -67,10 +70,50 @@ pub struct AppState {
 impl TuiApp {
     /// Create a new TUI application
     pub async fn new() -> Result<Self> {
+        Self::new_with_config(None).await
+    }
+    
+    /// Create a new TUI application with custom configuration manager
+    pub async fn new_with_config(
+        base_config_manager: Option<Arc<crate::config::ConfigManager>>
+    ) -> Result<Self> {
+        // Initialize platform manager first
+        let mut platform_manager = PlatformManager::new()?;
+        
+        // Generate and log compatibility report
+        let compatibility_report = platform_manager.generate_compatibility_report();
+        tracing::info!("Platform detected: {:?}", compatibility_report.platform);
+        tracing::info!("Terminal: {}", compatibility_report.terminal_name);
+        
+        if !compatibility_report.warnings.is_empty() {
+            for warning in &compatibility_report.warnings {
+                tracing::warn!("Platform compatibility: {}", warning);
+            }
+        }
+        
+        // Initialize TUI configuration manager if base config manager is provided
+        let config_manager = if let Some(base_manager) = base_config_manager {
+            let config_dir = std::env::current_dir()?.join(".kiro").join("tui");
+            Some(Arc::new(TuiConfigManager::new(base_manager, config_dir).await?))
+        } else {
+            None
+        };
+        
+        // Get TUI configuration
+        let tui_config = if let Some(ref manager) = config_manager {
+            manager.get_config().await
+        } else {
+            TuiConfig::default()
+        };
+        
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-        let backend = CrosstermBackend::new(stdout);
+        let mut backend = CrosstermBackend::new(stdout);
+        
+        // Apply platform-specific optimizations
+        platform_manager.apply_optimizations(&mut backend)?;
+        
         let terminal = Terminal::new(backend)?;
         
         let mut router = Router::new();
@@ -95,32 +138,175 @@ impl TuiApp {
         // Set up help system
         let help_system = HelpSystem::new();
         
-        // Set up navigation stack
+        // Set up navigation stack with default view from config
         let mut navigation_stack = NavigationStack::new();
-        navigation_stack.push_state(ViewType::WorkflowList, NavigationTrigger::Startup)?;
+        let default_view = Self::parse_view_type(&tui_config.interface.default_view)
+            .unwrap_or(ViewType::WorkflowList);
+        navigation_stack.push_state(default_view, NavigationTrigger::Startup)?;
         
         // Set up Esc key behavior
         let esc_behavior = EscKeyBehavior::default();
+        
+        // Get theme manager from config manager or create new one
+        let theme_manager = if let Some(ref manager) = config_manager {
+            let tm = manager.theme_manager();
+            let tm_guard = tm.read().await;
+            tm_guard.clone()
+        } else {
+            // Create theme manager with config path if available
+            let theme_config_path = std::env::current_dir()
+                .unwrap_or_default()
+                .join(".kiro")
+                .join("tui")
+                .join("themes.toml");
+            
+            ThemeManager::with_config_path(&theme_config_path)
+                .unwrap_or_else(|e| {
+                    tracing::warn!("Failed to create theme manager with config: {}, using default", e);
+                    ThemeManager::new()
+                })
+        };
+        
+        // Adjust tick rate based on platform optimizations and config
+        let tick_rate = Duration::from_millis(1000 / tui_config.performance.target_fps as u64);
+        
+        // Start configuration hot reload if available
+        if let Some(ref manager) = config_manager {
+            manager.start_hot_reload().await?;
+        }
         
         Ok(Self {
             terminal,
             router,
             shared_state,
-            theme_manager: ThemeManager::new(),
+            theme_manager,
             event_handler: EventHandler::new(),
             action_dispatcher: ActionDispatcher::new(),
             focus_manager,
             help_system,
             navigation_stack,
             esc_behavior,
+            platform_manager,
+            config_manager,
             should_quit: false,
-            tick_rate: Duration::from_millis(16), // 60 FPS
+            tick_rate,
         })
     }
     
     /// Get shared state for widgets
     pub fn shared_state(&self) -> Arc<SharedAppState> {
         Arc::clone(&self.shared_state)
+    }
+    
+    /// Get configuration manager
+    pub fn config_manager(&self) -> Option<Arc<TuiConfigManager>> {
+        self.config_manager.as_ref().map(Arc::clone)
+    }
+    
+    /// Parse view type from string
+    fn parse_view_type(view_str: &str) -> Option<ViewType> {
+        match view_str {
+            "WorkflowList" => Some(ViewType::WorkflowList),
+            "ExecutionMonitor" => Some(ViewType::ExecutionMonitor),
+            "ToolManager" => Some(ViewType::ToolManager),
+            "PluginManager" => Some(ViewType::PluginManager),
+            "SystemStatus" => Some(ViewType::SystemStatus),
+            "LogViewer" => Some(ViewType::LogViewer),
+            _ => None,
+        }
+    }
+    
+    /// Update configuration
+    pub async fn update_config(&mut self, config: TuiConfig) -> Result<()> {
+        if let Some(ref manager) = self.config_manager {
+            manager.update_config(config).await?;
+            
+            // Update tick rate based on new configuration
+            let new_config = manager.get_config().await;
+            self.tick_rate = Duration::from_millis(1000 / new_config.performance.target_fps as u64);
+            
+            tracing::info!("TUI configuration updated");
+        }
+        Ok(())
+    }
+    
+    /// Get current configuration
+    pub async fn get_config(&self) -> Option<TuiConfig> {
+        if let Some(ref manager) = self.config_manager {
+            Some(manager.get_config().await)
+        } else {
+            None
+        }
+    }
+    
+    /// Switch to a different theme
+    pub fn switch_theme(&mut self, theme_name: &str) -> Result<()> {
+        if let Err(e) = self.theme_manager.set_current_theme(theme_name) {
+            return Err(crate::error::WorkflowError::ValidationError(
+                format!("Failed to switch theme: {}", e)
+            ));
+        }
+        
+        tracing::info!("Switched to theme: {}", theme_name);
+        Ok(())
+    }
+    
+    /// Get available theme names
+    pub fn get_theme_names(&self) -> Vec<String> {
+        self.theme_manager.theme_names()
+    }
+    
+    /// Get current theme name
+    pub fn get_current_theme_name(&self) -> String {
+        self.theme_manager.current_theme()
+            .map(|theme| theme.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string())
+    }
+    
+    /// Import a theme from file
+    pub fn import_theme<P: AsRef<std::path::Path>>(&mut self, path: P) -> Result<String> {
+        match self.theme_manager.import_theme(path) {
+            Ok(theme_name) => {
+                tracing::info!("Imported theme: {}", theme_name);
+                Ok(theme_name)
+            }
+            Err(e) => Err(crate::error::WorkflowError::ValidationError(
+                format!("Failed to import theme: {}", e)
+            )),
+        }
+    }
+    
+    /// Export current theme to file
+    pub fn export_current_theme<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
+        let current_theme_name = self.get_current_theme_name();
+        match self.theme_manager.export_theme(&current_theme_name, path) {
+            Ok(()) => {
+                tracing::info!("Exported theme: {}", current_theme_name);
+                Ok(())
+            }
+            Err(e) => Err(crate::error::WorkflowError::ValidationError(
+                format!("Failed to export theme: {}", e)
+            )),
+        }
+    }
+    
+    /// Create a custom theme based on current theme
+    pub fn create_custom_theme(&mut self, new_name: String) -> Result<()> {
+        let current_theme_name = self.get_current_theme_name();
+        match self.theme_manager.create_custom_theme(&current_theme_name, new_name.clone()) {
+            Ok(()) => {
+                tracing::info!("Created custom theme: {}", new_name);
+                Ok(())
+            }
+            Err(e) => Err(crate::error::WorkflowError::ValidationError(
+                format!("Failed to create custom theme: {}", e)
+            )),
+        }
+    }
+    
+    /// Get theme statistics
+    pub fn get_theme_stats(&self) -> crate::interfaces::tui::theme::ThemeStats {
+        self.theme_manager.get_theme_stats()
     }
     
     /// Setup focus orders for all views
@@ -506,26 +692,29 @@ impl TuiApp {
     
     /// Handle keyboard events
     async fn handle_key_event(&mut self, key: event::KeyEvent) -> Result<Action> {
+        // Apply platform-specific key mapping
+        let mapped_key = self.platform_manager.map_key_event(key);
+        
         // First, try help system
-        if let Some(action) = self.help_system.handle_key_event(key)? {
+        if let Some(action) = self.help_system.handle_key_event(mapped_key)? {
             return Ok(action);
         }
         
         // Handle Esc key with navigation stack
-        if key.code == KeyCode::Esc {
+        if mapped_key.code == KeyCode::Esc {
             if let Some(action) = self.navigation_stack.handle_esc_key(&self.esc_behavior)? {
                 return Ok(action);
             }
         }
         
         // Then, try focus navigation
-        if let Some(action) = self.focus_manager.handle_navigation_key(key, &self.router.current_view)? {
+        if let Some(action) = self.focus_manager.handle_navigation_key(mapped_key, &self.router.current_view)? {
             return Ok(action);
         }
         
         // Global shortcuts
-        match key.code {
-            KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        match mapped_key.code {
+            KeyCode::Char('q') if mapped_key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return Ok(Action::Quit);
             }
             KeyCode::F(1) => return Ok(Action::Navigate(ViewType::WorkflowList)),
@@ -539,7 +728,7 @@ impl TuiApp {
         }
         
         // Delegate to current widget
-        if let Some(action) = self.router.handle_event_with_current_widget(Event::Key(key)).await? {
+        if let Some(action) = self.router.handle_event_with_current_widget(Event::Key(mapped_key)).await? {
             Ok(action)
         } else {
             Ok(Action::None)
@@ -651,6 +840,15 @@ impl TuiApp {
                     message
                 );
                 self.navigation_stack.open_modal(error_modal)?;
+            }
+            Action::ChangeTheme(theme_name) => {
+                tracing::info!("Switching to theme: {}", theme_name);
+                if let Err(e) = self.switch_theme(&theme_name) {
+                    tracing::error!("Failed to switch theme: {}", e);
+                    // Show error to user
+                    let error_action = Action::ShowError(format!("Failed to switch theme: {}", e));
+                    self.process_action(error_action).await?;
+                }
             }
             _ => {
                 // Other actions will be handled by specific widgets or action handlers

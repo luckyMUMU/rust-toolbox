@@ -20,6 +20,13 @@ pub mod backends;
 pub mod error;
 pub mod feedback;
 pub mod undo;
+pub mod performance;
+pub mod memory;
+pub mod virtualization;
+pub mod startup;
+pub mod monitoring;
+pub mod platform;
+pub mod config;
 
 // Re-export public types
 pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
@@ -44,6 +51,39 @@ pub use feedback::{
 pub use undo::{
     UndoableOperation, OperationResult, OperationType, UndoManager, ErrorReport, ErrorReportType,
     ErrorReportManager, UndoHistoryWidget, ErrorReportWidget
+};
+pub use performance::{
+    RenderingPerformanceManager, RenderingConfig, FrameRateStats, FrameRateMonitor,
+    RenderingOptimizationReport, RenderingRecommendation, RenderingOptimizationType,
+    OptimizationPriority, DirtyRegion, RenderOperation
+};
+pub use memory::{
+    TuiMemoryManager, TuiMemoryConfig, WidgetMemoryUsage, MemoryLeakDetection, LeakAction,
+    CleanupReport, TuiMemoryStatistics, MemoryLeakDetector, TuiCleanupScheduler
+};
+pub use virtualization::{
+    VirtualListWidget, VirtualTableWidget, VirtualDataProvider, VirtualItem, VirtualizationConfig,
+    VirtualizationMetrics, MockDataProvider
+};
+pub use startup::{
+    StartupPerformanceManager, StartupConfig, ComponentInitializer, ComponentInfo, InitializationPriority,
+    InitializationStatus, StartupMetrics, StartupPhase, LazyComponentLoader, StartupOptimization,
+    StartupOptimizationType, OptimizationPriority
+};
+pub use monitoring::{
+    TuiPerformanceMonitor, MonitoringConfig, PerformanceSnapshot, PerformanceAlert, AlertType,
+    AlertSeverity, ProfilingData, DebugInfo, PerformanceReport, PerformanceSummary, PerformanceTrends,
+    PerformanceBottleneck, PerformanceRecommendation, ProfilingSession, ExportFormat, LogLevel
+};
+pub use platform::{
+    PlatformManager, PlatformConfig, Platform, TerminalCapabilities, ColorSupport,
+    PlatformOptimizations, CompatibilitySettings, TerminalInfo, PlatformCompatibilityReport,
+    TerminalTester, TerminalTestResults, TestResult
+};
+pub use config::{
+    TuiConfig, TuiConfigManager, InterfaceConfig, ThemeManagerConfig, LayoutConfig,
+    PerformanceConfig, AccessibilityConfig, KeybindingsConfig, UserPreferences,
+    ConfigPresetManager, LayoutDefinition, ResponsiveBreakpoints
 };
 
 use crate::error::Result;

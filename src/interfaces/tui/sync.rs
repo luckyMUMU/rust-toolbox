@@ -278,7 +278,7 @@ pub trait CacheOperations {
 /// Blanket implementation for all CacheBackend implementations
 #[async_trait]
 impl<T: CacheBackend + ?Sized> CacheOperations for T {
-    async fn store<S: Serialize + Send>(&self, key: &str, data: &S, ttl: Duration) -> Result<()> {
+    async fn store<S: Serialize + Send + Sync>(&self, key: &str, data: &S, ttl: Duration) -> Result<()> {
         let bytes = serde_json::to_vec(data)
             .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
         self.store_bytes(key, &bytes, ttl).await
@@ -294,7 +294,7 @@ impl<T: CacheBackend + ?Sized> CacheOperations for T {
         }
     }
     
-    async fn store_with_metadata<S: Serialize + Send>(
+    async fn store_with_metadata<S: Serialize + Send + Sync>(
         &self, 
         key: &str, 
         data: &S, 

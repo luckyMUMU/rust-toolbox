@@ -111,7 +111,7 @@ pub enum NavigationMode {
 }
 
 /// Navigation configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NavigationConfig {
     /// Navigation mode
     pub mode: NavigationMode,
@@ -123,12 +123,10 @@ pub struct NavigationConfig {
     pub animation_duration: Duration,
     /// Whether to show focus indicators
     pub show_focus_indicators: bool,
-    /// Custom key bindings
-    pub custom_bindings: HashMap<KeyCode, NavigationAction>,
 }
 
 /// Navigation actions
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NavigationAction {
     /// Move focus to next widget
     FocusNext,

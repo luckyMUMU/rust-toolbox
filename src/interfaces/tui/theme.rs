@@ -626,6 +626,8 @@ impl Default for Theme {
 pub struct ThemeManager {
     themes: HashMap<String, Theme>,
     current_theme: String,
+    config_path: Option<PathBuf>,
+    auto_save: bool,
 }
 
 impl ThemeManager {
@@ -644,13 +646,40 @@ impl ThemeManager {
         Self {
             themes,
             current_theme: "Dark".to_string(),
+            config_path: None,
+            auto_save: false,
         }
+    }
+    
+    /// Create theme manager with configuration file path
+    pub fn with_config_path<P: AsRef<Path>>(config_path: P) -> Result<Self, String> {
+        let mut manager = Self::new();
+        manager.config_path = Some(config_path.as_ref().to_path_buf());
+        manager.auto_save = true;
+        
+        // Load themes from config file if it exists
+        if config_path.as_ref().exists() {
+            manager.load_themes_from_file(config_path.as_ref())?;
+        } else {
+            // Save default themes to file
+            manager.save_themes_to_file(config_path.as_ref())?;
+        }
+        
+        Ok(manager)
     }
     
     /// Add a theme to the manager
     pub fn add_theme(&mut self, theme: Theme) -> Result<(), String> {
         theme.validate()?;
         self.themes.insert(theme.name.clone(), theme);
+        
+        // Auto-save if enabled
+        if self.auto_save {
+            if let Some(ref path) = self.config_path {
+                self.save_themes_to_file(path)?;
+            }
+        }
+        
         Ok(())
     }
     
@@ -659,7 +688,17 @@ impl ThemeManager {
         if name == self.current_theme {
             return None; // Cannot remove current theme
         }
-        self.themes.remove(name)
+        
+        let removed = self.themes.remove(name);
+        
+        // Auto-save if enabled
+        if self.auto_save && removed.is_some() {
+            if let Some(ref path) = self.config_path {
+                let _ = self.save_themes_to_file(path);
+            }
+        }
+        
+        removed
     }
     
     /// Get the current theme
@@ -671,6 +710,14 @@ impl ThemeManager {
     pub fn set_current_theme(&mut self, name: &str) -> Result<(), String> {
         if self.themes.contains_key(name) {
             self.current_theme = name.to_string();
+            
+            // Auto-save if enabled
+            if self.auto_save {
+                if let Some(ref path) = self.config_path {
+                    self.save_current_theme_to_file(path)?;
+                }
+            }
+            
             Ok(())
         } else {
             Err(format!("Theme not found: {}", name))
@@ -687,11 +734,16 @@ impl ThemeManager {
         self.themes.get(name)
     }
     
+    /// Get a mutable theme by name
+    pub fn get_theme_mut(&mut self, name: &str) -> Option<&mut Theme> {
+        self.themes.get_mut(name)
+    }
+    
     /// Load themes from configuration
     pub fn load_themes(&mut self, configs: Vec<ThemeConfig>) -> Result<(), String> {
         for config in configs {
             let theme = Theme::from_config(config)?;
-            self.add_theme(theme)?;
+            self.themes.insert(theme.name.clone(), theme);
         }
         Ok(())
     }
@@ -700,10 +752,605 @@ impl ThemeManager {
     pub fn save_themes(&self) -> Vec<ThemeConfig> {
         self.themes.values().map(|theme| theme.to_config()).collect()
     }
+    
+    /// Load themes from file
+    pub fn load_themes_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), String> {
+        let content = std::fs::read_to_string(path.as_ref())
+            .map_err(|e| format!("Failed to read theme file: {}", e))?;
+        
+        let theme_data: ThemeFileData = toml::from_str(&content)
+            .map_err(|e| format!("Failed to parse theme file: {}", e))?;
+        
+        // Load themes
+        for config in theme_data.themes {
+            let theme = Theme::from_config(config)?;
+            self.themes.insert(theme.name.clone(), theme);
+        }
+        
+        // Set current theme if specified
+        if let Some(current) = theme_data.current_theme {
+            if self.themes.contains_key(&current) {
+                self.current_theme = current;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Save themes to file
+    pub fn save_themes_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+        // Ensure directory exists
+        if let Some(parent) = path.as_ref().parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create theme directory: {}", e))?;
+        }
+        
+        let theme_data = ThemeFileData {
+            current_theme: Some(self.current_theme.clone()),
+            themes: self.save_themes(),
+        };
+        
+        let content = toml::to_string_pretty(&theme_data)
+            .map_err(|e| format!("Failed to serialize themes: {}", e))?;
+        
+        std::fs::write(path.as_ref(), content)
+            .map_err(|e| format!("Failed to write theme file: {}", e))?;
+        
+        Ok(())
+    }
+    
+    /// Save only current theme selection to file
+    fn save_current_theme_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+        // For now, save the entire theme data
+        // In a more sophisticated implementation, we might have separate files
+        self.save_themes_to_file(path)
+    }
+    
+    /// Import theme from file
+    pub fn import_theme<P: AsRef<Path>>(&mut self, path: P) -> Result<String, String> {
+        let content = std::fs::read_to_string(path.as_ref())
+            .map_err(|e| format!("Failed to read theme file: {}", e))?;
+        
+        let theme_config: ThemeConfig = toml::from_str(&content)
+            .map_err(|e| format!("Failed to parse theme file: {}", e))?;
+        
+        let theme = Theme::from_config(theme_config)?;
+        let theme_name = theme.name.clone();
+        
+        self.add_theme(theme)?;
+        
+        Ok(theme_name)
+    }
+    
+    /// Export theme to file
+    pub fn export_theme<P: AsRef<Path>>(&self, theme_name: &str, path: P) -> Result<(), String> {
+        let theme = self.get_theme(theme_name)
+            .ok_or_else(|| format!("Theme not found: {}", theme_name))?;
+        
+        let theme_config = theme.to_config();
+        let content = toml::to_string_pretty(&theme_config)
+            .map_err(|e| format!("Failed to serialize theme: {}", e))?;
+        
+        std::fs::write(path.as_ref(), content)
+            .map_err(|e| format!("Failed to write theme file: {}", e))?;
+        
+        Ok(())
+    }
+    
+    /// Create a custom theme based on an existing theme
+    pub fn create_custom_theme(&mut self, base_theme_name: &str, new_name: String) -> Result<(), String> {
+        let base_theme = self.get_theme(base_theme_name)
+            .ok_or_else(|| format!("Base theme not found: {}", base_theme_name))?;
+        
+        let mut new_theme = base_theme.clone();
+        new_theme.name = new_name.clone();
+        new_theme.set_metadata("author".to_string(), "User".to_string());
+        new_theme.set_metadata("version".to_string(), "1.0.0".to_string());
+        new_theme.set_metadata("description".to_string(), format!("Custom theme based on {}", base_theme_name));
+        new_theme.set_metadata("base_theme".to_string(), base_theme_name.to_string());
+        
+        self.add_theme(new_theme)?;
+        Ok(())
+    }
+    
+    /// Modify a theme's colors
+    pub fn modify_theme_colors(&mut self, theme_name: &str, color_modifications: HashMap<String, String>) -> Result<(), String> {
+        let theme = self.get_theme_mut(theme_name)
+            .ok_or_else(|| format!("Theme not found: {}", theme_name))?;
+        
+        for (color_key, color_value) in color_modifications {
+            match color_key.as_str() {
+                "primary" => theme.colors.primary = parse_color(&color_value)?,
+                "secondary" => theme.colors.secondary = parse_color(&color_value)?,
+                "accent" => theme.colors.accent = parse_color(&color_value)?,
+                "background" => theme.colors.background = parse_color(&color_value)?,
+                "surface" => theme.colors.surface = parse_color(&color_value)?,
+                "text_primary" => theme.colors.text_primary = parse_color(&color_value)?,
+                "text_secondary" => theme.colors.text_secondary = parse_color(&color_value)?,
+                "success" => theme.colors.success = parse_color(&color_value)?,
+                "warning" => theme.colors.warning = parse_color(&color_value)?,
+                "error" => theme.colors.error = parse_color(&color_value)?,
+                "info" => theme.colors.info = parse_color(&color_value)?,
+                _ => return Err(format!("Unknown color key: {}", color_key)),
+            }
+        }
+        
+        // Regenerate styles based on new colors
+        theme.styles = StyleScheme::from_colors(&theme.colors);
+        
+        // Auto-save if enabled
+        if self.auto_save {
+            if let Some(ref path) = self.config_path {
+                self.save_themes_to_file(path)?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Get theme statistics
+    pub fn get_theme_stats(&self) -> ThemeStats {
+        let total_themes = self.themes.len();
+        let custom_themes = self.themes.values()
+            .filter(|theme| theme.get_metadata("base_theme").is_some())
+            .count();
+        let builtin_themes = total_themes - custom_themes;
+        
+        ThemeStats {
+            total_themes,
+            builtin_themes,
+            custom_themes,
+            current_theme: self.current_theme.clone(),
+        }
+    }
+    
+    /// Validate all themes
+    pub fn validate_all_themes(&self) -> Vec<(String, String)> {
+        let mut errors = Vec::new();
+        
+        for (name, theme) in &self.themes {
+            if let Err(error) = theme.validate() {
+                errors.push((name.clone(), error));
+            }
+        }
+        
+        errors
+    }
+    
+    /// Reset to default themes
+    pub fn reset_to_defaults(&mut self) -> Result<(), String> {
+        self.themes.clear();
+        
+        let dark_theme = Theme::dark();
+        let light_theme = Theme::light();
+        let high_contrast_theme = Theme::high_contrast();
+        
+        self.themes.insert(dark_theme.name.clone(), dark_theme);
+        self.themes.insert(light_theme.name.clone(), light_theme);
+        self.themes.insert(high_contrast_theme.name.clone(), high_contrast_theme);
+        
+        self.current_theme = "Dark".to_string();
+        
+        // Auto-save if enabled
+        if self.auto_save {
+            if let Some(ref path) = self.config_path {
+                self.save_themes_to_file(path)?;
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Enable or disable auto-save
+    pub fn set_auto_save(&mut self, enabled: bool) {
+        self.auto_save = enabled;
+    }
+    
+    /// Check if auto-save is enabled
+    pub fn is_auto_save_enabled(&self) -> bool {
+        self.auto_save
+    }
+    
+    /// Get config file path
+    pub fn config_path(&self) -> Option<&PathBuf> {
+        self.config_path.as_ref()
+    }
 }
 
 impl Default for ThemeManager {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Theme file data structure for serialization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeFileData {
+    pub current_theme: Option<String>,
+    pub themes: Vec<ThemeConfig>,
+}
+
+/// Theme statistics
+#[derive(Debug, Clone)]
+pub struct ThemeStats {
+    pub total_themes: usize,
+    pub builtin_themes: usize,
+    pub custom_themes: usize,
+    pub current_theme: String,
+}
+
+/// Theme builder for creating custom themes
+pub struct ThemeBuilder {
+    name: String,
+    colors: ColorScheme,
+    metadata: HashMap<String, String>,
+}
+
+impl ThemeBuilder {
+    /// Create a new theme builder
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            colors: ColorScheme {
+                primary: Color::Blue,
+                secondary: Color::Cyan,
+                accent: Color::Magenta,
+                background: Color::Black,
+                surface: Color::DarkGray,
+                overlay: Color::Gray,
+                text_primary: Color::White,
+                text_secondary: Color::LightBlue,
+                text_disabled: Color::DarkGray,
+                success: Color::Green,
+                warning: Color::Yellow,
+                error: Color::Red,
+                info: Color::Blue,
+                border: Color::Gray,
+                border_focused: Color::Blue,
+                highlight: Color::Blue,
+                selection: Color::DarkGray,
+                progress_bar: Color::Green,
+                progress_background: Color::DarkGray,
+                status_running: Color::Green,
+                status_completed: Color::Blue,
+                status_failed: Color::Red,
+                status_paused: Color::Yellow,
+            },
+            metadata: HashMap::new(),
+        }
+    }
+    
+    /// Create theme builder from existing theme
+    pub fn from_theme(theme: &Theme) -> Self {
+        Self {
+            name: theme.name.clone(),
+            colors: theme.colors.clone(),
+            metadata: theme.metadata.clone(),
+        }
+    }
+    
+    /// Set primary color
+    pub fn primary(mut self, color: Color) -> Self {
+        self.colors.primary = color;
+        self
+    }
+    
+    /// Set secondary color
+    pub fn secondary(mut self, color: Color) -> Self {
+        self.colors.secondary = color;
+        self
+    }
+    
+    /// Set accent color
+    pub fn accent(mut self, color: Color) -> Self {
+        self.colors.accent = color;
+        self
+    }
+    
+    /// Set background color
+    pub fn background(mut self, color: Color) -> Self {
+        self.colors.background = color;
+        self
+    }
+    
+    /// Set surface color
+    pub fn surface(mut self, color: Color) -> Self {
+        self.colors.surface = color;
+        self
+    }
+    
+    /// Set text colors
+    pub fn text_colors(mut self, primary: Color, secondary: Color, disabled: Color) -> Self {
+        self.colors.text_primary = primary;
+        self.colors.text_secondary = secondary;
+        self.colors.text_disabled = disabled;
+        self
+    }
+    
+    /// Set status colors
+    pub fn status_colors(mut self, success: Color, warning: Color, error: Color, info: Color) -> Self {
+        self.colors.success = success;
+        self.colors.warning = warning;
+        self.colors.error = error;
+        self.colors.info = info;
+        self
+    }
+    
+    /// Set border colors
+    pub fn border_colors(mut self, normal: Color, focused: Color) -> Self {
+        self.colors.border = normal;
+        self.colors.border_focused = focused;
+        self
+    }
+    
+    /// Set metadata
+    pub fn metadata(mut self, key: String, value: String) -> Self {
+        self.metadata.insert(key, value);
+        self
+    }
+    
+    /// Set author metadata
+    pub fn author(mut self, author: String) -> Self {
+        self.metadata.insert("author".to_string(), author);
+        self
+    }
+    
+    /// Set description metadata
+    pub fn description(mut self, description: String) -> Self {
+        self.metadata.insert("description".to_string(), description);
+        self
+    }
+    
+    /// Set version metadata
+    pub fn version(mut self, version: String) -> Self {
+        self.metadata.insert("version".to_string(), version);
+        self
+    }
+    
+    /// Build the theme
+    pub fn build(self) -> Theme {
+        let styles = StyleScheme::from_colors(&self.colors);
+        
+        Theme {
+            name: self.name,
+            colors: self.colors,
+            styles,
+            metadata: self.metadata,
+        }
+    }
+}
+
+/// Theme preset manager for common theme configurations
+pub struct ThemePresetManager {
+    presets: HashMap<String, ThemeBuilder>,
+}
+
+impl ThemePresetManager {
+    /// Create a new preset manager with default presets
+    pub fn new() -> Self {
+        let mut presets = HashMap::new();
+        
+        // Solarized Dark preset
+        let solarized_dark = ThemeBuilder::new("SolarizedDark".to_string())
+            .background(Color::Rgb(0, 43, 54))
+            .surface(Color::Rgb(7, 54, 66))
+            .primary(Color::Rgb(38, 139, 210))
+            .secondary(Color::Rgb(42, 161, 152))
+            .accent(Color::Rgb(211, 54, 130))
+            .text_colors(
+                Color::Rgb(147, 161, 161),
+                Color::Rgb(88, 110, 117),
+                Color::Rgb(101, 123, 131),
+            )
+            .status_colors(
+                Color::Rgb(133, 153, 0),
+                Color::Rgb(181, 137, 0),
+                Color::Rgb(220, 50, 47),
+                Color::Rgb(38, 139, 210),
+            )
+            .author("Ethan Schoonover".to_string())
+            .description("Solarized Dark theme".to_string());
+        
+        presets.insert("solarized_dark".to_string(), solarized_dark);
+        
+        // Monokai preset
+        let monokai = ThemeBuilder::new("Monokai".to_string())
+            .background(Color::Rgb(39, 40, 34))
+            .surface(Color::Rgb(73, 72, 62))
+            .primary(Color::Rgb(102, 217, 239))
+            .secondary(Color::Rgb(166, 226, 46))
+            .accent(Color::Rgb(249, 38, 114))
+            .text_colors(
+                Color::Rgb(248, 248, 242),
+                Color::Rgb(117, 113, 94),
+                Color::Rgb(117, 113, 94),
+            )
+            .status_colors(
+                Color::Rgb(166, 226, 46),
+                Color::Rgb(230, 219, 116),
+                Color::Rgb(249, 38, 114),
+                Color::Rgb(102, 217, 239),
+            )
+            .author("Wimer Hazenberg".to_string())
+            .description("Monokai theme".to_string());
+        
+        presets.insert("monokai".to_string(), monokai);
+        
+        // Dracula preset
+        let dracula = ThemeBuilder::new("Dracula".to_string())
+            .background(Color::Rgb(40, 42, 54))
+            .surface(Color::Rgb(68, 71, 90))
+            .primary(Color::Rgb(139, 233, 253))
+            .secondary(Color::Rgb(80, 250, 123))
+            .accent(Color::Rgb(255, 121, 198))
+            .text_colors(
+                Color::Rgb(248, 248, 242),
+                Color::Rgb(98, 114, 164),
+                Color::Rgb(98, 114, 164),
+            )
+            .status_colors(
+                Color::Rgb(80, 250, 123),
+                Color::Rgb(241, 250, 140),
+                Color::Rgb(255, 85, 85),
+                Color::Rgb(139, 233, 253),
+            )
+            .author("Zeno Rocha".to_string())
+            .description("Dracula theme".to_string());
+        
+        presets.insert("dracula".to_string(), dracula);
+        
+        Self { presets }
+    }
+    
+    /// Get a preset by name
+    pub fn get_preset(&self, name: &str) -> Option<&ThemeBuilder> {
+        self.presets.get(name)
+    }
+    
+    /// Get all preset names
+    pub fn preset_names(&self) -> Vec<String> {
+        self.presets.keys().cloned().collect()
+    }
+    
+    /// Build a theme from a preset
+    pub fn build_preset(&self, name: &str) -> Option<Theme> {
+        self.presets.get(name).map(|builder| builder.clone().build())
+    }
+    
+    /// Add a custom preset
+    pub fn add_preset(&mut self, name: String, builder: ThemeBuilder) {
+        self.presets.insert(name, builder);
+    }
+}
+
+impl Default for ThemePresetManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Theme validator for checking theme consistency and accessibility
+pub struct ThemeValidator;
+
+impl ThemeValidator {
+    /// Validate a theme for accessibility and consistency
+    pub fn validate_theme(theme: &Theme) -> Vec<ThemeValidationIssue> {
+        let mut issues = Vec::new();
+        
+        // Check contrast ratios
+        issues.extend(Self::check_contrast_ratios(theme));
+        
+        // Check color consistency
+        issues.extend(Self::check_color_consistency(theme));
+        
+        // Check accessibility
+        issues.extend(Self::check_accessibility(theme));
+        
+        issues
+    }
+    
+    /// Check contrast ratios between text and background colors
+    fn check_contrast_ratios(theme: &Theme) -> Vec<ThemeValidationIssue> {
+        let mut issues = Vec::new();
+        
+        // This is a simplified contrast check
+        // In a real implementation, you would calculate actual contrast ratios
+        
+        if Self::colors_too_similar(&theme.colors.text_primary, &theme.colors.background) {
+            issues.push(ThemeValidationIssue {
+                severity: ValidationSeverity::Error,
+                message: "Primary text and background colors have insufficient contrast".to_string(),
+                suggestion: "Choose colors with higher contrast ratio".to_string(),
+            });
+        }
+        
+        if Self::colors_too_similar(&theme.colors.text_secondary, &theme.colors.surface) {
+            issues.push(ThemeValidationIssue {
+                severity: ValidationSeverity::Warning,
+                message: "Secondary text and surface colors may have low contrast".to_string(),
+                suggestion: "Consider adjusting secondary text color".to_string(),
+            });
+        }
+        
+        issues
+    }
+    
+    /// Check color consistency across the theme
+    fn check_color_consistency(theme: &Theme) -> Vec<ThemeValidationIssue> {
+        let mut issues = Vec::new();
+        
+        // Check if status colors are distinct
+        let status_colors = [
+            &theme.colors.success,
+            &theme.colors.warning,
+            &theme.colors.error,
+            &theme.colors.info,
+        ];
+        
+        for (i, color1) in status_colors.iter().enumerate() {
+            for (j, color2) in status_colors.iter().enumerate() {
+                if i != j && Self::colors_too_similar(color1, color2) {
+                    issues.push(ThemeValidationIssue {
+                        severity: ValidationSeverity::Warning,
+                        message: "Status colors are too similar and may be confusing".to_string(),
+                        suggestion: "Use more distinct colors for different status types".to_string(),
+                    });
+                    break;
+                }
+            }
+        }
+        
+        issues
+    }
+    
+    /// Check accessibility features
+    fn check_accessibility(theme: &Theme) -> Vec<ThemeValidationIssue> {
+        let mut issues = Vec::new();
+        
+        // Check if theme is suitable for color-blind users
+        if !Self::is_colorblind_friendly(theme) {
+            issues.push(ThemeValidationIssue {
+                severity: ValidationSeverity::Info,
+                message: "Theme may not be suitable for color-blind users".to_string(),
+                suggestion: "Consider using patterns or shapes in addition to colors".to_string(),
+            });
+        }
+        
+        issues
+    }
+    
+    /// Simple color similarity check (placeholder implementation)
+    fn colors_too_similar(color1: &Color, color2: &Color) -> bool {
+        // This is a very simplified check
+        // In a real implementation, you would convert to a perceptual color space
+        // and calculate actual distance
+        match (color1, color2) {
+            (Color::Black, Color::DarkGray) => true,
+            (Color::White, Color::Gray) => true,
+            _ => false,
+        }
+    }
+    
+    /// Check if theme is colorblind-friendly (placeholder implementation)
+    fn is_colorblind_friendly(_theme: &Theme) -> bool {
+        // This would involve more sophisticated color analysis
+        // For now, return true as a placeholder
+        true
+    }
+}
+
+/// Theme validation issue
+#[derive(Debug, Clone)]
+pub struct ThemeValidationIssue {
+    pub severity: ValidationSeverity,
+    pub message: String,
+    pub suggestion: String,
+}
+
+/// Validation severity levels
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationSeverity {
+    Error,
+    Warning,
+    Info,
 }

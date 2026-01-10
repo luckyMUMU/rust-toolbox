@@ -51,6 +51,8 @@ impl ExecutionInfo {
             ExecutionStatus::Completed => "已完成",
             ExecutionStatus::Failed => "失败",
             ExecutionStatus::Cancelled => "已取消",
+            ExecutionStatus::Paused => "已暂停",
+            ExecutionStatus::Timeout => "超时",
         }
     }
     
@@ -62,6 +64,8 @@ impl ExecutionInfo {
             ExecutionStatus::Completed => "✅",
             ExecutionStatus::Failed => "❌",
             ExecutionStatus::Cancelled => "⏹",
+            ExecutionStatus::Paused => "⏸",
+            ExecutionStatus::Timeout => "⏰",
         }
     }
 }
@@ -210,8 +214,8 @@ impl ExecutionMonitorWidget {
                 let line = Line::from(vec![
                     Span::styled(execution.status_symbol(), status_style),
                     Span::raw(" "),
-                    Span::styled(&execution.workflow_name, theme.styles.text_primary),
-                    Span::styled(progress_bar, theme.styles.text_secondary),
+                    Span::styled(&execution.workflow_name, theme.styles.text_normal),
+                    Span::styled(progress_bar, theme.styles.text_dimmed),
                     Span::raw(" - "),
                     Span::styled(execution.status_text(), status_style),
                 ]);
@@ -225,8 +229,8 @@ impl ExecutionMonitorWidget {
                 .borders(Borders::ALL)
                 .title("执行监控")
                 .border_style(theme.styles.widget_border))
-            .style(theme.styles.text_primary)
-            .highlight_style(theme.styles.selected_item)
+            .style(theme.styles.text_normal)
+            .highlight_style(theme.styles.list_item_selected)
             .highlight_symbol("▶ ");
         
         frame.render_stateful_widget(list, area, &mut self.list_state);
@@ -239,7 +243,7 @@ impl ExecutionMonitorWidget {
         
         frame.render_stateful_widget(
             scrollbar,
-            area.inner(&ratatui::layout::Margin { vertical: 1, horizontal: 0 }),
+            area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 0 }),
             &mut self.scroll_state,
         );
     }
@@ -249,15 +253,15 @@ impl ExecutionMonitorWidget {
         if let Some(execution) = self.selected_execution() {
             let details_lines = vec![
                 Line::from(vec![
-                    Span::styled("工作流: ", theme.styles.text_secondary),
-                    Span::styled(&execution.workflow_name, theme.styles.text_primary),
+                    Span::styled("工作流: ", theme.styles.text_dimmed),
+                    Span::styled(&execution.workflow_name, theme.styles.text_normal),
                 ]),
                 Line::from(vec![
-                    Span::styled("执行ID: ", theme.styles.text_secondary),
-                    Span::styled(&execution.execution_id, theme.styles.text_primary),
+                    Span::styled("执行ID: ", theme.styles.text_dimmed),
+                    Span::styled(&execution.execution_id, theme.styles.text_normal),
                 ]),
                 Line::from(vec![
-                    Span::styled("状态: ", theme.styles.text_secondary),
+                    Span::styled("状态: ", theme.styles.text_dimmed),
                     Span::styled(execution.status_text(), match execution.status {
                         ExecutionStatus::Running => Style::default().fg(theme.colors.success),
                         ExecutionStatus::Completed => Style::default().fg(theme.colors.info),
@@ -267,12 +271,12 @@ impl ExecutionMonitorWidget {
                     }),
                 ]),
                 Line::from(vec![
-                    Span::styled("进度: ", theme.styles.text_secondary),
-                    Span::styled(format!("{:.1}%", execution.progress * 100.0), theme.styles.text_primary),
+                    Span::styled("进度: ", theme.styles.text_dimmed),
+                    Span::styled(format!("{:.1}%", execution.progress * 100.0), theme.styles.text_normal),
                 ]),
                 Line::from(vec![
-                    Span::styled("开始时间: ", theme.styles.text_secondary),
-                    Span::styled(execution.started_at.format("%Y-%m-%d %H:%M:%S").to_string(), theme.styles.text_primary),
+                    Span::styled("开始时间: ", theme.styles.text_dimmed),
+                    Span::styled(execution.started_at.format("%Y-%m-%d %H:%M:%S").to_string(), theme.styles.text_normal),
                 ]),
             ];
             
@@ -281,7 +285,7 @@ impl ExecutionMonitorWidget {
                     .borders(Borders::ALL)
                     .title("执行详情")
                     .border_style(theme.styles.widget_border))
-                .style(theme.styles.text_primary)
+                .style(theme.styles.text_normal)
                 .wrap(Wrap { trim: true });
             
             frame.render_widget(details, area);
@@ -291,7 +295,7 @@ impl ExecutionMonitorWidget {
                     .borders(Borders::ALL)
                     .title("执行详情")
                     .border_style(theme.styles.widget_border))
-                .style(theme.styles.text_secondary)
+                .style(theme.styles.text_dimmed)
                 .alignment(Alignment::Center);
             
             frame.render_widget(no_selection, area);
