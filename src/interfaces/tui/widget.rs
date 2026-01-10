@@ -129,7 +129,7 @@ pub enum WidgetError {
 }
 
 /// Widget size constraints
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SizeConstraints {
     /// Minimum width in characters
     pub min_width: Option<u16>,
