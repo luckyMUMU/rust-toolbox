@@ -8,6 +8,7 @@ pub mod log_viewer;
 pub mod tool_manager;
 pub mod plugin_manager;
 pub mod system_status;
+pub mod sync_status;
 
 // Re-export widget implementations
 pub use workflow_list::WorkflowListWidget;
@@ -16,3 +17,4 @@ pub use log_viewer::LogViewerWidget;
 pub use tool_manager::ToolManagerWidget;
 pub use plugin_manager::PluginManagerWidget;
 pub use system_status::SystemStatusWidget;
+pub use sync_status::SyncStatusWidget;

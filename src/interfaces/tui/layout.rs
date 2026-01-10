@@ -1403,7 +1403,9 @@ impl LayoutManager {
             
             // Try to load default template if available
             if let Some(template) = config_manager.get_template("default") {
-                self.apply_template(template)?;
+                let template_clone = template.clone();
+                drop(config_manager); // Release the mutable borrow
+                self.apply_template(&template_clone)?;
                 tracing::info!("Loaded default layout template");
             }
         }
@@ -1427,8 +1429,17 @@ impl LayoutManager {
         name: String, 
         description: String
     ) -> std::result::Result<(), LayoutError> {
+        // Extract the template creation logic to avoid borrowing conflicts
+        let template = if let Some(ref config_manager) = self.config_manager {
+            config_manager.create_template_from_manager(name, description, self)?
+        } else {
+            return Err(LayoutError::ConfigError {
+                message: "Configuration manager not available".to_string(),
+            });
+        };
+        
+        // Now save the template
         if let Some(ref mut config_manager) = self.config_manager {
-            let template = config_manager.create_template_from_manager(name, description, self)?;
             config_manager.save_template(template).await?;
             Ok(())
         } else {
@@ -1440,8 +1451,17 @@ impl LayoutManager {
     
     /// Load and apply a template by name
     pub async fn load_template(&mut self, template_name: &str) -> std::result::Result<(), LayoutError> {
-        if let Some(ref mut config_manager) = self.config_manager {
+        // First apply the template
+        if let Some(ref config_manager) = self.config_manager {
             config_manager.apply_template_to_manager(template_name, self)?;
+        } else {
+            return Err(LayoutError::ConfigError {
+                message: "Configuration manager not available".to_string(),
+            });
+        }
+        
+        // Then set the active template
+        if let Some(ref mut config_manager) = self.config_manager {
             config_manager.set_active_template(Some(template_name.to_string()))?;
             Ok(())
         } else {

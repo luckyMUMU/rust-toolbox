@@ -15,6 +15,8 @@ pub mod widgets;
 pub mod system_monitor;
 pub mod app;
 pub mod state;
+pub mod sync;
+pub mod backends;
 
 // Re-export public types
 pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
@@ -25,10 +27,12 @@ pub use action::{Action, ActionDispatcher, ActionResult};
 pub use focus::{FocusManager, FocusCapability, NavigationConfig, NavigationMode, FocusChangeEvent};
 pub use help::{HelpSystem, ShortcutInfo, HelpContent, HelpDisplayMode};
 pub use navigation::{NavigationStack, ModalDialog, EscKeyBehavior, NavigationTrigger};
-pub use widgets::{WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, ToolManagerWidget, SystemStatusWidget};
+pub use widgets::{WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, ToolManagerWidget, SystemStatusWidget, SyncStatusWidget};
 pub use system_monitor::{SystemMonitor, CpuInfo, MemoryInfo, DiskInfo, NetworkInfo, ProcessInfo, ProcessSortBy};
 pub use app::{MainTuiInterface};
 pub use state::{SharedAppState, StateChangeEvent, StateSubscriber, SystemStatus, ConnectionStatus};
+pub use sync::{DataSyncManager, SyncConfig, SyncMetrics, SyncStatus, SyncEvent, SyncBackend, CacheBackend, CacheMetadata, CachePriority, CompactionResult, OfflineCacheManager};
+pub use backends::{MockSyncBackend, MemoryCacheBackend, HttpSyncBackend};
 
 use crate::error::Result;
 use async_trait::async_trait;
