@@ -336,3 +336,82 @@ pub struct ExecutionMetrics {
     pub queue_capacity: usize,
     pub available_permits: usize,
 }
+
+/// System status information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemStatus {
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+    pub memory_total: u64,
+    pub memory_used: u64,
+    pub active_workflows: u32,
+    pub system_health: SystemHealth,
+    pub uptime: Duration,
+    pub network_status: NetworkStatus,
+    pub disk_usage: f64,
+    pub disk_total: u64,
+    pub disk_used: u64,
+    pub process_count: u32,
+    pub thread_count: u32,
+    pub load_average: f64,
+}
+
+/// System health status
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SystemHealth {
+    Healthy,
+    Warning,
+    Critical,
+}
+
+/// Network connection status
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NetworkStatus {
+    Connected,
+    Disconnected,
+    Limited,
+}
+
+/// Comprehensive system health assessment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemHealthAssessment {
+    pub overall_health: SystemHealth,
+    pub overall_score: u8,  // 0-100
+    pub cpu_health_score: f64,
+    pub memory_health_score: f64,
+    pub disk_health_score: f64,
+    pub network_health_score: f64,
+    pub recommendations: Vec<String>,
+    pub load_assessment: String,
+    pub last_updated: DateTime<Utc>,
+}
+
+/// Connection status for external services
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectionStatus {
+    Connected,
+    Connecting,
+    Disconnected,
+    Error(String),
+}
+
+impl Default for SystemStatus {
+    fn default() -> Self {
+        Self {
+            cpu_usage: 0.0,
+            memory_usage: 0.0,
+            memory_total: 0,
+            memory_used: 0,
+            active_workflows: 0,
+            system_health: SystemHealth::Healthy,
+            uptime: Duration::from_secs(0),
+            network_status: NetworkStatus::Disconnected,
+            disk_usage: 0.0,
+            disk_total: 0,
+            disk_used: 0,
+            process_count: 0,
+            thread_count: 0,
+            load_average: 0.0,
+        }
+    }
+}

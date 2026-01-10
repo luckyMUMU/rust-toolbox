@@ -6,7 +6,8 @@ use crate::interfaces::cli::{
     CliError, Cli, Commands, WorkflowAction, ToolAction, PluginAction, BatchAction
 };
 use crate::interfaces::cli::output::{create_formatter, OutputFormatter};
-use crate::interfaces::tui::TuiInterface;
+use crate::interfaces::tui::app::TuiInterface;
+use crate::interfaces::tui::EnhancedTuiInterface;
 use crate::interfaces::mcp::{McpServer, McpServerInterface, McpServerConfig};
 use crate::plugins::manager::PluginManager;
 use crate::plugins::types::PluginConfig;

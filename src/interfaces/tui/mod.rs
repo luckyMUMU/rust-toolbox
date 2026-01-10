@@ -9,6 +9,9 @@ pub mod theme;
 pub mod event;
 pub mod action;
 pub mod widgets;
+pub mod system_monitor;
+pub mod app;
+pub mod state;
 
 // Re-export public types
 pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
@@ -16,7 +19,10 @@ pub use layout::{LayoutManager, LayoutConstraints, LayoutDirection, LayoutNode};
 pub use theme::{Theme, ColorScheme, StyleScheme, ThemeManager};
 pub use event::{EventHandler, TuiEvent, EventResult};
 pub use action::{Action, ActionDispatcher, ActionResult};
-pub use widgets::{WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, ToolManagerWidget};
+pub use widgets::{WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, ToolManagerWidget, SystemStatusWidget};
+pub use system_monitor::{SystemMonitor, CpuInfo, MemoryInfo, DiskInfo, NetworkInfo, ProcessInfo, ProcessSortBy};
+pub use app::{MainTuiInterface};
+pub use state::{SharedAppState, StateChangeEvent, StateSubscriber, SystemStatus, ConnectionStatus};
 
 use crate::error::Result;
 use async_trait::async_trait;
@@ -129,7 +135,7 @@ impl Default for WidgetRegistry {
 }
 
 /// TUI Application with enhanced widget system
-pub struct TuiApp {
+pub struct EnhancedTuiApp {
     widget_registry: WidgetRegistry,
     theme_manager: ThemeManager,
     event_handler: EventHandler,
@@ -137,7 +143,7 @@ pub struct TuiApp {
     should_quit: bool,
 }
 
-impl TuiApp {
+impl EnhancedTuiApp {
     /// Create a new TUI application
     pub async fn new() -> Result<Self> {
         Ok(Self {
@@ -188,7 +194,7 @@ impl TuiApp {
 }
 
 /// TUI interface trait for compatibility
-pub trait TuiInterface: Send + Sync {
+pub trait EnhancedTuiInterface: Send + Sync {
     fn start(&self) -> Result<()>;
     fn stop(&self) -> Result<()>;
     fn is_running(&self) -> bool;
@@ -197,7 +203,7 @@ pub trait TuiInterface: Send + Sync {
 
 /// Basic TUI interface implementation
 pub struct BasicTuiInterface {
-    app: Option<TuiApp>,
+    app: Option<EnhancedTuiApp>,
     is_running: bool,
 }
 
@@ -210,7 +216,7 @@ impl BasicTuiInterface {
     }
     
     pub async fn initialize(&mut self) -> Result<()> {
-        self.app = Some(TuiApp::new().await?);
+        self.app = Some(EnhancedTuiApp::new().await?);
         Ok(())
     }
     
@@ -231,7 +237,7 @@ impl Default for BasicTuiInterface {
     }
 }
 
-impl TuiInterface for BasicTuiInterface {
+impl EnhancedTuiInterface for BasicTuiInterface {
     fn start(&self) -> Result<()> {
         println!("TUI interface starting (use run() method for async operation)");
         Ok(())

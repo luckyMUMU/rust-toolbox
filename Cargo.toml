@@ -47,6 +47,7 @@ moka = { version = "0.12", features = ["future"] }
 # 日志和监控
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sysinfo = "0.32"
 # metrics = "0.24"
 # metrics-exporter-prometheus = "0.16"
 
