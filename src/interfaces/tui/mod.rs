@@ -17,6 +17,9 @@ pub mod app;
 pub mod state;
 pub mod sync;
 pub mod backends;
+pub mod error;
+pub mod feedback;
+pub mod undo;
 
 // Re-export public types
 pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
@@ -33,6 +36,15 @@ pub use app::{MainTuiInterface};
 pub use state::{SharedAppState, StateChangeEvent, StateSubscriber, SystemStatus, ConnectionStatus};
 pub use sync::{DataSyncManager, SyncConfig, SyncMetrics, SyncStatus, SyncEvent, SyncBackend, CacheBackend, CacheMetadata, CachePriority, CompactionResult, OfflineCacheManager};
 pub use backends::{MockSyncBackend, MemoryCacheBackend, HttpSyncBackend};
+pub use error::{TuiError, ErrorSeverity, RecoveryStrategy, ErrorContext, ErrorManager, ErrorDisplayWidget, ErrorRecoveryHandler};
+pub use feedback::{
+    ProgressIndicator, ProgressStatus, ConfirmationDialog, ConfirmationOption, ConfirmationAction,
+    DialogType, Notification, NotificationType, StatusMessage, StatusType, FeedbackManager, FeedbackWidget
+};
+pub use undo::{
+    UndoableOperation, OperationResult, OperationType, UndoManager, ErrorReport, ErrorReportType,
+    ErrorReportManager, UndoHistoryWidget, ErrorReportWidget
+};
 
 use crate::error::Result;
 use async_trait::async_trait;
