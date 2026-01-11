@@ -1016,7 +1016,7 @@ impl FeedbackWidget {
 /// Convenience functions for common feedback patterns
 impl FeedbackManager {
     pub async fn show_info<S: Into<String>>(&self, title: S, message: S) -> Result<()> {
-        self.show_notification("info", title, message, NotificationType::Info).await
+        self.show_notification("info", &title.into(), &message.into(), NotificationType::Info).await
     }
     
     pub async fn show_success<S: Into<String>>(&self, title: S, message: S) -> Result<()> {

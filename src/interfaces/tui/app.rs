@@ -151,7 +151,7 @@ impl TuiApp {
         let theme_manager = if let Some(ref manager) = config_manager {
             let tm = manager.theme_manager();
             let tm_guard = tm.read().await;
-            tm_guard.clone()
+            (*tm_guard).clone()
         } else {
             // Create theme manager with config path if available
             let theme_config_path = std::env::current_dir()

@@ -180,8 +180,7 @@ pub struct PerformanceAlert {
     pub component: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AlertType {
     HighCpuUsage,
     HighMemoryUsage,
