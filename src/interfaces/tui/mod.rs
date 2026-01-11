@@ -68,7 +68,7 @@ pub use virtualization::{
 pub use startup::{
     StartupPerformanceManager, StartupConfig, ComponentInitializer, ComponentInfo, InitializationPriority,
     InitializationStatus, StartupMetrics, StartupPhase, LazyComponentLoader, StartupOptimization,
-    StartupOptimizationType, OptimizationPriority
+    StartupOptimizationType, OptimizationPriority as StartupOptimizationPriority
 };
 pub use monitoring::{
     TuiPerformanceMonitor, MonitoringConfig, PerformanceSnapshot, PerformanceAlert, AlertType,

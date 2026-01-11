@@ -3,6 +3,7 @@
 //! This module provides theme management and styling for the TUI components.
 
 use ratatui::style::{Color, Modifier, Style};
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

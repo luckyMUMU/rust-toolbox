@@ -203,6 +203,8 @@ impl ExecutionMonitorWidget {
                     ExecutionStatus::Failed => Style::default().fg(theme.colors.error),
                     ExecutionStatus::Cancelled => Style::default().fg(theme.colors.text_secondary),
                     ExecutionStatus::Pending => Style::default().fg(theme.colors.warning),
+                    ExecutionStatus::Paused => Style::default().fg(theme.colors.warning),
+                    ExecutionStatus::Timeout => Style::default().fg(theme.colors.error),
                 };
                 
                 let progress_bar = if execution.progress > 0.0 {
@@ -268,6 +270,8 @@ impl ExecutionMonitorWidget {
                         ExecutionStatus::Failed => Style::default().fg(theme.colors.error),
                         ExecutionStatus::Cancelled => Style::default().fg(theme.colors.text_secondary),
                         ExecutionStatus::Pending => Style::default().fg(theme.colors.warning),
+                        ExecutionStatus::Paused => Style::default().fg(theme.colors.warning),
+                        ExecutionStatus::Timeout => Style::default().fg(theme.colors.error),
                     }),
                 ]),
                 Line::from(vec![

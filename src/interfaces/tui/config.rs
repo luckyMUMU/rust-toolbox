@@ -6,7 +6,7 @@
 use crate::config::{Config, ConfigManager, CliConfigOverrides};
 use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::{
-    Theme, ThemeManager, ThemeConfig, PlatformConfig, PlatformManager,
+    Theme, ThemeManager, theme::ThemeConfig, PlatformConfig, PlatformManager,
     LayoutManager, FocusManager, NavigationConfig,
 };
 use serde::{Deserialize, Serialize};
