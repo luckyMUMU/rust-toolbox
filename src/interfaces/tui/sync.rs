@@ -255,13 +255,21 @@ pub trait CacheBackend: Send + Sync {
 #[async_trait]
 pub trait CacheOperations {
     /// Store typed data in cache
-    async fn store<T: Serialize + Send>(&self, key: &str, data: &T, ttl: Duration) -> Result<()>;
+    async fn store<T: Serialize + Send + Sync>(
+        &self,
+        key: &str,
+        data: &T,
+        ttl: Duration,
+    ) -> Result<()>;
 
     /// Retrieve typed data from cache
-    async fn retrieve<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<Option<T>>;
+    async fn retrieve<T: for<'de> Deserialize<'de> + Send + Sync>(
+        &self,
+        key: &str,
+    ) -> Result<Option<T>>;
 
     /// Store typed data with metadata
-    async fn store_with_metadata<T: Serialize + Send>(
+    async fn store_with_metadata<T: Serialize + Send + Sync>(
         &self,
         key: &str,
         data: &T,
@@ -270,7 +278,7 @@ pub trait CacheOperations {
     ) -> Result<()>;
 
     /// Retrieve typed data with metadata
-    async fn retrieve_with_metadata<T: for<'de> Deserialize<'de>>(
+    async fn retrieve_with_metadata<T: for<'de> Deserialize<'de> + Send + Sync>(
         &self,
         key: &str,
     ) -> Result<Option<(T, CacheMetadata)>>;
@@ -279,23 +287,31 @@ pub trait CacheOperations {
 /// Blanket implementation for all CacheBackend implementations
 #[async_trait]
 impl<B: CacheBackend + ?Sized> CacheOperations for B {
-    async fn store<T: Serialize + Send>(&self, key: &str, data: &T, ttl: Duration) -> Result<()> {
+    async fn store<T: Serialize + Send + Sync>(
+        &self,
+        key: &str,
+        data: &T,
+        ttl: Duration,
+    ) -> Result<()> {
         let bytes = serde_json::to_vec(data)
             .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
         self.store_bytes(key, &bytes, ttl).await
     }
 
-    async fn retrieve<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<Option<T>> {
+    async fn retrieve<T: for<'de> Deserialize<'de> + Send + Sync>(
+        &self,
+        key: &str,
+    ) -> Result<Option<T>> {
         if let Some(bytes) = self.retrieve_bytes(key).await? {
             let data = serde_json::from_slice(&bytes)
-                .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
+                .map_err(|e| WorkflowError::validation(format!("Deserialization error: {}", e)))?;
             Ok(Some(data))
         } else {
             Ok(None)
         }
     }
 
-    async fn store_with_metadata<T: Serialize + Send>(
+    async fn store_with_metadata<T: Serialize + Send + Sync>(
         &self,
         key: &str,
         data: &T,
@@ -308,13 +324,13 @@ impl<B: CacheBackend + ?Sized> CacheOperations for B {
             .await
     }
 
-    async fn retrieve_with_metadata<T: for<'de> Deserialize<'de>>(
+    async fn retrieve_with_metadata<T: for<'de> Deserialize<'de> + Send + Sync>(
         &self,
         key: &str,
     ) -> Result<Option<(T, CacheMetadata)>> {
         if let Some((bytes, metadata)) = self.retrieve_bytes_with_metadata(key).await? {
             let data = serde_json::from_slice(&bytes)
-                .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
+                .map_err(|e| WorkflowError::validation(format!("Deserialization error: {}", e)))?;
             Ok(Some((data, metadata)))
         } else {
             Ok(None)
@@ -460,7 +476,7 @@ impl OfflineCacheManager {
     }
 
     /// Store data with enhanced metadata for offline access
-    pub async fn store_offline_data<T: Serialize + Send>(
+    pub async fn store_offline_data<T: Serialize + Send + Sync>(
         &self,
         key: &str,
         data: &T,
@@ -495,7 +511,7 @@ impl OfflineCacheManager {
     }
 
     /// Retrieve data with offline fallback
-    pub async fn retrieve_offline_data<T: for<'de> Deserialize<'de>>(
+    pub async fn retrieve_offline_data<T: for<'de> Deserialize<'de> + Send + Sync>(
         &self,
         key: &str,
     ) -> Result<Option<T>> {

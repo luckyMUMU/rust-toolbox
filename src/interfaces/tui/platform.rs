@@ -47,7 +47,7 @@ pub struct TerminalCapabilities {
     pub cursor_shapes: bool,
     pub bracketed_paste: bool,
     pub focus_events: bool,
-    pub max_colors: u16,
+    pub max_colors: u32,
     pub terminal_type: String,
 }
 
@@ -294,7 +294,7 @@ impl PlatformManager {
     }
 
     /// Get maximum number of colors for color support level
-    fn get_max_colors(color_support: &ColorSupport) -> u16 {
+    fn get_max_colors(color_support: &ColorSupport) -> u32 {
         match color_support {
             ColorSupport::None => 0,
             ColorSupport::Basic16 => 16,

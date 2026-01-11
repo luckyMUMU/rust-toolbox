@@ -860,7 +860,7 @@ where
             .render(frame, area, |data, is_selected, style| {
                 let row_data = row_renderer(data, 0);
                 let content = row_data.join(" | ");
-                ListItem::new(content).style(*style)
+                ListItem::new(content).style(style)
             })
             .await
     }

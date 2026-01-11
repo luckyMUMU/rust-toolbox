@@ -267,8 +267,10 @@ impl UndoManager {
         if let Some(mut receiver) = receiver_guard.take() {
             let mut manager = self.clone_for_processing().await;
             tokio::spawn(async move {
-                if let Err(e) = manager.handle_operation(operation).await {
-                    error!("Failed to handle undo operation: {}", e);
+                while let Some(operation) = receiver.recv().await {
+                    if let Err(e) = manager.handle_operation(operation).await {
+                        error!("Failed to handle undo operation: {}", e);
+                    }
                 }
             });
         }

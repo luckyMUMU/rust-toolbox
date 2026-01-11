@@ -404,7 +404,7 @@ pub fn load_config(path: &Path) -> Result<Config> {
 6. **Async Tests**: Must use `#[tokio::test]`, not `#[test]`
 7. **Tool Registry**: Thread-safe via `Arc<dyn ToolRegistry>`, not `RwLock`
 8. **Plugin Sandboxing**: Configurable via `plugins.sandbox_enabled` in config
-9. **MCP Server**: ⚠️ **DISABLED** - Dependencies commented out in Cargo.toml. Code exists in `src/interfaces/mcp.rs` but requires `mcp-protocol-server`, `jsonrpc-*` crates. Documentation references it but won't compile without dependencies.
+9. **MCP Server**: ⚠️ **STUB IMPLEMENTATION** - Compiles successfully but non-functional. Stub implementation exists in `src/interfaces/mcp.rs` with all interfaces defined. No external dependencies required. See `MCP_IMPLEMENTATION_STATUS.md` for details.
 10. **WASM Support**: ⚠️ **DISABLED** - `wasmtime` and `extism` commented out. Use Docker/Python/Node.js plugins instead.
 11. **Build Issues**: On Windows, large dependencies may cause memory allocation failures. Use `cargo check` for verification.
 
@@ -412,8 +412,19 @@ pub fn load_config(path: &Path) -> Result<Config> {
 
 ✅ **Compiles**: `cargo check` passes with 0 errors  
 ⚠️ **Full Build**: May fail on Windows due to memory issues  
-❌ **MCP Server**: Disabled (dependencies commented out)  
-❌ **WASM Plugins**: Disabled (dependencies commented out)  
+⚠️ **MCP Server**: Stub implementation (compiles, non-functional)  
+❌ **WASM Plugins**: Disabled (dependencies commented out)
+
+## MCP Server Details
+
+The MCP server module provides a complete interface definition and stub implementation:
+- ✅ All data structures defined
+- ✅ Interface trait with 12 methods
+- ✅ CLI integration (`workflow-toolkit server start`)
+- ⚠️ Stub methods (print debug messages only)
+- ✅ No external dependencies required
+
+**To enable full functionality**: Implement HTTP/WebSocket server in `src/interfaces/mcp.rs` or use `mcp-protocol-sdk` (may have build issues on Windows).
 
 ## Performance Notes
 
@@ -504,6 +515,13 @@ export WORKFLOW_TOOLKIT_STORAGE__DATABASE_PATH="./data/workflow.db"
 # TUI
 export WORKFLOW_TOOLKIT_TUI__THEME="dark"
 export WORKFLOW_TOOLKIT_TUI__REFRESH_RATE=60
+
+# System Monitoring
+export WORKFLOW_TOOLKIT_SYSTEM_MONITORING__CPU_THRESHOLD_WARNING=70.0
+export WORKFLOW_TOOLKIT_SYSTEM_MONITORING__UPDATE_INTERVAL="5s"
+
+# Maintenance
+export WORKFLOW_TOOLKIT_MAINTENANCE__AUTO_CLEANUP_ENABLED=true
 ```
 
 ## When to Consult Oracle

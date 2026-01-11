@@ -997,6 +997,7 @@ pub struct ThemeStats {
 }
 
 /// Theme builder for creating custom themes
+#[derive(Debug, Clone)]
 pub struct ThemeBuilder {
     name: String,
     colors: ColorScheme,
