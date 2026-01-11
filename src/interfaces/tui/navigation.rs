@@ -1,5 +1,5 @@
 //! Navigation stack management for TUI interface
-//! 
+//!
 //! This module provides navigation stack management, modal dialog support,
 //! and unified Esc key behavior for the TUI interface.
 
@@ -247,11 +247,11 @@ impl NavigationStack {
             max_history_size: 100,
         }
     }
-    
+
     /// Push a new navigation state
     pub fn push_state(&mut self, view: ViewType, trigger: NavigationTrigger) -> Result<()> {
         let previous_view = self.current_view();
-        
+
         let state = NavigationState {
             view: view.clone(),
             state_data: None,
@@ -264,32 +264,37 @@ impl NavigationStack {
                 metadata: std::collections::HashMap::new(),
             },
         };
-        
+
         // Remove oldest states if stack is full
         while self.stack.len() >= self.max_stack_size {
             self.stack.pop_front();
         }
-        
+
         self.stack.push_back(state);
-        
+
         // Record navigation event
-        self.record_navigation_event(NavigationEventType::ViewChanged, previous_view, Some(view.clone()), trigger);
-        
+        self.record_navigation_event(
+            NavigationEventType::ViewChanged,
+            previous_view,
+            Some(view.clone()),
+            trigger,
+        );
+
         tracing::debug!("Pushed navigation state: {:?}", view);
         Ok(())
     }
-    
+
     /// Pop the current navigation state and return to previous
     pub fn pop_state(&mut self) -> Result<Option<ViewType>> {
         if self.stack.len() <= 1 {
             // Don't pop the last state
             return Ok(None);
         }
-        
+
         let current_view = self.current_view();
         self.stack.pop_back();
         let previous_view = self.current_view();
-        
+
         // Record navigation event
         self.record_navigation_event(
             NavigationEventType::BackNavigation,
@@ -297,35 +302,35 @@ impl NavigationStack {
             previous_view.clone(),
             NavigationTrigger::BackNavigation,
         );
-        
+
         tracing::debug!("Popped navigation state, returning to: {:?}", previous_view);
         Ok(previous_view)
     }
-    
+
     /// Get current view
     pub fn current_view(&self) -> Option<ViewType> {
         self.stack.back().map(|state| state.view.clone())
     }
-    
+
     /// Get current navigation state
     pub fn current_state(&self) -> Option<&NavigationState> {
         self.stack.back()
     }
-    
+
     /// Check if we can go back
     pub fn can_go_back(&self) -> bool {
         self.stack.len() > 1 && self.current_modal.is_none()
     }
-    
+
     /// Open a modal dialog
     pub fn open_modal(&mut self, modal: ModalDialog) -> Result<()> {
         // If there's already a modal, push it to the stack
         if let Some(current_modal) = self.current_modal.take() {
             self.modal_stack.push_back(current_modal);
         }
-        
+
         tracing::debug!("Opening modal: {}", modal.title);
-        
+
         // Record navigation event
         self.record_navigation_event(
             NavigationEventType::ModalOpened,
@@ -333,18 +338,18 @@ impl NavigationStack {
             None,
             NavigationTrigger::ModalOpened,
         );
-        
+
         self.current_modal = Some(modal);
         Ok(())
     }
-    
+
     /// Close the current modal dialog
     pub fn close_modal(&mut self) -> Result<Option<Action>> {
         let closed_modal = self.current_modal.take();
-        
+
         if let Some(modal) = closed_modal {
             tracing::debug!("Closing modal: {}", modal.title);
-            
+
             // Record navigation event
             self.record_navigation_event(
                 NavigationEventType::ModalClosed,
@@ -352,28 +357,28 @@ impl NavigationStack {
                 self.current_view(),
                 NavigationTrigger::ModalClosed,
             );
-            
+
             // Restore previous modal if any
             if let Some(previous_modal) = self.modal_stack.pop_back() {
                 self.current_modal = Some(previous_modal);
             }
-            
+
             Ok(modal.on_close)
         } else {
             Ok(None)
         }
     }
-    
+
     /// Get current modal dialog
     pub fn current_modal(&self) -> Option<&ModalDialog> {
         self.current_modal.as_ref()
     }
-    
+
     /// Check if a modal is currently open
     pub fn has_modal(&self) -> bool {
         self.current_modal.is_some()
     }
-    
+
     /// Handle Esc key press
     pub fn handle_esc_key(&mut self, behavior: &EscKeyBehavior) -> Result<Option<Action>> {
         // Priority 1: Close modal if one is open
@@ -384,29 +389,29 @@ impl NavigationStack {
                 }
             }
         }
-        
+
         // Priority 2: Navigate back if possible
         if behavior.navigates_back && self.can_go_back() {
             if let Some(previous_view) = self.pop_state()? {
                 return Ok(Some(Action::Navigate(previous_view)));
             }
         }
-        
+
         // Priority 3: Clear focus
         if behavior.clears_focus {
             return Ok(Some(Action::GoBack));
         }
-        
+
         // Priority 4: Check view-specific behavior
         if let Some(current_view) = self.current_view() {
             if let Some(esc_action) = behavior.view_behaviors.get(&current_view) {
                 return Ok(Some(self.esc_action_to_action(esc_action.clone())));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Convert EscAction to Action
     fn esc_action_to_action(&self, esc_action: EscAction) -> Action {
         match esc_action {
@@ -418,7 +423,7 @@ impl NavigationStack {
             EscAction::Custom(action_name) => Action::Custom(action_name, serde_json::Value::Null),
         }
     }
-    
+
     /// Record a navigation event
     fn record_navigation_event(
         &mut self,
@@ -435,15 +440,15 @@ impl NavigationStack {
             trigger,
             duration: None,
         };
-        
+
         // Remove oldest events if history is full
         while self.navigation_history.len() >= self.max_history_size {
             self.navigation_history.pop_front();
         }
-        
+
         self.navigation_history.push_back(event);
     }
-    
+
     /// Get navigation statistics
     pub fn get_navigation_stats(&self) -> NavigationStats {
         NavigationStats {
@@ -455,38 +460,38 @@ impl NavigationStack {
             current_view: self.current_view(),
         }
     }
-    
+
     /// Clear navigation history
     pub fn clear_history(&mut self) {
         self.navigation_history.clear();
         tracing::debug!("Navigation history cleared");
     }
-    
+
     /// Get navigation history
     pub fn get_history(&self) -> &VecDeque<NavigationEvent> {
         &self.navigation_history
     }
-    
+
     /// Set maximum stack size
     pub fn set_max_stack_size(&mut self, size: usize) {
         self.max_stack_size = size;
-        
+
         // Trim stack if necessary
         while self.stack.len() > self.max_stack_size {
             self.stack.pop_front();
         }
     }
-    
+
     /// Set maximum history size
     pub fn set_max_history_size(&mut self, size: usize) {
         self.max_history_size = size;
-        
+
         // Trim history if necessary
         while self.navigation_history.len() > self.max_history_size {
             self.navigation_history.pop_front();
         }
     }
-    
+
     /// Reset navigation stack
     pub fn reset(&mut self) {
         self.stack.clear();
@@ -507,23 +512,21 @@ impl ModalDialog {
             size: ModalSize::medium(),
             closable: true,
             blocking: true,
-            buttons: vec![
-                ModalButton {
-                    label: "确定".to_string(),
-                    action: Action::GoBack,
-                    style: ModalButtonStyle::Primary,
-                    is_default: true,
-                    is_cancel: false,
-                    shortcut: Some('o'),
-                }
-            ],
+            buttons: vec![ModalButton {
+                label: "确定".to_string(),
+                action: Action::GoBack,
+                style: ModalButtonStyle::Primary,
+                is_default: true,
+                is_cancel: false,
+                shortcut: Some('o'),
+            }],
             opened_at: Instant::now(),
             timeout: None,
             on_close: None,
             data: Some(serde_json::json!({ "message": message })),
         }
     }
-    
+
     /// Create a confirmation modal
     pub fn confirmation(id: String, title: String, message: String, on_confirm: Action) -> Self {
         Self {
@@ -549,7 +552,7 @@ impl ModalDialog {
                     is_default: false,
                     is_cancel: true,
                     shortcut: Some('n'),
-                }
+                },
             ],
             opened_at: Instant::now(),
             timeout: None,
@@ -557,7 +560,7 @@ impl ModalDialog {
             data: Some(serde_json::json!({ "message": message })),
         }
     }
-    
+
     /// Create an error modal
     pub fn error(id: String, title: String, error_message: String) -> Self {
         Self {
@@ -567,23 +570,21 @@ impl ModalDialog {
             size: ModalSize::medium(),
             closable: true,
             blocking: true,
-            buttons: vec![
-                ModalButton {
-                    label: "确定".to_string(),
-                    action: Action::GoBack,
-                    style: ModalButtonStyle::Danger,
-                    is_default: true,
-                    is_cancel: true,
-                    shortcut: Some('o'),
-                }
-            ],
+            buttons: vec![ModalButton {
+                label: "确定".to_string(),
+                action: Action::GoBack,
+                style: ModalButtonStyle::Danger,
+                is_default: true,
+                is_cancel: true,
+                shortcut: Some('o'),
+            }],
             opened_at: Instant::now(),
             timeout: None,
             on_close: None,
             data: Some(serde_json::json!({ "error": error_message })),
         }
     }
-    
+
     /// Check if modal has timed out
     pub fn is_timed_out(&self) -> bool {
         if let Some(timeout) = self.timeout {
@@ -606,7 +607,7 @@ impl ModalSize {
             max_height: Some(20),
         }
     }
-    
+
     /// Medium modal size
     pub fn medium() -> Self {
         Self {
@@ -618,7 +619,7 @@ impl ModalSize {
             max_height: Some(30),
         }
     }
-    
+
     /// Large modal size
     pub fn large() -> Self {
         Self {
@@ -643,7 +644,7 @@ impl EscKeyBehavior {
             view_behaviors: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Create strict Esc key behavior (only closes modals)
     pub fn strict() -> Self {
         Self {
@@ -654,7 +655,7 @@ impl EscKeyBehavior {
             view_behaviors: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Set view-specific Esc behavior
     pub fn with_view_behavior(mut self, view: ViewType, action: EscAction) -> Self {
         self.view_behaviors.insert(view, action);

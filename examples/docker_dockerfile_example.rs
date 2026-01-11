@@ -1,16 +1,16 @@
 //! Example demonstrating Docker plugin with custom Dockerfile
 
+use chrono::Utc;
+use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use workflow_toolkit::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
-use workflow_toolkit::plugins::{
-    DockerPluginBuilder, DockerToolConfig, DockerMount, DockerMountType,
-    DockerResourceLimits, PluginConfig, Plugin,
-};
 use workflow_toolkit::error::Result;
-use chrono::Utc;
-use serde_json::json;
+use workflow_toolkit::plugins::{
+    DockerMount, DockerMountType, DockerPluginBuilder, DockerResourceLimits, DockerToolConfig,
+    Plugin, PluginConfig,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -59,13 +59,13 @@ async fn main() -> Result<()> {
                 target: "/app/output".to_string(),
                 mount_type: DockerMountType::Bind,
                 read_only: false,
-            }
+            },
         ],
         ports: HashMap::new(),
         resource_limits: Some(DockerResourceLimits {
-            memory: Some(256 * 1024 * 1024), // 256MB
+            memory: Some(256 * 1024 * 1024),      // 256MB
             memory_swap: Some(512 * 1024 * 1024), // 512MB
-            nano_cpus: Some(250_000_000), // 0.25 CPU
+            nano_cpus: Some(250_000_000),         // 0.25 CPU
             cpu_shares: None,
             pids_limit: Some(50),
         }),
@@ -86,7 +86,11 @@ async fn main() -> Result<()> {
         version: "1.0.0".to_string(),
         description: "Process text using various operations in a Docker container".to_string(),
         category: Some("text-processing".to_string()),
-        tags: vec!["text".to_string(), "processing".to_string(), "docker".to_string()],
+        tags: vec![
+            "text".to_string(),
+            "processing".to_string(),
+            "docker".to_string(),
+        ],
         parameters_schema: json!({
             "type": "object",
             "properties": {
@@ -149,15 +153,19 @@ async fn main() -> Result<()> {
         .add_default_environment_variable("LANG", "C.UTF-8")
         .add_default_environment_variable("LC_ALL", "C.UTF-8")
         .resource_limits(DockerResourceLimits {
-            memory: Some(512 * 1024 * 1024), // 512MB default
+            memory: Some(512 * 1024 * 1024),       // 512MB default
             memory_swap: Some(1024 * 1024 * 1024), // 1GB
-            nano_cpus: Some(500_000_000), // 0.5 CPU
+            nano_cpus: Some(500_000_000),          // 0.5 CPU
             cpu_shares: None,
             pids_limit: Some(100),
         })
         .auto_remove(true)
         .execution_timeout(Duration::from_secs(120)) // 2 minutes
-        .add_tool(processor_tool_info, processor_tool_config, Some(Duration::from_secs(90)))
+        .add_tool(
+            processor_tool_info,
+            processor_tool_config,
+            Some(Duration::from_secs(90)),
+        )
         .build()
         .await?;
 
@@ -184,13 +192,18 @@ async fn main() -> Result<()> {
     println!("Available tools: {}", tools.len());
 
     for tool in &tools {
-        println!("  - {} v{}: {}", tool.name(), tool.version(), tool.get_info().description);
+        println!(
+            "  - {} v{}: {}",
+            tool.name(),
+            tool.version(),
+            tool.get_info().description
+        );
     }
 
     // Demonstrate various text processing operations
     if let Some(processor_tool) = tools.iter().find(|t| t.name() == "text_processor") {
         println!("\nTesting text processor tool (parameter validation)...");
-        
+
         let test_cases = vec![
             ("echo", "Hello, Docker!", None),
             ("uppercase", "hello world", None),
@@ -209,7 +222,7 @@ async fn main() -> Result<()> {
                 "operation": operation,
                 "input": input
             });
-            
+
             if let Some(delay_val) = delay {
                 params["delay"] = json!(delay_val);
             }
@@ -231,7 +244,7 @@ async fn main() -> Result<()> {
     if let Some(processor_tool) = tools.iter().find(|t| t.name() == "text_processor") {
         let invalid_cases = vec![
             json!({"operation": "invalid_op", "input": "test"}),
-            json!({"input": "test"}), // missing operation
+            json!({"input": "test"}),     // missing operation
             json!({"operation": "echo"}), // missing input
             json!({"operation": "echo", "input": "test", "delay": -1}), // invalid delay
             json!({"operation": "echo", "input": "test", "delay": 100}), // delay too large
@@ -248,7 +261,7 @@ async fn main() -> Result<()> {
     // Demonstrate Docker environment capabilities
     let environment = plugin.environment();
     let env_guard = environment.lock().await;
-    
+
     if env_guard.is_initialized() {
         println!("\n✓ Docker environment is initialized and ready");
     } else {

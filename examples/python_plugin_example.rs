@@ -143,7 +143,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match calculator_tool.execute(params, context).await {
             Ok(result) => {
-                println!("Calculator result: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "Calculator result: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("Calculator error: {}", e);
@@ -163,7 +166,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match processor_tool.execute(params, context).await {
             Ok(result) => {
-                println!("Data processor result: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "Data processor result: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("Data processor error: {}", e);
@@ -183,7 +189,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match processor_tool.execute(params, context).await {
             Ok(result) => {
-                println!("Text processing result: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "Text processing result: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("Text processing error: {}", e);
@@ -203,7 +212,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match calculator_tool.execute(params, context).await {
             Ok(result) => {
-                println!("Unexpected success: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "Unexpected success: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("Expected error caught: {}", e);

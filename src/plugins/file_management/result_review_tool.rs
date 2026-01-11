@@ -1,20 +1,20 @@
 //! Result Review and Confirmation Tools
-//! 
+//!
 //! This module provides tools for reviewing experimental results before execution
 //! and batch confirmation for multiple operations.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use tracing::{debug, info, warn};
-use chrono::{DateTime, Utc};
 
-use crate::tools::ToolNode;
-use crate::core::{ExecutionContext, ToolInfo, PluginInfo};
+use super::error::FileManagementResult;
+use super::utils::ExperimentalOperation;
+use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::WorkflowError;
-use super::error::{FileManagementResult};
-use super::utils::{ExperimentalOperation};
+use crate::tools::ToolNode;
 
 use async_trait::async_trait;
 
@@ -202,7 +202,10 @@ impl ResultReviewTool {
     }
 
     /// Assess the impact of an operation
-    fn assess_operation_impact(&self, operation: &ExperimentalOperation) -> FileManagementResult<OperationImpact> {
+    fn assess_operation_impact(
+        &self,
+        operation: &ExperimentalOperation,
+    ) -> FileManagementResult<OperationImpact> {
         let mut impact = OperationImpact {
             files_affected: 0,
             directories_affected: 0,
@@ -255,7 +258,11 @@ impl ResultReviewTool {
     }
 
     /// Assess the risk level of an operation
-    fn assess_risk_level(&self, operation: &ExperimentalOperation, impact: &OperationImpact) -> RiskLevel {
+    fn assess_risk_level(
+        &self,
+        operation: &ExperimentalOperation,
+        impact: &OperationImpact,
+    ) -> RiskLevel {
         let mut risk_score = 0;
 
         // Risk factors
@@ -271,7 +278,8 @@ impl ResultReviewTool {
         if impact.directories_affected > 5 {
             risk_score += 2;
         }
-        if impact.estimated_size_bytes > 100_000_000 { // 100MB
+        if impact.estimated_size_bytes > 100_000_000 {
+            // 100MB
             risk_score += 1;
         }
 
@@ -313,15 +321,20 @@ impl ResultReviewTool {
             ReviewMode::Individual => {
                 for result in &params.experimental_results {
                     let decision = self.review_individual_operation(result, context)?;
-                    self.apply_decision(&decision, result, &mut approved_operations, 
-                                      &mut rejected_operations, &mut deferred_operations);
-                    
+                    self.apply_decision(
+                        &decision,
+                        result,
+                        &mut approved_operations,
+                        &mut rejected_operations,
+                        &mut deferred_operations,
+                    );
+
                     if decision.auto_decided {
                         auto_approved_count += 1;
                     } else {
                         manual_review_count += 1;
                     }
-                    
+
                     confirmation_details.push(decision);
                 }
             }
@@ -330,26 +343,35 @@ impl ResultReviewTool {
                 for batch in params.experimental_results.chunks(batch_size) {
                     let decisions = self.review_batch_operations(batch, context)?;
                     for decision in decisions {
-                        let result = params.experimental_results.iter()
+                        let result = params
+                            .experimental_results
+                            .iter()
                             .find(|r| r.operation_id == decision.operation_id)
                             .unwrap();
-                        
-                        self.apply_decision(&decision, result, &mut approved_operations,
-                                          &mut rejected_operations, &mut deferred_operations);
-                        
+
+                        self.apply_decision(
+                            &decision,
+                            result,
+                            &mut approved_operations,
+                            &mut rejected_operations,
+                            &mut deferred_operations,
+                        );
+
                         if decision.auto_decided {
                             auto_approved_count += 1;
                         } else {
                             manual_review_count += 1;
                         }
-                        
+
                         confirmation_details.push(decision);
                     }
                 }
             }
             ReviewMode::RiskBased => {
                 for result in &params.experimental_results {
-                    let decision = if result.risk_level <= RiskLevel::Low && self.config.auto_approve_safe_operations {
+                    let decision = if result.risk_level <= RiskLevel::Low
+                        && self.config.auto_approve_safe_operations
+                    {
                         ConfirmationDetail {
                             operation_id: result.operation_id.clone(),
                             decision: ConfirmationDecision::Approved,
@@ -361,24 +383,31 @@ impl ResultReviewTool {
                     } else {
                         self.review_individual_operation(result, context)?
                     };
-                    
-                    self.apply_decision(&decision, result, &mut approved_operations,
-                                      &mut rejected_operations, &mut deferred_operations);
-                    
+
+                    self.apply_decision(
+                        &decision,
+                        result,
+                        &mut approved_operations,
+                        &mut rejected_operations,
+                        &mut deferred_operations,
+                    );
+
                     if decision.auto_decided {
                         auto_approved_count += 1;
                     } else {
                         manual_review_count += 1;
                     }
-                    
+
                     confirmation_details.push(decision);
                 }
             }
             ReviewMode::Smart => {
                 // Combine risk-based and batch processing
-                let (safe_ops, risky_ops): (Vec<_>, Vec<_>) = params.experimental_results.iter()
-                    .partition(|r| r.risk_level <= RiskLevel::Low && self.config.auto_approve_safe_operations);
-                
+                let (safe_ops, risky_ops): (Vec<_>, Vec<_>) =
+                    params.experimental_results.iter().partition(|r| {
+                        r.risk_level <= RiskLevel::Low && self.config.auto_approve_safe_operations
+                    });
+
                 // Auto-approve safe operations
                 for result in safe_ops {
                     let decision = ConfirmationDetail {
@@ -389,17 +418,22 @@ impl ResultReviewTool {
                         auto_decided: true,
                         reason: "Auto-approved: Safe operation".to_string(),
                     };
-                    
+
                     approved_operations.push(result.operation_id.clone());
                     auto_approved_count += 1;
                     confirmation_details.push(decision);
                 }
-                
+
                 // Review risky operations
                 for result in risky_ops {
                     let decision = self.review_individual_operation(result, context)?;
-                    self.apply_decision(&decision, result, &mut approved_operations,
-                                      &mut rejected_operations, &mut deferred_operations);
+                    self.apply_decision(
+                        &decision,
+                        result,
+                        &mut approved_operations,
+                        &mut rejected_operations,
+                        &mut deferred_operations,
+                    );
                     manual_review_count += 1;
                     confirmation_details.push(decision);
                 }
@@ -407,7 +441,7 @@ impl ResultReviewTool {
         }
 
         let total_estimated_impact = self.calculate_total_impact(&params.experimental_results);
-        
+
         let review_summary = ReviewSummary {
             total_operations: params.experimental_results.len(),
             approved_count: approved_operations.len(),
@@ -453,24 +487,30 @@ impl ResultReviewTool {
 
         // Present operation for manual review
         info!("=== Operation Review Required ===");
-        info!("Operation: {} ({})", result.description, result.operation_type);
+        info!(
+            "Operation: {} ({})",
+            result.description, result.operation_type
+        );
         info!("Risk Level: {:?}", result.risk_level);
-        
+
         if let Some(source) = &result.source_path {
             info!("Source: {}", source.display());
         }
         if let Some(target) = &result.target_path {
             info!("Target: {}", target.display());
         }
-        
-        info!("Impact: {} files, {} directories, {} bytes",
-              result.estimated_impact.files_affected,
-              result.estimated_impact.directories_affected,
-              result.estimated_impact.estimated_size_bytes);
-        
-        info!("Reversible: {}, Backup Required: {}",
-              result.estimated_impact.reversible,
-              result.estimated_impact.backup_required);
+
+        info!(
+            "Impact: {} files, {} directories, {} bytes",
+            result.estimated_impact.files_affected,
+            result.estimated_impact.directories_affected,
+            result.estimated_impact.estimated_size_bytes
+        );
+
+        info!(
+            "Reversible: {}, Backup Required: {}",
+            result.estimated_impact.reversible, result.estimated_impact.backup_required
+        );
 
         // In a real implementation, this would present a UI for user decision
         // For now, we'll simulate based on risk level
@@ -499,20 +539,24 @@ impl ResultReviewTool {
         context: &ExecutionContext,
     ) -> FileManagementResult<Vec<ConfirmationDetail>> {
         info!("=== Batch Review: {} operations ===", batch.len());
-        
+
         let mut decisions = Vec::new();
-        
+
         // Show batch summary
         let total_impact = self.calculate_batch_impact(batch);
         let risk_distribution = self.analyze_risk_distribution(batch);
-        
-        info!("Batch Impact: {} files, {} directories, {} bytes",
-              total_impact.files_affected,
-              total_impact.directories_affected,
-              total_impact.estimated_size_bytes);
-        
-        info!("Risk Distribution: Low: {}, Medium: {}, High: {}, Critical: {}",
-              risk_distribution.0, risk_distribution.1, risk_distribution.2, risk_distribution.3);
+
+        info!(
+            "Batch Impact: {} files, {} directories, {} bytes",
+            total_impact.files_affected,
+            total_impact.directories_affected,
+            total_impact.estimated_size_bytes
+        );
+
+        info!(
+            "Risk Distribution: Low: {}, Medium: {}, High: {}, Critical: {}",
+            risk_distribution.0, risk_distribution.1, risk_distribution.2, risk_distribution.3
+        );
 
         // For batch review, we can approve all low-risk operations and defer high-risk ones
         for result in batch {
@@ -541,10 +585,10 @@ impl ResultReviewTool {
             return false;
         }
 
-        result.risk_level == RiskLevel::Low &&
-        result.estimated_impact.reversible &&
-        !result.estimated_impact.backup_required &&
-        result.estimated_impact.files_affected <= 5
+        result.risk_level == RiskLevel::Low
+            && result.estimated_impact.reversible
+            && !result.estimated_impact.backup_required
+            && result.estimated_impact.files_affected <= 5
     }
 
     /// Apply a decision to the appropriate list
@@ -580,7 +624,7 @@ impl ResultReviewTool {
             total.directories_affected += result.estimated_impact.directories_affected;
             total.estimated_size_bytes += result.estimated_impact.estimated_size_bytes;
             total.estimated_duration_ms += result.estimated_impact.estimated_duration_ms;
-            
+
             if !result.estimated_impact.reversible {
                 total.reversible = false;
             }
@@ -598,7 +642,10 @@ impl ResultReviewTool {
     }
 
     /// Analyze risk distribution in a batch
-    fn analyze_risk_distribution(&self, batch: &[ExperimentalResult]) -> (usize, usize, usize, usize) {
+    fn analyze_risk_distribution(
+        &self,
+        batch: &[ExperimentalResult],
+    ) -> (usize, usize, usize, usize) {
         let mut low = 0;
         let mut medium = 0;
         let mut high = 0;
@@ -627,15 +674,21 @@ impl ToolNode for ResultReviewTool {
         "1.0.0"
     }
 
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value, WorkflowError> {
+    async fn execute(
+        &self,
+        params: Value,
+        context: ExecutionContext,
+    ) -> Result<Value, WorkflowError> {
         let params: ResultReviewParams = serde_json::from_value(params)
             .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
 
-        let result = self.process_review(&params, &context)
+        let result = self
+            .process_review(&params, &context)
             .map_err(|e| WorkflowError::tool_execution(&format!("Review failed: {}", e)))?;
 
-        Ok(serde_json::to_value(result)
-            .map_err(|e| WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e)))?)
+        Ok(serde_json::to_value(result).map_err(|e| {
+            WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e))
+        })?)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
@@ -648,9 +701,15 @@ impl ToolNode for ResultReviewTool {
         ToolInfo {
             name: self.name().to_string(),
             version: self.version().to_string(),
-            description: "Review experimental results before execution with batch confirmation support".to_string(),
+            description:
+                "Review experimental results before execution with batch confirmation support"
+                    .to_string(),
             category: Some("file-management".to_string()),
-            tags: vec!["review".to_string(), "confirmation".to_string(), "experimental".to_string()],
+            tags: vec![
+                "review".to_string(),
+                "confirmation".to_string(),
+                "experimental".to_string(),
+            ],
             parameters_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -708,13 +767,13 @@ mod tests {
     #[test]
     fn test_risk_assessment() {
         let tool = ResultReviewTool::with_default_config();
-        
-        let safe_operation = ExperimentalOperation::new("copy", "Copy file A to B")
-            .with_estimated_size(1000);
-        
+
+        let safe_operation =
+            ExperimentalOperation::new("copy", "Copy file A to B").with_estimated_size(1000);
+
         let impact = tool.assess_operation_impact(&safe_operation).unwrap();
         let risk = tool.assess_risk_level(&safe_operation, &impact);
-        
+
         assert_eq!(risk, RiskLevel::Low);
         assert!(impact.reversible);
         assert!(!impact.backup_required);
@@ -723,13 +782,13 @@ mod tests {
     #[test]
     fn test_dangerous_operation_assessment() {
         let tool = ResultReviewTool::with_default_config();
-        
+
         let dangerous_operation = ExperimentalOperation::new("delete", "Delete important files")
             .with_estimated_size(100_000_000);
-        
+
         let impact = tool.assess_operation_impact(&dangerous_operation).unwrap();
         let risk = tool.assess_risk_level(&dangerous_operation, &impact);
-        
+
         assert!(risk >= RiskLevel::High);
         assert!(!impact.reversible);
         assert!(impact.backup_required);
@@ -738,14 +797,14 @@ mod tests {
     #[test]
     fn test_prepare_results_for_review() {
         let tool = ResultReviewTool::with_default_config();
-        
+
         let operations = vec![
             ExperimentalOperation::new("copy", "Copy file A to B"),
             ExperimentalOperation::new("delete", "Delete file C"),
         ];
-        
+
         let results = tool.prepare_results_for_review(&operations).unwrap();
-        
+
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].operation_type, "copy");
         assert_eq!(results[1].operation_type, "delete");

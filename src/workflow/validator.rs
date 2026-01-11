@@ -1,9 +1,9 @@
 //! Workflow validation logic
 
 use crate::error::{Result, WorkflowError};
-use crate::workflow::{WorkflowDefinition, WorkflowNode, NodeType};
-use petgraph::{Graph, Directed};
+use crate::workflow::{NodeType, WorkflowDefinition, WorkflowNode};
 use petgraph::algo::is_cyclic_directed;
+use petgraph::{Directed, Graph};
 use std::collections::{HashMap, HashSet};
 
 /// Workflow validator for syntax and semantic validation
@@ -22,9 +22,7 @@ impl WorkflowValidator {
 
     /// Create a validator with available tools
     pub fn with_tools(available_tools: HashSet<String>) -> Self {
-        Self {
-            available_tools,
-        }
+        Self { available_tools }
     }
 
     /// Add an available tool
@@ -48,7 +46,11 @@ impl WorkflowValidator {
     }
 
     /// Validate basic workflow structure
-    fn validate_basic_structure(&self, workflow: &WorkflowDefinition, result: &mut ValidationResult) -> Result<()> {
+    fn validate_basic_structure(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut ValidationResult,
+    ) -> Result<()> {
         // Check workflow name
         if workflow.name.is_empty() {
             result.add_error("Workflow name cannot be empty".to_string());
@@ -68,18 +70,28 @@ impl WorkflowValidator {
 
         // Check for reasonable limits
         if workflow.nodes.len() > 10000 {
-            result.add_warning("Workflow has a very large number of nodes (>10000), this may impact performance".to_string());
+            result.add_warning(
+                "Workflow has a very large number of nodes (>10000), this may impact performance"
+                    .to_string(),
+            );
         }
 
         if workflow.edges.len() > 50000 {
-            result.add_warning("Workflow has a very large number of edges (>50000), this may impact performance".to_string());
+            result.add_warning(
+                "Workflow has a very large number of edges (>50000), this may impact performance"
+                    .to_string(),
+            );
         }
 
         Ok(())
     }
 
     /// Validate workflow nodes
-    fn validate_nodes(&self, workflow: &WorkflowDefinition, result: &mut ValidationResult) -> Result<()> {
+    fn validate_nodes(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut ValidationResult,
+    ) -> Result<()> {
         let mut node_ids = HashSet::new();
 
         for node in &workflow.nodes {
@@ -106,7 +118,11 @@ impl WorkflowValidator {
         }
 
         // Check node ID format (alphanumeric, hyphens, underscores only)
-        if !node.id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if !node
+            .id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
             return Err(WorkflowError::InvalidNodeId(
                 format!("Node ID '{}' contains invalid characters. Only alphanumeric, hyphens, and underscores are allowed", node.id)
             ).into());
@@ -122,17 +138,19 @@ impl WorkflowValidator {
             NodeType::Condition => {
                 // Condition nodes should have condition logic in parameters
                 if node.parameters.is_null() {
-                    return Err(WorkflowError::workflow_validation(
-                        format!("Condition node '{}' must have condition parameters", node.id)
-                    ));
+                    return Err(WorkflowError::workflow_validation(format!(
+                        "Condition node '{}' must have condition parameters",
+                        node.id
+                    )));
                 }
             }
             NodeType::Loop => {
                 // Loop nodes should have loop configuration
                 if node.parameters.is_null() {
-                    return Err(WorkflowError::workflow_validation(
-                        format!("Loop node '{}' must have loop parameters", node.id)
-                    ));
+                    return Err(WorkflowError::workflow_validation(format!(
+                        "Loop node '{}' must have loop parameters",
+                        node.id
+                    )));
                 }
             }
             NodeType::Parallel => {
@@ -147,18 +165,28 @@ impl WorkflowValidator {
     }
 
     /// Validate workflow edges
-    fn validate_edges(&self, workflow: &WorkflowDefinition, result: &mut ValidationResult) -> Result<()> {
+    fn validate_edges(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut ValidationResult,
+    ) -> Result<()> {
         let node_ids: HashSet<_> = workflow.nodes.iter().map(|n| &n.id).collect();
 
         for edge in &workflow.edges {
             // Check that source node exists
             if !node_ids.contains(&edge.from) {
-                result.add_error(format!("Edge references non-existent source node: {}", edge.from));
+                result.add_error(format!(
+                    "Edge references non-existent source node: {}",
+                    edge.from
+                ));
             }
 
             // Check that target node exists
             if !node_ids.contains(&edge.to) {
-                result.add_error(format!("Edge references non-existent target node: {}", edge.to));
+                result.add_error(format!(
+                    "Edge references non-existent target node: {}",
+                    edge.to
+                ));
             }
 
             // Check for self-loops
@@ -169,7 +197,10 @@ impl WorkflowValidator {
             // Validate conditional edges
             if let Some(condition) = &edge.condition {
                 if condition.is_empty() {
-                    result.add_error(format!("Empty condition on edge from {} to {}", edge.from, edge.to));
+                    result.add_error(format!(
+                        "Empty condition on edge from {} to {}",
+                        edge.from, edge.to
+                    ));
                 }
             }
         }
@@ -178,7 +209,11 @@ impl WorkflowValidator {
     }
 
     /// Validate DAG structure (no cycles)
-    fn validate_dag_structure(&self, workflow: &WorkflowDefinition, result: &mut ValidationResult) -> Result<()> {
+    fn validate_dag_structure(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut ValidationResult,
+    ) -> Result<()> {
         // Build a graph using petgraph
         let mut graph = Graph::<&str, (), Directed>::new();
         let mut node_indices = HashMap::new();
@@ -191,10 +226,9 @@ impl WorkflowValidator {
 
         // Add edges to graph
         for edge in &workflow.edges {
-            if let (Some(&from_idx), Some(&to_idx)) = (
-                node_indices.get(&edge.from),
-                node_indices.get(&edge.to)
-            ) {
+            if let (Some(&from_idx), Some(&to_idx)) =
+                (node_indices.get(&edge.from), node_indices.get(&edge.to))
+            {
                 graph.add_edge(from_idx, to_idx, ());
             }
         }
@@ -211,7 +245,11 @@ impl WorkflowValidator {
     }
 
     /// Validate workflow connectivity
-    fn validate_connectivity(&self, graph: &Graph<&str, (), Directed>, result: &mut ValidationResult) {
+    fn validate_connectivity(
+        &self,
+        graph: &Graph<&str, (), Directed>,
+        result: &mut ValidationResult,
+    ) {
         let node_count = graph.node_count();
         if node_count == 0 {
             return;
@@ -226,7 +264,9 @@ impl WorkflowValidator {
         }
 
         if start_nodes.is_empty() {
-            result.add_error("Workflow has no start nodes (all nodes have incoming edges)".to_string());
+            result.add_error(
+                "Workflow has no start nodes (all nodes have incoming edges)".to_string(),
+            );
         }
 
         // Find nodes with no outgoing edges (potential end nodes)
@@ -238,25 +278,37 @@ impl WorkflowValidator {
         }
 
         if end_nodes.is_empty() {
-            result.add_warning("Workflow has no end nodes (all nodes have outgoing edges)".to_string());
+            result.add_warning(
+                "Workflow has no end nodes (all nodes have outgoing edges)".to_string(),
+            );
         }
     }
 
     /// Validate node dependencies
-    fn validate_dependencies(&self, workflow: &WorkflowDefinition, result: &mut ValidationResult) -> Result<()> {
+    fn validate_dependencies(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut ValidationResult,
+    ) -> Result<()> {
         let node_map: HashMap<_, _> = workflow.nodes.iter().map(|n| (&n.id, n)).collect();
 
         for node in &workflow.nodes {
             // Check explicit dependencies
             for dep in &node.depends_on {
                 if !node_map.contains_key(dep) {
-                    result.add_error(format!("Node '{}' depends on non-existent node '{}'", node.id, dep));
+                    result.add_error(format!(
+                        "Node '{}' depends on non-existent node '{}'",
+                        node.id, dep
+                    ));
                 }
             }
 
             // Check for dependency cycles in explicit dependencies
             if self.has_dependency_cycle(node, &node_map, &mut HashSet::new()) {
-                result.add_error(format!("Circular dependency detected involving node '{}'", node.id));
+                result.add_error(format!(
+                    "Circular dependency detected involving node '{}'",
+                    node.id
+                ));
             }
         }
 
@@ -289,7 +341,11 @@ impl WorkflowValidator {
     }
 
     /// Validate tool availability
-    fn validate_tools(&self, workflow: &WorkflowDefinition, result: &mut ValidationResult) -> Result<()> {
+    fn validate_tools(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut ValidationResult,
+    ) -> Result<()> {
         if self.available_tools.is_empty() {
             // Skip tool validation if no tools are registered
             return Ok(());
@@ -299,7 +355,10 @@ impl WorkflowValidator {
             if node.node_type == NodeType::Tool {
                 if let Some(tool_name) = &node.tool_name {
                     if !self.available_tools.contains(tool_name) {
-                        result.add_error(format!("Node '{}' references unknown tool '{}'", node.id, tool_name));
+                        result.add_error(format!(
+                            "Node '{}' references unknown tool '{}'",
+                            node.id, tool_name
+                        ));
                     }
                 }
             }
@@ -366,16 +425,22 @@ impl Default for ValidationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType};
+    use crate::workflow::{NodeType, WorkflowDefinition, WorkflowEdge, WorkflowNode};
     use proptest::prelude::*;
     use std::collections::HashSet;
 
     #[test]
     fn test_valid_workflow() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "test_tool")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node2", "test_tool")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node1", "node2")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node1", "test_tool"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node2", "test_tool"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node1", "node2"))
+            .unwrap();
 
         let mut validator = WorkflowValidator::new();
         validator.add_tool("test_tool");
@@ -387,52 +452,82 @@ mod tests {
     #[test]
     fn test_circular_dependency() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "test_tool")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node2", "test_tool")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node1", "node2")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node2", "node1")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node1", "test_tool"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node2", "test_tool"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node1", "node2"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node2", "node1"))
+            .unwrap();
 
         let validator = WorkflowValidator::new();
         let result = validator.validate(&workflow).unwrap();
-        
-        assert!(!result.is_valid(), "Workflow with circular dependency should be invalid");
+
+        assert!(
+            !result.is_valid(),
+            "Workflow with circular dependency should be invalid"
+        );
         assert!(result.errors.iter().any(|e| e.contains("circular")));
     }
 
     #[test]
     fn test_missing_node_reference() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "test_tool")).unwrap();
-        workflow.edges.push(WorkflowEdge::new("node1", "nonexistent"));
+        workflow
+            .add_node(WorkflowNode::tool("node1", "test_tool"))
+            .unwrap();
+        workflow
+            .edges
+            .push(WorkflowEdge::new("node1", "nonexistent"));
 
         let validator = WorkflowValidator::new();
         let result = validator.validate(&workflow).unwrap();
-        
-        assert!(!result.is_valid(), "Workflow with missing node reference should be invalid");
+
+        assert!(
+            !result.is_valid(),
+            "Workflow with missing node reference should be invalid"
+        );
     }
 
     #[test]
     fn test_duplicate_node_ids() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.nodes.push(WorkflowNode::tool("node1", "test_tool"));
-        workflow.nodes.push(WorkflowNode::tool("node1", "test_tool")); // Duplicate ID
+        workflow
+            .nodes
+            .push(WorkflowNode::tool("node1", "test_tool"));
+        workflow
+            .nodes
+            .push(WorkflowNode::tool("node1", "test_tool")); // Duplicate ID
 
         let validator = WorkflowValidator::new();
         let result = validator.validate(&workflow).unwrap();
-        
-        assert!(!result.is_valid(), "Workflow with duplicate node IDs should be invalid");
+
+        assert!(
+            !result.is_valid(),
+            "Workflow with duplicate node IDs should be invalid"
+        );
     }
 
     #[test]
     fn test_unknown_tool() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "unknown_tool")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node1", "unknown_tool"))
+            .unwrap();
 
         let mut validator = WorkflowValidator::new();
         validator.add_tool("known_tool");
 
         let result = validator.validate(&workflow).unwrap();
-        assert!(!result.is_valid(), "Workflow with unknown tool should be invalid");
+        assert!(
+            !result.is_valid(),
+            "Workflow with unknown tool should be invalid"
+        );
     }
 
     // Property-based test generators
@@ -442,8 +537,8 @@ mod tests {
 
     fn invalid_node_id() -> impl Strategy<Value = String> {
         prop_oneof![
-            Just("".to_string()), // Empty string
-            "[^a-zA-Z0-9_-]+".prop_map(|s| s), // Invalid characters only
+            Just("".to_string()),                 // Empty string
+            "[^a-zA-Z0-9_-]+".prop_map(|s| s),    // Invalid characters only
             ".*[^a-zA-Z0-9_-].*".prop_map(|s| s), // Contains invalid characters
         ]
     }
@@ -488,18 +583,18 @@ mod tests {
 
             // Test 1: Valid workflow should pass validation
             let mut valid_workflow = WorkflowDefinition::new(&name, &version);
-            
+
             // Add valid nodes
             let mut used_node_ids = HashSet::new();
             for (i, node_id) in valid_node_ids.iter().take(node_count).enumerate() {
                 if used_node_ids.insert(node_id.clone()) {
                     let node_type = if i % 5 == 0 { NodeType::Tool } else { NodeType::Checkpoint };
                     let mut node = WorkflowNode::new(node_id, node_type);
-                    
+
                     if node_type == NodeType::Tool && !tool_names.is_empty() {
                         node.tool_name = Some(tool_names[i % tool_names.len()].clone());
                     }
-                    
+
                     valid_workflow.add_node(node).unwrap();
                 }
             }
@@ -518,12 +613,12 @@ mod tests {
             // Test 2: Workflow with invalid node IDs should fail validation
             if !invalid_node_ids.is_empty() {
                 let mut invalid_workflow = WorkflowDefinition::new(&name, &version);
-                
+
                 // Add one valid node first
                 if let Some(valid_id) = valid_node_ids.first() {
                     invalid_workflow.add_node(WorkflowNode::new(valid_id, NodeType::Checkpoint)).unwrap();
                 }
-                
+
                 // Add invalid node ID
                 let invalid_id = &invalid_node_ids[0];
                 if !invalid_id.is_empty() && invalid_id != valid_node_ids.get(0).unwrap_or(&String::new()) {
@@ -539,7 +634,7 @@ mod tests {
                         depends_on: Vec::new(),
                     };
                     invalid_workflow.nodes.push(invalid_node);
-                    
+
                     let invalid_result = validator.validate(&invalid_workflow).unwrap();
                     prop_assert!(!invalid_result.is_valid(), "Workflow with invalid node ID should fail validation");
                 }
@@ -549,11 +644,11 @@ mod tests {
             if valid_node_ids.len() >= 2 {
                 let mut duplicate_workflow = WorkflowDefinition::new(&name, &version);
                 let duplicate_id = &valid_node_ids[0];
-                
+
                 duplicate_workflow.add_node(WorkflowNode::new(duplicate_id, NodeType::Checkpoint)).unwrap();
                 // Add duplicate by directly pushing to avoid validation
                 duplicate_workflow.nodes.push(WorkflowNode::new(duplicate_id, NodeType::Checkpoint));
-                
+
                 let duplicate_result = validator.validate(&duplicate_workflow).unwrap();
                 prop_assert!(!duplicate_result.is_valid(), "Workflow with duplicate node IDs should fail validation");
             }
@@ -562,10 +657,10 @@ mod tests {
             if valid_node_ids.len() >= 1 {
                 let mut missing_ref_workflow = WorkflowDefinition::new(&name, &version);
                 missing_ref_workflow.add_node(WorkflowNode::new(&valid_node_ids[0], NodeType::Checkpoint)).unwrap();
-                
+
                 // Add edge to non-existent node
                 missing_ref_workflow.edges.push(WorkflowEdge::new(&valid_node_ids[0], &"nonexistent_node".to_string()));
-                
+
                 let missing_ref_result = validator.validate(&missing_ref_workflow).unwrap();
                 prop_assert!(!missing_ref_result.is_valid(), "Workflow with missing edge references should fail validation");
             }
@@ -575,12 +670,12 @@ mod tests {
                 let mut circular_workflow = WorkflowDefinition::new(&name, &version);
                 let node1 = &valid_node_ids[0];
                 let node2 = &valid_node_ids[1];
-                
+
                 circular_workflow.add_node(WorkflowNode::new(node1, NodeType::Checkpoint)).unwrap();
                 circular_workflow.add_node(WorkflowNode::new(node2, NodeType::Checkpoint)).unwrap();
                 circular_workflow.add_edge(WorkflowEdge::new(node1, node2)).unwrap();
                 circular_workflow.add_edge(WorkflowEdge::new(node2, node1)).unwrap();
-                
+
                 let circular_result = validator.validate(&circular_workflow).unwrap();
                 prop_assert!(!circular_result.is_valid(), "Workflow with circular dependencies should fail validation");
             }
@@ -591,7 +686,7 @@ mod tests {
                 let mut tool_node = WorkflowNode::new(&valid_node_ids[0], NodeType::Tool);
                 tool_node.tool_name = None; // Missing tool name
                 missing_tool_workflow.nodes.push(tool_node);
-                
+
                 let missing_tool_result = validator.validate(&missing_tool_workflow).unwrap();
                 prop_assert!(!missing_tool_result.is_valid(), "Tool node without tool name should fail validation");
             }
@@ -602,7 +697,7 @@ mod tests {
                 let mut tool_node = WorkflowNode::new(&valid_node_ids[0], NodeType::Tool);
                 tool_node.tool_name = Some("unknown_tool_xyz".to_string());
                 unknown_tool_workflow.nodes.push(tool_node);
-                
+
                 let unknown_tool_result = validator.validate(&unknown_tool_workflow).unwrap();
                 prop_assert!(!unknown_tool_result.is_valid(), "Tool node with unknown tool should fail validation");
             }

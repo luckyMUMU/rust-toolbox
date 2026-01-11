@@ -1,17 +1,17 @@
 //! Simple Node.js Plugin Example (No npm dependencies required)
-//! 
+//!
 //! This example demonstrates basic Node.js plugin functionality without requiring npm
 
+use chrono::Utc;
+use serde_json::json;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio;
 use workflow_toolkit::{
     core::{ExecutionContext, ToolInfo},
-    plugins::{NodeJsPluginBuilder, PluginConfig, Plugin},
     error::Result,
+    plugins::{NodeJsPluginBuilder, Plugin, PluginConfig},
 };
-use serde_json::json;
-use chrono::Utc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
         .add_tool(
             test_tool_info,
             PathBuf::from("simple_test.js"),
-            Some(Duration::from_secs(10))
+            Some(Duration::from_secs(10)),
         )
         .build()
         .await?;
@@ -66,26 +66,29 @@ async fn main() -> Result<()> {
     println!("✅ Plugin created: {}", plugin.info().name);
 
     // Initialize the plugin
-    let config = PluginConfig::new("simple-nodejs-plugin".to_string(), workflow_toolkit::core::PluginType::NodeJs);
+    let config = PluginConfig::new(
+        "simple-nodejs-plugin".to_string(),
+        workflow_toolkit::core::PluginType::NodeJs,
+    );
     plugin.initialize(config)?;
-    
+
     // Initialize async components (without npm install)
     plugin.initialize_async().await?;
-    
+
     println!("✅ Plugin initialized with status: {:?}", plugin.status());
 
     // Test the simple tool
     println!("🧪 Testing simple Node.js tool...");
-    
+
     let tools = plugin.get_tools();
     if let Some(test_tool) = tools.first() {
         let context = ExecutionContext::new();
-        
+
         // Test with parameters
         let params = json!({
             "message": "Hello from Rust!"
         });
-        
+
         let result = test_tool.execute(params, context).await?;
         println!("📊 Test result: {}", serde_json::to_string_pretty(&result)?);
     }

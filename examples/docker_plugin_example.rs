@@ -1,16 +1,16 @@
 //! Example demonstrating Docker plugin usage
 
+use chrono::Utc;
+use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use workflow_toolkit::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
-use workflow_toolkit::plugins::{
-    DockerPluginBuilder, DockerToolConfig, DockerMount, DockerMountType,
-    DockerResourceLimits, DockerNetworkConfig, PluginConfig, Plugin,
-};
 use workflow_toolkit::error::Result;
-use chrono::Utc;
-use serde_json::json;
+use workflow_toolkit::plugins::{
+    DockerMount, DockerMountType, DockerNetworkConfig, DockerPluginBuilder, DockerResourceLimits,
+    DockerToolConfig, Plugin, PluginConfig,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -134,7 +134,11 @@ async fn main() -> Result<()> {
         version: "1.0.0".to_string(),
         description: "Resize images using ImageMagick in Docker".to_string(),
         category: Some("image-processing".to_string()),
-        tags: vec!["image".to_string(), "resize".to_string(), "docker".to_string()],
+        tags: vec![
+            "image".to_string(),
+            "resize".to_string(),
+            "docker".to_string(),
+        ],
         parameters_schema: json!({
             "type": "object",
             "properties": {
@@ -170,7 +174,11 @@ async fn main() -> Result<()> {
         version: "1.0.0".to_string(),
         description: "Convert image formats using ImageMagick in Docker".to_string(),
         category: Some("image-processing".to_string()),
-        tags: vec!["image".to_string(), "convert".to_string(), "docker".to_string()],
+        tags: vec![
+            "image".to_string(),
+            "convert".to_string(),
+            "docker".to_string(),
+        ],
         parameters_schema: json!({
             "type": "object",
             "properties": {
@@ -215,16 +223,24 @@ async fn main() -> Result<()> {
             false,
         )
         .resource_limits(DockerResourceLimits {
-            memory: Some(1024 * 1024 * 1024), // 1GB default
+            memory: Some(1024 * 1024 * 1024),          // 1GB default
             memory_swap: Some(2 * 1024 * 1024 * 1024), // 2GB
-            nano_cpus: Some(1_000_000_000), // 1 CPU
+            nano_cpus: Some(1_000_000_000),            // 1 CPU
             cpu_shares: None,
             pids_limit: Some(512),
         })
         .auto_remove(true)
         .execution_timeout(Duration::from_secs(300)) // 5 minutes
-        .add_tool(resize_tool_info, resize_tool_config, Some(Duration::from_secs(120)))
-        .add_tool(convert_tool_info, convert_tool_config, Some(Duration::from_secs(60)))
+        .add_tool(
+            resize_tool_info,
+            resize_tool_config,
+            Some(Duration::from_secs(120)),
+        )
+        .add_tool(
+            convert_tool_info,
+            convert_tool_config,
+            Some(Duration::from_secs(60)),
+        )
         .build()
         .await?;
 
@@ -250,16 +266,20 @@ async fn main() -> Result<()> {
     println!("Available tools: {}", tools.len());
 
     for tool in &tools {
-        println!("  - {} v{}: {}", tool.name(), tool.version(), tool.get_info().description);
+        println!(
+            "  - {} v{}: {}",
+            tool.name(),
+            tool.version(),
+            tool.get_info().description
+        );
     }
 
     // Example: Execute the resize tool (this would require Docker to be running)
     if let Some(resize_tool) = tools.iter().find(|t| t.name() == "resize_image") {
         println!("\nTesting resize tool (simulation)...");
-        
-        let context = ExecutionContext::new()
-            .with_user_id("example-user");
-        
+
+        let context = ExecutionContext::new().with_user_id("example-user");
+
         let params = json!({
             "input": "/tmp/data/input.jpg",
             "width": 800,
@@ -280,10 +300,9 @@ async fn main() -> Result<()> {
     // Example: Execute the convert tool (simulation)
     if let Some(convert_tool) = tools.iter().find(|t| t.name() == "convert_format") {
         println!("\nTesting convert tool (simulation)...");
-        
-        let context = ExecutionContext::new()
-            .with_user_id("example-user");
-        
+
+        let context = ExecutionContext::new().with_user_id("example-user");
+
         let params = json!({
             "input": "/tmp/data/input.jpg",
             "format": "png"
@@ -298,10 +317,10 @@ async fn main() -> Result<()> {
     // Demonstrate Docker environment capabilities
     let environment = plugin.environment();
     let env_guard = environment.lock().await;
-    
+
     if env_guard.is_initialized() {
         println!("\n✓ Docker environment is initialized and ready");
-        
+
         // Get environment info (this would require Docker to be running)
         // let env_info = env_guard.get_environment_info().await?;
         // println!("Docker environment info: {}", serde_json::to_string_pretty(&env_info)?);

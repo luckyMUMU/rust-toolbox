@@ -1,7 +1,7 @@
 //! Aho-Corasick Automaton Implementation
-//! 
+//!
 //! This module provides an efficient implementation of the Aho-Corasick algorithm
-//! for multi-pattern string matching. It supports both case-sensitive and 
+//! for multi-pattern string matching. It supports both case-sensitive and
 //! case-insensitive matching with Unicode text support.
 
 use serde::{Deserialize, Serialize};
@@ -141,7 +141,8 @@ impl fmt::Display for AutomatonNode {
             self.depth,
             self.children.len(),
             self.output_patterns.len(),
-            self.failure_link.map_or("None".to_string(), |id| id.to_string())
+            self.failure_link
+                .map_or("None".to_string(), |id| id.to_string())
         )
     }
 }
@@ -165,11 +166,7 @@ pub struct PatternMatch {
 
 impl PatternMatch {
     /// Create a new pattern match
-    pub fn new(
-        pattern: Pattern,
-        start_pos: usize,
-        end_pos: usize,
-    ) -> Self {
+    pub fn new(pattern: Pattern, start_pos: usize, end_pos: usize) -> Self {
         Self {
             pattern: pattern.pattern.clone(),
             category: pattern.category.clone(),
@@ -257,20 +254,24 @@ impl AutomatonStats {
         // Rough estimate of memory usage
         let node_size = std::mem::size_of::<AutomatonNode>();
         let pattern_size = std::mem::size_of::<Pattern>();
-        
+
         // Add size of node data structures
         let nodes_memory = self.node_count * node_size;
-        
+
         // Add size of pattern data
-        let patterns_memory = patterns.iter()
+        let patterns_memory = patterns
+            .iter()
             .map(|p| pattern_size + p.pattern.len() + p.category.len())
             .sum::<usize>();
-        
+
         // Add size of hash maps (rough estimate)
-        let hashmap_memory = nodes.iter()
-            .map(|n| n.children.len() * (std::mem::size_of::<char>() + std::mem::size_of::<usize>()))
+        let hashmap_memory = nodes
+            .iter()
+            .map(|n| {
+                n.children.len() * (std::mem::size_of::<char>() + std::mem::size_of::<usize>())
+            })
             .sum::<usize>();
-        
+
         self.estimated_memory_bytes = nodes_memory + patterns_memory + hashmap_memory;
     }
 }
@@ -300,22 +301,22 @@ impl fmt::Display for AutomatonStats {
 pub enum AutomatonError {
     #[error("Pattern too long: {length} characters (max: {max_length})")]
     PatternTooLong { length: usize, max_length: usize },
-    
+
     #[error("Too many patterns: {count} (max: {max_patterns})")]
     TooManyPatterns { count: usize, max_patterns: usize },
-    
+
     #[error("Empty pattern not allowed")]
     EmptyPattern,
-    
+
     #[error("Invalid node ID: {node_id}")]
     InvalidNodeId { node_id: usize },
-    
+
     #[error("Automaton not built yet")]
     NotBuilt,
-    
+
     #[error("Invalid character in pattern: {ch:?}")]
     InvalidCharacter { ch: char },
-    
+
     #[error("Pattern already exists: {pattern}")]
     DuplicatePattern { pattern: String },
 }
@@ -351,7 +352,7 @@ impl AhoCorasickMatcher {
     pub fn with_config(config: AutomatonConfig) -> Self {
         let mut nodes = Vec::new();
         nodes.push(AutomatonNode::root()); // Root node at index 0
-        
+
         Self {
             nodes,
             patterns: Vec::new(),
@@ -364,13 +365,18 @@ impl AhoCorasickMatcher {
     }
 
     /// Add a pattern to the automaton
-    pub fn add_pattern<S1, S2>(&mut self, pattern: S1, category: S2, score: f64) -> AutomatonResult<usize>
+    pub fn add_pattern<S1, S2>(
+        &mut self,
+        pattern: S1,
+        category: S2,
+        score: f64,
+    ) -> AutomatonResult<usize>
     where
         S1: AsRef<str>,
         S2: Into<String>,
     {
         let pattern_str = pattern.as_ref();
-        
+
         // Validate pattern
         if pattern_str.is_empty() {
             return Err(AutomatonError::EmptyPattern);
@@ -397,7 +403,7 @@ impl AhoCorasickMatcher {
         } else {
             pattern_str.to_lowercase()
         };
-        
+
         if self.patterns.iter().any(|p| {
             let existing_pattern = if self.config.case_sensitive {
                 p.pattern.clone()
@@ -414,17 +420,17 @@ impl AhoCorasickMatcher {
         // Create the pattern
         let pattern_id = self.next_pattern_id;
         let pattern_obj = Pattern::new(pattern_str, category, score, pattern_id);
-        
+
         // Insert pattern into trie
         self.insert_pattern_into_trie(&pattern_obj)?;
-        
+
         // Store the pattern
         self.patterns.push(pattern_obj);
         self.next_pattern_id += 1;
-        
+
         // Mark as not built since we added a new pattern
         self.is_built = false;
-        
+
         debug!("Added pattern '{}' with ID {}", pattern_str, pattern_id);
         Ok(pattern_id)
     }
@@ -438,41 +444,45 @@ impl AhoCorasickMatcher {
         };
 
         let mut current_node_id = 0; // Start at root
-        
+
         // Traverse/create path for each character in the pattern
         for (depth, &ch) in pattern_chars.iter().enumerate() {
             let current_node = &self.nodes[current_node_id];
-            
+
             if let Some(child_id) = current_node.get_child(ch) {
                 // Child exists, move to it
                 current_node_id = child_id;
             } else {
                 // Create new child node
                 let new_node_id = self.next_node_id;
-                let new_node = AutomatonNode::new(
-                    new_node_id,
-                    depth + 1,
-                    Some(current_node_id),
-                    Some(ch),
-                );
-                
+                let new_node =
+                    AutomatonNode::new(new_node_id, depth + 1, Some(current_node_id), Some(ch));
+
                 self.nodes.push(new_node);
-                
+
                 // Add child reference to parent
                 self.nodes[current_node_id].add_child(ch, new_node_id);
-                
+
                 current_node_id = new_node_id;
                 self.next_node_id += 1;
-                
-                trace!("Created new node {} for character '{}' at depth {}", 
-                       new_node_id, ch, depth + 1);
+
+                trace!(
+                    "Created new node {} for character '{}' at depth {}",
+                    new_node_id,
+                    ch,
+                    depth + 1
+                );
             }
         }
-        
+
         // Add pattern as output at the final node
         self.nodes[current_node_id].add_output_pattern(pattern.clone());
-        
-        trace!("Pattern '{}' ends at node {}", pattern.pattern, current_node_id);
+
+        trace!(
+            "Pattern '{}' ends at node {}",
+            pattern.pattern,
+            current_node_id
+        );
         Ok(())
     }
 
@@ -490,38 +500,45 @@ impl AhoCorasickMatcher {
             return Ok(());
         }
 
-        debug!("Building Aho-Corasick automaton with {} patterns", self.patterns.len());
-        
+        debug!(
+            "Building Aho-Corasick automaton with {} patterns",
+            self.patterns.len()
+        );
+
         // Build failure links using BFS
         self.build_failure_links()?;
-        
+
         // Update statistics
         self.update_stats();
-        
+
         self.is_built = true;
         debug!("Automaton built successfully: {}", self.stats);
-        
+
         Ok(())
     }
 
     /// Build failure links using breadth-first search
     fn build_failure_links(&mut self) -> AutomatonResult<()> {
         use std::collections::VecDeque;
-        
+
         let mut queue = VecDeque::new();
-        
+
         // Initialize failure links for depth-1 nodes (direct children of root)
         let root_children: Vec<char> = self.nodes[0].child_chars().cloned().collect();
-        
+
         for ch in root_children {
             if let Some(child_id) = self.nodes[0].get_child(ch) {
                 // All direct children of root have failure link to root
                 self.nodes[child_id].set_failure_link(0);
                 queue.push_back(child_id);
-                trace!("Set failure link for node {} (char '{}') to root", child_id, ch);
+                trace!(
+                    "Set failure link for node {} (char '{}') to root",
+                    child_id,
+                    ch
+                );
             }
         }
-        
+
         // Process remaining nodes level by level
         while let Some(current_id) = queue.pop_front() {
             let current_children: Vec<(char, usize)> = self.nodes[current_id]
@@ -529,42 +546,45 @@ impl AhoCorasickMatcher {
                 .iter()
                 .map(|(&ch, &child_id)| (ch, child_id))
                 .collect();
-            
+
             for (ch, child_id) in current_children {
                 queue.push_back(child_id);
-                
+
                 // Find failure link for this child
                 let failure_link = self.compute_failure_link(current_id, ch)?;
                 self.nodes[child_id].set_failure_link(failure_link);
-                
-                trace!("Set failure link for node {} (char '{}') to node {}", 
-                       child_id, ch, failure_link);
+
+                trace!(
+                    "Set failure link for node {} (char '{}') to node {}",
+                    child_id,
+                    ch,
+                    failure_link
+                );
             }
         }
-        
+
         Ok(())
     }
 
     /// Compute the failure link for a node given its parent and the character
     fn compute_failure_link(&self, parent_id: usize, ch: char) -> AutomatonResult<usize> {
         let mut current_id = self.nodes[parent_id].get_failure_link().unwrap_or(0);
-        
+
         loop {
             // Check if current node has a child for character ch
             if let Some(child_id) = self.nodes[current_id].get_child(ch) {
                 return Ok(child_id);
             }
-            
+
             // If we're at root and no child found, failure link points to root
             if current_id == 0 {
                 return Ok(0);
             }
-            
+
             // Follow failure link of current node
             current_id = self.nodes[current_id].get_failure_link().unwrap_or(0);
         }
     }
-
 
     /// Get the next state given current state and input character
     /// This follows failure links until a valid transition is found
@@ -573,20 +593,24 @@ impl AhoCorasickMatcher {
             return Err(AutomatonError::NotBuilt);
         }
 
-        let input_char = if self.config.case_sensitive { ch } else { ch.to_lowercase().next().unwrap_or(ch) };
+        let input_char = if self.config.case_sensitive {
+            ch
+        } else {
+            ch.to_lowercase().next().unwrap_or(ch)
+        };
         let mut state = current_state;
-        
+
         loop {
             // Check if current state has a transition for the input character
             if let Some(next_state) = self.nodes[state].get_child(input_char) {
                 return Ok(next_state);
             }
-            
+
             // If we're at root state and no transition found, stay at root
             if state == 0 {
                 return Ok(0);
             }
-            
+
             // Follow failure link
             state = self.nodes[state].get_failure_link().unwrap_or(0);
         }
@@ -629,7 +653,9 @@ impl AhoCorasickMatcher {
         for node in &self.nodes {
             if let Some(failure_id) = node.get_failure_link() {
                 if failure_id >= self.nodes.len() {
-                    return Err(AutomatonError::InvalidNodeId { node_id: failure_id });
+                    return Err(AutomatonError::InvalidNodeId {
+                        node_id: failure_id,
+                    });
                 }
             }
         }
@@ -645,12 +671,16 @@ impl AhoCorasickMatcher {
 
     /// Get a node by ID
     pub fn get_node(&self, node_id: usize) -> AutomatonResult<&AutomatonNode> {
-        self.nodes.get(node_id).ok_or(AutomatonError::InvalidNodeId { node_id })
+        self.nodes
+            .get(node_id)
+            .ok_or(AutomatonError::InvalidNodeId { node_id })
     }
 
     /// Get a mutable node by ID
     fn get_node_mut(&mut self, node_id: usize) -> AutomatonResult<&mut AutomatonNode> {
-        self.nodes.get_mut(node_id).ok_or(AutomatonError::InvalidNodeId { node_id })
+        self.nodes
+            .get_mut(node_id)
+            .ok_or(AutomatonError::InvalidNodeId { node_id })
     }
 
     /// Get all patterns
@@ -679,7 +709,8 @@ impl AhoCorasickMatcher {
         self.stats.pattern_count = self.patterns.len();
         self.stats.max_depth = self.nodes.iter().map(|n| n.depth).max().unwrap_or(0);
         self.stats.edge_count = self.nodes.iter().map(|n| n.children.len()).sum();
-        self.stats.calculate_memory_estimate(&self.nodes, &self.patterns);
+        self.stats
+            .calculate_memory_estimate(&self.nodes, &self.patterns);
     }
 
     /// Clear all patterns and reset the automaton
@@ -691,7 +722,7 @@ impl AhoCorasickMatcher {
         self.next_node_id = 1;
         self.next_pattern_id = 0;
         self.stats = AutomatonStats::new();
-        
+
         debug!("Cleared automaton");
     }
 
@@ -723,7 +754,7 @@ impl AhoCorasickMatcher {
         for (pos, &ch) in chars.iter().enumerate() {
             // Get next state
             state = self.get_next_state(state, ch)?;
-            
+
             // Check for matches at current position by walking failure links
             let mut current_state = state;
             while current_state != 0 {
@@ -732,12 +763,12 @@ impl AhoCorasickMatcher {
                     for pattern in &self.nodes[current_state].output_patterns {
                         let start_pos = pos + 1 - pattern.char_len();
                         let end_pos = pos + 1;
-                        
+
                         let pattern_match = PatternMatch::new(pattern.clone(), start_pos, end_pos);
                         matches.push(pattern_match);
                     }
                 }
-                
+
                 // Follow failure link to find more matches
                 current_state = self.nodes[current_state].get_failure_link().unwrap_or(0);
             }
@@ -748,7 +779,11 @@ impl AhoCorasickMatcher {
             matches = self.filter_overlapping_matches(matches);
         }
 
-        debug!("Found {} matches in text of length {}", matches.len(), chars.len());
+        debug!(
+            "Found {} matches in text of length {}",
+            matches.len(),
+            chars.len()
+        );
         Ok(matches)
     }
 
@@ -760,7 +795,8 @@ impl AhoCorasickMatcher {
 
         // Sort by start position, then by end position (descending for longest first)
         matches.sort_by(|a, b| {
-            a.start_pos.cmp(&b.start_pos)
+            a.start_pos
+                .cmp(&b.start_pos)
                 .then_with(|| b.end_pos.cmp(&a.end_pos))
         });
 
@@ -789,22 +825,23 @@ impl AhoCorasickMatcher {
         // For overlapping matches, we need to check all possible starting positions
         for start_pos in 0..chars.len() {
             let mut state = 0;
-            
+
             for (offset, &ch) in chars[start_pos..].iter().enumerate() {
                 // Get next state
                 state = self.get_next_state(state, ch)?;
-                
+
                 // Check for matches at current position
                 if self.has_output(state)? {
                     let output_patterns = self.get_output_patterns(state)?;
-                    
+
                     for pattern in output_patterns {
                         let match_start = start_pos + offset + 1 - pattern.char_len();
                         let match_end = start_pos + offset + 1;
-                        
+
                         // Only add if this match starts at the current start_pos
                         if match_start == start_pos {
-                            let pattern_match = PatternMatch::new(pattern.clone(), match_start, match_end);
+                            let pattern_match =
+                                PatternMatch::new(pattern.clone(), match_start, match_end);
                             matches.push(pattern_match);
                         }
                     }
@@ -814,7 +851,8 @@ impl AhoCorasickMatcher {
 
         // Remove duplicates and sort by position
         matches.sort_by(|a, b| {
-            a.start_pos.cmp(&b.start_pos)
+            a.start_pos
+                .cmp(&b.start_pos)
                 .then_with(|| a.end_pos.cmp(&b.end_pos))
                 .then_with(|| a.pattern_id.cmp(&b.pattern_id))
         });
@@ -822,7 +860,11 @@ impl AhoCorasickMatcher {
             a.start_pos == b.start_pos && a.end_pos == b.end_pos && a.pattern_id == b.pattern_id
         });
 
-        debug!("Found {} overlapping matches in text of length {}", matches.len(), chars.len());
+        debug!(
+            "Found {} overlapping matches in text of length {}",
+            matches.len(),
+            chars.len()
+        );
         Ok(matches)
     }
 
@@ -838,15 +880,15 @@ impl AhoCorasickMatcher {
         for (pos, &ch) in chars.iter().enumerate() {
             // Get next state
             state = self.get_next_state(state, ch)?;
-            
+
             // Check for matches at current position
             if self.has_output(state)? {
                 let output_patterns = self.get_output_patterns(state)?;
-                
+
                 if let Some(pattern) = output_patterns.first() {
                     let start_pos = pos + 1 - pattern.char_len();
                     let end_pos = pos + 1;
-                    
+
                     let pattern_match = PatternMatch::new(pattern.clone(), start_pos, end_pos);
                     return Ok(Some(pattern_match));
                 }
@@ -868,7 +910,7 @@ impl AhoCorasickMatcher {
         for &ch in chars.iter() {
             // Get next state
             state = self.get_next_state(state, ch)?;
-            
+
             // Check for matches at current position
             if self.has_output(state)? {
                 return Ok(true);
@@ -879,7 +921,10 @@ impl AhoCorasickMatcher {
     }
 
     /// Find matches and return them grouped by category
-    pub fn find_matches_by_category(&self, text: &str) -> AutomatonResult<HashMap<String, Vec<PatternMatch>>> {
+    pub fn find_matches_by_category(
+        &self,
+        text: &str,
+    ) -> AutomatonResult<HashMap<String, Vec<PatternMatch>>> {
         let matches = if self.config.find_overlapping {
             self.find_overlapping_matches(text)?
         } else {
@@ -887,7 +932,7 @@ impl AhoCorasickMatcher {
         };
 
         let mut categorized = HashMap::new();
-        
+
         for pattern_match in matches {
             categorized
                 .entry(pattern_match.category.clone())
@@ -912,7 +957,9 @@ impl AhoCorasickMatcher {
         let mut min_score = f64::INFINITY;
 
         for pattern_match in &matches {
-            *category_counts.entry(pattern_match.category.clone()).or_insert(0) += 1;
+            *category_counts
+                .entry(pattern_match.category.clone())
+                .or_insert(0) += 1;
             total_score += pattern_match.score;
             max_score = max_score.max(pattern_match.score);
             min_score = min_score.min(pattern_match.score);
@@ -924,16 +971,27 @@ impl AhoCorasickMatcher {
 
         let stats = MatchStatistics {
             total_matches: matches.len(),
-            unique_patterns: matches.iter().map(|m| m.pattern_id).collect::<std::collections::HashSet<_>>().len(),
+            unique_patterns: matches
+                .iter()
+                .map(|m| m.pattern_id)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
             categories_found: category_counts.keys().cloned().collect(),
             category_counts,
             total_score,
-            average_score: if matches.is_empty() { 0.0 } else { total_score / matches.len() as f64 },
+            average_score: if matches.is_empty() {
+                0.0
+            } else {
+                total_score / matches.len() as f64
+            },
             max_score,
             min_score,
             text_length: text.chars().count(),
-            coverage_ratio: if text.is_empty() { 0.0 } else {
-                matches.iter().map(|m| m.match_len()).sum::<usize>() as f64 / text.chars().count() as f64
+            coverage_ratio: if text.is_empty() {
+                0.0
+            } else {
+                matches.iter().map(|m| m.match_len()).sum::<usize>() as f64
+                    / text.chars().count() as f64
             },
         };
 
@@ -994,10 +1052,10 @@ mod tests {
     #[test]
     fn test_automaton_node_children() {
         let mut node = AutomatonNode::new(1, 1, Some(0), Some('a'));
-        
+
         assert!(!node.has_child('b'));
         assert!(node.get_child('b').is_none());
-        
+
         node.add_child('b', 2);
         assert!(node.has_child('b'));
         assert_eq!(node.get_child('b'), Some(2));
@@ -1007,10 +1065,10 @@ mod tests {
     fn test_automaton_node_output() {
         let mut node = AutomatonNode::new(1, 1, Some(0), Some('a'));
         let pattern = Pattern::new("test", "category", 1.0, 0);
-        
+
         assert!(!node.has_output());
         assert_eq!(node.get_output_patterns().len(), 0);
-        
+
         node.add_output_pattern(pattern.clone());
         assert!(node.has_output());
         assert_eq!(node.get_output_patterns().len(), 1);
@@ -1021,7 +1079,7 @@ mod tests {
     fn test_pattern_match_creation() {
         let pattern = Pattern::new("test", "category", 1.5, 0);
         let match_result = PatternMatch::new(pattern, 5, 9);
-        
+
         assert_eq!(match_result.pattern, "test");
         assert_eq!(match_result.category, "category");
         assert_eq!(match_result.score, 1.5);
@@ -1035,11 +1093,11 @@ mod tests {
     fn test_pattern_match_overlap() {
         let pattern1 = Pattern::new("test", "category", 1.0, 0);
         let pattern2 = Pattern::new("other", "category", 1.0, 1);
-        
+
         let match1 = PatternMatch::new(pattern1, 5, 9);
         let match2 = PatternMatch::new(pattern2.clone(), 7, 12); // Overlaps
         let match3 = PatternMatch::new(pattern2, 10, 15); // No overlap
-        
+
         assert!(match1.overlaps_with(&match2));
         assert!(match2.overlaps_with(&match1));
         assert!(!match1.overlaps_with(&match3));
@@ -1063,7 +1121,7 @@ mod tests {
         assert_eq!(stats.max_depth, 0);
         assert_eq!(stats.edge_count, 0);
         assert_eq!(stats.estimated_memory_bytes, 0);
-        
+
         // Test memory calculation with empty data
         let nodes = vec![];
         let patterns = vec![];
@@ -1080,12 +1138,15 @@ mod tests {
 
     #[test]
     fn test_error_types() {
-        let error = AutomatonError::PatternTooLong { length: 1001, max_length: 1000 };
+        let error = AutomatonError::PatternTooLong {
+            length: 1001,
+            max_length: 1000,
+        };
         assert!(error.to_string().contains("Pattern too long"));
-        
+
         let error = AutomatonError::EmptyPattern;
         assert!(error.to_string().contains("Empty pattern"));
-        
+
         let error = AutomatonError::NotBuilt;
         assert!(error.to_string().contains("not built"));
     }
@@ -1112,7 +1173,7 @@ mod automaton_tests {
             max_patterns: 100,
             max_pattern_length: 50,
         };
-        
+
         let matcher = AhoCorasickMatcher::with_config(config.clone());
         assert_eq!(matcher.config().case_sensitive, true);
         assert_eq!(matcher.config().find_overlapping, true);
@@ -1123,15 +1184,15 @@ mod automaton_tests {
     #[test]
     fn test_add_single_pattern() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         let result = matcher.add_pattern("test", "category", 1.0);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 0); // First pattern gets ID 0
-        
+
         assert_eq!(matcher.pattern_count(), 1);
         assert!(matcher.node_count() > 1); // Should have created nodes
         assert!(!matcher.is_empty());
-        
+
         let patterns = matcher.patterns();
         assert_eq!(patterns[0].pattern, "test");
         assert_eq!(patterns[0].category, "category");
@@ -1142,15 +1203,15 @@ mod automaton_tests {
     #[test]
     fn test_add_multiple_patterns() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         let id1 = matcher.add_pattern("hello", "greeting", 1.0).unwrap();
         let id2 = matcher.add_pattern("world", "noun", 0.8).unwrap();
         let id3 = matcher.add_pattern("test", "action", 1.2).unwrap();
-        
+
         assert_eq!(id1, 0);
         assert_eq!(id2, 1);
         assert_eq!(id3, 2);
-        
+
         assert_eq!(matcher.pattern_count(), 3);
         assert!(matcher.node_count() > 3); // Should have created multiple nodes
     }
@@ -1158,14 +1219,14 @@ mod automaton_tests {
     #[test]
     fn test_add_overlapping_patterns() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         // Add patterns that share prefixes
         matcher.add_pattern("he", "pronoun", 1.0).unwrap();
         matcher.add_pattern("her", "pronoun", 1.0).unwrap();
         matcher.add_pattern("hello", "greeting", 1.0).unwrap();
-        
+
         assert_eq!(matcher.pattern_count(), 3);
-        
+
         // The trie should efficiently share nodes for common prefixes
         // "he" and "her" should share the "he" prefix
         // "he" and "hello" should share the "he" prefix
@@ -1177,15 +1238,17 @@ mod automaton_tests {
             case_sensitive: true,
             ..Default::default()
         });
-        
+
         let mut case_insensitive = AhoCorasickMatcher::with_config(AutomatonConfig {
             case_sensitive: false,
             ..Default::default()
         });
-        
+
         case_sensitive.add_pattern("Test", "category", 1.0).unwrap();
-        case_insensitive.add_pattern("Test", "category", 1.0).unwrap();
-        
+        case_insensitive
+            .add_pattern("Test", "category", 1.0)
+            .unwrap();
+
         // Both should accept the pattern, but internal representation may differ
         assert_eq!(case_sensitive.pattern_count(), 1);
         assert_eq!(case_insensitive.pattern_count(), 1);
@@ -1194,7 +1257,7 @@ mod automaton_tests {
     #[test]
     fn test_empty_pattern_error() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         let result = matcher.add_pattern("", "category", 1.0);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AutomatonError::EmptyPattern));
@@ -1206,10 +1269,13 @@ mod automaton_tests {
             max_pattern_length: 5,
             ..Default::default()
         });
-        
+
         let result = matcher.add_pattern("toolong", "category", 1.0);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AutomatonError::PatternTooLong { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            AutomatonError::PatternTooLong { .. }
+        ));
     }
 
     #[test]
@@ -1218,36 +1284,42 @@ mod automaton_tests {
             max_patterns: 2,
             ..Default::default()
         });
-        
+
         matcher.add_pattern("one", "category", 1.0).unwrap();
         matcher.add_pattern("two", "category", 1.0).unwrap();
-        
+
         let result = matcher.add_pattern("three", "category", 1.0);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AutomatonError::TooManyPatterns { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            AutomatonError::TooManyPatterns { .. }
+        ));
     }
 
     #[test]
     fn test_duplicate_pattern_error() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("test", "category1", 1.0).unwrap();
-        
+
         let result = matcher.add_pattern("test", "category2", 2.0);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AutomatonError::DuplicatePattern { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            AutomatonError::DuplicatePattern { .. }
+        ));
     }
 
     #[test]
     fn test_unicode_patterns() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         // Test Chinese characters
         matcher.add_pattern("测试", "chinese", 1.0).unwrap();
         matcher.add_pattern("hello世界", "mixed", 1.0).unwrap();
-        
+
         assert_eq!(matcher.pattern_count(), 2);
-        
+
         let patterns = matcher.patterns();
         assert_eq!(patterns[0].pattern, "测试");
         assert_eq!(patterns[1].pattern, "hello世界");
@@ -1256,15 +1328,15 @@ mod automaton_tests {
     #[test]
     fn test_clear_automaton() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("test1", "category", 1.0).unwrap();
         matcher.add_pattern("test2", "category", 1.0).unwrap();
-        
+
         assert_eq!(matcher.pattern_count(), 2);
         assert!(matcher.node_count() > 1);
-        
+
         matcher.clear();
-        
+
         assert_eq!(matcher.pattern_count(), 0);
         assert_eq!(matcher.node_count(), 1); // Only root remains
         assert!(matcher.is_empty());
@@ -1274,27 +1346,30 @@ mod automaton_tests {
     #[test]
     fn test_get_node() {
         let matcher = AhoCorasickMatcher::new();
-        
+
         // Root node should exist
         let root = matcher.get_node(0);
         assert!(root.is_ok());
         assert_eq!(root.unwrap().id, 0);
-        
+
         // Non-existent node should return error
         let result = matcher.get_node(999);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AutomatonError::InvalidNodeId { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            AutomatonError::InvalidNodeId { .. }
+        ));
     }
 
     #[test]
     fn test_stats_update() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("test", "category", 1.0).unwrap();
         matcher.add_pattern("hello", "greeting", 1.0).unwrap();
-        
+
         matcher.update_stats();
-        
+
         let stats = matcher.stats();
         assert!(stats.node_count > 1);
         assert_eq!(stats.pattern_count, 2);
@@ -1311,7 +1386,7 @@ mod failure_link_tests {
     #[test]
     fn test_build_empty_automaton() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         let result = matcher.build();
         assert!(result.is_ok());
         assert!(matcher.is_built());
@@ -1321,11 +1396,11 @@ mod failure_link_tests {
     fn test_build_single_pattern() {
         let mut matcher = AhoCorasickMatcher::new();
         matcher.add_pattern("test", "category", 1.0).unwrap();
-        
+
         let result = matcher.build();
         assert!(result.is_ok());
         assert!(matcher.is_built());
-        
+
         // Validate the automaton
         assert!(matcher.validate().is_ok());
     }
@@ -1337,11 +1412,11 @@ mod failure_link_tests {
         matcher.add_pattern("she", "pronoun", 1.0).unwrap();
         matcher.add_pattern("his", "possessive", 1.0).unwrap();
         matcher.add_pattern("hers", "possessive", 1.0).unwrap();
-        
+
         let result = matcher.build();
         assert!(result.is_ok());
         assert!(matcher.is_built());
-        
+
         // Validate the automaton
         assert!(matcher.validate().is_ok());
     }
@@ -1349,27 +1424,27 @@ mod failure_link_tests {
     #[test]
     fn test_build_overlapping_patterns() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         // Classic Aho-Corasick example
         matcher.add_pattern("he", "pronoun", 1.0).unwrap();
         matcher.add_pattern("she", "pronoun", 1.0).unwrap();
         matcher.add_pattern("her", "pronoun", 1.0).unwrap();
         matcher.add_pattern("hers", "possessive", 1.0).unwrap();
-        
+
         let result = matcher.build();
         assert!(result.is_ok());
         assert!(matcher.is_built());
-        
+
         // Validate the automaton
         assert!(matcher.validate().is_ok());
-        
+
         // Test some state transitions
         let state1 = matcher.get_next_state(0, 'h').unwrap();
         assert!(state1 > 0);
-        
+
         let state2 = matcher.get_next_state(state1, 'e').unwrap();
         assert!(state2 > 0);
-        
+
         // Should have output at this state (pattern "he")
         assert!(matcher.has_output(state2).unwrap());
         let outputs = matcher.get_output_patterns(state2).unwrap();
@@ -1379,24 +1454,24 @@ mod failure_link_tests {
     #[test]
     fn test_failure_link_construction() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         // Add patterns that will create interesting failure links
         matcher.add_pattern("aba", "pattern1", 1.0).unwrap();
         matcher.add_pattern("ab", "pattern2", 1.0).unwrap();
         matcher.add_pattern("a", "pattern3", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         // Test state transitions and failure links
         let state_a = matcher.get_next_state(0, 'a').unwrap();
         assert!(state_a > 0);
-        
+
         let state_ab = matcher.get_next_state(state_a, 'b').unwrap();
         assert!(state_ab > 0);
-        
+
         let state_aba = matcher.get_next_state(state_ab, 'a').unwrap();
         assert!(state_aba > 0);
-        
+
         // Validate the automaton structure
         assert!(matcher.validate().is_ok());
     }
@@ -1407,51 +1482,51 @@ mod failure_link_tests {
             case_sensitive: false,
             ..Default::default()
         });
-        
+
         matcher.add_pattern("Test", "category", 1.0).unwrap();
-        
+
         // Second pattern should fail because it's a duplicate when case-insensitive
         // "TEST" should be treated as the same as "Test" when case_sensitive is false
         assert!(matcher.add_pattern("TEST", "category3", 1.0).is_err());
-        
+
         matcher.build().unwrap();
-        
+
         // Test that case doesn't matter for transitions
         let state1 = matcher.get_next_state(0, 't').unwrap();
         let state2 = matcher.get_next_state(0, 'T').unwrap();
         assert_eq!(state1, state2);
-        
+
         assert!(matcher.validate().is_ok());
     }
 
     #[test]
     fn test_unicode_failure_links() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("测试", "chinese", 1.0).unwrap();
         matcher.add_pattern("测", "chinese_char", 1.0).unwrap();
         matcher.add_pattern("试验", "test", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         // Test Unicode character transitions
         let state1 = matcher.get_next_state(0, '测').unwrap();
         assert!(state1 > 0);
-        
+
         let state2 = matcher.get_next_state(state1, '试').unwrap();
         assert!(state2 > 0);
-        
+
         // Should have outputs for both "测" and "测试"
         assert!(matcher.has_output(state1).unwrap()); // "测"
         assert!(matcher.has_output(state2).unwrap()); // "测试"
-        
+
         assert!(matcher.validate().is_ok());
     }
 
     #[test]
     fn test_get_next_state_not_built() {
         let matcher = AhoCorasickMatcher::new();
-        
+
         let result = matcher.get_next_state(0, 'a');
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AutomatonError::NotBuilt));
@@ -1460,7 +1535,7 @@ mod failure_link_tests {
     #[test]
     fn test_validate_not_built() {
         let matcher = AhoCorasickMatcher::new();
-        
+
         let result = matcher.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AutomatonError::NotBuilt));
@@ -1469,15 +1544,15 @@ mod failure_link_tests {
     #[test]
     fn test_rebuild_automaton() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("test", "category", 1.0).unwrap();
         matcher.build().unwrap();
         assert!(matcher.is_built());
-        
+
         // Adding a new pattern should mark as not built
         matcher.add_pattern("hello", "greeting", 1.0).unwrap();
         assert!(!matcher.is_built());
-        
+
         // Should be able to rebuild
         matcher.build().unwrap();
         assert!(matcher.is_built());
@@ -1487,30 +1562,30 @@ mod failure_link_tests {
     #[test]
     fn test_complex_failure_links() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         // Add patterns that create complex failure link scenarios
         matcher.add_pattern("abcab", "pattern1", 1.0).unwrap();
         matcher.add_pattern("abc", "pattern2", 1.0).unwrap();
         matcher.add_pattern("cab", "pattern3", 1.0).unwrap();
         matcher.add_pattern("ab", "pattern4", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         // Test various state transitions
         let mut state = 0;
-        
+
         // Process "abcab"
         state = matcher.get_next_state(state, 'a').unwrap();
         state = matcher.get_next_state(state, 'b').unwrap();
         assert!(matcher.has_output(state).unwrap()); // Should match "ab"
-        
+
         state = matcher.get_next_state(state, 'c').unwrap();
         assert!(matcher.has_output(state).unwrap()); // Should match "abc"
-        
+
         state = matcher.get_next_state(state, 'a').unwrap();
         state = matcher.get_next_state(state, 'b').unwrap();
         assert!(matcher.has_output(state).unwrap()); // Should match "abcab" and "ab"
-        
+
         assert!(matcher.validate().is_ok());
     }
 }
@@ -1564,34 +1639,34 @@ mod matching_tests {
             find_overlapping: true,
             ..Default::default()
         });
-        
+
         matcher.add_pattern("he", "pronoun", 1.0).unwrap();
         matcher.add_pattern("she", "pronoun", 1.5).unwrap();
         matcher.add_pattern("his", "possessive", 2.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_matches("she sells his shells").unwrap();
-        
+
         assert_eq!(matches.len(), 5);
-        
+
         // Check matches in order they appear
         assert_eq!(matches[0].pattern, "she");
         assert_eq!(matches[0].start_pos, 0);
         assert_eq!(matches[0].end_pos, 3);
-        
+
         assert_eq!(matches[1].pattern, "he");
         assert_eq!(matches[1].start_pos, 1);
         assert_eq!(matches[1].end_pos, 3);
-        
+
         assert_eq!(matches[2].pattern, "his");
         assert_eq!(matches[2].start_pos, 10);
         assert_eq!(matches[2].end_pos, 13);
-        
+
         assert_eq!(matches[3].pattern, "she");
         assert_eq!(matches[3].start_pos, 14);
         assert_eq!(matches[3].end_pos, 17);
-        
+
         assert_eq!(matches[4].pattern, "he");
         assert_eq!(matches[4].start_pos, 15);
         assert_eq!(matches[4].end_pos, 17);
@@ -1603,21 +1678,29 @@ mod matching_tests {
             case_sensitive: false,
             ..Default::default()
         });
-        
+
         matcher.add_pattern("Hello", "greeting", 1.0).unwrap();
         matcher.add_pattern("WORLD", "noun", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_matches("hello world HELLO world").unwrap();
-        
+
         assert_eq!(matches.len(), 4);
-        
+
         // All matches should be found regardless of case
-        assert!(matches.iter().any(|m| m.pattern == "Hello" && m.start_pos == 0));
-        assert!(matches.iter().any(|m| m.pattern == "WORLD" && m.start_pos == 6));
-        assert!(matches.iter().any(|m| m.pattern == "Hello" && m.start_pos == 12));
-        assert!(matches.iter().any(|m| m.pattern == "WORLD" && m.start_pos == 18));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "Hello" && m.start_pos == 0));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "WORLD" && m.start_pos == 6));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "Hello" && m.start_pos == 12));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "WORLD" && m.start_pos == 18));
     }
 
     #[test]
@@ -1626,54 +1709,66 @@ mod matching_tests {
             find_overlapping: true,
             ..Default::default()
         });
-        
+
         matcher.add_pattern("abc", "pattern1", 1.0).unwrap();
         matcher.add_pattern("bcd", "pattern2", 1.0).unwrap();
         matcher.add_pattern("cde", "pattern3", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_overlapping_matches("abcde").unwrap();
-        
+
         assert_eq!(matches.len(), 3);
-        
+
         // Check all overlapping matches are found
-        assert!(matches.iter().any(|m| m.pattern == "abc" && m.start_pos == 0));
-        assert!(matches.iter().any(|m| m.pattern == "bcd" && m.start_pos == 1));
-        assert!(matches.iter().any(|m| m.pattern == "cde" && m.start_pos == 2));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "abc" && m.start_pos == 0));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "bcd" && m.start_pos == 1));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "cde" && m.start_pos == 2));
     }
 
     #[test]
     fn test_unicode_matching() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("测试", "chinese", 1.0).unwrap();
         matcher.add_pattern("hello", "english", 1.0).unwrap();
         matcher.add_pattern("世界", "world", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_matches("hello测试世界").unwrap();
-        
+
         assert_eq!(matches.len(), 3);
-        
+
         // Check Unicode matches
-        assert!(matches.iter().any(|m| m.pattern == "hello" && m.start_pos == 0));
-        assert!(matches.iter().any(|m| m.pattern == "测试" && m.start_pos == 5));
-        assert!(matches.iter().any(|m| m.pattern == "世界" && m.start_pos == 7));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "hello" && m.start_pos == 0));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "测试" && m.start_pos == 5));
+        assert!(matches
+            .iter()
+            .any(|m| m.pattern == "世界" && m.start_pos == 7));
     }
 
     #[test]
     fn test_find_first_match() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("abc", "pattern1", 1.0).unwrap();
         matcher.add_pattern("def", "pattern2", 2.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let first_match = matcher.find_first_match("xyzabcdef").unwrap();
-        
+
         assert!(first_match.is_some());
         let match_result = first_match.unwrap();
         assert_eq!(match_result.pattern, "abc");
@@ -1684,11 +1779,11 @@ mod matching_tests {
     #[test]
     fn test_contains_match() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("needle", "target", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         assert!(matcher.contains_match("haystack needle haystack").unwrap());
         assert!(!matcher.contains_match("haystack haystack").unwrap());
     }
@@ -1696,16 +1791,18 @@ mod matching_tests {
     #[test]
     fn test_matches_by_category() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("cat", "animal", 1.0).unwrap();
         matcher.add_pattern("dog", "animal", 1.0).unwrap();
         matcher.add_pattern("red", "color", 1.0).unwrap();
         matcher.add_pattern("blue", "color", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
-        let categorized = matcher.find_matches_by_category("red cat and blue dog").unwrap();
-        
+
+        let categorized = matcher
+            .find_matches_by_category("red cat and blue dog")
+            .unwrap();
+
         assert_eq!(categorized.len(), 2);
         assert_eq!(categorized["animal"].len(), 2);
         assert_eq!(categorized["color"].len(), 2);
@@ -1714,16 +1811,16 @@ mod matching_tests {
     #[test]
     fn test_match_statistics() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("test", "category1", 1.0).unwrap();
         matcher.add_pattern("hello", "category2", 2.0).unwrap();
         matcher.add_pattern("world", "category2", 3.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let text = "test hello world";
         let stats = matcher.get_match_statistics(text).unwrap();
-        
+
         assert_eq!(stats.total_matches, 3);
         assert_eq!(stats.unique_patterns, 3);
         assert_eq!(stats.categories_found.len(), 2);
@@ -1739,18 +1836,18 @@ mod matching_tests {
     #[test]
     fn test_empty_text() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("test", "category", 1.0).unwrap();
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_matches("").unwrap();
         assert_eq!(matches.len(), 0);
-        
+
         let first_match = matcher.find_first_match("").unwrap();
         assert!(first_match.is_none());
-        
+
         assert!(!matcher.contains_match("").unwrap());
-        
+
         let stats = matcher.get_match_statistics("").unwrap();
         assert_eq!(stats.total_matches, 0);
         assert_eq!(stats.text_length, 0);
@@ -1759,16 +1856,16 @@ mod matching_tests {
     #[test]
     fn test_no_matches() {
         let mut matcher = AhoCorasickMatcher::new();
-        
+
         matcher.add_pattern("needle", "target", 1.0).unwrap();
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_matches("haystack haystack").unwrap();
         assert_eq!(matches.len(), 0);
-        
+
         let first_match = matcher.find_first_match("haystack haystack").unwrap();
         assert!(first_match.is_none());
-        
+
         assert!(!matcher.contains_match("haystack haystack").unwrap());
     }
 
@@ -1776,11 +1873,11 @@ mod matching_tests {
     fn test_pattern_match_overlap_detection() {
         let pattern1 = Pattern::new("test", "category", 1.0, 0);
         let pattern2 = Pattern::new("other", "category", 1.0, 1);
-        
+
         let match1 = PatternMatch::new(pattern1, 0, 4);
         let match2 = PatternMatch::new(pattern2.clone(), 2, 7); // Overlaps with match1
         let match3 = PatternMatch::new(pattern2, 5, 10); // No overlap with match1
-        
+
         assert!(match1.overlaps_with(&match2));
         assert!(match2.overlaps_with(&match1));
         assert!(!match1.overlaps_with(&match3));
@@ -1793,20 +1890,20 @@ mod matching_tests {
             find_overlapping: true,
             ..Default::default()
         });
-        
+
         // Create patterns that will have complex overlapping behavior
         matcher.add_pattern("abab", "pattern1", 1.0).unwrap();
         matcher.add_pattern("baba", "pattern2", 1.0).unwrap();
         matcher.add_pattern("ab", "pattern3", 1.0).unwrap();
         matcher.add_pattern("ba", "pattern4", 1.0).unwrap();
-        
+
         matcher.build().unwrap();
-        
+
         let matches = matcher.find_matches("abababa").unwrap();
-        
+
         // Should find multiple overlapping matches
         assert!(matches.len() >= 4);
-        
+
         // Verify some expected matches
         assert!(matches.iter().any(|m| m.pattern == "abab"));
         assert!(matches.iter().any(|m| m.pattern == "baba"));

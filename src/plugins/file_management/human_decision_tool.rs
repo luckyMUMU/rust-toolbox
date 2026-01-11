@@ -1,13 +1,13 @@
 //! Human Decision Tool Implementation
-//! 
+//!
 //! This module provides interactive decision-making capabilities for ambiguous scenarios
 //! in file management workflows. It supports timeouts, default choices, and experimental mode.
 
-use crate::core::{PluginInfo, ToolInfo, ExecutionContext};
-use crate::error::{Result, WorkflowError};
-use crate::tools::{ToolNode, BasicTool, ToolExecutor};
 use super::plugin::FileManagementConfig;
-use super::utils::{HumanDecisionContext, HumanDecisionType, HumanDecisionOption};
+use super::utils::{HumanDecisionContext, HumanDecisionOption, HumanDecisionType};
+use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::error::{Result, WorkflowError};
+use crate::tools::{BasicTool, ToolExecutor, ToolNode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -78,9 +78,12 @@ impl HumanDecisionExecutor {
     }
 
     /// Convert parameters to HumanDecisionContext
-    fn create_decision_context(&self, params: &HumanDecisionParams) -> Result<HumanDecisionContext> {
+    fn create_decision_context(
+        &self,
+        params: &HumanDecisionParams,
+    ) -> Result<HumanDecisionContext> {
         let decision_type = self.parse_decision_type(&params.decision_type)?;
-        
+
         let mut context = HumanDecisionContext::new(
             decision_type,
             &params.context.title,
@@ -99,7 +102,9 @@ impl HumanDecisionExecutor {
 
             // Add score to metadata if present
             if let Some(score) = option.score {
-                decision_option.metadata.insert("score".to_string(), json!(score));
+                decision_option
+                    .metadata
+                    .insert("score".to_string(), json!(score));
             }
 
             context.options.push(decision_option);
@@ -112,7 +117,9 @@ impl HumanDecisionExecutor {
 
         // Add folder name to metadata if present
         if let Some(folder_name) = &params.context.folder_name {
-            context.metadata.insert("folder_name".to_string(), json!(folder_name));
+            context
+                .metadata
+                .insert("folder_name".to_string(), json!(folder_name));
         }
 
         // Add all context metadata
@@ -157,10 +164,16 @@ impl HumanDecisionExecutor {
         println!("Available options:");
         for (index, option) in context.options.iter().enumerate() {
             let number = index + 1;
-            let recommended = if option.recommended { " ⭐ (recommended)" } else { "" };
-            
+            let recommended = if option.recommended {
+                " ⭐ (recommended)"
+            } else {
+                ""
+            };
+
             // Get score from metadata if present
-            let score = option.metadata.get("score")
+            let score = option
+                .metadata
+                .get("score")
                 .and_then(|v| v.as_f64())
                 .map(|s| format!(" (score: {:.2})", s))
                 .unwrap_or_default();
@@ -175,7 +188,11 @@ impl HumanDecisionExecutor {
         // Show default choice if present
         if let Some(default_idx) = default_choice {
             if default_idx < context.options.len() {
-                println!("\n⏰ Default choice: {} ({})", default_idx + 1, context.options[default_idx].label);
+                println!(
+                    "\n⏰ Default choice: {} ({})",
+                    default_idx + 1,
+                    context.options[default_idx].label
+                );
             }
         }
 
@@ -186,11 +203,14 @@ impl HumanDecisionExecutor {
 
         println!("\nEnter your choice (1-{}):", context.options.len());
         print!("> ");
-        io::stdout().flush().map_err(|e| WorkflowError::tool(format!("Failed to flush stdout: {}", e)))?;
+        io::stdout()
+            .flush()
+            .map_err(|e| WorkflowError::tool(format!("Failed to flush stdout: {}", e)))?;
 
         // Get user input with optional timeout
         let selected_option = if let Some(timeout_secs) = context.timeout_seconds {
-            self.get_user_input_with_timeout(timeout_secs, &context.options, default_choice).await?
+            self.get_user_input_with_timeout(timeout_secs, &context.options, default_choice)
+                .await?
         } else {
             self.get_user_input(&context.options).await?
         };
@@ -213,7 +233,7 @@ impl HumanDecisionExecutor {
             match io::stdin().read_line(&mut input) {
                 Ok(_) => {
                     let input = input.trim();
-                    
+
                     // Try to parse as number
                     if let Ok(choice) = input.parse::<usize>() {
                         if choice >= 1 && choice <= options.len() {
@@ -223,17 +243,24 @@ impl HumanDecisionExecutor {
 
                     // Try to match by option ID or label
                     for option in options {
-                        if option.id.eq_ignore_ascii_case(input) || option.label.eq_ignore_ascii_case(input) {
+                        if option.id.eq_ignore_ascii_case(input)
+                            || option.label.eq_ignore_ascii_case(input)
+                        {
                             return Ok(option.clone());
                         }
                     }
 
                     println!("❌ Invalid choice. Please enter a number between 1 and {} or an option name.", options.len());
                     print!("> ");
-                    io::stdout().flush().map_err(|e| WorkflowError::tool(format!("Failed to flush stdout: {}", e)))?;
+                    io::stdout().flush().map_err(|e| {
+                        WorkflowError::tool(format!("Failed to flush stdout: {}", e))
+                    })?;
                 }
                 Err(e) => {
-                    return Err(WorkflowError::tool(format!("Failed to read user input: {}", e)));
+                    return Err(WorkflowError::tool(format!(
+                        "Failed to read user input: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -247,14 +274,14 @@ impl HumanDecisionExecutor {
         default_choice: Option<usize>,
     ) -> Result<HumanDecisionOption> {
         let timeout_duration = Duration::from_secs(timeout_seconds);
-        
+
         // Use tokio::time::timeout to handle the timeout
         match timeout(timeout_duration, self.get_user_input(options)).await {
             Ok(result) => result,
             Err(_) => {
                 // Timeout occurred
                 println!("\n⏰ Timeout reached!");
-                
+
                 if let Some(default_idx) = default_choice {
                     if default_idx < options.len() {
                         println!("Using default choice: {}", options[default_idx].label);
@@ -263,10 +290,13 @@ impl HumanDecisionExecutor {
                 }
 
                 // If no default choice, use the first recommended option or first option
-                let selected_option = options.iter()
+                let selected_option = options
+                    .iter()
                     .find(|opt| opt.recommended)
                     .or_else(|| options.first())
-                    .ok_or_else(|| WorkflowError::tool("No options available for timeout fallback"))?;
+                    .ok_or_else(|| {
+                        WorkflowError::tool("No options available for timeout fallback")
+                    })?;
 
                 println!("Using fallback choice: {}", selected_option.label);
                 Ok(selected_option.clone())
@@ -277,13 +307,18 @@ impl HumanDecisionExecutor {
     /// Simulate decision in experimental mode
     fn simulate_decision(&self, context: &HumanDecisionContext) -> Result<HumanDecisionResult> {
         // In experimental mode, automatically select the recommended option or first option
-        let selected_option = context.options.iter()
+        let selected_option = context
+            .options
+            .iter()
             .find(|opt| opt.recommended)
             .or_else(|| context.options.first())
             .ok_or_else(|| WorkflowError::tool("No options available for decision"))?;
 
-        println!("🧪 [Experimental Mode] Auto-selected: {}", selected_option.label);
-        
+        println!(
+            "🧪 [Experimental Mode] Auto-selected: {}",
+            selected_option.label
+        );
+
         if let Some(desc) = &selected_option.description {
             println!("   💡 {}", desc);
         }
@@ -310,7 +345,9 @@ impl HumanDecisionExecutor {
         }
 
         if params.context.description.is_empty() {
-            return Err(WorkflowError::validation("context.description cannot be empty"));
+            return Err(WorkflowError::validation(
+                "context.description cannot be empty",
+            ));
         }
 
         // Validate options
@@ -320,11 +357,17 @@ impl HumanDecisionExecutor {
 
         for (index, option) in params.options.iter().enumerate() {
             if option.id.is_empty() {
-                return Err(WorkflowError::validation(format!("options[{}].id cannot be empty", index)));
+                return Err(WorkflowError::validation(format!(
+                    "options[{}].id cannot be empty",
+                    index
+                )));
             }
 
             if option.label.is_empty() {
-                return Err(WorkflowError::validation(format!("options[{}].label cannot be empty", index)));
+                return Err(WorkflowError::validation(format!(
+                    "options[{}].label cannot be empty",
+                    index
+                )));
             }
         }
 
@@ -342,7 +385,9 @@ impl HumanDecisionExecutor {
         // Validate timeout if present
         if let Some(timeout) = params.timeout_seconds {
             if timeout == 0 {
-                return Err(WorkflowError::validation("timeout_seconds must be greater than 0"));
+                return Err(WorkflowError::validation(
+                    "timeout_seconds must be greater than 0",
+                ));
             }
             if timeout > 3600 {
                 warn!("Timeout of {} seconds is very long (> 1 hour)", timeout);
@@ -380,14 +425,13 @@ impl ToolExecutor for HumanDecisionExecutor {
             self.simulate_decision(&decision_context)?
         } else {
             info!("Presenting decision to user: {}", decision_context.title);
-            self.present_decision_to_user(&decision_context, params.default_choice).await?
+            self.present_decision_to_user(&decision_context, params.default_choice)
+                .await?
         };
 
         info!(
             "Human decision completed: selected '{}' in {}ms (experimental: {})",
-            result.selected_option,
-            result.decision_time_ms,
-            experimental_mode
+            result.selected_option, result.decision_time_ms, experimental_mode
         );
 
         // Update the result to reflect actual experimental mode status
@@ -416,7 +460,11 @@ pub fn create_human_decision_tool(
         version: "1.0.0".to_string(),
         description: "Human decision-making for ambiguous scenarios".to_string(),
         category: Some("human-interaction".to_string()),
-        tags: vec!["human".to_string(), "decision".to_string(), "interactive".to_string()],
+        tags: vec![
+            "human".to_string(),
+            "decision".to_string(),
+            "interactive".to_string(),
+        ],
         parameters_schema: json!({
             "type": "object",
             "properties": {
@@ -505,7 +553,7 @@ pub fn create_human_decision_tool(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{PluginType, ExecutionContext};
+    use crate::core::{ExecutionContext, PluginType};
     use tempfile::TempDir;
 
     fn create_test_config() -> FileManagementConfig {
@@ -531,9 +579,9 @@ mod tests {
     fn test_create_human_decision_tool() {
         let config = create_test_config();
         let plugin_info = create_test_plugin_info();
-        
+
         let tool = create_human_decision_tool(config, plugin_info).unwrap();
-        
+
         assert_eq!(tool.name(), "human-decision");
         assert_eq!(tool.version(), "1.0.0");
     }
@@ -580,7 +628,7 @@ mod tests {
     async fn test_experimental_mode_execution() {
         let config = create_test_config();
         let executor = HumanDecisionExecutor::new(config);
-        
+
         let params = json!({
             "decision_type": "Classification",
             "context": {
@@ -607,9 +655,9 @@ mod tests {
         let context = ExecutionContext::new();
 
         let result = executor.execute(params, context).await.unwrap();
-        
+
         let decision_result: HumanDecisionResult = serde_json::from_value(result).unwrap();
-        
+
         assert_eq!(decision_result.selected_option, "option1");
         assert!(decision_result.experimental_mode);
         assert!(!decision_result.was_timeout);

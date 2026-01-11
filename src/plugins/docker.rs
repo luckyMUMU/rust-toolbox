@@ -113,9 +113,9 @@ pub struct DockerResourceLimits {
 impl Default for DockerResourceLimits {
     fn default() -> Self {
         Self {
-            memory: Some(1024 * 1024 * 1024), // 1GB
+            memory: Some(1024 * 1024 * 1024),          // 1GB
             memory_swap: Some(2 * 1024 * 1024 * 1024), // 2GB
-            nano_cpus: Some(1_000_000_000), // 1 CPU
+            nano_cpus: Some(1_000_000_000),            // 1 CPU
             cpu_shares: None,
             pids_limit: Some(1024),
         }
@@ -206,11 +206,16 @@ impl DockerEnvironment {
     /// Create a new Docker environment
     pub fn new(config: DockerRuntimeConfig) -> Result<Self> {
         let docker = if let Some(url) = &config.docker_url {
-            Docker::connect_with_http(url, 120, bollard::API_DEFAULT_VERSION)
-                .map_err(|e| WorkflowError::plugin(format!("Failed to connect to Docker daemon at {}: {}", url, e)))?
+            Docker::connect_with_http(url, 120, bollard::API_DEFAULT_VERSION).map_err(|e| {
+                WorkflowError::plugin(format!(
+                    "Failed to connect to Docker daemon at {}: {}",
+                    url, e
+                ))
+            })?
         } else {
-            Docker::connect_with_local_defaults()
-                .map_err(|e| WorkflowError::plugin(format!("Failed to connect to Docker daemon: {}", e)))?
+            Docker::connect_with_local_defaults().map_err(|e| {
+                WorkflowError::plugin(format!("Failed to connect to Docker daemon: {}", e))
+            })?
         };
 
         Ok(Self {
@@ -247,8 +252,14 @@ impl DockerEnvironment {
             ))
         })?;
 
-        info!("Docker daemon version: {}", version.version.unwrap_or_else(|| "unknown".to_string()));
-        info!("Docker API version: {}", version.api_version.unwrap_or_else(|| "unknown".to_string()));
+        info!(
+            "Docker daemon version: {}",
+            version.version.unwrap_or_else(|| "unknown".to_string())
+        );
+        info!(
+            "Docker API version: {}",
+            version.api_version.unwrap_or_else(|| "unknown".to_string())
+        );
 
         Ok(())
     }
@@ -267,18 +278,21 @@ impl DockerEnvironment {
             ));
         }
 
-        let container_name = format!("workflow-tool-{}-{}", 
-            context.execution_id, 
+        let container_name = format!(
+            "workflow-tool-{}-{}",
+            context.execution_id,
             uuid::Uuid::new_v4().to_string()[..8].to_string()
         );
 
         debug!("Creating Docker container: {}", container_name);
 
         // Create container configuration
-        let container_config = self.create_container_config(tool_config, &params, &context, &container_name)?;
+        let container_config =
+            self.create_container_config(tool_config, &params, &context, &container_name)?;
 
         // Create the container
-        let container_response = self.docker
+        let container_response = self
+            .docker
             .create_container(
                 Some(CreateContainerOptions {
                     name: container_name.clone(),
@@ -305,18 +319,19 @@ impl DockerEnvironment {
         debug!("Started Docker container: {}", container_id);
 
         // Wait for container completion with timeout
-        let execution_result = if let Some(timeout_duration) = timeout_duration.or(self.config.execution_timeout) {
-            tokio::time::timeout(timeout_duration, self.wait_for_container(&container_id))
-                .await
-                .map_err(|_| {
-                    WorkflowError::plugin(format!(
-                        "Docker container execution timed out after {:?}: {}",
-                        timeout_duration, container_id
-                    ))
-                })?
-        } else {
-            self.wait_for_container(&container_id).await
-        };
+        let execution_result =
+            if let Some(timeout_duration) = timeout_duration.or(self.config.execution_timeout) {
+                tokio::time::timeout(timeout_duration, self.wait_for_container(&container_id))
+                    .await
+                    .map_err(|_| {
+                        WorkflowError::plugin(format!(
+                            "Docker container execution timed out after {:?}: {}",
+                            timeout_duration, container_id
+                        ))
+                    })?
+            } else {
+                self.wait_for_container(&container_id).await
+            };
 
         // Get container logs
         let logs = self.get_container_logs(&container_id).await?;
@@ -355,12 +370,12 @@ impl DockerEnvironment {
     ) -> Result<Config<String>> {
         // Prepare environment variables
         let mut env_vars = Vec::new();
-        
+
         // Add default environment variables
         for (key, value) in &self.config.default_environment {
             env_vars.push(format!("{}={}", key, value));
         }
-        
+
         // Add tool-specific environment variables
         for (key, value) in &tool_config.environment {
             env_vars.push(format!("{}={}", key, value));
@@ -368,19 +383,31 @@ impl DockerEnvironment {
 
         // Add context information as environment variables
         env_vars.push(format!("WORKFLOW_EXECUTION_ID={}", context.execution_id));
-        env_vars.push(format!("WORKFLOW_ID={}", context.workflow_id.as_ref().map(|id| id.to_string()).unwrap_or_default()));
-        env_vars.push(format!("WORKFLOW_USER_ID={}", context.user_id.as_ref().unwrap_or(&String::new())));
-        env_vars.push(format!("WORKFLOW_SESSION_ID={}", context.session_id.as_ref().unwrap_or(&String::new())));
+        env_vars.push(format!(
+            "WORKFLOW_ID={}",
+            context
+                .workflow_id
+                .as_ref()
+                .map(|id| id.to_string())
+                .unwrap_or_default()
+        ));
+        env_vars.push(format!(
+            "WORKFLOW_USER_ID={}",
+            context.user_id.as_ref().unwrap_or(&String::new())
+        ));
+        env_vars.push(format!(
+            "WORKFLOW_SESSION_ID={}",
+            context.session_id.as_ref().unwrap_or(&String::new())
+        ));
 
         // Serialize parameters as JSON and pass as environment variable
-        let params_json = serde_json::to_string(params).map_err(|e| {
-            WorkflowError::plugin(format!("Failed to serialize parameters: {}", e))
-        })?;
+        let params_json = serde_json::to_string(params)
+            .map_err(|e| WorkflowError::plugin(format!("Failed to serialize parameters: {}", e)))?;
         env_vars.push(format!("WORKFLOW_PARAMS={}", params_json));
 
         // Prepare mounts
         let mut mounts = Vec::new();
-        
+
         // Add default mounts
         for mount in &self.config.default_mounts {
             mounts.push(Mount {
@@ -394,7 +421,7 @@ impl DockerEnvironment {
                 tmpfs_options: None,
             });
         }
-        
+
         // Add tool-specific mounts
         for mount in &tool_config.mounts {
             mounts.push(Mount {
@@ -411,7 +438,7 @@ impl DockerEnvironment {
 
         // Prepare port bindings
         let mut port_bindings = HashMap::new();
-        
+
         // Add default port mappings
         for (container_port, host_port) in &self.config.default_ports {
             port_bindings.insert(
@@ -422,7 +449,7 @@ impl DockerEnvironment {
                 }]),
             );
         }
-        
+
         // Add tool-specific port mappings
         for (container_port, host_port) in &tool_config.ports {
             port_bindings.insert(
@@ -435,26 +462,63 @@ impl DockerEnvironment {
         }
 
         // Get resource limits (tool-specific overrides default)
-        let resource_limits = tool_config.resource_limits.as_ref().unwrap_or(&self.config.resource_limits);
+        let resource_limits = tool_config
+            .resource_limits
+            .as_ref()
+            .unwrap_or(&self.config.resource_limits);
 
         // Create host configuration
         let host_config = HostConfig {
             mounts: Some(mounts),
-            port_bindings: if port_bindings.is_empty() { None } else { Some(port_bindings) },
+            port_bindings: if port_bindings.is_empty() {
+                None
+            } else {
+                Some(port_bindings)
+            },
             memory: resource_limits.memory,
             memory_swap: resource_limits.memory_swap,
             nano_cpus: resource_limits.nano_cpus,
             cpu_shares: resource_limits.cpu_shares,
             pids_limit: resource_limits.pids_limit,
-            network_mode: tool_config.network_config.as_ref()
+            network_mode: tool_config
+                .network_config
+                .as_ref()
                 .map(|nc| nc.network_mode.clone())
                 .or_else(|| Some(self.config.network_config.network_mode.clone())),
-            dns: tool_config.network_config.as_ref()
-                .and_then(|nc| if nc.dns.is_empty() { None } else { Some(nc.dns.clone()) })
-                .or_else(|| if self.config.network_config.dns.is_empty() { None } else { Some(self.config.network_config.dns.clone()) }),
-            dns_search: tool_config.network_config.as_ref()
-                .and_then(|nc| if nc.dns_search.is_empty() { None } else { Some(nc.dns_search.clone()) })
-                .or_else(|| if self.config.network_config.dns_search.is_empty() { None } else { Some(self.config.network_config.dns_search.clone()) }),
+            dns: tool_config
+                .network_config
+                .as_ref()
+                .and_then(|nc| {
+                    if nc.dns.is_empty() {
+                        None
+                    } else {
+                        Some(nc.dns.clone())
+                    }
+                })
+                .or_else(|| {
+                    if self.config.network_config.dns.is_empty() {
+                        None
+                    } else {
+                        Some(self.config.network_config.dns.clone())
+                    }
+                }),
+            dns_search: tool_config
+                .network_config
+                .as_ref()
+                .and_then(|nc| {
+                    if nc.dns_search.is_empty() {
+                        None
+                    } else {
+                        Some(nc.dns_search.clone())
+                    }
+                })
+                .or_else(|| {
+                    if self.config.network_config.dns_search.is_empty() {
+                        None
+                    } else {
+                        Some(self.config.network_config.dns_search.clone())
+                    }
+                }),
             privileged: Some(tool_config.privileged),
             auto_remove: Some(self.config.auto_remove),
             ..Default::default()
@@ -463,9 +527,15 @@ impl DockerEnvironment {
         // Prepare labels
         let mut labels = HashMap::new();
         labels.insert("workflow-toolkit.managed".to_string(), "true".to_string());
-        labels.insert("workflow-toolkit.execution-id".to_string(), context.execution_id.clone());
-        labels.insert("workflow-toolkit.container-name".to_string(), container_name.to_string());
-        
+        labels.insert(
+            "workflow-toolkit.execution-id".to_string(),
+            context.execution_id.clone(),
+        );
+        labels.insert(
+            "workflow-toolkit.container-name".to_string(),
+            container_name.to_string(),
+        );
+
         // Add tool-specific labels
         for (key, value) in &tool_config.labels {
             labels.insert(key.clone(), value.clone());
@@ -476,7 +546,9 @@ impl DockerEnvironment {
             image: Some(tool_config.image.clone()),
             cmd: tool_config.command.clone(),
             entrypoint: tool_config.entrypoint.clone(),
-            working_dir: tool_config.working_dir.clone()
+            working_dir: tool_config
+                .working_dir
+                .clone()
                 .or_else(|| self.config.default_working_dir.clone()),
             env: Some(env_vars),
             user: tool_config.user.clone(),
@@ -501,7 +573,10 @@ impl DockerEnvironment {
             match result {
                 Ok(wait_response) => {
                     let status_code = wait_response.status_code;
-                    debug!("Container {} exited with code: {}", container_id, status_code);
+                    debug!(
+                        "Container {} exited with code: {}",
+                        container_id, status_code
+                    );
                     return Ok(status_code);
                 }
                 Err(e) => {
@@ -553,7 +628,10 @@ impl DockerEnvironment {
                     stdout.push_str(&log_output.to_string());
                 }
                 Err(e) => {
-                    warn!("Error reading stdout from container {}: {}", container_id, e);
+                    warn!(
+                        "Error reading stdout from container {}: {}",
+                        container_id, e
+                    );
                     break;
                 }
             }
@@ -566,7 +644,10 @@ impl DockerEnvironment {
                     stderr.push_str(&log_output.to_string());
                 }
                 Err(e) => {
-                    warn!("Error reading stderr from container {}: {}", container_id, e);
+                    warn!(
+                        "Error reading stderr from container {}: {}",
+                        container_id, e
+                    );
                     break;
                 }
             }
@@ -633,7 +714,10 @@ impl DockerEnvironment {
             )
             .await
             .map_err(|e| {
-                WorkflowError::plugin(format!("Failed to remove container {}: {}", container_id, e))
+                WorkflowError::plugin(format!(
+                    "Failed to remove container {}: {}",
+                    container_id, e
+                ))
             })?;
 
         debug!("Removed Docker container: {}", container_id);
@@ -649,9 +733,9 @@ impl DockerEnvironment {
             )));
         }
 
-        let dockerfile_dir = dockerfile_path.parent().ok_or_else(|| {
-            WorkflowError::plugin("Invalid Dockerfile path".to_string())
-        })?;
+        let dockerfile_dir = dockerfile_path
+            .parent()
+            .ok_or_else(|| WorkflowError::plugin("Invalid Dockerfile path".to_string()))?;
 
         info!("Building Docker image from: {:?}", dockerfile_path);
 
@@ -667,7 +751,9 @@ impl DockerEnvironment {
             ..Default::default()
         };
 
-        let mut stream = self.docker.build_image(build_options, None, Some(build_context.into()));
+        let mut stream = self
+            .docker
+            .build_image(build_options, None, Some(build_context.into()));
 
         while let Some(result) = stream.next().await {
             match result {
@@ -683,10 +769,7 @@ impl DockerEnvironment {
                     }
                 }
                 Err(e) => {
-                    return Err(WorkflowError::plugin(format!(
-                        "Docker build error: {}",
-                        e
-                    )));
+                    return Err(WorkflowError::plugin(format!("Docker build error: {}", e)));
                 }
             }
         }
@@ -737,10 +820,7 @@ impl DockerEnvironment {
                     }
                 }
                 Err(e) => {
-                    return Err(WorkflowError::plugin(format!(
-                        "Docker pull error: {}",
-                        e
-                    )));
+                    return Err(WorkflowError::plugin(format!("Docker pull error: {}", e)));
                 }
             }
         }
@@ -761,13 +841,16 @@ impl DockerEnvironment {
 
     /// Get environment information
     pub async fn get_environment_info(&self) -> Result<Value> {
-        let version = self.docker.version().await.map_err(|e| {
-            WorkflowError::plugin(format!("Failed to get Docker version: {}", e))
-        })?;
+        let version =
+            self.docker.version().await.map_err(|e| {
+                WorkflowError::plugin(format!("Failed to get Docker version: {}", e))
+            })?;
 
-        let info = self.docker.info().await.map_err(|e| {
-            WorkflowError::plugin(format!("Failed to get Docker info: {}", e))
-        })?;
+        let info = self
+            .docker
+            .info()
+            .await
+            .map_err(|e| WorkflowError::plugin(format!("Failed to get Docker info: {}", e)))?;
 
         Ok(serde_json::json!({
             "version": version,
@@ -950,9 +1033,8 @@ impl DockerPlugin {
             )));
         }
 
-        let image_tag = image_tag.unwrap_or_else(|| {
-            format!("workflow-toolkit/{}", info.name.to_lowercase())
-        });
+        let image_tag =
+            image_tag.unwrap_or_else(|| format!("workflow-toolkit/{}", info.name.to_lowercase()));
 
         let runtime_config = DockerRuntimeConfig {
             default_image: Some(image_tag),
@@ -1075,8 +1157,11 @@ impl DockerPlugin {
         // Initialize the Docker environment
         let mut environment = self.environment.lock().await;
         environment.initialize().await?;
-        
-        info!("Docker plugin async initialization completed: {}", self.info.name);
+
+        info!(
+            "Docker plugin async initialization completed: {}",
+            self.info.name
+        );
         Ok(())
     }
 }
@@ -1224,7 +1309,9 @@ impl DockerPluginBuilder {
 
         // Add tools
         for (tool_info, tool_config, timeout) in self.tools {
-            plugin.add_basic_tool(tool_info, tool_config, timeout).await?;
+            plugin
+                .add_basic_tool(tool_info, tool_config, timeout)
+                .await?;
         }
 
         Ok(plugin)

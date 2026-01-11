@@ -1,38 +1,38 @@
 //! Concurrency performance optimization and tuning
 
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Semaphore, Mutex};
-use serde::{Serialize, Deserialize};
-use dashmap::DashMap;
+use tokio::sync::{Mutex, RwLock, Semaphore};
 
 /// Concurrency configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConcurrencyConfig {
     /// Maximum number of concurrent workflows
     pub max_concurrent_workflows: usize,
-    
+
     /// Maximum number of concurrent tools per workflow
     pub max_concurrent_tools: usize,
-    
+
     /// Thread pool size for CPU-intensive tasks
     pub cpu_thread_pool_size: usize,
-    
+
     /// Thread pool size for I/O tasks
     pub io_thread_pool_size: usize,
-    
+
     /// Task queue size
     pub task_queue_size: usize,
-    
+
     /// Enable work stealing
     pub enable_work_stealing: bool,
-    
+
     /// Load balancing strategy
     pub load_balancing: LoadBalancingStrategy,
-    
+
     /// Adaptive concurrency settings
     pub adaptive_concurrency: AdaptiveConcurrencyConfig,
-    
+
     /// Backpressure configuration
     pub backpressure: BackpressureConfig,
 }
@@ -150,26 +150,26 @@ pub enum ConcurrencyOptimizationType {
 /// Concurrency manager for optimization and monitoring
 pub struct ConcurrencyManager {
     config: Arc<RwLock<ConcurrencyConfig>>,
-    
+
     // Semaphores for controlling concurrency
     workflow_semaphore: Arc<Semaphore>,
     tool_semaphore: Arc<Semaphore>,
-    
+
     // Thread pools
     cpu_pool: Arc<tokio::runtime::Handle>,
     io_pool: Arc<tokio::runtime::Handle>,
-    
+
     // Statistics and monitoring
     stats: Arc<RwLock<ConcurrencyStats>>,
     latency_history: Arc<DashMap<String, Vec<Duration>>>,
     throughput_history: Arc<DashMap<String, Vec<f64>>>,
-    
+
     // Load balancer
     load_balancer: Arc<LoadBalancer>,
-    
+
     // Adaptive concurrency controller
     adaptive_controller: Arc<AdaptiveConcurrencyController>,
-    
+
     // Backpressure manager
     backpressure_manager: Arc<BackpressureManager>,
 }
@@ -179,29 +179,27 @@ impl ConcurrencyManager {
     pub fn new(config: ConcurrencyConfig) -> Self {
         let workflow_semaphore = Arc::new(Semaphore::new(config.max_concurrent_workflows));
         let tool_semaphore = Arc::new(Semaphore::new(config.max_concurrent_tools));
-        
+
         // Use current runtime handle for thread pools
         let cpu_pool = Arc::new(tokio::runtime::Handle::current());
         let io_pool = Arc::new(tokio::runtime::Handle::current());
-        
+
         let stats = Arc::new(RwLock::new(ConcurrencyStats::default()));
         let latency_history = Arc::new(DashMap::new());
         let throughput_history = Arc::new(DashMap::new());
-        
+
         let load_balancer = Arc::new(LoadBalancer::new(config.load_balancing.clone()));
-        
+
         let adaptive_controller = Arc::new(AdaptiveConcurrencyController::new(
             config.adaptive_concurrency.clone(),
             workflow_semaphore.clone(),
             tool_semaphore.clone(),
         ));
-        
-        let backpressure_manager = Arc::new(BackpressureManager::new(
-            config.backpressure.clone()
-        ));
-        
+
+        let backpressure_manager = Arc::new(BackpressureManager::new(config.backpressure.clone()));
+
         let config = Arc::new(RwLock::new(config));
-        
+
         Self {
             config,
             workflow_semaphore,
@@ -216,37 +214,45 @@ impl ConcurrencyManager {
             backpressure_manager,
         }
     }
-    
+
     /// Acquire workflow concurrency permit
     pub async fn acquire_workflow_permit(&self) -> crate::Result<WorkflowPermit> {
         // Check backpressure
         self.backpressure_manager.check_backpressure().await?;
-        
-        let permit = self.workflow_semaphore.clone().acquire_owned().await
+
+        let permit = self
+            .workflow_semaphore
+            .clone()
+            .acquire_owned()
+            .await
             .map_err(|_| crate::WorkflowError::concurrency("Failed to acquire workflow permit"))?;
-        
+
         Ok(WorkflowPermit {
             _permit: permit,
             manager: Arc::new(self.clone()),
             acquired_at: Instant::now(),
         })
     }
-    
+
     /// Acquire tool concurrency permit
     pub async fn acquire_tool_permit(&self) -> crate::Result<ToolPermit> {
         // Check backpressure
         self.backpressure_manager.check_backpressure().await?;
-        
-        let permit = self.tool_semaphore.clone().acquire_owned().await
+
+        let permit = self
+            .tool_semaphore
+            .clone()
+            .acquire_owned()
+            .await
             .map_err(|_| crate::WorkflowError::concurrency("Failed to acquire tool permit"))?;
-        
+
         Ok(ToolPermit {
             _permit: permit,
             manager: Arc::new(self.clone()),
             acquired_at: Instant::now(),
         })
     }
-    
+
     /// Execute a CPU-intensive task
     pub async fn execute_cpu_task<F, T>(&self, task: F) -> crate::Result<T>
     where
@@ -254,16 +260,17 @@ impl ConcurrencyManager {
         T: Send + 'static,
     {
         let start_time = Instant::now();
-        
-        let result = tokio::task::spawn_blocking(task).await
+
+        let result = tokio::task::spawn_blocking(task)
+            .await
             .map_err(|e| crate::WorkflowError::concurrency(&format!("CPU task failed: {}", e)))?;
-        
+
         let duration = start_time.elapsed();
         self.record_task_completion("cpu_task", duration).await;
-        
+
         Ok(result)
     }
-    
+
     /// Execute an I/O task
     pub async fn execute_io_task<F, T>(&self, task: F) -> crate::Result<T>
     where
@@ -271,85 +278,90 @@ impl ConcurrencyManager {
         T: Send + 'static,
     {
         let start_time = Instant::now();
-        
+
         let result = task.await;
-        
+
         let duration = start_time.elapsed();
         self.record_task_completion("io_task", duration).await;
-        
+
         Ok(result)
     }
-    
+
     /// Record task completion for statistics
     pub async fn record_task_completion(&self, task_type: &str, duration: Duration) {
         // Update latency history
-        let mut history = self.latency_history.entry(task_type.to_string()).or_insert_with(Vec::new);
+        let mut history = self
+            .latency_history
+            .entry(task_type.to_string())
+            .or_insert_with(Vec::new);
         history.push(duration);
-        
+
         // Keep only recent history
         if history.len() > 1000 {
             let len = history.len();
             history.drain(0..len - 1000);
         }
-        
+
         // Update statistics
         let mut stats = self.stats.write().await;
         stats.completed_tasks += 1;
-        
+
         // Calculate average latency
         if let Some(history) = self.latency_history.get(task_type) {
             let total_duration: Duration = history.iter().sum();
             stats.average_latency = total_duration / history.len() as u32;
         }
-        
+
         // Notify adaptive controller
         self.adaptive_controller.record_latency(duration).await;
     }
-    
+
     /// Get current concurrency statistics
     pub async fn get_statistics(&self) -> ConcurrencyStats {
         let mut stats = self.stats.read().await.clone();
-        
+
         // Update current active counts
         stats.active_workflows = self.workflow_semaphore.available_permits();
         stats.active_tools = self.tool_semaphore.available_permits();
-        
+
         // Calculate throughput
         stats.throughput = self.calculate_throughput().await;
-        
+
         // Get CPU utilization (mock for now)
         stats.cpu_utilization = self.get_cpu_utilization().await;
-        
+
         stats
     }
-    
+
     /// Optimize concurrency settings
     pub async fn optimize(&self) -> crate::Result<Vec<ConcurrencyOptimization>> {
         let mut optimizations = Vec::new();
         let stats = self.get_statistics().await;
-        
+
         // Analyze latency patterns
         optimizations.extend(self.analyze_latency_patterns().await);
-        
+
         // Analyze throughput patterns
         optimizations.extend(self.analyze_throughput_patterns().await);
-        
+
         // Check for contention
         if self.detect_contention().await {
             optimizations.push(ConcurrencyOptimization {
                 optimization_type: ConcurrencyOptimizationType::ReduceContention,
-                description: "High contention detected - consider reducing shared state access".to_string(),
+                description: "High contention detected - consider reducing shared state access"
+                    .to_string(),
                 estimated_improvement: 0.2, // 20% improvement
                 priority: super::OptimizationPriority::High,
                 component: "concurrency".to_string(),
             });
         }
-        
+
         // Check CPU utilization
         if stats.cpu_utilization < 0.5 {
             optimizations.push(ConcurrencyOptimization {
                 optimization_type: ConcurrencyOptimizationType::IncreaseThreadPoolSize,
-                description: "Low CPU utilization - consider increasing thread pool size".to_string(),
+                description: "Low CPU utilization - consider increasing thread pool size"
+                    .to_string(),
                 estimated_improvement: 0.3, // 30% improvement
                 priority: super::OptimizationPriority::Medium,
                 component: "thread_pool".to_string(),
@@ -357,75 +369,86 @@ impl ConcurrencyManager {
         } else if stats.cpu_utilization > 0.9 {
             optimizations.push(ConcurrencyOptimization {
                 optimization_type: ConcurrencyOptimizationType::DecreaseThreadPoolSize,
-                description: "High CPU utilization - consider decreasing thread pool size".to_string(),
+                description: "High CPU utilization - consider decreasing thread pool size"
+                    .to_string(),
                 estimated_improvement: 0.1, // 10% improvement
                 priority: super::OptimizationPriority::Low,
                 component: "thread_pool".to_string(),
             });
         }
-        
+
         Ok(optimizations)
     }
-    
+
     /// Adjust concurrency limits dynamically
-    pub async fn adjust_limits(&self, workflow_limit: Option<usize>, tool_limit: Option<usize>) -> crate::Result<()> {
+    pub async fn adjust_limits(
+        &self,
+        workflow_limit: Option<usize>,
+        tool_limit: Option<usize>,
+    ) -> crate::Result<()> {
         let mut config = self.config.write().await;
-        
+
         if let Some(limit) = workflow_limit {
             config.max_concurrent_workflows = limit;
             // Note: We can't actually change semaphore permits at runtime in this implementation
             // In a real system, we'd need a more sophisticated approach
         }
-        
+
         if let Some(limit) = tool_limit {
             config.max_concurrent_tools = limit;
         }
-        
+
         Ok(())
     }
-    
+
     async fn analyze_latency_patterns(&self) -> Vec<ConcurrencyOptimization> {
         let mut optimizations = Vec::new();
-        
+
         for entry in self.latency_history.iter() {
             let task_type = entry.key();
             let history = entry.value();
-            
+
             if history.len() < 10 {
                 continue;
             }
-            
+
             let avg_latency = history.iter().sum::<Duration>() / history.len() as u32;
             let config = self.config.read().await;
-            
+
             if avg_latency > config.adaptive_concurrency.target_latency * 2 {
                 optimizations.push(ConcurrencyOptimization {
                     optimization_type: ConcurrencyOptimizationType::OptimizeTaskBatching,
-                    description: format!("High latency detected for {}: {:?}", task_type, avg_latency),
+                    description: format!(
+                        "High latency detected for {}: {:?}",
+                        task_type, avg_latency
+                    ),
                     estimated_improvement: 0.25, // 25% improvement
                     priority: super::OptimizationPriority::High,
                     component: task_type.clone(),
                 });
             }
         }
-        
+
         optimizations
     }
-    
+
     async fn analyze_throughput_patterns(&self) -> Vec<ConcurrencyOptimization> {
         let mut optimizations = Vec::new();
-        
+
         for entry in self.throughput_history.iter() {
             let component = entry.key();
             let history = entry.value();
-            
+
             if history.len() < 5 {
                 continue;
             }
-            
-            let recent_throughput = history[history.len()-3..].iter().sum::<f64>() / 3.0;
-            let older_throughput = history[history.len()-5..history.len()-3].iter().sum::<f64>() / 2.0;
-            
+
+            let recent_throughput = history[history.len() - 3..].iter().sum::<f64>() / 3.0;
+            let older_throughput = history[history.len() - 5..history.len() - 3]
+                .iter()
+                .sum::<f64>()
+                / 2.0;
+
             if recent_throughput < older_throughput * 0.8 {
                 optimizations.push(ConcurrencyOptimization {
                     optimization_type: ConcurrencyOptimizationType::ImproveLocality,
@@ -436,26 +459,26 @@ impl ConcurrencyManager {
                 });
             }
         }
-        
+
         optimizations
     }
-    
+
     async fn detect_contention(&self) -> bool {
         let stats = self.get_statistics().await;
-        
+
         // Simple heuristic: if we have many queued tasks but low CPU utilization,
         // it might indicate contention
         stats.queued_tasks > 100 && stats.cpu_utilization < 0.6
     }
-    
+
     async fn calculate_throughput(&self) -> f64 {
         let stats = self.stats.read().await;
-        
+
         // Simple throughput calculation (tasks per second)
         // In a real implementation, this would be more sophisticated
         stats.completed_tasks as f64 / 60.0 // Assume 1-minute window
     }
-    
+
     async fn get_cpu_utilization(&self) -> f64 {
         // Mock CPU utilization
         // In a real implementation, this would query actual system metrics
@@ -492,7 +515,7 @@ impl Drop for WorkflowPermit {
     fn drop(&mut self) {
         let duration = self.acquired_at.elapsed();
         let manager = self.manager.clone();
-        
+
         tokio::spawn(async move {
             manager.record_task_completion("workflow", duration).await;
         });
@@ -510,7 +533,7 @@ impl Drop for ToolPermit {
     fn drop(&mut self) {
         let duration = self.acquired_at.elapsed();
         let manager = self.manager.clone();
-        
+
         tokio::spawn(async move {
             manager.record_task_completion("tool", duration).await;
         });
@@ -532,12 +555,12 @@ impl LoadBalancer {
             round_robin_counter: Arc::new(Mutex::new(0)),
         }
     }
-    
+
     pub async fn select_worker(&self, workers: &[String]) -> Option<String> {
         if workers.is_empty() {
             return None;
         }
-        
+
         match self.strategy {
             LoadBalancingStrategy::RoundRobin => {
                 let mut counter = self.round_robin_counter.lock().await;
@@ -548,19 +571,20 @@ impl LoadBalancer {
             LoadBalancingStrategy::LeastConnections => {
                 let mut min_connections = usize::MAX;
                 let mut selected_worker = None;
-                
+
                 for worker in workers {
-                    let connections = self.worker_stats
+                    let connections = self
+                        .worker_stats
                         .get(worker)
                         .map(|stats| stats.active_connections)
                         .unwrap_or(0);
-                    
+
                     if connections < min_connections {
                         min_connections = connections;
                         selected_worker = Some(worker.clone());
                     }
                 }
-                
+
                 selected_worker
             }
             _ => {
@@ -572,10 +596,13 @@ impl LoadBalancer {
             }
         }
     }
-    
+
     pub async fn record_worker_activity(&self, worker: &str, active: bool) {
-        let mut stats = self.worker_stats.entry(worker.to_string()).or_insert_with(WorkerStats::default);
-        
+        let mut stats = self
+            .worker_stats
+            .entry(worker.to_string())
+            .or_insert_with(WorkerStats::default);
+
         if active {
             stats.active_connections += 1;
         } else {
@@ -607,21 +634,21 @@ impl AdaptiveConcurrencyController {
             last_adjustment: Arc::new(Mutex::new(Instant::now())),
         }
     }
-    
+
     pub async fn record_latency(&self, latency: Duration) {
         if !self.config.enabled {
             return;
         }
-        
+
         let mut latencies = self.recent_latencies.lock().await;
         latencies.push(latency);
-        
+
         // Keep only recent latencies
         if latencies.len() > 100 {
             let len = latencies.len();
             latencies.drain(0..len - 100);
         }
-        
+
         // Check if it's time to adjust
         let mut last_adjustment = self.last_adjustment.lock().await;
         if last_adjustment.elapsed() >= self.config.adjustment_interval {
@@ -629,25 +656,33 @@ impl AdaptiveConcurrencyController {
             *last_adjustment = Instant::now();
         }
     }
-    
+
     async fn adjust_concurrency(&self, latencies: &[Duration]) {
         if latencies.len() < 10 {
             return;
         }
-        
+
         let avg_latency = latencies.iter().sum::<Duration>() / latencies.len() as u32;
         let target_latency = self.config.target_latency;
         let tolerance = self.config.latency_tolerance;
-        
+
         let latency_ratio = avg_latency.as_secs_f64() / target_latency.as_secs_f64();
-        
+
         if latency_ratio > 1.0 + tolerance {
             // Latency too high, reduce concurrency
-            tracing::info!("Reducing concurrency due to high latency: {:?} > {:?}", avg_latency, target_latency);
+            tracing::info!(
+                "Reducing concurrency due to high latency: {:?} > {:?}",
+                avg_latency,
+                target_latency
+            );
             // In a real implementation, we'd adjust semaphore permits
         } else if latency_ratio < 1.0 - tolerance {
             // Latency acceptable, try increasing concurrency
-            tracing::info!("Increasing concurrency due to low latency: {:?} < {:?}", avg_latency, target_latency);
+            tracing::info!(
+                "Increasing concurrency due to low latency: {:?} < {:?}",
+                avg_latency,
+                target_latency
+            );
             // In a real implementation, we'd adjust semaphore permits
         }
     }
@@ -668,36 +703,40 @@ impl BackpressureManager {
             recent_latencies: Arc::new(Mutex::new(Vec::new())),
         }
     }
-    
+
     pub async fn check_backpressure(&self) -> crate::Result<()> {
         if !self.config.enabled {
             return Ok(());
         }
-        
+
         let queue_size = *self.queue_size.lock().await;
         let latencies = self.recent_latencies.lock().await;
-        
+
         // Check queue size threshold
         if queue_size > self.config.queue_size_threshold {
-            return Err(crate::WorkflowError::backpressure("Queue size threshold exceeded"));
+            return Err(crate::WorkflowError::backpressure(
+                "Queue size threshold exceeded",
+            ));
         }
-        
+
         // Check latency threshold
         if !latencies.is_empty() {
             let avg_latency = latencies.iter().sum::<Duration>() / latencies.len() as u32;
             if avg_latency > self.config.latency_threshold {
-                return Err(crate::WorkflowError::backpressure("Latency threshold exceeded"));
+                return Err(crate::WorkflowError::backpressure(
+                    "Latency threshold exceeded",
+                ));
             }
         }
-        
+
         Ok(())
     }
-    
+
     pub async fn increment_queue_size(&self) {
         let mut queue_size = self.queue_size.lock().await;
         *queue_size += 1;
     }
-    
+
     pub async fn decrement_queue_size(&self) {
         let mut queue_size = self.queue_size.lock().await;
         *queue_size = queue_size.saturating_sub(1);
@@ -716,16 +755,16 @@ pub struct WorkerStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_concurrency_manager_creation() {
         let config = ConcurrencyConfig::default();
         let manager = ConcurrencyManager::new(config);
-        
+
         let stats = manager.get_statistics().await;
         assert_eq!(stats.completed_tasks, 0);
     }
-    
+
     #[tokio::test]
     async fn test_workflow_permit_acquisition() {
         let config = ConcurrencyConfig {
@@ -733,33 +772,37 @@ mod tests {
             ..Default::default()
         };
         let manager = ConcurrencyManager::new(config);
-        
+
         let permit1 = manager.acquire_workflow_permit().await.unwrap();
         let permit2 = manager.acquire_workflow_permit().await.unwrap();
-        
+
         // Third permit should be available but would block in real scenario
         // For testing, we just verify the permits were acquired
         drop(permit1);
         drop(permit2);
     }
-    
+
     #[tokio::test]
     async fn test_load_balancer() {
         let balancer = LoadBalancer::new(LoadBalancingStrategy::RoundRobin);
-        let workers = vec!["worker1".to_string(), "worker2".to_string(), "worker3".to_string()];
-        
+        let workers = vec![
+            "worker1".to_string(),
+            "worker2".to_string(),
+            "worker3".to_string(),
+        ];
+
         let selected1 = balancer.select_worker(&workers).await.unwrap();
         let selected2 = balancer.select_worker(&workers).await.unwrap();
         let selected3 = balancer.select_worker(&workers).await.unwrap();
         let selected4 = balancer.select_worker(&workers).await.unwrap();
-        
+
         // Should cycle through workers
         assert_eq!(selected1, "worker1");
         assert_eq!(selected2, "worker2");
         assert_eq!(selected3, "worker3");
         assert_eq!(selected4, "worker1"); // Back to first
     }
-    
+
     #[tokio::test]
     async fn test_backpressure_manager() {
         let config = BackpressureConfig {
@@ -768,17 +811,17 @@ mod tests {
             latency_threshold: Duration::from_millis(100),
             rejection_strategy: RejectionStrategy::Reject,
         };
-        
+
         let manager = BackpressureManager::new(config);
-        
+
         // Should pass initially
         assert!(manager.check_backpressure().await.is_ok());
-        
+
         // Simulate queue growth
         for _ in 0..6 {
             manager.increment_queue_size().await;
         }
-        
+
         // Should fail due to queue size
         assert!(manager.check_backpressure().await.is_err());
     }

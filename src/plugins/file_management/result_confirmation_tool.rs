@@ -1,27 +1,27 @@
 //! Result Confirmation Tool
-//! 
+//!
 //! This module provides a comprehensive tool that combines result review and batch confirmation
 //! to provide a complete solution for reviewing experimental results before execution.
 
-use std::collections::HashMap;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use tracing::{debug, info, warn};
-use chrono::{DateTime, Utc};
 
-use crate::tools::ToolNode;
-use crate::core::{ExecutionContext, ToolInfo, PluginInfo};
-use crate::error::WorkflowError;
-use super::error::{FileManagementResult};
-use super::utils::ExperimentalOperation;
-use super::result_review_tool::{
-    ResultReviewTool, ResultReviewConfig, ResultReviewParams, ReviewMode,
-    ExperimentalResult, RiskLevel, ConfirmationDecision, ResultReviewResult,
-};
 use super::batch_confirmation_tool::{
-    BatchConfirmationTool, BatchConfirmationConfig, BatchConfirmationParams,
-    ConfirmationStrategy, BatchOptions, UserPreferences, BatchConfirmationResult,
+    BatchConfirmationConfig, BatchConfirmationParams, BatchConfirmationResult,
+    BatchConfirmationTool, BatchOptions, ConfirmationStrategy, UserPreferences,
 };
+use super::error::FileManagementResult;
+use super::result_review_tool::{
+    ConfirmationDecision, ExperimentalResult, ResultReviewConfig, ResultReviewParams,
+    ResultReviewResult, ResultReviewTool, ReviewMode, RiskLevel,
+};
+use super::utils::ExperimentalOperation;
+use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::error::WorkflowError;
+use crate::tools::ToolNode;
 
 use async_trait::async_trait;
 
@@ -241,11 +241,15 @@ impl ResultConfirmationTool {
         let start_time = std::time::Instant::now();
         let confirmation_id = uuid::Uuid::new_v4().to_string();
 
-        info!("Starting comprehensive result confirmation for {} operations", 
-              params.experimental_operations.len());
+        info!(
+            "Starting comprehensive result confirmation for {} operations",
+            params.experimental_operations.len()
+        );
 
         // Convert experimental operations to reviewable results
-        let experimental_results = self.review_tool.prepare_results_for_review(&params.experimental_operations)?;
+        let experimental_results = self
+            .review_tool
+            .prepare_results_for_review(&params.experimental_operations)?;
 
         let mut phase_results = Vec::new();
         let mut current_operations = experimental_results;
@@ -254,23 +258,35 @@ impl ResultConfirmationTool {
         let mut final_deferred = Vec::new();
 
         // Determine confirmation strategy based on mode
-        let strategy = self.determine_confirmation_strategy(&params.confirmation_mode, &current_operations);
+        let strategy =
+            self.determine_confirmation_strategy(&params.confirmation_mode, &current_operations);
 
         match strategy {
             ConfirmationMode::ReviewThenBatch => {
                 // Phase 1: Individual/Smart Review
-                let review_result = self.execute_review_phase(&current_operations, params, context)?;
-                phase_results.push(self.create_phase_result("review", PhaseType::Review, &review_result));
+                let review_result =
+                    self.execute_review_phase(&current_operations, params, context)?;
+                phase_results.push(self.create_phase_result(
+                    "review",
+                    PhaseType::Review,
+                    &review_result,
+                ));
 
                 // Filter operations for batch confirmation
-                let approved_for_batch: Vec<_> = current_operations.into_iter()
+                let approved_for_batch: Vec<_> = current_operations
+                    .into_iter()
                     .filter(|op| review_result.approved_operations.contains(&op.operation_id))
                     .collect();
 
                 if !approved_for_batch.is_empty() && self.config.auto_transition_to_batch {
                     // Phase 2: Batch Confirmation
-                    let batch_result = self.execute_batch_phase(&approved_for_batch, params, context)?;
-                    phase_results.push(self.create_phase_result("batch_confirmation", PhaseType::BatchConfirmation, &batch_result));
+                    let batch_result =
+                        self.execute_batch_phase(&approved_for_batch, params, context)?;
+                    phase_results.push(self.create_phase_result(
+                        "batch_confirmation",
+                        PhaseType::BatchConfirmation,
+                        &batch_result,
+                    ));
 
                     // Extract approved operations from batch result
                     for batch in &batch_result.batches_processed {
@@ -287,8 +303,13 @@ impl ResultConfirmationTool {
             }
             ConfirmationMode::BatchOnly => {
                 // Direct batch confirmation
-                let batch_result = self.execute_batch_phase(&current_operations, params, context)?;
-                phase_results.push(self.create_phase_result("batch_only", PhaseType::BatchConfirmation, &batch_result));
+                let batch_result =
+                    self.execute_batch_phase(&current_operations, params, context)?;
+                phase_results.push(self.create_phase_result(
+                    "batch_only",
+                    PhaseType::BatchConfirmation,
+                    &batch_result,
+                ));
 
                 // Extract approved operations from batch result
                 for batch in &batch_result.batches_processed {
@@ -299,8 +320,13 @@ impl ResultConfirmationTool {
             }
             ConfirmationMode::ReviewOnly => {
                 // Review only
-                let review_result = self.execute_review_phase(&current_operations, params, context)?;
-                phase_results.push(self.create_phase_result("review_only", PhaseType::Review, &review_result));
+                let review_result =
+                    self.execute_review_phase(&current_operations, params, context)?;
+                phase_results.push(self.create_phase_result(
+                    "review_only",
+                    PhaseType::Review,
+                    &review_result,
+                ));
 
                 final_approved.extend(review_result.approved_operations);
                 final_rejected.extend(review_result.rejected_operations);
@@ -308,18 +334,31 @@ impl ResultConfirmationTool {
             }
             ConfirmationMode::Smart => {
                 // Smart mode: choose strategy based on characteristics
-                if current_operations.len() > 20 || self.has_high_risk_operations(&current_operations) {
+                if current_operations.len() > 20
+                    || self.has_high_risk_operations(&current_operations)
+                {
                     // Use review then batch for complex scenarios
-                    let review_result = self.execute_review_phase(&current_operations, params, context)?;
-                    phase_results.push(self.create_phase_result("smart_review", PhaseType::Review, &review_result));
+                    let review_result =
+                        self.execute_review_phase(&current_operations, params, context)?;
+                    phase_results.push(self.create_phase_result(
+                        "smart_review",
+                        PhaseType::Review,
+                        &review_result,
+                    ));
 
-                    let approved_for_batch: Vec<_> = current_operations.into_iter()
+                    let approved_for_batch: Vec<_> = current_operations
+                        .into_iter()
                         .filter(|op| review_result.approved_operations.contains(&op.operation_id))
                         .collect();
 
                     if !approved_for_batch.is_empty() {
-                        let batch_result = self.execute_batch_phase(&approved_for_batch, params, context)?;
-                        phase_results.push(self.create_phase_result("smart_batch", PhaseType::BatchConfirmation, &batch_result));
+                        let batch_result =
+                            self.execute_batch_phase(&approved_for_batch, params, context)?;
+                        phase_results.push(self.create_phase_result(
+                            "smart_batch",
+                            PhaseType::BatchConfirmation,
+                            &batch_result,
+                        ));
 
                         // Extract approved operations from batch result
                         for batch in &batch_result.batches_processed {
@@ -333,8 +372,13 @@ impl ResultConfirmationTool {
                     final_deferred.extend(review_result.deferred_operations);
                 } else {
                     // Use batch only for simple scenarios
-                    let batch_result = self.execute_batch_phase(&current_operations, params, context)?;
-                    phase_results.push(self.create_phase_result("smart_batch_only", PhaseType::BatchConfirmation, &batch_result));
+                    let batch_result =
+                        self.execute_batch_phase(&current_operations, params, context)?;
+                    phase_results.push(self.create_phase_result(
+                        "smart_batch_only",
+                        PhaseType::BatchConfirmation,
+                        &batch_result,
+                    ));
 
                     // Extract approved operations from batch result
                     for batch in &batch_result.batches_processed {
@@ -354,13 +398,18 @@ impl ResultConfirmationTool {
 
         // Create rollback plan if enabled
         let rollback_plan = if self.config.enable_rollback_planning {
-            Some(self.create_rollback_plan(&final_approved, &params.experimental_operations, &params.rollback_options)?)
+            Some(self.create_rollback_plan(
+                &final_approved,
+                &params.experimental_operations,
+                &params.rollback_options,
+            )?)
         } else {
             None
         };
 
         // Create execution summary
-        let execution_summary = self.create_execution_summary(&params.experimental_operations, &final_approved)?;
+        let execution_summary =
+            self.create_execution_summary(&params.experimental_operations, &final_approved)?;
 
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
 
@@ -385,12 +434,13 @@ impl ResultConfirmationTool {
         match mode {
             ConfirmationMode::Smart => {
                 // Analyze operations to determine best strategy
-                let high_risk_count = operations.iter()
+                let high_risk_count = operations
+                    .iter()
                     .filter(|op| op.risk_level >= RiskLevel::High)
                     .count();
-                
+
                 let total_count = operations.len();
-                
+
                 if total_count > 50 || high_risk_count > total_count / 4 {
                     ConfirmationMode::ReviewThenBatch
                 } else if total_count <= 5 && high_risk_count == 0 {
@@ -415,7 +465,9 @@ impl ResultConfirmationTool {
         params: &ResultConfirmationParams,
         context: &ExecutionContext,
     ) -> FileManagementResult<ResultReviewResult> {
-        let review_mode = params.review_options.as_ref()
+        let review_mode = params
+            .review_options
+            .as_ref()
             .map(|opts| opts.review_mode.clone())
             .unwrap_or(ReviewMode::Smart);
 
@@ -443,7 +495,8 @@ impl ResultConfirmationTool {
             user_preferences: params.user_preferences.clone(),
         };
 
-        self.batch_tool.process_batch_confirmation(&batch_params, context)
+        self.batch_tool
+            .process_batch_confirmation(&batch_params, context)
     }
 
     /// Execute final confirmation phase
@@ -493,7 +546,12 @@ impl ResultConfirmationTool {
     }
 
     /// Create a phase result from review or batch results
-    fn create_phase_result(&self, name: &str, phase_type: PhaseType, result: &dyn PhaseResultTrait) -> ConfirmationPhase {
+    fn create_phase_result(
+        &self,
+        name: &str,
+        phase_type: PhaseType,
+        result: &dyn PhaseResultTrait,
+    ) -> ConfirmationPhase {
         ConfirmationPhase {
             phase_name: name.to_string(),
             phase_type,
@@ -522,19 +580,23 @@ impl ResultConfirmationTool {
         let mut backup_locations = HashMap::new();
         let mut estimated_rollback_time_ms = 0u64;
 
-        let backup_strategy = rollback_options.as_ref()
+        let backup_strategy = rollback_options
+            .as_ref()
             .map(|opts| opts.backup_strategy.clone())
             .unwrap_or(BackupStrategy::CopyBeforeOperation);
 
         for op_id in approved_operations {
-            if let Some(original_op) = original_operations.iter().find(|op| &format!("op_{}", op_id) == op_id || op_id.contains(&op.operation_type)) {
+            if let Some(original_op) = original_operations
+                .iter()
+                .find(|op| &format!("op_{}", op_id) == op_id || op_id.contains(&op.operation_type))
+            {
                 let rollback_op = self.create_rollback_operation(original_op, &backup_strategy)?;
                 estimated_rollback_time_ms += rollback_op.verification_steps.len() as u64 * 100; // Estimate 100ms per verification step
-                
+
                 if let Some(backup) = &rollback_op.source_backup {
                     backup_locations.insert(op_id.clone(), backup.clone());
                 }
-                
+
                 rollback_operations.push(rollback_op);
             }
         }
@@ -567,16 +629,19 @@ impl ResultConfirmationTool {
         };
 
         let source_backup = match backup_strategy {
-            BackupStrategy::CopyBeforeOperation => {
-                operation.source_path.as_ref().map(|p| format!("{}.backup", p.display()))
-            }
+            BackupStrategy::CopyBeforeOperation => operation
+                .source_path
+                .as_ref()
+                .map(|p| format!("{}.backup", p.display())),
             BackupStrategy::SnapshotFilesystem => {
                 Some(format!("snapshot_{}", chrono::Utc::now().timestamp()))
             }
             _ => None,
         };
 
-        let target_location = operation.source_path.as_ref()
+        let target_location = operation
+            .source_path
+            .as_ref()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".to_string());
 
@@ -604,19 +669,22 @@ impl ResultConfirmationTool {
     ) -> FileManagementResult<ExecutionSummary> {
         let total_operations_reviewed = original_operations.len();
         let operations_approved_for_execution = approved_operations.len();
-        
-        let operations_requiring_backup = original_operations.iter()
+
+        let operations_requiring_backup = original_operations
+            .iter()
             .filter(|op| matches!(op.operation_type.as_str(), "delete" | "merge" | "move"))
             .count();
 
-        let estimated_execution_time_ms = original_operations.iter()
+        let estimated_execution_time_ms = original_operations
+            .iter()
             .map(|op| op.estimated_size.unwrap_or(1000) / 1000) // 1ms per KB
             .sum::<u64>();
 
         let estimated_rollback_time_ms = estimated_execution_time_ms * 2; // Rollback typically takes longer
 
         // Assess overall risk
-        let high_risk_count = original_operations.iter()
+        let high_risk_count = original_operations
+            .iter()
             .filter(|op| matches!(op.operation_type.as_str(), "delete" | "merge"))
             .count();
 
@@ -640,7 +708,8 @@ impl ResultConfirmationTool {
             ],
         };
 
-        let total_size_bytes = original_operations.iter()
+        let total_size_bytes = original_operations
+            .iter()
             .map(|op| op.estimated_size.unwrap_or(0))
             .sum::<u64>();
 
@@ -699,7 +768,8 @@ impl PhaseResultTrait for ResultReviewResult {
 
     fn get_modified_operations(&self) -> Vec<String> {
         // Extract modified operations from confirmation details
-        self.confirmation_details.iter()
+        self.confirmation_details
+            .iter()
             .filter_map(|detail| {
                 if matches!(detail.decision, ConfirmationDecision::Modified(_)) {
                     Some(detail.operation_id.clone())
@@ -732,29 +802,41 @@ impl PhaseResultTrait for BatchConfirmationResult {
     }
 
     fn get_approved_operations(&self) -> Vec<String> {
-        self.batches_processed.iter()
+        self.batches_processed
+            .iter()
             .flat_map(|batch| batch.operations_approved.clone())
             .collect()
     }
 
     fn get_rejected_operations(&self) -> Vec<String> {
-        self.batches_processed.iter()
+        self.batches_processed
+            .iter()
             .flat_map(|batch| batch.operations_rejected.clone())
             .collect()
     }
 
     fn get_deferred_operations(&self) -> Vec<String> {
-        self.batches_processed.iter()
+        self.batches_processed
+            .iter()
             .flat_map(|batch| batch.operations_deferred.clone())
             .collect()
     }
 
     fn get_modified_operations(&self) -> Vec<String> {
         // Extract modified operations from batch decisions
-        self.user_decisions.iter()
+        self.user_decisions
+            .iter()
             .filter_map(|decision| {
-                if let super::batch_confirmation_tool::BatchDecisionType::ModifyAndApprove(modifications) = &decision.decision_type {
-                    Some(modifications.iter().map(|m| m.operation_id.clone()).collect::<Vec<_>>())
+                if let super::batch_confirmation_tool::BatchDecisionType::ModifyAndApprove(
+                    modifications,
+                ) = &decision.decision_type
+                {
+                    Some(
+                        modifications
+                            .iter()
+                            .map(|m| m.operation_id.clone())
+                            .collect::<Vec<_>>(),
+                    )
                 } else {
                     None
                 }
@@ -786,15 +868,21 @@ impl ToolNode for ResultConfirmationTool {
         "1.0.0"
     }
 
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value, WorkflowError> {
+    async fn execute(
+        &self,
+        params: Value,
+        context: ExecutionContext,
+    ) -> Result<Value, WorkflowError> {
         let params: ResultConfirmationParams = serde_json::from_value(params)
             .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
 
-        let result = self.process_confirmation(&params, &context)
-            .map_err(|e| WorkflowError::tool_execution(&format!("Result confirmation failed: {}", e)))?;
+        let result = self.process_confirmation(&params, &context).map_err(|e| {
+            WorkflowError::tool_execution(&format!("Result confirmation failed: {}", e))
+        })?;
 
-        Ok(serde_json::to_value(result)
-            .map_err(|e| WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e)))?)
+        Ok(serde_json::to_value(result).map_err(|e| {
+            WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e))
+        })?)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
@@ -849,14 +937,16 @@ pub fn create_result_confirmation_tool() -> Box<dyn ToolNode> {
 }
 
 /// Create a comprehensive result confirmation tool with custom configuration
-pub fn create_result_confirmation_tool_with_config(config: ResultConfirmationConfig) -> Box<dyn ToolNode> {
+pub fn create_result_confirmation_tool_with_config(
+    config: ResultConfirmationConfig,
+) -> Box<dyn ToolNode> {
     Box::new(ResultConfirmationTool::new(config))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::utils::ExperimentalOperation;
+    use super::*;
 
     #[test]
     fn test_result_confirmation_tool_creation() {
@@ -868,22 +958,22 @@ mod tests {
     #[test]
     fn test_confirmation_strategy_determination() {
         let tool = ResultConfirmationTool::with_default_config();
-        
+
         // Test with small, low-risk operations
         let small_ops = vec![
             create_test_experimental_result("op1", RiskLevel::Low),
             create_test_experimental_result("op2", RiskLevel::Low),
         ];
-        
+
         let strategy = tool.determine_confirmation_strategy(&ConfirmationMode::Smart, &small_ops);
         // Should choose batch-only for small, low-risk operations
         assert!(matches!(strategy, ConfirmationMode::BatchOnly));
-        
+
         // Test with large number of operations
         let large_ops: Vec<_> = (0..60)
             .map(|i| create_test_experimental_result(&format!("op{}", i), RiskLevel::Low))
             .collect();
-        
+
         let strategy = tool.determine_confirmation_strategy(&ConfirmationMode::Smart, &large_ops);
         // Should choose review-then-batch for large number of operations
         assert!(matches!(strategy, ConfirmationMode::ReviewThenBatch));
@@ -892,25 +982,27 @@ mod tests {
     #[test]
     fn test_rollback_plan_creation() {
         let tool = ResultConfirmationTool::with_default_config();
-        
+
         let operations = vec![
             ExperimentalOperation::new("move", "Move file A to B"),
             ExperimentalOperation::new("delete", "Delete file C"),
         ];
-        
+
         let approved = vec!["op_0".to_string(), "op_1".to_string()];
-        
-        let rollback_plan = tool.create_rollback_plan(
-            &approved,
-            &operations,
-            &Some(RollbackOptions {
-                create_rollback_plan: true,
-                backup_strategy: BackupStrategy::CopyBeforeOperation,
-                rollback_timeout_hours: Some(24),
-                enable_automatic_rollback: false,
-            })
-        ).unwrap();
-        
+
+        let rollback_plan = tool
+            .create_rollback_plan(
+                &approved,
+                &operations,
+                &Some(RollbackOptions {
+                    create_rollback_plan: true,
+                    backup_strategy: BackupStrategy::CopyBeforeOperation,
+                    rollback_timeout_hours: Some(24),
+                    enable_automatic_rollback: false,
+                }),
+            )
+            .unwrap();
+
         assert_eq!(rollback_plan.rollback_operations.len(), 2);
         assert_eq!(rollback_plan.rollback_order.len(), 2);
         // Rollback order should be reverse of execution order
@@ -920,7 +1012,7 @@ mod tests {
 
     fn create_test_experimental_result(id: &str, risk: RiskLevel) -> ExperimentalResult {
         use super::super::result_review_tool::{ExperimentalResult, OperationImpact};
-        
+
         ExperimentalResult {
             operation_id: id.to_string(),
             operation_type: "test".to_string(),

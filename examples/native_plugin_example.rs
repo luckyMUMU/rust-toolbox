@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create native plugin
     let library_path = PathBuf::from("./target/debug/libexample_plugin.so");
-    
+
     println!("Creating native plugin...");
     let mut plugin = NativePluginBuilder::new()
         .info(plugin_info)

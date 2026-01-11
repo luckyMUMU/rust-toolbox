@@ -2,13 +2,12 @@
 
 use crate::core::{ExecutionContext, ExecutionStatus, RetryPolicy, RetryStrategy};
 use crate::error::{Result, WorkflowError};
-use crate::storage::{StateManager, SimpleMemoryCache, FileStorage};
+use crate::storage::{FileStorage, SimpleMemoryCache, StateManager};
 use crate::tools::ToolRegistry;
-use crate::workflow::{
-    WorkflowDefinition, WorkflowExecution, WorkflowNode, NodeType,
-    NodeExecutionState,
-};
 use crate::workflow::engine::DefaultWorkflowEngine;
+use crate::workflow::{
+    NodeExecutionState, NodeType, WorkflowDefinition, WorkflowExecution, WorkflowNode,
+};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::Value;
@@ -37,7 +36,7 @@ impl MockRetryToolRegistry {
     fn set_tool_failure_count(&self, tool_name: &str, failure_count: u32) {
         let mut failures = self.failure_counts.lock().unwrap();
         failures.insert(tool_name.to_string(), failure_count);
-        
+
         let mut attempts = self.attempt_counts.lock().unwrap();
         attempts.insert(tool_name.to_string(), 0);
     }
@@ -63,7 +62,12 @@ impl ToolRegistry for MockRetryToolRegistry {
         Vec::new()
     }
 
-    async fn execute_tool(&self, name: &str, _params: Value, _context: ExecutionContext) -> Result<Value> {
+    async fn execute_tool(
+        &self,
+        name: &str,
+        _params: Value,
+        _context: ExecutionContext,
+    ) -> Result<Value> {
         // Increment attempt count
         {
             let mut attempts = self.attempt_counts.lock().unwrap();
@@ -75,8 +79,10 @@ impl ToolRegistry for MockRetryToolRegistry {
         let should_fail = {
             let failures = self.failure_counts.lock().unwrap();
             let attempts = self.attempt_counts.lock().unwrap();
-            
-            if let (Some(&failure_count), Some(&attempt_count)) = (failures.get(name), attempts.get(name)) {
+
+            if let (Some(&failure_count), Some(&attempt_count)) =
+                (failures.get(name), attempts.get(name))
+            {
                 attempt_count <= failure_count
             } else {
                 false
@@ -112,32 +118,35 @@ impl ToolRegistry for MockRetryToolRegistry {
         self.failure_counts.lock().unwrap().clear();
     }
 
-    fn resolve_dependencies(&self, _tool_names: Vec<String>) -> Result<crate::tools::ResolutionResult> {
+    fn resolve_dependencies(
+        &self,
+        _tool_names: Vec<String>,
+    ) -> Result<crate::tools::ResolutionResult> {
         Ok(crate::tools::ResolutionResult {
             resolved_versions: std::collections::HashMap::new(),
             conflicts: Vec::new(),
             warnings: Vec::new(),
         })
     }
-    
+
     fn check_version_conflicts(&self) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
-    
+
     fn get_dependents(&self, _tool_name: &str) -> Vec<crate::core::ToolInfo> {
         Vec::new()
     }
-    
+
     async fn execute_tool_with_templates(
         &self,
         name: &str,
         params: Value,
         _template_context: &crate::tools::TemplateContext,
-        execution_context: ExecutionContext
+        execution_context: ExecutionContext,
     ) -> Result<Value> {
         self.execute_tool(name, params, execution_context).await
     }
-    
+
     fn get_tool_templates(&self, _tool_name: &str) -> Vec<crate::tools::ParameterTemplate> {
         Vec::new()
     }
@@ -151,7 +160,7 @@ fn create_test_engine_with_mock_tools() -> (DefaultWorkflowEngine, Arc<MockRetry
     let state_manager = Arc::new(StateManager::new(storage, cache));
     let mock_registry = Arc::new(MockRetryToolRegistry::new());
     let tool_registry = mock_registry.clone() as Arc<dyn ToolRegistry>;
-    
+
     let engine = DefaultWorkflowEngine::new(state_manager, tool_registry, 10);
     (engine, mock_registry)
 }
@@ -159,10 +168,9 @@ fn create_test_engine_with_mock_tools() -> (DefaultWorkflowEngine, Arc<MockRetry
 /// Helper function to create a workflow with a single node that has retry policy
 fn create_workflow_with_retry(node_id: &str, retry_policy: RetryPolicy) -> WorkflowDefinition {
     let mut workflow = WorkflowDefinition::new("retry_test_workflow", "1.0.0");
-    
-    let node = WorkflowNode::new(node_id, NodeType::Tool)
-        .with_retry_policy(retry_policy);
-    
+
+    let node = WorkflowNode::new(node_id, NodeType::Tool).with_retry_policy(retry_policy);
+
     workflow.add_node(node).unwrap();
     workflow
 }
@@ -177,12 +185,12 @@ mod tests {
         // **Feature: workflow-toolkit, Property 10: Retry strategy execution correctness**
         // *For any* failed task, retry count and intervals should conform to configured retry policy
         // **Validates: Requirements 5.2, 8.1**
-        
+
         let (engine, mock_registry) = create_test_engine_with_mock_tools();
-        
+
         // Set up a tool that fails twice then succeeds
         mock_registry.set_tool_failure_count("test_node", 2);
-        
+
         // Create retry policy with 3 max attempts
         let retry_policy = RetryPolicy {
             strategy: RetryStrategy::FixedInterval,
@@ -191,10 +199,10 @@ mod tests {
             max_delay: Some(Duration::from_secs(1)),
             backoff_multiplier: 2.0,
         };
-        
+
         let workflow = create_workflow_with_retry("test_node", retry_policy);
         let workflow_id = workflow.generate_id();
-        
+
         // Create execution state
         let mut execution = WorkflowExecution {
             id: workflow_id,
@@ -206,7 +214,7 @@ mod tests {
             node_states: std::collections::HashMap::new(),
             global_context: Value::Null,
         };
-        
+
         // Initialize node state
         execution.node_states.insert(
             "test_node".to_string(),
@@ -219,33 +227,43 @@ mod tests {
                 retry_count: 0,
             },
         );
-        
+
         let execution_arc = Arc::new(RwLock::new(execution));
         let context = ExecutionContext::new().with_workflow_id(workflow_id);
-        
+
         // Get the retry policy from the workflow node
-        let node_retry_policy = workflow.get_node("test_node")
+        let node_retry_policy = workflow
+            .get_node("test_node")
             .and_then(|node| node.retry_policy.as_ref());
-        
+
         // Execute node with retry
-        let result: Result<Value> = engine.execute_node_with_retry(
-            "test_node",
-            execution_arc.clone(),
-            context,
-            node_retry_policy,
-        ).await;
-        
+        let result: Result<Value> = engine
+            .execute_node_with_retry(
+                "test_node",
+                execution_arc.clone(),
+                context,
+                node_retry_policy,
+            )
+            .await;
+
         // Should succeed after retries
-        assert!(result.is_ok(), "Node should succeed after retries: {:?}", result);
-        
+        assert!(
+            result.is_ok(),
+            "Node should succeed after retries: {:?}",
+            result
+        );
+
         // Check that exactly 3 attempts were made (2 failures + 1 success)
         let attempt_count = mock_registry.get_attempt_count("test_node");
         assert_eq!(attempt_count, 3, "Should have made exactly 3 attempts");
-        
+
         // Check that retry count was updated in node state
         let execution = execution_arc.read().await;
         let node_state = execution.node_states.get("test_node").unwrap();
-        assert_eq!(node_state.retry_count, 3, "Node state should reflect 3 retry attempts");
+        assert_eq!(
+            node_state.retry_count, 3,
+            "Node state should reflect 3 retry attempts"
+        );
     }
 
     /// Unit test for retry exhaustion
@@ -254,12 +272,12 @@ mod tests {
         // **Feature: workflow-toolkit, Property 10: Retry strategy execution correctness**
         // *For any* task that fails more than max_attempts, execution should fail
         // **Validates: Requirements 5.2, 8.1**
-        
+
         let (engine, mock_registry) = create_test_engine_with_mock_tools();
-        
+
         // Set up a tool that always fails
         mock_registry.set_tool_failure_count("failing_node", 10); // More failures than max attempts
-        
+
         // Create retry policy with 2 max attempts
         let retry_policy = RetryPolicy {
             strategy: RetryStrategy::FixedInterval,
@@ -268,10 +286,10 @@ mod tests {
             max_delay: Some(Duration::from_secs(1)),
             backoff_multiplier: 2.0,
         };
-        
+
         let workflow = create_workflow_with_retry("failing_node", retry_policy);
         let workflow_id = workflow.generate_id();
-        
+
         // Create execution state
         let mut execution = WorkflowExecution {
             id: workflow_id,
@@ -283,7 +301,7 @@ mod tests {
             node_states: std::collections::HashMap::new(),
             global_context: Value::Null,
         };
-        
+
         // Initialize node state
         execution.node_states.insert(
             "failing_node".to_string(),
@@ -296,33 +314,42 @@ mod tests {
                 retry_count: 0,
             },
         );
-        
+
         let execution_arc = Arc::new(RwLock::new(execution));
         let context = ExecutionContext::new().with_workflow_id(workflow_id);
-        
+
         // Get the retry policy from the workflow node
-        let node_retry_policy = workflow.get_node("failing_node")
+        let node_retry_policy = workflow
+            .get_node("failing_node")
             .and_then(|node| node.retry_policy.as_ref());
-        
+
         // Execute node with retry
-        let result: Result<Value> = engine.execute_node_with_retry(
-            "failing_node",
-            execution_arc.clone(),
-            context,
-            node_retry_policy,
-        ).await;
-        
+        let result: Result<Value> = engine
+            .execute_node_with_retry(
+                "failing_node",
+                execution_arc.clone(),
+                context,
+                node_retry_policy,
+            )
+            .await;
+
         // Should fail after exhausting retries
         assert!(result.is_err(), "Node should fail after exhausting retries");
-        
+
         // Check that exactly max_attempts were made
         let attempt_count = mock_registry.get_attempt_count("failing_node");
-        assert_eq!(attempt_count, 2, "Should have made exactly max_attempts (2) attempts");
-        
+        assert_eq!(
+            attempt_count, 2,
+            "Should have made exactly max_attempts (2) attempts"
+        );
+
         // Check that retry count was updated in node state
         let execution = execution_arc.read().await;
         let node_state = execution.node_states.get("failing_node").unwrap();
-        assert_eq!(node_state.retry_count, 2, "Node state should reflect max retry attempts");
+        assert_eq!(
+            node_state.retry_count, 2,
+            "Node state should reflect max retry attempts"
+        );
     }
 
     /// Unit test for delay calculation
@@ -331,9 +358,9 @@ mod tests {
         // **Feature: workflow-toolkit, Property 10: Retry strategy execution correctness**
         // *For any* retry strategy, delay calculation should follow the specified algorithm
         // **Validates: Requirements 5.2, 8.1**
-        
+
         let (engine, _) = create_test_engine_with_mock_tools();
-        
+
         // Test fixed interval
         let fixed_policy = RetryPolicy {
             strategy: RetryStrategy::FixedInterval,
@@ -342,15 +369,27 @@ mod tests {
             max_delay: Some(Duration::from_secs(10)),
             backoff_multiplier: 2.0,
         };
-        
+
         let delay1 = engine.calculate_retry_delay(&fixed_policy, 1);
         let delay2 = engine.calculate_retry_delay(&fixed_policy, 2);
         let delay3 = engine.calculate_retry_delay(&fixed_policy, 3);
-        
-        assert_eq!(delay1, Duration::from_millis(100), "Fixed interval should be constant");
-        assert_eq!(delay2, Duration::from_millis(100), "Fixed interval should be constant");
-        assert_eq!(delay3, Duration::from_millis(100), "Fixed interval should be constant");
-        
+
+        assert_eq!(
+            delay1,
+            Duration::from_millis(100),
+            "Fixed interval should be constant"
+        );
+        assert_eq!(
+            delay2,
+            Duration::from_millis(100),
+            "Fixed interval should be constant"
+        );
+        assert_eq!(
+            delay3,
+            Duration::from_millis(100),
+            "Fixed interval should be constant"
+        );
+
         // Test exponential backoff
         let exponential_policy = RetryPolicy {
             strategy: RetryStrategy::ExponentialBackoff,
@@ -359,15 +398,27 @@ mod tests {
             max_delay: Some(Duration::from_secs(10)),
             backoff_multiplier: 2.0,
         };
-        
+
         let exp_delay1 = engine.calculate_retry_delay(&exponential_policy, 1);
         let exp_delay2 = engine.calculate_retry_delay(&exponential_policy, 2);
         let exp_delay3 = engine.calculate_retry_delay(&exponential_policy, 3);
-        
-        assert_eq!(exp_delay1, Duration::from_millis(100), "First attempt should use base delay");
-        assert_eq!(exp_delay2, Duration::from_millis(200), "Second attempt should double");
-        assert_eq!(exp_delay3, Duration::from_millis(400), "Third attempt should quadruple");
-        
+
+        assert_eq!(
+            exp_delay1,
+            Duration::from_millis(100),
+            "First attempt should use base delay"
+        );
+        assert_eq!(
+            exp_delay2,
+            Duration::from_millis(200),
+            "Second attempt should double"
+        );
+        assert_eq!(
+            exp_delay3,
+            Duration::from_millis(400),
+            "Third attempt should quadruple"
+        );
+
         // Test linear backoff
         let linear_policy = RetryPolicy {
             strategy: RetryStrategy::LinearBackoff,
@@ -376,14 +427,26 @@ mod tests {
             max_delay: Some(Duration::from_secs(10)),
             backoff_multiplier: 2.0,
         };
-        
+
         let lin_delay1 = engine.calculate_retry_delay(&linear_policy, 1);
         let lin_delay2 = engine.calculate_retry_delay(&linear_policy, 2);
         let lin_delay3 = engine.calculate_retry_delay(&linear_policy, 3);
-        
-        assert_eq!(lin_delay1, Duration::from_millis(100), "First attempt should use base delay");
-        assert_eq!(lin_delay2, Duration::from_millis(200), "Second attempt should be 2x base");
-        assert_eq!(lin_delay3, Duration::from_millis(300), "Third attempt should be 3x base");
+
+        assert_eq!(
+            lin_delay1,
+            Duration::from_millis(100),
+            "First attempt should use base delay"
+        );
+        assert_eq!(
+            lin_delay2,
+            Duration::from_millis(200),
+            "Second attempt should be 2x base"
+        );
+        assert_eq!(
+            lin_delay3,
+            Duration::from_millis(300),
+            "Third attempt should be 3x base"
+        );
     }
 
     /// Simplified property-based test using basic iteration
@@ -406,10 +469,10 @@ mod tests {
 
         for (max_attempts, tool_failure_count, should_succeed) in test_cases {
             let (engine, mock_registry) = create_test_engine_with_mock_tools();
-            
+
             // Set up tool failure pattern
             mock_registry.set_tool_failure_count("property_test_node", tool_failure_count);
-            
+
             let retry_policy = RetryPolicy {
                 strategy: RetryStrategy::FixedInterval,
                 max_attempts,
@@ -417,10 +480,10 @@ mod tests {
                 max_delay: Some(Duration::from_secs(1)),
                 backoff_multiplier: 2.0,
             };
-            
+
             let workflow = create_workflow_with_retry("property_test_node", retry_policy.clone());
             let workflow_id = workflow.generate_id();
-            
+
             // Create execution state
             let mut execution = WorkflowExecution {
                 id: workflow_id,
@@ -432,7 +495,7 @@ mod tests {
                 node_states: std::collections::HashMap::new(),
                 global_context: Value::Null,
             };
-            
+
             // Initialize node state
             execution.node_states.insert(
                 "property_test_node".to_string(),
@@ -445,24 +508,27 @@ mod tests {
                     retry_count: 0,
                 },
             );
-            
+
             let execution_arc = Arc::new(RwLock::new(execution));
             let context = ExecutionContext::new().with_workflow_id(workflow_id);
-            
+
             // Get the retry policy from the workflow node
-            let node_retry_policy = workflow.get_node("property_test_node")
+            let node_retry_policy = workflow
+                .get_node("property_test_node")
                 .and_then(|node| node.retry_policy.as_ref());
-            
+
             // Execute node with retry
-            let result: Result<Value> = engine.execute_node_with_retry(
-                "property_test_node",
-                execution_arc.clone(),
-                context,
-                node_retry_policy,
-            ).await;
-            
+            let result: Result<Value> = engine
+                .execute_node_with_retry(
+                    "property_test_node",
+                    execution_arc.clone(),
+                    context,
+                    node_retry_policy,
+                )
+                .await;
+
             let attempt_count = mock_registry.get_attempt_count("property_test_node");
-            
+
             // Property 1: Attempt count should never exceed max_attempts
             assert!(
                 attempt_count <= max_attempts,
@@ -472,7 +538,7 @@ mod tests {
                 max_attempts,
                 tool_failure_count
             );
-            
+
             // Property 2: Result should match expected outcome
             if should_succeed {
                 assert!(
@@ -481,16 +547,13 @@ mod tests {
                     max_attempts,
                     tool_failure_count
                 );
-                
+
                 // Should make exactly (failure_count + 1) attempts
                 let expected_attempts = std::cmp::min(tool_failure_count + 1, max_attempts);
                 assert_eq!(
-                    attempt_count,
-                    expected_attempts,
+                    attempt_count, expected_attempts,
                     "Should make exactly {} attempts for case: max_attempts={}, failures={}",
-                    expected_attempts,
-                    max_attempts,
-                    tool_failure_count
+                    expected_attempts, max_attempts, tool_failure_count
                 );
             } else {
                 assert!(
@@ -499,7 +562,7 @@ mod tests {
                     max_attempts,
                     tool_failure_count
                 );
-                
+
                 // Should make exactly max_attempts
                 assert_eq!(
                     attempt_count,
@@ -510,7 +573,7 @@ mod tests {
                     tool_failure_count
                 );
             }
-            
+
             // Property 3: Retry count in node state should match actual attempts
             let execution = execution_arc.read().await;
             let node_state = execution.node_states.get("property_test_node").unwrap();

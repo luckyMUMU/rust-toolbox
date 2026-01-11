@@ -1,8 +1,8 @@
 //! Performance optimization utilities for file management operations
 
-use crate::performance::{PerformanceManager, MemoryUsage};
 use super::error::{FileManagementError, FileManagementResult};
 use super::plugin::FileManagementPerformanceConfig;
+use crate::performance::{MemoryUsage, PerformanceManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -28,7 +28,7 @@ impl OptimizedFileOperationManager {
     ) -> Self {
         let operation_semaphore = Arc::new(Semaphore::new(config.max_concurrent_operations));
         let memory_pool = Arc::new(RwLock::new(MemoryPool::new(
-            config.memory_pool_size_mb * 1024 * 1024
+            config.memory_pool_size_mb * 1024 * 1024,
         )));
         let operation_cache = Arc::new(RwLock::new(OperationCache::new(
             config.cache_size_mb * 1024 * 1024,
@@ -55,9 +55,11 @@ impl OptimizedFileOperationManager {
         T: Send,
     {
         // Acquire operation permit for concurrency control
-        let _permit = self.operation_semaphore.acquire().await.map_err(|_| {
-            FileManagementError::other("Failed to acquire operation permit")
-        })?;
+        let _permit = self
+            .operation_semaphore
+            .acquire()
+            .await
+            .map_err(|_| FileManagementError::other("Failed to acquire operation permit"))?;
 
         // Start performance monitoring if available
         let monitor = if let Some(ref perf_manager) = self.performance_manager {
@@ -82,7 +84,7 @@ impl OptimizedFileOperationManager {
     /// Get optimized buffer for I/O operations
     pub async fn get_io_buffer(&self) -> Vec<u8> {
         let buffer_size = self.config.io_buffer_size_kb * 1024;
-        
+
         // Try to get buffer from memory pool first
         if let Some(buffer) = self.memory_pool.read().await.get_buffer(buffer_size) {
             buffer
@@ -111,7 +113,10 @@ impl OptimizedFileOperationManager {
     /// Cache operation result
     pub async fn cache_result(&self, operation_key: String, result: CachedResult) {
         if self.config.enable_caching {
-            self.operation_cache.write().await.insert(operation_key, result);
+            self.operation_cache
+                .write()
+                .await
+                .insert(operation_key, result);
         }
     }
 
@@ -180,10 +185,13 @@ impl MemoryPool {
 
     pub fn return_buffer(&mut self, buffer: Vec<u8>) {
         let size = buffer.len();
-        
+
         // Only keep buffer if we have space
         if self.current_size + size <= self.max_size {
-            self.buffers.entry(size).or_insert_with(Vec::new).push(buffer);
+            self.buffers
+                .entry(size)
+                .or_insert_with(Vec::new)
+                .push(buffer);
             self.current_size += size;
         }
     }
@@ -197,7 +205,7 @@ impl MemoryPool {
 
     pub fn get_stats(&self) -> MemoryPoolStats {
         let total_buffers = self.buffers.values().map(|v| v.len()).sum();
-        
+
         MemoryPoolStats {
             current_size: self.current_size,
             max_size: self.max_size,
@@ -239,15 +247,15 @@ impl OperationCache {
 
     pub fn insert(&mut self, key: String, result: CachedResult) {
         let entry_size = key.len() + result.estimated_size();
-        
+
         // Clean up expired entries first
         self.cleanup_expired();
-        
+
         // Make space if needed
         while self.current_size + entry_size > self.max_size && !self.entries.is_empty() {
             self.evict_oldest();
         }
-        
+
         // Insert new entry
         if self.current_size + entry_size <= self.max_size {
             let entry = CacheEntry {
@@ -255,7 +263,7 @@ impl OperationCache {
                 created_at: Instant::now(),
                 ttl: self.ttl,
             };
-            
+
             self.entries.insert(key, entry);
             self.current_size += entry_size;
         }
@@ -269,7 +277,8 @@ impl OperationCache {
     }
 
     fn cleanup_expired(&mut self) {
-        let expired_keys: Vec<String> = self.entries
+        let expired_keys: Vec<String> = self
+            .entries
             .iter()
             .filter(|(_, entry)| entry.is_expired())
             .map(|(key, _)| key.clone())
@@ -277,30 +286,31 @@ impl OperationCache {
 
         for key in expired_keys {
             if let Some(entry) = self.entries.remove(&key) {
-                self.current_size = self.current_size.saturating_sub(
-                    key.len() + entry.result.estimated_size()
-                );
+                self.current_size = self
+                    .current_size
+                    .saturating_sub(key.len() + entry.result.estimated_size());
             }
         }
     }
 
     fn evict_oldest(&mut self) {
-        if let Some((oldest_key, _)) = self.entries
+        if let Some((oldest_key, _)) = self
+            .entries
             .iter()
             .min_by_key(|(_, entry)| entry.created_at)
             .map(|(k, v)| (k.clone(), v.clone()))
         {
             if let Some(entry) = self.entries.remove(&oldest_key) {
-                self.current_size = self.current_size.saturating_sub(
-                    oldest_key.len() + entry.result.estimated_size()
-                );
+                self.current_size = self
+                    .current_size
+                    .saturating_sub(oldest_key.len() + entry.result.estimated_size());
             }
         }
     }
 
     pub fn get_stats(&self) -> CacheStats {
         let expired_count = self.entries.values().filter(|e| e.is_expired()).count();
-        
+
         CacheStats {
             current_size: self.current_size,
             max_size: self.max_size,
@@ -347,8 +357,12 @@ impl CachedResult {
 
     pub fn estimated_size(&self) -> usize {
         // Rough estimation of memory usage
-        self.data.to_string().len() + 
-        self.metadata.iter().map(|(k, v)| k.len() + v.len()).sum::<usize>()
+        self.data.to_string().len()
+            + self
+                .metadata
+                .iter()
+                .map(|(k, v)| k.len() + v.len())
+                .sum::<usize>()
     }
 }
 
@@ -398,10 +412,7 @@ impl StreamingUtils {
         use tokio::io::{AsyncReadExt, BufReader};
 
         let file = File::open(file_path).await.map_err(|e| {
-            FileManagementError::io(
-                format!("Failed to open file {}", file_path.display()),
-                e,
-            )
+            FileManagementError::io(format!("Failed to open file {}", file_path.display()), e)
         })?;
 
         let mut reader = BufReader::new(file);
@@ -482,10 +493,10 @@ impl CompressionUtils {
         use std::io::Write;
 
         let mut encoder = GzEncoder::new(Vec::new(), Compression::new(level));
-        encoder.write_all(data).map_err(|e| {
-            FileManagementError::other(format!("Compression failed: {}", e))
-        })?;
-        
+        encoder
+            .write_all(data)
+            .map_err(|e| FileManagementError::other(format!("Compression failed: {}", e)))?;
+
         encoder.finish().map_err(|e| {
             FileManagementError::other(format!("Compression finalization failed: {}", e))
         })
@@ -498,10 +509,10 @@ impl CompressionUtils {
 
         let mut decoder = GzDecoder::new(compressed_data);
         let mut decompressed = Vec::new();
-        decoder.read_to_end(&mut decompressed).map_err(|e| {
-            FileManagementError::other(format!("Decompression failed: {}", e))
-        })?;
-        
+        decoder
+            .read_to_end(&mut decompressed)
+            .map_err(|e| FileManagementError::other(format!("Decompression failed: {}", e)))?;
+
         Ok(decompressed)
     }
 
@@ -519,11 +530,11 @@ mod tests {
     #[tokio::test]
     async fn test_memory_pool() {
         let mut pool = MemoryPool::new(1024);
-        
+
         // Test buffer return and retrieval
         let buffer = vec![0u8; 512];
         pool.return_buffer(buffer);
-        
+
         let stats = pool.get_stats();
         assert_eq!(stats.current_size, 512);
         assert_eq!(stats.total_buffers, 1);
@@ -532,13 +543,13 @@ mod tests {
     #[tokio::test]
     async fn test_operation_cache() {
         let mut cache = OperationCache::new(1024, Duration::from_secs(60));
-        
+
         let result = CachedResult::new(serde_json::json!({"test": "data"}));
         cache.insert("test_key".to_string(), result);
-        
+
         let retrieved = cache.get("test_key");
         assert!(retrieved.is_some());
-        
+
         let stats = cache.get_stats();
         assert_eq!(stats.entry_count, 1);
     }
@@ -547,17 +558,24 @@ mod tests {
     async fn test_streaming_utils() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_file.txt");
-        
+
         // Create test file
-        tokio::fs::write(&file_path, b"Hello, World! This is a test file for streaming.").await.unwrap();
-        
+        tokio::fs::write(
+            &file_path,
+            b"Hello, World! This is a test file for streaming.",
+        )
+        .await
+        .unwrap();
+
         // Process file in chunks
         let results = StreamingUtils::process_file_in_chunks(
             &file_path,
             10, // 10-byte chunks
             |chunk| Ok(chunk.len()),
-        ).await.unwrap();
-        
+        )
+        .await
+        .unwrap();
+
         assert!(!results.is_empty());
         let total_bytes: usize = results.iter().sum();
         assert_eq!(total_bytes, 49); // Length of test string
@@ -565,11 +583,12 @@ mod tests {
 
     #[test]
     fn test_compression_utils() {
-        let test_data = b"This is some test data that should compress well because it has repetitive patterns.";
-        
+        let test_data =
+            b"This is some test data that should compress well because it has repetitive patterns.";
+
         let compressed = CompressionUtils::compress_data(test_data, 6).unwrap();
         assert!(compressed.len() < test_data.len());
-        
+
         let decompressed = CompressionUtils::decompress_data(&compressed).unwrap();
         assert_eq!(decompressed, test_data);
     }

@@ -13,23 +13,23 @@ use std::path::PathBuf;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-    
+
     /// Configuration file path
     #[arg(long, global = true, help = "Path to configuration file")]
     pub config: Option<PathBuf>,
-    
+
     /// Log level
     #[arg(long, global = true, default_value = "info", help = "Set log level")]
     pub log_level: String,
-    
+
     /// Output format
     #[arg(long, global = true, default_value = "table", help = "Output format")]
     pub output: OutputFormat,
-    
+
     /// Verbose output
     #[arg(short, long, global = true, help = "Enable verbose output")]
     pub verbose: bool,
-    
+
     /// Quiet mode (suppress non-error output)
     #[arg(short, long, global = true, help = "Suppress non-error output")]
     pub quiet: bool,
@@ -294,7 +294,11 @@ pub enum BatchAction {
         #[arg(help = "Path to file containing workflow list")]
         workflow_list_file: PathBuf,
         /// Maximum parallel executions
-        #[arg(long, default_value = "4", help = "Maximum number of parallel executions")]
+        #[arg(
+            long,
+            default_value = "4",
+            help = "Maximum number of parallel executions"
+        )]
         parallel: usize,
         /// Continue on failure
         #[arg(long, help = "Continue execution even if some workflows fail")]
@@ -313,7 +317,7 @@ impl Cli {
     pub fn parse_args() -> Self {
         Self::parse()
     }
-    
+
     /// Parse command line arguments from iterator
     pub fn parse_from<I, T>(args: I) -> Self
     where
@@ -322,7 +326,7 @@ impl Cli {
     {
         clap::Parser::parse_from(args)
     }
-    
+
     /// Validate command arguments
     pub fn validate(&self) -> Result<(), crate::interfaces::cli::CliError> {
         // Add validation logic here if needed
@@ -340,7 +344,9 @@ mod tests {
         // Test basic command parsing
         let cli = Cli::parse_from(&["workflow-toolkit", "workflow", "list"]);
         match cli.command {
-            Commands::Workflow { action: WorkflowAction::List { .. } } => {},
+            Commands::Workflow {
+                action: WorkflowAction::List { .. },
+            } => {}
             _ => panic!("Expected workflow list command"),
         }
     }
@@ -348,28 +354,29 @@ mod tests {
     #[test]
     fn test_workflow_execute_command() {
         let cli = Cli::parse_from(&[
-            "workflow-toolkit", 
-            "workflow", 
-            "execute", 
+            "workflow-toolkit",
+            "workflow",
+            "execute",
             "test-workflow",
-            "--params-json", 
+            "--params-json",
             r#"{"key": "value"}"#,
-            "--wait"
+            "--wait",
         ]);
-        
+
         match cli.command {
-            Commands::Workflow { 
-                action: WorkflowAction::Execute { 
-                    workflow_name, 
-                    params_json, 
-                    wait, 
-                    .. 
-                } 
+            Commands::Workflow {
+                action:
+                    WorkflowAction::Execute {
+                        workflow_name,
+                        params_json,
+                        wait,
+                        ..
+                    },
             } => {
                 assert_eq!(workflow_name, "test-workflow");
                 assert_eq!(params_json, Some(r#"{"key": "value"}"#.to_string()));
                 assert!(wait);
-            },
+            }
             _ => panic!("Expected workflow execute command"),
         }
     }
@@ -377,25 +384,24 @@ mod tests {
     #[test]
     fn test_tool_list_command() {
         let cli = Cli::parse_from(&[
-            "workflow-toolkit", 
-            "tool", 
+            "workflow-toolkit",
+            "tool",
             "list",
-            "--category", 
+            "--category",
             "data-processing",
-            "--detailed"
+            "--detailed",
         ]);
-        
+
         match cli.command {
-            Commands::Tool { 
-                action: ToolAction::List { 
-                    category, 
-                    detailed, 
-                    .. 
-                } 
+            Commands::Tool {
+                action:
+                    ToolAction::List {
+                        category, detailed, ..
+                    },
             } => {
                 assert_eq!(category, Some("data-processing".to_string()));
                 assert!(detailed);
-            },
+            }
             _ => panic!("Expected tool list command"),
         }
     }
@@ -403,28 +409,29 @@ mod tests {
     #[test]
     fn test_batch_execute_command() {
         let cli = Cli::parse_from(&[
-            "workflow-toolkit", 
-            "batch", 
+            "workflow-toolkit",
+            "batch",
             "execute",
             "workflows.yaml",
-            "--parallel", 
+            "--parallel",
             "8",
-            "--continue-on-failure"
+            "--continue-on-failure",
         ]);
-        
+
         match cli.command {
-            Commands::Batch { 
-                action: BatchAction::Execute { 
-                    workflow_list_file,
-                    parallel, 
-                    continue_on_failure, 
-                    .. 
-                } 
+            Commands::Batch {
+                action:
+                    BatchAction::Execute {
+                        workflow_list_file,
+                        parallel,
+                        continue_on_failure,
+                        ..
+                    },
             } => {
                 assert_eq!(workflow_list_file, PathBuf::from("workflows.yaml"));
                 assert_eq!(parallel, 8);
                 assert!(continue_on_failure);
-            },
+            }
             _ => panic!("Expected batch execute command"),
         }
     }
@@ -432,18 +439,18 @@ mod tests {
     #[test]
     fn test_global_options() {
         let cli = Cli::parse_from(&[
-            "workflow-toolkit", 
-            "--config", 
+            "workflow-toolkit",
+            "--config",
             "/path/to/config.toml",
-            "--log-level", 
+            "--log-level",
             "debug",
-            "--output", 
+            "--output",
             "json",
             "--verbose",
-            "workflow", 
-            "list"
+            "workflow",
+            "list",
         ]);
-        
+
         assert_eq!(cli.config, Some(PathBuf::from("/path/to/config.toml")));
         assert_eq!(cli.log_level, "debug");
         assert!(matches!(cli.output, OutputFormat::Json));
@@ -458,9 +465,21 @@ mod tests {
 
     #[test]
     fn test_output_format_parsing() {
-        assert!(matches!(OutputFormat::from_str("table", true), Ok(OutputFormat::Table)));
-        assert!(matches!(OutputFormat::from_str("json", true), Ok(OutputFormat::Json)));
-        assert!(matches!(OutputFormat::from_str("yaml", true), Ok(OutputFormat::Yaml)));
-        assert!(matches!(OutputFormat::from_str("text", true), Ok(OutputFormat::Text)));
+        assert!(matches!(
+            OutputFormat::from_str("table", true),
+            Ok(OutputFormat::Table)
+        ));
+        assert!(matches!(
+            OutputFormat::from_str("json", true),
+            Ok(OutputFormat::Json)
+        ));
+        assert!(matches!(
+            OutputFormat::from_str("yaml", true),
+            Ok(OutputFormat::Yaml)
+        ));
+        assert!(matches!(
+            OutputFormat::from_str("text", true),
+            Ok(OutputFormat::Text)
+        ));
     }
 }

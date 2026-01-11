@@ -1,22 +1,20 @@
 //! Batch Confirmation Tool
-//! 
+//!
 //! This module provides tools for batch confirmation of multiple operations
 //! with support for different confirmation strategies and user interaction modes.
 
-use std::collections::HashMap;
-use std::time::Duration;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::time::Duration;
 use tracing::{debug, info, warn};
-use chrono::{DateTime, Utc};
 
-use crate::tools::ToolNode;
-use crate::core::{ExecutionContext, ToolInfo, PluginInfo};
+use super::error::FileManagementResult;
+use super::result_review_tool::{ExperimentalResult, OperationImpact, ReviewMode, RiskLevel};
+use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::WorkflowError;
-use super::error::{FileManagementResult};
-use super::result_review_tool::{
-    ExperimentalResult, RiskLevel, OperationImpact, ReviewMode
-};
+use crate::tools::ToolNode;
 
 use async_trait::async_trait;
 
@@ -306,7 +304,8 @@ impl BatchConfirmationTool {
 
         // Group operations by risk level
         for operation in operations {
-            risk_groups.entry(operation.risk_level.clone())
+            risk_groups
+                .entry(operation.risk_level.clone())
                 .or_insert_with(Vec::new)
                 .push(operation.clone());
         }
@@ -318,7 +317,7 @@ impl BatchConfirmationTool {
             }
 
             let batch_id = format!("risk_{:?}", risk_level).to_lowercase();
-            
+
             // Split large risk groups into smaller batches
             if ops.len() > self.config.default_batch_size {
                 for (i, chunk) in ops.chunks(self.config.default_batch_size).enumerate() {
@@ -343,7 +342,8 @@ impl BatchConfirmationTool {
 
         // Group operations by type
         for operation in operations {
-            type_groups.entry(operation.operation_type.clone())
+            type_groups
+                .entry(operation.operation_type.clone())
                 .or_insert_with(Vec::new)
                 .push(operation.clone());
         }
@@ -355,7 +355,7 @@ impl BatchConfirmationTool {
             }
 
             let batch_id = format!("type_{}", op_type);
-            
+
             // Split large type groups into smaller batches
             if ops.len() > self.config.default_batch_size {
                 for (i, chunk) in ops.chunks(self.config.default_batch_size).enumerate() {
@@ -378,7 +378,8 @@ impl BatchConfirmationTool {
         let mut batches = Vec::new();
 
         // First, separate by risk level
-        let (low_risk, higher_risk): (Vec<_>, Vec<_>) = operations.iter()
+        let (low_risk, higher_risk): (Vec<_>, Vec<_>) = operations
+            .iter()
             .partition(|op| op.risk_level == RiskLevel::Low);
 
         // Low risk operations can be batched together in larger groups
@@ -395,7 +396,8 @@ impl BatchConfirmationTool {
             // Group by operation type within higher risk
             let mut type_groups: HashMap<String, Vec<ExperimentalResult>> = HashMap::new();
             for operation in higher_risk {
-                type_groups.entry(operation.operation_type.clone())
+                type_groups
+                    .entry(operation.operation_type.clone())
                     .or_insert_with(Vec::new)
                     .push(operation.clone());
             }
@@ -448,7 +450,9 @@ impl BatchConfirmationTool {
             }
 
             // Count operation types
-            *operation_types.entry(operation.operation_type.clone()).or_insert(0) += 1;
+            *operation_types
+                .entry(operation.operation_type.clone())
+                .or_insert(0) += 1;
 
             // Aggregate impact
             total_impact.files_affected += operation.estimated_impact.files_affected;
@@ -464,7 +468,8 @@ impl BatchConfirmationTool {
             }
 
             // Count reversibility
-            if operation.estimated_impact.reversible && !operation.estimated_impact.backup_required {
+            if operation.estimated_impact.reversible && !operation.estimated_impact.backup_required
+            {
                 reversibility_summary.fully_reversible += 1;
             } else if operation.estimated_impact.reversible {
                 reversibility_summary.partially_reversible += 1;
@@ -490,9 +495,10 @@ impl BatchConfirmationTool {
     /// Determine recommended action for a batch
     fn determine_recommended_action(&self, summary: &BatchSummary) -> RecommendedAction {
         // If all operations are low risk and reversible
-        if summary.risk_distribution.high == 0 && 
-           summary.risk_distribution.critical == 0 &&
-           summary.reversibility_summary.irreversible == 0 {
+        if summary.risk_distribution.high == 0
+            && summary.risk_distribution.critical == 0
+            && summary.reversibility_summary.irreversible == 0
+        {
             return RecommendedAction::ApproveAll;
         }
 
@@ -542,19 +548,24 @@ impl BatchConfirmationTool {
 
         // Process each batch
         for batch in batches {
-            let batch_result = self.process_single_batch(&batch, &params.user_preferences, context)?;
-            
+            let batch_result =
+                self.process_single_batch(&batch, &params.user_preferences, context)?;
+
             total_approved += batch_result.operations_approved.len();
             total_rejected += batch_result.operations_rejected.len();
             total_deferred += batch_result.operations_deferred.len();
 
             match &batch_result.decision.confirmation_method {
-                ConfirmationMethod::Automatic | ConfirmationMethod::PolicyBased => auto_decisions += 1,
+                ConfirmationMethod::Automatic | ConfirmationMethod::PolicyBased => {
+                    auto_decisions += 1
+                }
                 ConfirmationMethod::UserInteraction => manual_decisions += 1,
                 ConfirmationMethod::Timeout => auto_decisions += 1,
             }
 
-            if let BatchDecisionType::ModifyAndApprove(modifications) = &batch_result.decision.decision_type {
+            if let BatchDecisionType::ModifyAndApprove(modifications) =
+                &batch_result.decision.decision_type
+            {
                 total_modified += modifications.len();
             }
 
@@ -598,8 +609,9 @@ impl BatchConfirmationTool {
 
         // Check if we can auto-decide based on preferences and batch characteristics
         if let Some(auto_decision) = self.check_auto_decision(batch, user_preferences) {
-            let (approved, rejected, deferred) = self.apply_batch_decision(&auto_decision, &batch.operations);
-            
+            let (approved, rejected, deferred) =
+                self.apply_batch_decision(&auto_decision, &batch.operations);
+
             return Ok(ProcessedBatch {
                 batch_id: batch.batch_id.clone(),
                 decision: auto_decision,
@@ -612,7 +624,8 @@ impl BatchConfirmationTool {
 
         // Present batch for user decision
         let decision = self.present_batch_for_confirmation(batch, context)?;
-        let (approved, rejected, deferred) = self.apply_batch_decision(&decision, &batch.operations);
+        let (approved, rejected, deferred) =
+            self.apply_batch_decision(&decision, &batch.operations);
 
         Ok(ProcessedBatch {
             batch_id: batch.batch_id.clone(),
@@ -632,10 +645,11 @@ impl BatchConfirmationTool {
     ) -> Option<BatchDecision> {
         if let Some(prefs) = user_preferences {
             // Auto-approve low risk batches if preference is set
-            if prefs.auto_approve_low_risk && 
-               batch.batch_summary.risk_distribution.medium == 0 &&
-               batch.batch_summary.risk_distribution.high == 0 &&
-               batch.batch_summary.risk_distribution.critical == 0 {
+            if prefs.auto_approve_low_risk
+                && batch.batch_summary.risk_distribution.medium == 0
+                && batch.batch_summary.risk_distribution.high == 0
+                && batch.batch_summary.risk_distribution.critical == 0
+            {
                 return Some(BatchDecision {
                     batch_id: batch.batch_id.clone(),
                     decision_type: BatchDecisionType::ApproveAll,
@@ -647,9 +661,10 @@ impl BatchConfirmationTool {
             }
 
             // Auto-reject high risk batches if preference is set
-            if prefs.auto_reject_high_risk &&
-               (batch.batch_summary.risk_distribution.high > 0 || 
-                batch.batch_summary.risk_distribution.critical > 0) {
+            if prefs.auto_reject_high_risk
+                && (batch.batch_summary.risk_distribution.high > 0
+                    || batch.batch_summary.risk_distribution.critical > 0)
+            {
                 return Some(BatchDecision {
                     batch_id: batch.batch_id.clone(),
                     decision_type: BatchDecisionType::RejectAll,
@@ -662,8 +677,9 @@ impl BatchConfirmationTool {
         }
 
         // Check if batch is small enough for auto-approval
-        if batch.batch_summary.total_operations <= self.config.auto_confirm_threshold &&
-           batch.batch_summary.risk_distribution.critical == 0 {
+        if batch.batch_summary.total_operations <= self.config.auto_confirm_threshold
+            && batch.batch_summary.risk_distribution.critical == 0
+        {
             return Some(BatchDecision {
                 batch_id: batch.batch_id.clone(),
                 decision_type: BatchDecisionType::ApproveAll,
@@ -686,16 +702,20 @@ impl BatchConfirmationTool {
         info!("=== Batch Confirmation Required ===");
         info!("Batch ID: {}", batch.batch_id);
         info!("Operations: {}", batch.batch_summary.total_operations);
-        info!("Risk Distribution: Low: {}, Medium: {}, High: {}, Critical: {}",
-              batch.batch_summary.risk_distribution.low,
-              batch.batch_summary.risk_distribution.medium,
-              batch.batch_summary.risk_distribution.high,
-              batch.batch_summary.risk_distribution.critical);
+        info!(
+            "Risk Distribution: Low: {}, Medium: {}, High: {}, Critical: {}",
+            batch.batch_summary.risk_distribution.low,
+            batch.batch_summary.risk_distribution.medium,
+            batch.batch_summary.risk_distribution.high,
+            batch.batch_summary.risk_distribution.critical
+        );
         info!("Recommended Action: {:?}", batch.recommended_action);
-        info!("Total Impact: {} files, {} directories, {} bytes",
-              batch.batch_summary.total_impact.files_affected,
-              batch.batch_summary.total_impact.directories_affected,
-              batch.batch_summary.total_impact.estimated_size_bytes);
+        info!(
+            "Total Impact: {} files, {} directories, {} bytes",
+            batch.batch_summary.total_impact.files_affected,
+            batch.batch_summary.total_impact.directories_affected,
+            batch.batch_summary.total_impact.estimated_size_bytes
+        );
 
         // In a real implementation, this would present a UI for batch confirmation
         // For now, simulate decision based on recommended action
@@ -771,7 +791,7 @@ impl BatchConfirmationTool {
             total.directories_affected += operation.estimated_impact.directories_affected;
             total.estimated_size_bytes += operation.estimated_impact.estimated_size_bytes;
             total.estimated_duration_ms += operation.estimated_impact.estimated_duration_ms;
-            
+
             if !operation.estimated_impact.reversible {
                 total.reversible = false;
             }
@@ -794,15 +814,23 @@ impl ToolNode for BatchConfirmationTool {
         "1.0.0"
     }
 
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value, WorkflowError> {
+    async fn execute(
+        &self,
+        params: Value,
+        context: ExecutionContext,
+    ) -> Result<Value, WorkflowError> {
         let params: BatchConfirmationParams = serde_json::from_value(params)
             .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
 
-        let result = self.process_batch_confirmation(&params, &context)
-            .map_err(|e| WorkflowError::tool_execution(&format!("Batch confirmation failed: {}", e)))?;
+        let result = self
+            .process_batch_confirmation(&params, &context)
+            .map_err(|e| {
+                WorkflowError::tool_execution(&format!("Batch confirmation failed: {}", e))
+            })?;
 
-        Ok(serde_json::to_value(result)
-            .map_err(|e| WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e)))?)
+        Ok(serde_json::to_value(result).map_err(|e| {
+            WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e))
+        })?)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
@@ -855,14 +883,16 @@ pub fn create_batch_confirmation_tool() -> Box<dyn ToolNode> {
 }
 
 /// Create a batch confirmation tool with custom configuration
-pub fn create_batch_confirmation_tool_with_config(config: BatchConfirmationConfig) -> Box<dyn ToolNode> {
+pub fn create_batch_confirmation_tool_with_config(
+    config: BatchConfirmationConfig,
+) -> Box<dyn ToolNode> {
     Box::new(BatchConfirmationTool::new(config))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::result_review_tool::ExperimentalResult;
+    use super::*;
 
     #[test]
     fn test_batch_confirmation_tool_creation() {
@@ -874,18 +904,16 @@ mod tests {
     #[test]
     fn test_create_risk_based_batches() {
         let tool = BatchConfirmationTool::with_default_config();
-        
+
         let operations = vec![
             create_test_operation("op1", "copy", RiskLevel::Low),
             create_test_operation("op2", "delete", RiskLevel::High),
             create_test_operation("op3", "move", RiskLevel::Low),
         ];
 
-        let batches = tool.create_batches(
-            &operations,
-            &ConfirmationStrategy::ByRiskLevel,
-            &None,
-        ).unwrap();
+        let batches = tool
+            .create_batches(&operations, &ConfirmationStrategy::ByRiskLevel, &None)
+            .unwrap();
 
         assert_eq!(batches.len(), 2); // One for low risk, one for high risk
     }
@@ -893,7 +921,7 @@ mod tests {
     #[test]
     fn test_smart_batching() {
         let tool = BatchConfirmationTool::with_default_config();
-        
+
         let operations = vec![
             create_test_operation("op1", "copy", RiskLevel::Low),
             create_test_operation("op2", "copy", RiskLevel::Low),
@@ -901,11 +929,9 @@ mod tests {
             create_test_operation("op4", "merge", RiskLevel::Critical),
         ];
 
-        let batches = tool.create_batches(
-            &operations,
-            &ConfirmationStrategy::Smart,
-            &None,
-        ).unwrap();
+        let batches = tool
+            .create_batches(&operations, &ConfirmationStrategy::Smart, &None)
+            .unwrap();
 
         // Should create separate batches for low risk and high risk operations
         assert!(batches.len() >= 2);
@@ -913,7 +939,7 @@ mod tests {
 
     fn create_test_operation(id: &str, op_type: &str, risk: RiskLevel) -> ExperimentalResult {
         use super::super::result_review_tool::{ExperimentalResult, OperationImpact};
-        
+
         ExperimentalResult {
             operation_id: id.to_string(),
             operation_type: op_type.to_string(),

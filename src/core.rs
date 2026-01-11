@@ -2,14 +2,16 @@
 
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
-use serde::{Deserialize, Serialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
 
 // Helper function to deserialize duration from seconds
-fn deserialize_duration_from_secs<'de, D>(deserializer: D) -> std::result::Result<Duration, D::Error>
+fn deserialize_duration_from_secs<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Duration, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -48,21 +50,21 @@ impl ExecutionContext {
             started_at: Utc::now(),
         }
     }
-    
+
     pub fn with_workflow_id(mut self, workflow_id: WorkflowId) -> Self {
         self.workflow_id = Some(workflow_id);
         self
     }
-    
+
     pub fn with_user_id<S: Into<String>>(mut self, user_id: S) -> Self {
         self.user_id = Some(user_id.into());
         self
     }
-    
+
     pub fn set_variable<K: Into<String>>(&mut self, key: K, value: Value) {
         self.global_variables.insert(key.into(), value);
     }
-    
+
     pub fn get_variable(&self, key: &str) -> Option<&Value> {
         self.global_variables.get(key)
     }
@@ -120,21 +122,24 @@ pub enum ExecutionStatus {
 
 impl ExecutionStatus {
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::Cancelled | Self::Timeout)
+        matches!(
+            self,
+            Self::Completed | Self::Failed | Self::Cancelled | Self::Timeout
+        )
     }
-    
+
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Running)
     }
-    
+
     pub fn can_pause(&self) -> bool {
         matches!(self, Self::Running)
     }
-    
+
     pub fn can_resume(&self) -> bool {
         matches!(self, Self::Paused)
     }
-    
+
     pub fn can_stop(&self) -> bool {
         matches!(self, Self::Running | Self::Paused)
     }
@@ -304,8 +309,8 @@ pub struct ResourceLimits {
 impl Default for ResourceLimits {
     fn default() -> Self {
         Self {
-            max_memory_bytes: Some(1024 * 1024 * 1024), // 1GB
-            max_cpu_time: Some(Duration::from_secs(300)), // 5 minutes
+            max_memory_bytes: Some(1024 * 1024 * 1024),         // 1GB
+            max_cpu_time: Some(Duration::from_secs(300)),       // 5 minutes
             max_execution_time: Some(Duration::from_secs(600)), // 10 minutes
             max_file_descriptors: Some(1024),
         }
@@ -376,7 +381,7 @@ pub enum NetworkStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemHealthAssessment {
     pub overall_health: SystemHealth,
-    pub overall_score: u8,  // 0-100
+    pub overall_score: u8, // 0-100
     pub cpu_health_score: f64,
     pub memory_health_score: f64,
     pub disk_health_score: f64,

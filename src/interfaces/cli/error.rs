@@ -8,31 +8,31 @@ use thiserror::Error;
 pub enum CliError {
     #[error("Invalid command arguments: {0}")]
     InvalidArguments(String),
-    
+
     #[error("Workflow not found: {0}")]
     WorkflowNotFound(String),
-    
+
     #[error("Tool not found: {0}")]
     ToolNotFound(String),
-    
+
     #[error("File not found: {0}")]
     FileNotFound(PathBuf),
-    
+
     #[error("Invalid file format: {0}")]
     InvalidFileFormat(String),
-    
+
     #[error("Execution failed: {0}")]
     ExecutionFailed(String),
-    
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
-    
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    
+
     #[error("JSON parsing error: {0}")]
     JsonError(#[from] serde_json::Error),
-    
+
     #[error("YAML parsing error: {0}")]
     YamlError(#[from] serde_yaml::Error),
 }

@@ -95,49 +95,49 @@ pub struct McpPluginInfo {
 pub trait McpServerInterface: Send + Sync {
     /// Start the MCP server with the given configuration
     async fn start(&self, config: McpServerConfig) -> Result<()>;
-    
+
     /// Stop the MCP server
     async fn stop(&self) -> Result<()>;
-    
+
     /// Register MCP tools from the tool registry
     async fn register_tools(&mut self, tool_registry: Arc<dyn ToolRegistry>) -> Result<()>;
-    
+
     /// Set plugin manager for plugin integration
     async fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()>;
-    
+
     /// Get list of available MCP tools
     async fn list_tools(&self) -> Result<Vec<McpToolDefinition>>;
-    
+
     /// Execute an MCP tool
     async fn execute_tool(&self, request: McpToolRequest) -> Result<McpToolResponse>;
-    
+
     /// Execute a workflow via MCP
     async fn execute_workflow(&self, request: McpWorkflowRequest) -> Result<String>;
-    
+
     /// Get workflow status via MCP
     async fn get_workflow_status(&self, workflow_id: &str) -> Result<McpWorkflowStatusResponse>;
-    
+
     /// Install a plugin via MCP
     async fn install_plugin(&self, request: McpPluginRequest) -> Result<String>;
-    
+
     /// List installed plugins via MCP
     async fn list_plugins(&self) -> Result<Vec<McpPluginInfo>>;
-    
+
     /// Uninstall a plugin via MCP
     async fn uninstall_plugin(&self, plugin_name: &str) -> Result<()>;
-    
+
     /// Reload a plugin via MCP
     async fn reload_plugin(&self, plugin_name: &str) -> Result<()>;
-    
+
     /// Get plugin information via MCP
     async fn get_plugin_info(&self, plugin_name: &str) -> Result<McpPluginInfo>;
-    
+
     /// Pause a workflow via MCP
     async fn pause_workflow(&self, workflow_id: &str) -> Result<()>;
-    
+
     /// Resume a workflow via MCP
     async fn resume_workflow(&self, workflow_id: &str) -> Result<()>;
-    
+
     /// Stop a workflow via MCP
     async fn stop_workflow(&self, workflow_id: &str) -> Result<()>;
 }
@@ -164,7 +164,7 @@ impl McpServer {
             is_running: false,
         }
     }
-    
+
     /// Create default MCP tool definitions based on the design specification
     fn create_default_tools() -> Vec<McpToolDefinition> {
         vec![
@@ -199,7 +199,7 @@ impl McpServer {
                     "properties": {
                         "plugin_source": {"type": "string"},
                         "plugin_type": {
-                            "type": "string", 
+                            "type": "string",
                             "enum": ["python", "nodejs", "docker", "wasm", "native"]
                         }
                     },
@@ -295,26 +295,29 @@ impl McpServerInterface for McpServer {
     async fn start(&self, _config: McpServerConfig) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP server start requested - implementation pending");
-        println!("Available MCP tools: {:?}", self.tools.keys().collect::<Vec<_>>());
+        println!(
+            "Available MCP tools: {:?}",
+            self.tools.keys().collect::<Vec<_>>()
+        );
         Ok(())
     }
-    
+
     async fn stop(&self) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP server stop requested - implementation pending");
         Ok(())
     }
-    
+
     async fn register_tools(&mut self, tool_registry: Arc<dyn ToolRegistry>) -> Result<()> {
         // Store reference to tool registry
         self.tool_registry = Some(tool_registry.clone());
-        
+
         // Register default MCP tools
         let default_tools = Self::create_default_tools();
         for tool in default_tools {
             self.tools.insert(tool.name.clone(), tool);
         }
-        
+
         // Register tools from the tool registry as MCP tools
         let tool_infos = tool_registry.list_tools();
         for tool_info in tool_infos {
@@ -334,25 +337,28 @@ impl McpServerInterface for McpServer {
             };
             self.tools.insert(mcp_tool.name.clone(), mcp_tool);
         }
-        
+
         println!("Registered {} MCP tools", self.tools.len());
         Ok(())
     }
-    
+
     async fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()> {
         self.plugin_manager = Some(plugin_manager);
         println!("Plugin manager set for MCP server");
         Ok(())
     }
-    
+
     async fn list_tools(&self) -> Result<Vec<McpToolDefinition>> {
         Ok(self.tools.values().cloned().collect())
     }
-    
+
     async fn execute_tool(&self, request: McpToolRequest) -> Result<McpToolResponse> {
         // Stub implementation - will be implemented in later tasks
-        println!("MCP tool execution requested: {} with args: {:?}", request.name, request.arguments);
-        
+        println!(
+            "MCP tool execution requested: {} with args: {:?}",
+            request.name, request.arguments
+        );
+
         // Check if tool exists
         if !self.tools.contains_key(&request.name) {
             return Ok(McpToolResponse {
@@ -363,23 +369,29 @@ impl McpServerInterface for McpServer {
                 is_error: Some(true),
             });
         }
-        
+
         // For now, return a stub response
         Ok(McpToolResponse {
             content: vec![McpContent {
                 content_type: "text".to_string(),
-                text: format!("Tool '{}' execution requested - implementation pending", request.name),
+                text: format!(
+                    "Tool '{}' execution requested - implementation pending",
+                    request.name
+                ),
             }],
             is_error: None,
         })
     }
-    
+
     async fn execute_workflow(&self, request: McpWorkflowRequest) -> Result<String> {
         // Stub implementation - will be implemented in later tasks
-        println!("MCP workflow execution requested: {} with params: {:?}", request.workflow_name, request.parameters);
+        println!(
+            "MCP workflow execution requested: {} with params: {:?}",
+            request.workflow_name, request.parameters
+        );
         Ok("workflow_execution_stub_id".to_string())
     }
-    
+
     async fn get_workflow_status(&self, workflow_id: &str) -> Result<McpWorkflowStatusResponse> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP workflow status requested for: {}", workflow_id);
@@ -392,39 +404,45 @@ impl McpServerInterface for McpServer {
             progress: None,
         })
     }
-    
+
     async fn install_plugin(&self, request: McpPluginRequest) -> Result<String> {
         // Stub implementation - will be implemented in later tasks
-        println!("MCP plugin installation requested: {} ({})", request.plugin_source, request.plugin_type);
-        
+        println!(
+            "MCP plugin installation requested: {} ({})",
+            request.plugin_source, request.plugin_type
+        );
+
         if let Some(ref plugin_manager) = self.plugin_manager {
             // In a full implementation, this would use the plugin manager to install the plugin
             println!("Plugin manager available for installation");
         } else {
             println!("Plugin manager not available");
         }
-        
+
         Ok("plugin_installation_stub_id".to_string())
     }
-    
+
     async fn list_plugins(&self) -> Result<Vec<McpPluginInfo>> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP plugin list requested");
-        
+
         if let Some(ref plugin_manager) = self.plugin_manager {
             match plugin_manager.list_plugins() {
                 Ok(plugins) => {
-                    let mcp_plugins: Vec<McpPluginInfo> = plugins.into_iter().map(|plugin| {
-                        McpPluginInfo {
-                            name: plugin.name,
-                            version: plugin.version,
-                            plugin_type: format!("{:?}", plugin.plugin_type),
-                            description: plugin.description,
-                            author: plugin.author,
-                            status: "loaded".to_string(), // Simplified status
-                            tools_count: 0, // Would need to query plugin tools
-                        }
-                    }).collect();
+                    let mcp_plugins: Vec<McpPluginInfo> = plugins
+                        .into_iter()
+                        .map(|plugin| {
+                            McpPluginInfo {
+                                name: plugin.name,
+                                version: plugin.version,
+                                plugin_type: format!("{:?}", plugin.plugin_type),
+                                description: plugin.description,
+                                author: plugin.author,
+                                status: "loaded".to_string(), // Simplified status
+                                tools_count: 0,               // Would need to query plugin tools
+                            }
+                        })
+                        .collect();
                     Ok(mcp_plugins)
                 }
                 Err(e) => {
@@ -437,11 +455,11 @@ impl McpServerInterface for McpServer {
             Ok(Vec::new())
         }
     }
-    
+
     async fn uninstall_plugin(&self, plugin_name: &str) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP plugin uninstall requested for: {}", plugin_name);
-        
+
         if let Some(ref plugin_manager) = self.plugin_manager {
             match plugin_manager.unload_plugin(plugin_name) {
                 Ok(_) => println!("Plugin '{}' uninstalled successfully", plugin_name),
@@ -450,14 +468,14 @@ impl McpServerInterface for McpServer {
         } else {
             println!("Plugin manager not available");
         }
-        
+
         Ok(())
     }
-    
+
     async fn reload_plugin(&self, plugin_name: &str) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP plugin reload requested for: {}", plugin_name);
-        
+
         if let Some(ref plugin_manager) = self.plugin_manager {
             match plugin_manager.reload_plugin(plugin_name) {
                 Ok(_) => println!("Plugin '{}' reloaded successfully", plugin_name),
@@ -466,14 +484,14 @@ impl McpServerInterface for McpServer {
         } else {
             println!("Plugin manager not available");
         }
-        
+
         Ok(())
     }
-    
+
     async fn get_plugin_info(&self, plugin_name: &str) -> Result<McpPluginInfo> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP plugin info requested for: {}", plugin_name);
-        
+
         if let Some(ref plugin_manager) = self.plugin_manager {
             match plugin_manager.list_plugins() {
                 Ok(plugins) => {
@@ -490,7 +508,8 @@ impl McpServerInterface for McpServer {
                     } else {
                         Err(crate::WorkflowError::NotFound {
                             resource: format!("plugin '{}'", plugin_name),
-                        }.into())
+                        }
+                        .into())
                     }
                 }
                 Err(e) => {
@@ -503,19 +522,19 @@ impl McpServerInterface for McpServer {
             Err(crate::WorkflowError::workflow_execution("Plugin manager not available").into())
         }
     }
-    
+
     async fn pause_workflow(&self, workflow_id: &str) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP workflow pause requested for: {}", workflow_id);
         Ok(())
     }
-    
+
     async fn resume_workflow(&self, workflow_id: &str) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP workflow resume requested for: {}", workflow_id);
         Ok(())
     }
-    
+
     async fn stop_workflow(&self, workflow_id: &str) -> Result<()> {
         // Stub implementation - will be implemented in later tasks
         println!("MCP workflow stop requested for: {}", workflow_id);

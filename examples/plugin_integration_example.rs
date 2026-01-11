@@ -1,35 +1,31 @@
 //! Example demonstrating improved plugin registration system
-//! 
+//!
 //! This example shows how the file management plugin integrates with the
 //! workflow-toolkit tool registry, satisfying requirements 7.1 and 7.2.
 
-use workflow_toolkit::{
-    core::{ExecutionContext, PluginType},
-    error::Result,
-    plugins::{
-        IntegratedPluginSystem, IntegratedPluginSystemBuilder,
-        FileManagementPlugin, FileManagementConfig,
-        types::{PluginConfig, SecurityPolicy, ResourceLimits},
-    },
-};
 use serde_json::json;
 use std::collections::HashMap;
 use tempfile::TempDir;
 use tracing::{info, Level};
+use workflow_toolkit::{
+    core::{ExecutionContext, PluginType},
+    error::Result,
+    plugins::{
+        types::{PluginConfig, ResourceLimits, SecurityPolicy},
+        FileManagementConfig, FileManagementPlugin, IntegratedPluginSystem,
+        IntegratedPluginSystemBuilder,
+    },
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("Starting plugin integration example");
 
     // Create a temporary directory for the plugin
-    let temp_dir = TempDir::new().map_err(|e| {
-        workflow_toolkit::error::WorkflowError::Io(e)
-    })?;
+    let temp_dir = TempDir::new().map_err(|e| workflow_toolkit::error::WorkflowError::Io(e))?;
 
     // Create an integrated plugin system
     let mut system = IntegratedPluginSystem::new();
@@ -73,7 +69,7 @@ async fn main() -> Result<()> {
             max_memory: Some(2 * 1024 * 1024 * 1024), // 2GB
             max_cpu_time: None,
             max_execution_time: Some(std::time::Duration::from_secs(3600)), // 1 hour
-            max_file_size: Some(100 * 1024 * 1024), // 100MB
+            max_file_size: Some(100 * 1024 * 1024),                         // 100MB
             max_network_connections: Some(0),
         },
         dependencies: Vec::new(),
@@ -88,7 +84,7 @@ async fn main() -> Result<()> {
     info!("=== Requirement 7.1: Tool Registration ===");
     let tools = system.list_all_tools()?;
     info!("Total tools registered: {}", tools.len());
-    
+
     for tool in &tools {
         info!("  - {} v{}: {}", tool.name, tool.version, tool.description);
         if let Some(category) = &tool.category {
@@ -101,23 +97,23 @@ async fn main() -> Result<()> {
 
     // Demonstrate requirement 7.2: Tools accept parameters through standard workflow parameter system
     info!("\n=== Requirement 7.2: Standard Parameter System ===");
-    
+
     // Test the text processor tool
     if system.has_tool("text-processor")? {
         info!("Testing text-processor tool with standard parameters...");
-        
+
         let params = json!({
             "text": "Hello World 测试",
             "operations": ["normalize_case", "remove_punctuation"],
             "experimental_mode": true
         });
-        
+
         // Validate parameters using standard validation
         match system.validate_tool_params("text-processor", &params) {
             Ok(()) => info!("✓ Parameter validation passed"),
             Err(e) => info!("✗ Parameter validation failed: {}", e),
         }
-        
+
         // Execute tool using standard execution context
         let context = ExecutionContext::new();
         match system.execute_tool("text-processor", params, context).await {
@@ -132,7 +128,7 @@ async fn main() -> Result<()> {
     // Test the AC matcher tool
     if system.has_tool("ac-matcher")? {
         info!("\nTesting ac-matcher tool with standard parameters...");
-        
+
         let params = json!({
             "text": "hello world test hello",
             "patterns": [
@@ -144,13 +140,13 @@ async fn main() -> Result<()> {
             "find_overlapping": false,
             "experimental_mode": true
         });
-        
+
         // Validate parameters
         match system.validate_tool_params("ac-matcher", &params) {
             Ok(()) => info!("✓ Parameter validation passed"),
             Err(e) => info!("✗ Parameter validation failed: {}", e),
         }
-        
+
         // Execute tool
         let context = ExecutionContext::new();
         match system.execute_tool("ac-matcher", params, context).await {
@@ -170,7 +166,7 @@ async fn main() -> Result<()> {
     // Test the folder classifier tool
     if system.has_tool("folder-classifier")? {
         info!("\nTesting folder-classifier tool with standard parameters...");
-        
+
         let params = json!({
             "folder_paths": ["/tmp/test1", "/tmp/test2"],
             "classification_rules": {
@@ -187,7 +183,7 @@ async fn main() -> Result<()> {
             },
             "experimental_mode": true
         });
-        
+
         // Validate parameters
         match system.validate_tool_params("folder-classifier", &params) {
             Ok(()) => info!("✓ Parameter validation passed"),
@@ -203,7 +199,7 @@ async fn main() -> Result<()> {
         if let Some(description) = plugin_info.description {
             info!("  Description: {}", description);
         }
-        
+
         let status = system.get_plugin_status(&plugin_info.name)?;
         if let Some(status) = status {
             info!("  Status: {:?}", status);
@@ -213,19 +209,33 @@ async fn main() -> Result<()> {
     // Demonstrate tool registry integration
     info!("\n=== Tool Registry Integration ===");
     info!("Total tools in registry: {}", system.tool_count()?);
-    
+
     // Test tool existence checks
-    let test_tools = ["text-processor", "ac-matcher", "folder-classifier", "file-mover", "batch-processor"];
+    let test_tools = [
+        "text-processor",
+        "ac-matcher",
+        "folder-classifier",
+        "file-mover",
+        "batch-processor",
+    ];
     for tool_name in test_tools {
         let exists = system.has_tool(tool_name)?;
-        info!("Tool '{}': {}", tool_name, if exists { "✓ Available" } else { "✗ Not found" });
+        info!(
+            "Tool '{}': {}",
+            tool_name,
+            if exists {
+                "✓ Available"
+            } else {
+                "✗ Not found"
+            }
+        );
     }
 
     // Shutdown the system
     info!("\n=== Shutdown ===");
     system.shutdown_all()?;
     info!("System shut down successfully");
-    
+
     // Verify tools are unregistered
     let final_tool_count = system.tool_count()?;
     info!("Tools remaining after shutdown: {}", final_tool_count);

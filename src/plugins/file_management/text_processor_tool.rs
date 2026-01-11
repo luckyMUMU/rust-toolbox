@@ -1,16 +1,16 @@
 //! Text Processor Tool implementation
-//! 
+//!
 //! This module provides a workflow tool for text processing operations including
 //! normalization, Chinese text processing, and pinyin conversion.
 
+use super::error::FileManagementResult;
+use super::utils::{
+    ChineseTextType, MixedTextResult, PinyinResult, PinyinStyle, TextNormalizationConfig,
+    TextProcessor,
+};
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::tools::ToolNode;
-use super::error::FileManagementResult;
-use super::utils::{
-    TextProcessor, TextNormalizationConfig, PinyinStyle, PinyinResult,
-    ChineseTextType, MixedTextResult,
-};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -70,9 +70,9 @@ pub struct TextProcessorParams {
 /// Output format options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TextOutputFormat {
-    Simple,      // Just the processed text
-    Detailed,    // Include metadata and variants
-    Structured,  // Full structured result
+    Simple,     // Just the processed text
+    Detailed,   // Include metadata and variants
+    Structured, // Full structured result
 }
 
 impl Default for TextOutputFormat {
@@ -108,7 +108,7 @@ impl TextProcessorTool {
     pub fn new(enable_chinese: bool, config: Option<TextNormalizationConfig>) -> Self {
         let config = config.unwrap_or_default();
         let processor = TextProcessor::with_config(enable_chinese, config.clone());
-        
+
         Self {
             processor,
             config,
@@ -118,13 +118,13 @@ impl TextProcessorTool {
 
     /// Create a new text processor tool with plugin info
     pub fn with_plugin_info(
-        enable_chinese: bool, 
+        enable_chinese: bool,
         config: Option<TextNormalizationConfig>,
         plugin_info: PluginInfo,
     ) -> Self {
         let config = config.unwrap_or_default();
         let processor = TextProcessor::with_config(enable_chinese, config.clone());
-        
+
         Self {
             processor,
             config,
@@ -141,7 +141,9 @@ impl TextProcessorTool {
             TextOperation::RemovePunctuation => self.processor.remove_punctuation(text),
             TextOperation::NormalizeUnicode => self.processor.normalize_unicode(text),
             TextOperation::FilterCharacters => self.processor.filter_characters(text),
-            TextOperation::PreserveAlphanumericOnly => self.processor.preserve_alphanumeric_only(text),
+            TextOperation::PreserveAlphanumericOnly => {
+                self.processor.preserve_alphanumeric_only(text)
+            }
             TextOperation::ConvertTraditional => self.processor.convert_traditional(text),
             TextOperation::ComprehensiveNormalization => self.processor.normalize_text(text),
             _ => text.to_string(), // Other operations handled separately
@@ -149,10 +151,13 @@ impl TextProcessorTool {
     }
 
     /// Process text with all specified operations
-    fn process_text(&self, params: &TextProcessorParams) -> FileManagementResult<TextProcessorResult> {
+    fn process_text(
+        &self,
+        params: &TextProcessorParams,
+    ) -> FileManagementResult<TextProcessorResult> {
         let start_time = std::time::Instant::now();
         let experimental_mode = params.experimental_mode.unwrap_or(false);
-        
+
         let mut result = TextProcessorResult {
             original: params.text.clone(),
             processed: params.text.clone(),
@@ -167,11 +172,19 @@ impl TextProcessorTool {
         };
 
         if experimental_mode {
-            debug!("Running text processor in experimental mode for {} operations", params.operations.len());
+            debug!(
+                "Running text processor in experimental mode for {} operations",
+                params.operations.len()
+            );
             // In experimental mode, log what would be done but still perform the operations
             // since text processing is non-destructive
-            result.metadata.insert("experimental_mode_note".to_string(), 
-                Value::String("Text processing operations are non-destructive and safe to execute".to_string()));
+            result.metadata.insert(
+                "experimental_mode_note".to_string(),
+                Value::String(
+                    "Text processing operations are non-destructive and safe to execute"
+                        .to_string(),
+                ),
+            );
         }
 
         // Apply text operations in sequence
@@ -190,7 +203,9 @@ impl TextProcessorTool {
                 TextOperation::CreateCombinations => {
                     if let Some(ref pinyin_result) = result.pinyin_result {
                         // Combinations are already included in pinyin_result
-                        result.operations_applied.push("CreateCombinations".to_string());
+                        result
+                            .operations_applied
+                            .push("CreateCombinations".to_string());
                     }
                 }
                 TextOperation::SegmentText => {
@@ -212,16 +227,25 @@ impl TextProcessorTool {
         }
 
         // Add metadata
-        result.metadata.insert("has_chinese".to_string(), 
-            Value::Bool(self.processor.contains_chinese(&params.text)));
-        result.metadata.insert("original_length".to_string(), 
-            Value::Number(params.text.len().into()));
-        result.metadata.insert("processed_length".to_string(), 
-            Value::Number(result.processed.len().into()));
+        result.metadata.insert(
+            "has_chinese".to_string(),
+            Value::Bool(self.processor.contains_chinese(&params.text)),
+        );
+        result.metadata.insert(
+            "original_length".to_string(),
+            Value::Number(params.text.len().into()),
+        );
+        result.metadata.insert(
+            "processed_length".to_string(),
+            Value::Number(result.processed.len().into()),
+        );
 
         result.processing_time_ms = start_time.elapsed().as_millis() as u64;
 
-        debug!("Text processing completed in {}ms", result.processing_time_ms);
+        debug!(
+            "Text processing completed in {}ms",
+            result.processing_time_ms
+        );
         Ok(result)
     }
 
@@ -276,15 +300,20 @@ impl ToolNode for TextProcessorTool {
 
         // Validate parameters
         if params.text.is_empty() {
-            return Err(WorkflowError::ValidationError("Text cannot be empty".to_string()));
+            return Err(WorkflowError::ValidationError(
+                "Text cannot be empty".to_string(),
+            ));
         }
 
         if params.operations.is_empty() {
-            return Err(WorkflowError::ValidationError("At least one operation must be specified".to_string()));
+            return Err(WorkflowError::ValidationError(
+                "At least one operation must be specified".to_string(),
+            ));
         }
 
         // Process text
-        let result = self.process_text(&params)
+        let result = self
+            .process_text(&params)
             .map_err(|e| WorkflowError::tool(format!("Text processing failed: {}", e)))?;
 
         // Format result
@@ -296,21 +325,27 @@ impl ToolNode for TextProcessorTool {
         } else {
             info!("Text processor tool completed successfully");
         }
-        
+
         Ok(formatted_result)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
-        let parsed_params: TextProcessorParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::ValidationError(format!("Parameter validation failed: {}", e)))?;
+        let parsed_params: TextProcessorParams =
+            serde_json::from_value(params.clone()).map_err(|e| {
+                WorkflowError::ValidationError(format!("Parameter validation failed: {}", e))
+            })?;
 
         // Additional validation beyond JSON schema
         if parsed_params.text.trim().is_empty() {
-            return Err(WorkflowError::ValidationError("Text cannot be empty".to_string()));
+            return Err(WorkflowError::ValidationError(
+                "Text cannot be empty".to_string(),
+            ));
         }
 
         if parsed_params.operations.is_empty() {
-            return Err(WorkflowError::ValidationError("At least one operation must be specified".to_string()));
+            return Err(WorkflowError::ValidationError(
+                "At least one operation must be specified".to_string(),
+            ));
         }
 
         Ok(())
@@ -321,11 +356,13 @@ impl ToolNode for TextProcessorTool {
         ToolInfo {
             name: self.name().to_string(),
             version: self.version().to_string(),
-            description: "Text processing tool with normalization, Chinese processing, and pinyin conversion".to_string(),
+            description:
+                "Text processing tool with normalization, Chinese processing, and pinyin conversion"
+                    .to_string(),
             category: Some("text-processing".to_string()),
             tags: vec![
-                "text".to_string(), 
-                "chinese".to_string(), 
+                "text".to_string(),
+                "chinese".to_string(),
                 "pinyin".to_string(),
                 "normalization".to_string(),
             ],
@@ -344,7 +381,7 @@ impl ToolNode for TextProcessorTool {
                             "type": "string",
                             "enum": [
                                 "NormalizeCase",
-                                "NormalizeWhitespace", 
+                                "NormalizeWhitespace",
                                 "RemoveSpaces",
                                 "RemovePunctuation",
                                 "NormalizeUnicode",
@@ -439,7 +476,7 @@ mod tests {
     #[tokio::test]
     async fn test_text_processor_tool_basic() {
         let tool = TextProcessorTool::new(true, None);
-        
+
         let params = json!({
             "text": "Hello World",
             "operations": ["NormalizeCase", "NormalizeWhitespace"],
@@ -448,7 +485,7 @@ mod tests {
 
         let context = ExecutionContext::new();
         let result = tool.execute(params, context).await.unwrap();
-        
+
         let processed = result.get("processed").unwrap().as_str().unwrap();
         assert_eq!(processed, "hello world");
     }
@@ -456,7 +493,7 @@ mod tests {
     #[tokio::test]
     async fn test_text_processor_tool_chinese() {
         let tool = TextProcessorTool::new(true, None);
-        
+
         let params = json!({
             "text": "你好世界",
             "operations": ["GeneratePinyin", "ProcessMixed"],
@@ -471,7 +508,7 @@ mod tests {
 
         let context = ExecutionContext::new();
         let result = tool.execute(params, context).await.unwrap();
-        
+
         assert!(result.get("pinyin_variants").is_some());
         assert!(result.get("chinese_type").is_some());
     }
@@ -479,7 +516,7 @@ mod tests {
     #[tokio::test]
     async fn test_text_processor_tool_comprehensive() {
         let tool = TextProcessorTool::new(true, None);
-        
+
         let params = json!({
             "text": "  Hello, 世界!  ",
             "operations": ["ComprehensiveNormalization", "ProcessMixed", "SegmentText"],
@@ -488,7 +525,7 @@ mod tests {
 
         let context = ExecutionContext::new();
         let result = tool.execute(params, context).await.unwrap();
-        
+
         assert!(result.get("processed").is_some());
         assert!(result.get("segments").is_some());
         assert!(result.get("mixed_text_result").is_some());
@@ -498,21 +535,21 @@ mod tests {
     #[test]
     fn test_parameter_validation() {
         let tool = TextProcessorTool::new(true, None);
-        
+
         // Valid parameters
         let valid_params = json!({
             "text": "test",
             "operations": ["NormalizeCase"]
         });
         assert!(tool.validate_parameters(&valid_params).is_ok());
-        
+
         // Invalid parameters - empty text
         let invalid_params = json!({
             "text": "",
             "operations": ["NormalizeCase"]
         });
         assert!(tool.validate_parameters(&invalid_params).is_err());
-        
+
         // Invalid parameters - no operations
         let invalid_params = json!({
             "text": "test",
@@ -525,7 +562,7 @@ mod tests {
     fn test_tool_schema() {
         let tool = TextProcessorTool::new(true, None);
         let info = tool.get_info();
-        
+
         assert_eq!(info.name, "text-processor");
         assert_eq!(info.version, "1.0.0");
         assert!(info.description.contains("Text processing"));

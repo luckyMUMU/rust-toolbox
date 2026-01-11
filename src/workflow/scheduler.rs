@@ -1,11 +1,11 @@
 //! DAG-based workflow scheduler
 
 use crate::error::{Result, WorkflowError};
-use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge};
-use petgraph::{Graph, Directed, Direction};
+use crate::workflow::{WorkflowDefinition, WorkflowEdge, WorkflowNode};
+use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::NodeIndex;
-use petgraph::algo::{toposort, is_cyclic_directed};
 use petgraph::visit::EdgeRef;
+use petgraph::{Directed, Direction, Graph};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// DAG-based workflow scheduler
@@ -50,7 +50,8 @@ impl ExecutionState {
     }
 
     fn is_complete(&self, total_nodes: usize) -> bool {
-        self.completed_nodes.len() + self.failed_nodes.len() + self.blocked_nodes.len() == total_nodes
+        self.completed_nodes.len() + self.failed_nodes.len() + self.blocked_nodes.len()
+            == total_nodes
     }
 
     fn has_ready_nodes(&self) -> bool {
@@ -116,11 +117,15 @@ impl DagScheduler {
 
         // Add edges to the graph
         for edge in &workflow.edges {
-            let from_index = self.node_indices.get(&edge.from)
+            let from_index = self
+                .node_indices
+                .get(&edge.from)
                 .ok_or_else(|| WorkflowError::NodeNotFound(edge.from.clone()))?;
-            let to_index = self.node_indices.get(&edge.to)
+            let to_index = self
+                .node_indices
+                .get(&edge.to)
                 .ok_or_else(|| WorkflowError::NodeNotFound(edge.to.clone()))?;
-            
+
             self.graph.add_edge(*from_index, *to_index, edge.clone());
         }
 
@@ -152,7 +157,12 @@ impl DagScheduler {
 
         // Find nodes with no dependencies (ready to execute)
         for node_index in self.graph.node_indices() {
-            if self.graph.edges_directed(node_index, Direction::Incoming).count() == 0 {
+            if self
+                .graph
+                .edges_directed(node_index, Direction::Incoming)
+                .count()
+                == 0
+            {
                 self.execution_state.ready_nodes.push_back(node_index);
             }
         }
@@ -162,8 +172,8 @@ impl DagScheduler {
 
     /// Get the topological sort order
     pub fn get_topological_order(&self) -> Result<Vec<String>> {
-        let topo_order = toposort(&self.graph, None)
-            .map_err(|_| WorkflowError::CircularDependency)?;
+        let topo_order =
+            toposort(&self.graph, None).map_err(|_| WorkflowError::CircularDependency)?;
 
         Ok(topo_order
             .into_iter()
@@ -182,7 +192,8 @@ impl DagScheduler {
 
     /// Get nodes that can be executed in parallel
     pub fn get_parallel_executable_nodes(&self, max_parallel: Option<usize>) -> Vec<String> {
-        let available_count = max_parallel.unwrap_or(usize::MAX)
+        let available_count = max_parallel
+            .unwrap_or(usize::MAX)
             .saturating_sub(self.execution_state.executing_nodes.len());
 
         self.execution_state
@@ -195,12 +206,16 @@ impl DagScheduler {
 
     /// Mark a node as started
     pub fn mark_node_started(&mut self, node_id: &str) -> Result<()> {
-        let node_index = self.node_indices.get(node_id)
+        let node_index = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| WorkflowError::NodeNotFound(node_id.to_string()))?;
 
         // Remove from ready nodes
-        self.execution_state.ready_nodes.retain(|&idx| idx != *node_index);
-        
+        self.execution_state
+            .ready_nodes
+            .retain(|&idx| idx != *node_index);
+
         // Add to executing nodes
         self.execution_state.executing_nodes.insert(*node_index);
 
@@ -209,12 +224,14 @@ impl DagScheduler {
 
     /// Mark a node as completed successfully
     pub fn mark_node_completed(&mut self, node_id: &str) -> Result<()> {
-        let node_index = self.node_indices.get(node_id)
+        let node_index = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| WorkflowError::NodeNotFound(node_id.to_string()))?;
 
         // Remove from executing nodes
         self.execution_state.executing_nodes.remove(node_index);
-        
+
         // Add to completed nodes
         self.execution_state.completed_nodes.insert(*node_index);
 
@@ -226,12 +243,14 @@ impl DagScheduler {
 
     /// Mark a node as failed
     pub fn mark_node_failed(&mut self, node_id: &str) -> Result<()> {
-        let node_index = self.node_indices.get(node_id)
+        let node_index = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| WorkflowError::NodeNotFound(node_id.to_string()))?;
 
         // Remove from executing nodes
         self.execution_state.executing_nodes.remove(node_index);
-        
+
         // Add to failed nodes
         self.execution_state.failed_nodes.insert(*node_index);
 
@@ -244,14 +263,23 @@ impl DagScheduler {
     /// Update ready nodes after a node completion
     fn update_ready_nodes(&mut self, completed_node: NodeIndex) -> Result<()> {
         // Check all dependent nodes
-        for edge in self.graph.edges_directed(completed_node, Direction::Outgoing) {
+        for edge in self
+            .graph
+            .edges_directed(completed_node, Direction::Outgoing)
+        {
             let dependent_node = edge.target();
-            
+
             // Skip if already processed
-            if self.execution_state.completed_nodes.contains(&dependent_node)
+            if self
+                .execution_state
+                .completed_nodes
+                .contains(&dependent_node)
                 || self.execution_state.failed_nodes.contains(&dependent_node)
                 || self.execution_state.blocked_nodes.contains(&dependent_node)
-                || self.execution_state.executing_nodes.contains(&dependent_node)
+                || self
+                    .execution_state
+                    .executing_nodes
+                    .contains(&dependent_node)
                 || self.execution_state.ready_nodes.contains(&dependent_node)
             {
                 continue;
@@ -281,12 +309,14 @@ impl DagScheduler {
     fn mark_dependents_blocked(&mut self, failed_node: NodeIndex) -> Result<()> {
         let mut to_block = Vec::new();
         let mut visited = HashSet::new();
-        
+
         self.collect_dependents(failed_node, &mut to_block, &mut visited);
 
         for node_index in to_block {
             self.execution_state.blocked_nodes.insert(node_index);
-            self.execution_state.ready_nodes.retain(|&idx| idx != node_index);
+            self.execution_state
+                .ready_nodes
+                .retain(|&idx| idx != node_index);
         }
 
         Ok(())
@@ -315,15 +345,19 @@ impl DagScheduler {
 
     /// Get execution information for a node
     pub fn get_node_info(&self, node_id: &str) -> Result<NodeExecutionInfo> {
-        let node_index = self.node_indices.get(node_id)
+        let node_index = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| WorkflowError::NodeNotFound(node_id.to_string()))?;
 
-        let dependencies = self.graph
+        let dependencies = self
+            .graph
             .edges_directed(*node_index, Direction::Incoming)
             .map(|edge| self.index_to_id[&edge.source()].clone())
             .collect();
 
-        let dependents = self.graph
+        let dependents = self
+            .graph
             .edges_directed(*node_index, Direction::Outgoing)
             .map(|edge| self.index_to_id[&edge.target()].clone())
             .collect();
@@ -331,7 +365,8 @@ impl DagScheduler {
         let can_execute = self.execution_state.ready_nodes.contains(node_index);
 
         // Calculate priority based on number of dependents (more dependents = higher priority)
-        let priority = self.graph
+        let priority = self
+            .graph
             .edges_directed(*node_index, Direction::Outgoing)
             .count() as f64;
 
@@ -369,7 +404,8 @@ impl DagScheduler {
 
             // Find nodes with no uncompleted dependencies
             for &node_index in &remaining_nodes {
-                let has_uncompleted_deps = self.graph
+                let has_uncompleted_deps = self
+                    .graph
                     .edges_directed(node_index, Direction::Incoming)
                     .any(|edge| !completed.contains(&edge.source()));
 
@@ -445,24 +481,34 @@ pub struct ExecutionStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge};
+    use crate::workflow::{WorkflowDefinition, WorkflowEdge, WorkflowNode};
     use proptest::prelude::*;
     use std::collections::{HashMap, HashSet};
 
     #[test]
     fn test_simple_linear_workflow() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "tool1")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node2", "tool2")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node3", "tool3")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node1", "node2")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node2", "node3")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node1", "tool1"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node2", "tool2"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node3", "tool3"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node1", "node2"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node2", "node3"))
+            .unwrap();
 
         let scheduler = DagScheduler::from_workflow(&workflow).unwrap();
         let topo_order = scheduler.get_topological_order().unwrap();
-        
+
         assert_eq!(topo_order, vec!["node1", "node2", "node3"]);
-        
+
         let ready_nodes = scheduler.get_ready_nodes();
         assert_eq!(ready_nodes, vec!["node1"]);
     }
@@ -470,19 +516,35 @@ mod tests {
     #[test]
     fn test_parallel_workflow() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("start", "tool1")).unwrap();
-        workflow.add_node(WorkflowNode::tool("parallel1", "tool2")).unwrap();
-        workflow.add_node(WorkflowNode::tool("parallel2", "tool3")).unwrap();
-        workflow.add_node(WorkflowNode::tool("end", "tool4")).unwrap();
-        
-        workflow.add_edge(WorkflowEdge::new("start", "parallel1")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("start", "parallel2")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("parallel1", "end")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("parallel2", "end")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("start", "tool1"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("parallel1", "tool2"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("parallel2", "tool3"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("end", "tool4"))
+            .unwrap();
+
+        workflow
+            .add_edge(WorkflowEdge::new("start", "parallel1"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("start", "parallel2"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("parallel1", "end"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("parallel2", "end"))
+            .unwrap();
 
         let scheduler = DagScheduler::from_workflow(&workflow).unwrap();
         let schedule = scheduler.generate_schedule().unwrap();
-        
+
         assert_eq!(schedule.execution_order.len(), 3);
         assert_eq!(schedule.execution_order[0], vec!["start"]);
         assert_eq!(schedule.execution_order[1].len(), 2); // parallel1 and parallel2
@@ -492,49 +554,65 @@ mod tests {
     #[test]
     fn test_node_completion_flow() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "tool1")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node2", "tool2")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node1", "node2")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node1", "tool1"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node2", "tool2"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node1", "node2"))
+            .unwrap();
 
         let mut scheduler = DagScheduler::from_workflow(&workflow).unwrap();
-        
+
         // Initially only node1 should be ready
         assert_eq!(scheduler.get_ready_nodes(), vec!["node1"]);
-        
+
         // Start node1
         scheduler.mark_node_started("node1").unwrap();
         assert!(scheduler.get_ready_nodes().is_empty());
-        
+
         // Complete node1
         scheduler.mark_node_completed("node1").unwrap();
         assert_eq!(scheduler.get_ready_nodes(), vec!["node2"]);
-        
+
         // Start and complete node2
         scheduler.mark_node_started("node2").unwrap();
         scheduler.mark_node_completed("node2").unwrap();
-        
+
         assert!(scheduler.is_execution_complete());
     }
 
     #[test]
     fn test_node_failure_blocking() {
         let mut workflow = WorkflowDefinition::new("test", "1.0");
-        workflow.add_node(WorkflowNode::tool("node1", "tool1")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node2", "tool2")).unwrap();
-        workflow.add_node(WorkflowNode::tool("node3", "tool3")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node1", "node2")).unwrap();
-        workflow.add_edge(WorkflowEdge::new("node2", "node3")).unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node1", "tool1"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node2", "tool2"))
+            .unwrap();
+        workflow
+            .add_node(WorkflowNode::tool("node3", "tool3"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node1", "node2"))
+            .unwrap();
+        workflow
+            .add_edge(WorkflowEdge::new("node2", "node3"))
+            .unwrap();
 
         let mut scheduler = DagScheduler::from_workflow(&workflow).unwrap();
-        
+
         // Start and fail node1
         scheduler.mark_node_started("node1").unwrap();
         scheduler.mark_node_failed("node1").unwrap();
-        
+
         let stats = scheduler.get_execution_stats();
         assert_eq!(stats.failed_nodes, 1);
         assert_eq!(stats.blocked_nodes, 2); // node2 and node3 should be blocked
-        
+
         assert!(scheduler.is_execution_complete());
     }
 
@@ -568,12 +646,12 @@ mod tests {
             // **Validates: Requirements 1.4**
 
             prop_assume!(node_ids.len() >= node_count);
-            
+
             // Create a workflow with unique node IDs
             let mut workflow = WorkflowDefinition::new(&name, &version);
             let mut unique_node_ids = Vec::new();
             let mut seen_ids = HashSet::new();
-            
+
             // Ensure we have unique node IDs
             for node_id in node_ids.iter().take(node_count) {
                 if seen_ids.insert(node_id.clone()) {
@@ -583,9 +661,9 @@ mod tests {
                     break;
                 }
             }
-            
+
             prop_assume!(unique_node_ids.len() >= 2);
-            
+
             // Add nodes to workflow
             for node_id in &unique_node_ids {
                 workflow.add_node(WorkflowNode::tool(node_id.clone(), "test_tool".to_string())).unwrap();
@@ -594,16 +672,16 @@ mod tests {
             // Create a DAG by adding edges that don't create cycles
             // We'll create edges from earlier nodes to later nodes to ensure acyclicity
             let mut dependency_map: HashMap<String, HashSet<String>> = HashMap::new();
-            
+
             for i in 0..unique_node_ids.len() {
                 dependency_map.insert(unique_node_ids[i].clone(), HashSet::new());
-                
+
                 for j in 0..i {
                     // Add edge from j to i with given probability
                     if edge_probability > (j as f64 / unique_node_ids.len() as f64) {
                         let from_node = &unique_node_ids[j];
                         let to_node = &unique_node_ids[i];
-                        
+
                         workflow.add_edge(WorkflowEdge::new(from_node, to_node)).unwrap();
                         dependency_map.get_mut(to_node).unwrap().insert(from_node.clone());
                     }
@@ -615,11 +693,11 @@ mod tests {
             let topo_order = scheduler.get_topological_order().unwrap();
 
             // Property 1: All nodes should be in the topological order
-            prop_assert_eq!(topo_order.len(), unique_node_ids.len(), 
+            prop_assert_eq!(topo_order.len(), unique_node_ids.len(),
                 "Topological order should contain all nodes");
-            
+
             for node_id in &unique_node_ids {
-                prop_assert!(topo_order.contains(node_id), 
+                prop_assert!(topo_order.contains(node_id),
                     "Node {} should be in topological order", node_id);
             }
 
@@ -631,10 +709,10 @@ mod tests {
 
             for (node, dependencies) in &dependency_map {
                 let node_pos = node_positions[node];
-                
+
                 for dependency in dependencies {
                     let dep_pos = node_positions[dependency];
-                    prop_assert!(dep_pos < node_pos, 
+                    prop_assert!(dep_pos < node_pos,
                         "Dependency {} (pos {}) should come before {} (pos {}) in topological order",
                         dependency, dep_pos, node, node_pos);
                 }
@@ -643,7 +721,7 @@ mod tests {
             // Property 3: Execution levels should respect dependencies
             let schedule = scheduler.generate_schedule().unwrap();
             let execution_levels = &schedule.execution_order;
-            
+
             // Build position map for execution levels
             let mut level_positions: HashMap<String, usize> = HashMap::new();
             for (level, nodes) in execution_levels.iter().enumerate() {
@@ -655,10 +733,10 @@ mod tests {
             // Check that dependencies are in earlier levels
             for (node, dependencies) in &dependency_map {
                 let node_level = level_positions[node];
-                
+
                 for dependency in dependencies {
                     let dep_level = level_positions[dependency];
-                    prop_assert!(dep_level < node_level, 
+                    prop_assert!(dep_level < node_level,
                         "Dependency {} (level {}) should be in earlier level than {} (level {})",
                         dependency, dep_level, node, node_level);
                 }
@@ -668,8 +746,8 @@ mod tests {
             let ready_nodes = scheduler.get_ready_nodes();
             for ready_node in &ready_nodes {
                 let dependencies = dependency_map.get(ready_node).unwrap();
-                prop_assert!(dependencies.is_empty(), 
-                    "Ready node {} should have no dependencies, but has: {:?}", 
+                prop_assert!(dependencies.is_empty(),
+                    "Ready node {} should have no dependencies, but has: {:?}",
                     ready_node, dependencies);
             }
 
@@ -680,12 +758,12 @@ mod tests {
 
             while !execution_scheduler.is_execution_complete() && execution_scheduler.has_ready_nodes() {
                 let ready = execution_scheduler.get_ready_nodes();
-                
+
                 // Verify all ready nodes have their dependencies satisfied
                 for ready_node in &ready {
                     let dependencies = dependency_map.get(ready_node).unwrap();
                     for dep in dependencies {
-                        prop_assert!(executed_nodes.contains(dep), 
+                        prop_assert!(executed_nodes.contains(dep),
                             "Ready node {} has unmet dependency {}", ready_node, dep);
                     }
                 }
@@ -700,7 +778,7 @@ mod tests {
             }
 
             // Property 6: All nodes should be executed if no failures occur
-            prop_assert_eq!(executed_nodes.len(), unique_node_ids.len(), 
+            prop_assert_eq!(executed_nodes.len(), unique_node_ids.len(),
                 "All nodes should be executed");
 
             // Property 7: Execution order should respect dependencies
@@ -711,10 +789,10 @@ mod tests {
 
             for (node, dependencies) in &dependency_map {
                 let node_pos = exec_positions[node];
-                
+
                 for dependency in dependencies {
                     let dep_pos = exec_positions[dependency];
-                    prop_assert!(dep_pos < node_pos, 
+                    prop_assert!(dep_pos < node_pos,
                         "In execution order, dependency {} (pos {}) should come before {} (pos {})",
                         dependency, dep_pos, node, node_pos);
                 }

@@ -52,11 +52,37 @@ cargo run --example config_priority_example
 ```
 
 ## TEMPLATES
-The `templates/` directory contains:
-- **interactive-classification-workflow.yaml**: Human review
-- **batch-processing-workflow.yaml**: Bulk operations
+The `templates/` directory contains comprehensive workflow templates and documentation:
+- **interactive-classification-workflow.yaml**: Human review with AI classification
+- **interactive-batch-processing-workflow.yaml**: Bulk operations with progress tracking
+- **interactive-merge-workflow.yaml**: Folder merging with conflict resolution
 - **workflow-composition-examples.yaml**: Complex patterns
 - **environment-config-examples.yaml**: Config management
+- **CONFIGURATION_GUIDE.md**: Complete configuration reference
+- **HUMAN_DECISION_BEST_PRACTICES.md**: Interactive workflow guidelines
+- **USAGE_EXAMPLES.md**: Step-by-step tutorials
+
+See `templates/AGENTS.md` for detailed documentation.
+
+## PLUGIN IMPLEMENTATIONS
+The `*_tools/` directories contain actual plugin implementations for testing:
+
+### docker_tools/
+- `Dockerfile`: Container definition
+- `simple_processor.sh`: Shell script processor
+
+### nodejs_tools/
+- `simple_calculator.js`: Basic calculator
+- `data_processor.js`: Data processing tool
+- `text_processor.js`: Text analysis
+
+### python_tools/
+- `simple_calculator.py`: Basic calculator
+- `data_processor.py`: Data processing tool
+
+### wasm_tools/
+- `simple_calculator.wat`: WebAssembly calculator
+- `README.md`: WASM plugin documentation
 
 ## WHAT THEY DEMONSTRATE
 - **DAG execution**: Dependencies, parallelism

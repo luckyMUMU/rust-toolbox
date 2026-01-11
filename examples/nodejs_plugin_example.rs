@@ -1,5 +1,5 @@
 //! Node.js Plugin Example
-//! 
+//!
 //! This example demonstrates how to:
 //! - Create and configure a Node.js plugin
 //! - Load Node.js tools from scripts
@@ -7,19 +7,19 @@
 //! - Handle npm dependency management
 //! - Process results from Node.js tools
 
+use chrono::Utc;
+use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio;
 use workflow_toolkit::{
     core::{ExecutionContext, ToolInfo},
-    plugins::{
-        NodeJsPluginBuilder, NodeJsRuntimeConfig, PluginConfig, PluginStatus,
-        Plugin, PluginType as PluginTypeEnum,
-    },
     error::Result,
+    plugins::{
+        NodeJsPluginBuilder, NodeJsRuntimeConfig, Plugin, PluginConfig, PluginStatus,
+        PluginType as PluginTypeEnum,
+    },
 };
-use serde_json::{json, Value};
-use chrono::Utc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -58,7 +58,11 @@ async fn basic_plugin_setup() -> Result<()> {
         version: "1.0.0".to_string(),
         description: "A simple calculator tool implemented in Node.js".to_string(),
         category: Some("math".to_string()),
-        tags: vec!["calculator".to_string(), "math".to_string(), "nodejs".to_string()],
+        tags: vec![
+            "calculator".to_string(),
+            "math".to_string(),
+            "nodejs".to_string(),
+        ],
         parameters_schema: json!({
             "type": "object",
             "properties": {
@@ -94,7 +98,7 @@ async fn basic_plugin_setup() -> Result<()> {
         .add_tool(
             calculator_info,
             PathBuf::from("simple_calculator.js"),
-            Some(Duration::from_secs(30))
+            Some(Duration::from_secs(30)),
         )
         .build()
         .await?;
@@ -102,40 +106,49 @@ async fn basic_plugin_setup() -> Result<()> {
     println!("✅ Plugin created: {}", plugin.info().name);
 
     // Initialize the plugin
-    let config = PluginConfig::new("nodejs-example".to_string(), workflow_toolkit::core::PluginType::NodeJs);
+    let config = PluginConfig::new(
+        "nodejs-example".to_string(),
+        workflow_toolkit::core::PluginType::NodeJs,
+    );
     plugin.initialize(config)?;
-    
+
     // Initialize async components
     plugin.initialize_async().await?;
-    
+
     println!("✅ Plugin initialized with status: {:?}", plugin.status());
 
     // Test the calculator tool
     println!("🧮 Testing calculator tool...");
-    
+
     let tools = plugin.get_tools();
     if let Some(calculator_tool) = tools.first() {
         let context = ExecutionContext::new();
-        
+
         // Test addition
         let params = json!({
             "operation": "add",
             "a": 15,
             "b": 25
         });
-        
+
         let result = calculator_tool.execute(params, context.clone()).await?;
-        println!("📊 Addition result: {}", serde_json::to_string_pretty(&result)?);
-        
+        println!(
+            "📊 Addition result: {}",
+            serde_json::to_string_pretty(&result)?
+        );
+
         // Test division
         let params = json!({
             "operation": "divide",
             "a": 100,
             "b": 4
         });
-        
+
         let result = calculator_tool.execute(params, context).await?;
-        println!("📊 Division result: {}", serde_json::to_string_pretty(&result)?);
+        println!(
+            "📊 Division result: {}",
+            serde_json::to_string_pretty(&result)?
+        );
     }
 
     // Shutdown the plugin
@@ -154,7 +167,11 @@ async fn plugin_with_dependencies() -> Result<()> {
         version: "1.0.0".to_string(),
         description: "A data processing tool using lodash".to_string(),
         category: Some("data".to_string()),
-        tags: vec!["data".to_string(), "processing".to_string(), "lodash".to_string()],
+        tags: vec![
+            "data".to_string(),
+            "processing".to_string(),
+            "lodash".to_string(),
+        ],
         parameters_schema: json!({
             "type": "object",
             "properties": {
@@ -191,30 +208,36 @@ async fn plugin_with_dependencies() -> Result<()> {
         .add_tool(
             processor_info,
             PathBuf::from("data_processor.js"),
-            Some(Duration::from_secs(60))
+            Some(Duration::from_secs(60)),
         )
         .build()
         .await?;
 
-    println!("✅ Plugin with dependencies created: {}", plugin.info().name);
+    println!(
+        "✅ Plugin with dependencies created: {}",
+        plugin.info().name
+    );
 
     // Initialize the plugin
-    let config = PluginConfig::new("nodejs-data-plugin".to_string(), workflow_toolkit::core::PluginType::NodeJs);
+    let config = PluginConfig::new(
+        "nodejs-data-plugin".to_string(),
+        workflow_toolkit::core::PluginType::NodeJs,
+    );
     plugin.initialize(config)?;
-    
+
     // Initialize async components (this will install npm dependencies)
     println!("📦 Installing npm dependencies...");
     plugin.initialize_async().await?;
-    
+
     println!("✅ Plugin initialized with dependencies");
 
     // Test the data processor tool
     println!("🔄 Testing data processor tool...");
-    
+
     let tools = plugin.get_tools();
     if let Some(processor_tool) = tools.first() {
         let context = ExecutionContext::new();
-        
+
         // Test filtering
         let params = json!({
             "operation": "filter",
@@ -226,10 +249,13 @@ async fn plugin_with_dependencies() -> Result<()> {
                 }
             }
         });
-        
+
         let result = processor_tool.execute(params, context.clone()).await?;
-        println!("📊 Filter result: {}", serde_json::to_string_pretty(&result)?);
-        
+        println!(
+            "📊 Filter result: {}",
+            serde_json::to_string_pretty(&result)?
+        );
+
         // Test aggregation
         let params = json!({
             "operation": "aggregate",
@@ -240,9 +266,12 @@ async fn plugin_with_dependencies() -> Result<()> {
                 }
             }
         });
-        
+
         let result = processor_tool.execute(params, context).await?;
-        println!("📊 Aggregation result: {}", serde_json::to_string_pretty(&result)?);
+        println!(
+            "📊 Aggregation result: {}",
+            serde_json::to_string_pretty(&result)?
+        );
     }
 
     // Shutdown the plugin
@@ -292,20 +321,26 @@ async fn multiple_tools_plugin() -> Result<()> {
         .add_tool(
             calculator_info,
             PathBuf::from("simple_calculator.js"),
-            Some(Duration::from_secs(30))
+            Some(Duration::from_secs(30)),
         )
         .add_tool(
             processor_info,
             PathBuf::from("data_processor.js"),
-            Some(Duration::from_secs(60))
+            Some(Duration::from_secs(60)),
         )
         .build()
         .await?;
 
-    println!("✅ Multi-tool plugin created with {} tools", plugin.get_tools().len());
+    println!(
+        "✅ Multi-tool plugin created with {} tools",
+        plugin.get_tools().len()
+    );
 
     // Initialize the plugin
-    let config = PluginConfig::new("multi-tool-plugin".to_string(), workflow_toolkit::core::PluginType::NodeJs);
+    let config = PluginConfig::new(
+        "multi-tool-plugin".to_string(),
+        workflow_toolkit::core::PluginType::NodeJs,
+    );
     plugin.initialize(config)?;
     plugin.initialize_async().await?;
 
@@ -315,7 +350,7 @@ async fn multiple_tools_plugin() -> Result<()> {
 
     for (i, tool) in tools.iter().enumerate() {
         println!("🔧 Testing tool {}: {}", i + 1, tool.name());
-        
+
         if tool.name() == "calculator" {
             let params = json!({
                 "operation": "multiply",
@@ -323,7 +358,10 @@ async fn multiple_tools_plugin() -> Result<()> {
                 "b": 8
             });
             let result = tool.execute(params, context.clone()).await?;
-            println!("📊 Calculator result: {}", serde_json::to_string_pretty(&result)?);
+            println!(
+                "📊 Calculator result: {}",
+                serde_json::to_string_pretty(&result)?
+            );
         } else if tool.name() == "processor" {
             let params = json!({
                 "operation": "sort",
@@ -333,7 +371,10 @@ async fn multiple_tools_plugin() -> Result<()> {
                 }
             });
             let result = tool.execute(params, context.clone()).await?;
-            println!("📊 Processor result: {}", serde_json::to_string_pretty(&result)?);
+            println!(
+                "📊 Processor result: {}",
+                serde_json::to_string_pretty(&result)?
+            );
         }
     }
 
@@ -368,12 +409,15 @@ async fn error_handling_example() -> Result<()> {
         .add_tool(
             tool_info,
             PathBuf::from("simple_calculator.js"),
-            Some(Duration::from_secs(10))
+            Some(Duration::from_secs(10)),
         )
         .build()
         .await?;
 
-    let config = PluginConfig::new("error-test-plugin".to_string(), workflow_toolkit::core::PluginType::NodeJs);
+    let config = PluginConfig::new(
+        "error-test-plugin".to_string(),
+        workflow_toolkit::core::PluginType::NodeJs,
+    );
     plugin.initialize(config)?;
     plugin.initialize_async().await?;
 
@@ -388,10 +432,13 @@ async fn error_handling_example() -> Result<()> {
             "a": 10,
             "b": 0
         });
-        
+
         match tool.execute(params, context.clone()).await {
             Ok(result) => {
-                println!("📊 Unexpected success: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "📊 Unexpected success: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("✅ Expected error caught: {}", e);
@@ -405,10 +452,13 @@ async fn error_handling_example() -> Result<()> {
             "a": 5,
             "b": 3
         });
-        
+
         match tool.execute(params, context.clone()).await {
             Ok(result) => {
-                println!("📊 Unexpected success: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "📊 Unexpected success: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("✅ Expected error caught: {}", e);
@@ -422,10 +472,13 @@ async fn error_handling_example() -> Result<()> {
             "a": 5
             // Missing 'b' parameter
         });
-        
+
         match tool.execute(params, context.clone()).await {
             Ok(result) => {
-                println!("📊 Unexpected success: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "📊 Unexpected success: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("✅ Expected error caught: {}", e);
@@ -439,10 +492,13 @@ async fn error_handling_example() -> Result<()> {
             "a": "not_a_number",
             "b": 5
         });
-        
+
         match tool.execute(params, context).await {
             Ok(result) => {
-                println!("📊 Unexpected success: {}", serde_json::to_string_pretty(&result)?);
+                println!(
+                    "📊 Unexpected success: {}",
+                    serde_json::to_string_pretty(&result)?
+                );
             }
             Err(e) => {
                 println!("✅ Expected error caught: {}", e);

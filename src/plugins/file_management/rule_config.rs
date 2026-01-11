@@ -23,22 +23,24 @@ impl RuleConfigLoader {
     }
 
     /// Load classification rules from various sources
-    pub fn load_rules(&mut self, rules_source: &Value) -> FileManagementResult<ClassificationRules> {
+    pub fn load_rules(
+        &mut self,
+        rules_source: &Value,
+    ) -> FileManagementResult<ClassificationRules> {
         match rules_source {
-            Value::String(file_path) => {
-                self.load_rules_from_file(file_path)
-            }
-            Value::Object(_) => {
-                self.load_rules_from_json(rules_source)
-            }
+            Value::String(file_path) => self.load_rules_from_file(file_path),
+            Value::Object(_) => self.load_rules_from_json(rules_source),
             _ => Err(FileManagementError::validation(
-                "Rules source must be either a file path (string) or a JSON object"
-            ))
+                "Rules source must be either a file path (string) or a JSON object",
+            )),
         }
     }
 
     /// Load rules from a JSON file
-    pub fn load_rules_from_file(&mut self, file_path: &str) -> FileManagementResult<ClassificationRules> {
+    pub fn load_rules_from_file(
+        &mut self,
+        file_path: &str,
+    ) -> FileManagementResult<ClassificationRules> {
         // Check cache first
         if let Some(cached_rules) = self.rule_cache.get(file_path) {
             debug!("Using cached rules from file: {}", file_path);
@@ -54,63 +56,80 @@ impl RuleConfigLoader {
         if !path.is_file() {
             return Err(FileManagementError::invalid_path(
                 path,
-                "Path is not a file"
+                "Path is not a file",
             ));
         }
 
         // Read and parse file
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| FileManagementError::io(
-                format!("Failed to read rules file: {}", file_path), e
-            ))?;
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            FileManagementError::io(format!("Failed to read rules file: {}", file_path), e)
+        })?;
 
-        let rules_value: Value = serde_json::from_str(&content)
-            .map_err(|e| FileManagementError::validation(
-                format!("Invalid JSON in rules file '{}': {}", file_path, e)
-            ))?;
+        let rules_value: Value = serde_json::from_str(&content).map_err(|e| {
+            FileManagementError::validation(format!(
+                "Invalid JSON in rules file '{}': {}",
+                file_path, e
+            ))
+        })?;
 
         let rules = self.load_rules_from_json(&rules_value)?;
 
         // Cache the loaded rules
         self.rule_cache.insert(file_path.to_string(), rules.clone());
-        
-        info!("Loaded {} classification rules from file: {}", rules.rules.len(), file_path);
+
+        info!(
+            "Loaded {} classification rules from file: {}",
+            rules.rules.len(),
+            file_path
+        );
         Ok(rules)
     }
 
     /// Load rules from a JSON value
-    pub fn load_rules_from_json(&self, rules_value: &Value) -> FileManagementResult<ClassificationRules> {
+    pub fn load_rules_from_json(
+        &self,
+        rules_value: &Value,
+    ) -> FileManagementResult<ClassificationRules> {
         // Parse the JSON into ClassificationRules
-        let mut rules: ClassificationRules = serde_json::from_value(rules_value.clone())
-            .map_err(|e| FileManagementError::validation(
-                format!("Invalid classification rules format: {}", e)
-            ))?;
+        let mut rules: ClassificationRules =
+            serde_json::from_value(rules_value.clone()).map_err(|e| {
+                FileManagementError::validation(format!(
+                    "Invalid classification rules format: {}",
+                    e
+                ))
+            })?;
 
         // Validate and process the rules
         self.validate_and_process_rules(&mut rules)?;
 
-        debug!("Loaded {} classification rules from JSON", rules.rules.len());
+        debug!(
+            "Loaded {} classification rules from JSON",
+            rules.rules.len()
+        );
         Ok(rules)
     }
 
     /// Validate and process classification rules
-    fn validate_and_process_rules(&self, rules: &mut ClassificationRules) -> FileManagementResult<()> {
+    fn validate_and_process_rules(
+        &self,
+        rules: &mut ClassificationRules,
+    ) -> FileManagementResult<()> {
         if rules.rules.is_empty() {
             return Err(FileManagementError::validation(
-                "At least one classification rule is required"
+                "At least one classification rule is required",
             ));
         }
 
         // Validate thresholds
         if rules.min_confidence_threshold < 0.0 || rules.min_confidence_threshold > 1.0 {
             return Err(FileManagementError::validation(
-                "min_confidence_threshold must be between 0.0 and 1.0"
+                "min_confidence_threshold must be between 0.0 and 1.0",
             ));
         }
 
         if rules.ambiguity_threshold < 0.0 || rules.ambiguity_threshold > 1.0 {
             return Err(FileManagementError::validation(
-                "ambiguity_threshold must be between 0.0 and 1.0"
+                "ambiguity_threshold must be between 0.0 and 1.0",
             ));
         }
 
@@ -123,19 +142,25 @@ impl RuleConfigLoader {
     }
 
     /// Validate and process a single classification rule
-    fn validate_and_process_rule(&self, rule: &mut ClassificationRule, index: usize) -> FileManagementResult<()> {
+    fn validate_and_process_rule(
+        &self,
+        rule: &mut ClassificationRule,
+        index: usize,
+    ) -> FileManagementResult<()> {
         // Validate category name
         if rule.category.trim().is_empty() {
-            return Err(FileManagementError::validation(
-                format!("Rule {}: category cannot be empty", index)
-            ));
+            return Err(FileManagementError::validation(format!(
+                "Rule {}: category cannot be empty",
+                index
+            )));
         }
 
         // Validate keywords
         if rule.keywords.is_empty() {
-            return Err(FileManagementError::validation(
-                format!("Rule {}: at least one keyword is required", index)
-            ));
+            return Err(FileManagementError::validation(format!(
+                "Rule {}: at least one keyword is required",
+                index
+            )));
         }
 
         // Process and validate keywords
@@ -143,9 +168,10 @@ impl RuleConfigLoader {
         for (keyword_index, keyword) in rule.keywords.iter().enumerate() {
             let trimmed = keyword.trim();
             if trimmed.is_empty() {
-                return Err(FileManagementError::validation(
-                    format!("Rule {}, keyword {}: keyword cannot be empty", index, keyword_index)
-                ));
+                return Err(FileManagementError::validation(format!(
+                    "Rule {}, keyword {}: keyword cannot be empty",
+                    index, keyword_index
+                )));
             }
 
             processed_keywords.push(trimmed.to_string());
@@ -163,9 +189,10 @@ impl RuleConfigLoader {
 
         // Validate score weight
         if rule.score_weight <= 0.0 {
-            return Err(FileManagementError::validation(
-                format!("Rule {}: score_weight must be positive", index)
-            ));
+            return Err(FileManagementError::validation(format!(
+                "Rule {}: score_weight must be positive",
+                index
+            )));
         }
 
         Ok(())

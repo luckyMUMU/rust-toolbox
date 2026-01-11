@@ -1,18 +1,16 @@
 //! Complete TUI Application Example
-//! 
+//!
 //! This example demonstrates the complete TUI application with all widgets
 //! integrated and working together.
 
-use workflow_toolkit::interfaces::tui::{MainTuiInterface, TuiInterface};
 use workflow_toolkit::error::Result;
+use workflow_toolkit::interfaces::tui::{MainTuiInterface, TuiInterface};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter("debug")
-        .init();
-    
+    tracing_subscriber::fmt().with_env_filter("debug").init();
+
     println!("Starting Complete TUI Application Example");
     println!("=========================================");
     println!();
@@ -28,23 +26,23 @@ async fn main() -> Result<()> {
     println!("Use Ctrl+Q to quit");
     println!();
     println!("Press Enter to start the TUI application...");
-    
+
     // Wait for user input
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
-    
+
     // Create and initialize TUI interface
     let mut tui_interface = MainTuiInterface::new();
-    
+
     println!("Initializing TUI application...");
     if let Err(e) = tui_interface.initialize().await {
         eprintln!("Failed to initialize TUI: {}", e);
         return Err(e);
     }
-    
+
     println!("TUI application initialized successfully!");
     println!("Starting TUI interface...");
-    
+
     // Start the TUI application
     match tui_interface.start().await {
         Ok(()) => {
@@ -55,7 +53,7 @@ async fn main() -> Result<()> {
             return Err(e);
         }
     }
-    
+
     println!("TUI application example completed");
     Ok(())
 }

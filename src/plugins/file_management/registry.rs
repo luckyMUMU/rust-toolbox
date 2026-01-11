@@ -1,16 +1,16 @@
 //! Tool registration framework for file management plugin
 
-use crate::core::{PluginInfo, ToolInfo, ExecutionContext};
-use crate::error::{Result, WorkflowError};
-use crate::tools::{ToolNode, BasicTool, BasicToolBuilder, ToolExecutor};
+use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
 use super::error::{FileManagementError, FileManagementResult};
 use super::plugin::FileManagementConfig;
-use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
+use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::error::{Result, WorkflowError};
+use crate::tools::{BasicTool, BasicToolBuilder, ToolExecutor, ToolNode};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// Registry for file management tools
 pub struct FileManagementToolRegistry {
@@ -97,8 +97,9 @@ impl FileManagementToolRegistry {
         );
 
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("text-processor".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("text-processor".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -111,7 +112,11 @@ impl FileManagementToolRegistry {
             version: "1.0.0".to_string(),
             description: "Aho-Corasick multi-pattern string matching".to_string(),
             category: Some("pattern-matching".to_string()),
-            tags: vec!["pattern".to_string(), "matching".to_string(), "aho-corasick".to_string()],
+            tags: vec![
+                "pattern".to_string(),
+                "matching".to_string(),
+                "aho-corasick".to_string(),
+            ],
             parameters_schema: json!({
                 "type": "object",
                 "properties": {
@@ -169,8 +174,9 @@ impl FileManagementToolRegistry {
             .build()?;
 
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("ac-matcher".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("ac-matcher".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -184,8 +190,9 @@ impl FileManagementToolRegistry {
         );
 
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("folder-classifier".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("folder-classifier".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -254,8 +261,9 @@ impl FileManagementToolRegistry {
             .build()?;
 
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("file-mover".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("file-mover".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -268,7 +276,11 @@ impl FileManagementToolRegistry {
             version: "1.0.0".to_string(),
             description: "Intelligent folder merging with duplicate handling".to_string(),
             category: Some("file-operations".to_string()),
-            tags: vec!["folder".to_string(), "merge".to_string(), "duplicate".to_string()],
+            tags: vec![
+                "folder".to_string(),
+                "merge".to_string(),
+                "duplicate".to_string(),
+            ],
             parameters_schema: json!({
                 "type": "object",
                 "properties": {
@@ -358,8 +370,9 @@ impl FileManagementToolRegistry {
             .build()?;
 
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("folder-merger".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("folder-merger".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -374,8 +387,9 @@ impl FileManagementToolRegistry {
 
         let tool = batch_tool.create_tool()?;
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("batch-processor".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("batch-processor".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -389,8 +403,9 @@ impl FileManagementToolRegistry {
         )?;
 
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("human-decision".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("human-decision".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -400,8 +415,9 @@ impl FileManagementToolRegistry {
 
         let tool = super::result_review_tool::ResultReviewTool::with_default_config();
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("result-reviewer".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("result-reviewer".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -411,8 +427,9 @@ impl FileManagementToolRegistry {
 
         let tool = super::batch_confirmation_tool::BatchConfirmationTool::with_default_config();
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("batch-confirmer".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("batch-confirmer".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -422,8 +439,9 @@ impl FileManagementToolRegistry {
 
         let tool = super::result_confirmation_tool::ResultConfirmationTool::with_default_config();
         let tool_arc = Arc::new(tool);
-        self.registered_tools.insert("result-confirmer".to_string(), tool_arc.clone());
-        
+        self.registered_tools
+            .insert("result-confirmer".to_string(), tool_arc.clone());
+
         Ok(tool_arc)
     }
 
@@ -462,12 +480,22 @@ impl AcMatcherExecutor {
             let pattern_str = pattern_obj
                 .get("pattern")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| WorkflowError::validation(format!("patterns[{}].pattern must be a string", index)))?;
+                .ok_or_else(|| {
+                    WorkflowError::validation(format!(
+                        "patterns[{}].pattern must be a string",
+                        index
+                    ))
+                })?;
 
             let category = pattern_obj
                 .get("category")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| WorkflowError::validation(format!("patterns[{}].category must be a string", index)))?;
+                .ok_or_else(|| {
+                    WorkflowError::validation(format!(
+                        "patterns[{}].category must be a string",
+                        index
+                    ))
+                })?;
 
             let score = pattern_obj
                 .get("score")
@@ -481,7 +509,12 @@ impl AcMatcherExecutor {
     }
 
     /// Build automaton from patterns
-    fn build_automaton(&self, patterns: Vec<Pattern>, case_sensitive: bool, find_overlapping: bool) -> Result<AhoCorasickMatcher> {
+    fn build_automaton(
+        &self,
+        patterns: Vec<Pattern>,
+        case_sensitive: bool,
+        find_overlapping: bool,
+    ) -> Result<AhoCorasickMatcher> {
         let config = AutomatonConfig {
             case_sensitive,
             find_overlapping,
@@ -495,11 +528,18 @@ impl AcMatcherExecutor {
         for pattern in patterns {
             matcher
                 .add_pattern(&pattern.pattern, &pattern.category, pattern.score)
-                .map_err(|e| WorkflowError::tool(format!("Failed to add pattern '{}': {}", pattern.pattern, e)))?;
+                .map_err(|e| {
+                    WorkflowError::tool(format!(
+                        "Failed to add pattern '{}': {}",
+                        pattern.pattern, e
+                    ))
+                })?;
         }
 
         // Build the automaton
-        matcher.build().map_err(|e| WorkflowError::tool(format!("Failed to build automaton: {}", e)))?;
+        matcher
+            .build()
+            .map_err(|e| WorkflowError::tool(format!("Failed to build automaton: {}", e)))?;
 
         Ok(matcher)
     }
@@ -532,7 +572,7 @@ impl AcMatcherExecutor {
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .collect();
-        
+
         categories.sort();
         categories
     }
@@ -554,10 +594,9 @@ impl ToolExecutor for AcMatcherExecutor {
         }
 
         // Extract parameters
-        let text = params
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| WorkflowError::validation("text parameter is required and must be a string"))?;
+        let text = params.get("text").and_then(|v| v.as_str()).ok_or_else(|| {
+            WorkflowError::validation("text parameter is required and must be a string")
+        })?;
 
         let patterns_value = params
             .get("patterns")
@@ -575,7 +614,7 @@ impl ToolExecutor for AcMatcherExecutor {
 
         // Parse patterns
         let patterns = self.parse_patterns(patterns_value)?;
-        
+
         if patterns.is_empty() {
             return Ok(json!({
                 "matches": [],
@@ -596,8 +635,11 @@ impl ToolExecutor for AcMatcherExecutor {
 
         // In experimental mode, log what would be done
         if experimental_mode {
-            debug!("Experimental mode: Would build automaton with {} patterns for text of length {}", 
-                   patterns.len(), text.chars().count());
+            debug!(
+                "Experimental mode: Would build automaton with {} patterns for text of length {}",
+                patterns.len(),
+                text.chars().count()
+            );
             debug!("Experimental mode: Would search for patterns with case_sensitive={}, find_overlapping={}", 
                    case_sensitive, find_overlapping);
         }
@@ -610,12 +652,19 @@ impl ToolExecutor for AcMatcherExecutor {
             matcher.find_overlapping_matches(text)
         } else {
             matcher.find_matches(text)
-        }.map_err(|e| WorkflowError::tool(format!("Failed to find matches: {}", e)))?;
+        }
+        .map_err(|e| WorkflowError::tool(format!("Failed to find matches: {}", e)))?;
 
-        debug!("Found {} matches in text of length {}", matches.len(), text.chars().count());
+        debug!(
+            "Found {} matches in text of length {}",
+            matches.len(),
+            text.chars().count()
+        );
 
         // Get statistics
-        let statistics = matcher.get_match_statistics(text).map_err(|e| WorkflowError::tool(format!("Failed to get match statistics: {}", e)))?;
+        let statistics = matcher
+            .get_match_statistics(text)
+            .map_err(|e| WorkflowError::tool(format!("Failed to get match statistics: {}", e)))?;
 
         // Prepare response
         let categories_found = self.get_categories_found(&matches);
@@ -641,24 +690,36 @@ impl ToolExecutor for AcMatcherExecutor {
         });
 
         if experimental_mode {
-            info!("AC matcher experimental mode completed: {} matches would be found", statistics.total_matches);
+            info!(
+                "AC matcher experimental mode completed: {} matches would be found",
+                statistics.total_matches
+            );
         } else {
-            info!("AC matcher completed successfully: {} matches found", statistics.total_matches);
+            info!(
+                "AC matcher completed successfully: {} matches found",
+                statistics.total_matches
+            );
         }
-        
+
         Ok(response)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         // Validate text parameter
         if !params.get("text").and_then(|v| v.as_str()).is_some() {
-            return Err(WorkflowError::validation("text parameter is required and must be a string"));
+            return Err(WorkflowError::validation(
+                "text parameter is required and must be a string",
+            ));
         }
 
         // Validate patterns parameter
-        let patterns_value = params.get("patterns").ok_or_else(|| WorkflowError::validation("patterns parameter is required"))?;
+        let patterns_value = params
+            .get("patterns")
+            .ok_or_else(|| WorkflowError::validation("patterns parameter is required"))?;
 
-        let patterns_array = patterns_value.as_array().ok_or_else(|| WorkflowError::validation("patterns must be an array"))?;
+        let patterns_array = patterns_value
+            .as_array()
+            .ok_or_else(|| WorkflowError::validation("patterns must be an array"))?;
 
         if patterns_array.is_empty() {
             return Err(WorkflowError::validation("patterns array cannot be empty"));
@@ -667,22 +728,42 @@ impl ToolExecutor for AcMatcherExecutor {
         // Validate each pattern
         for (index, pattern_obj) in patterns_array.iter().enumerate() {
             if !pattern_obj.is_object() {
-                return Err(WorkflowError::validation(format!("patterns[{}] must be an object", index)));
+                return Err(WorkflowError::validation(format!(
+                    "patterns[{}] must be an object",
+                    index
+                )));
             }
 
             // Check required fields
-            if !pattern_obj.get("pattern").and_then(|v| v.as_str()).is_some() {
-                return Err(WorkflowError::validation(format!("patterns[{}].pattern is required and must be a string", index)));
+            if !pattern_obj
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .is_some()
+            {
+                return Err(WorkflowError::validation(format!(
+                    "patterns[{}].pattern is required and must be a string",
+                    index
+                )));
             }
 
-            if !pattern_obj.get("category").and_then(|v| v.as_str()).is_some() {
-                return Err(WorkflowError::validation(format!("patterns[{}].category is required and must be a string", index)));
+            if !pattern_obj
+                .get("category")
+                .and_then(|v| v.as_str())
+                .is_some()
+            {
+                return Err(WorkflowError::validation(format!(
+                    "patterns[{}].category is required and must be a string",
+                    index
+                )));
             }
 
             // Validate optional score field
             if let Some(score_value) = pattern_obj.get("score") {
                 if !score_value.is_number() {
-                    return Err(WorkflowError::validation(format!("patterns[{}].score must be a number", index)));
+                    return Err(WorkflowError::validation(format!(
+                        "patterns[{}].score must be a number",
+                        index
+                    )));
                 }
             }
         }
@@ -690,19 +771,25 @@ impl ToolExecutor for AcMatcherExecutor {
         // Validate optional boolean parameters
         if let Some(case_sensitive) = params.get("case_sensitive") {
             if !case_sensitive.is_boolean() {
-                return Err(WorkflowError::validation("case_sensitive must be a boolean"));
+                return Err(WorkflowError::validation(
+                    "case_sensitive must be a boolean",
+                ));
             }
         }
 
         if let Some(find_overlapping) = params.get("find_overlapping") {
             if !find_overlapping.is_boolean() {
-                return Err(WorkflowError::validation("find_overlapping must be a boolean"));
+                return Err(WorkflowError::validation(
+                    "find_overlapping must be a boolean",
+                ));
             }
         }
 
         if let Some(experimental_mode) = params.get("experimental_mode") {
             if !experimental_mode.is_boolean() {
-                return Err(WorkflowError::validation("experimental_mode must be a boolean"));
+                return Err(WorkflowError::validation(
+                    "experimental_mode must be a boolean",
+                ));
             }
         }
 
@@ -721,7 +808,10 @@ impl FileMoverExecutor {
     }
 
     /// Parse file operations from parameters
-    fn parse_operations(&self, operations_value: &Value) -> Result<Vec<(String, String, super::utils::FileOperationType)>> {
+    fn parse_operations(
+        &self,
+        operations_value: &Value,
+    ) -> Result<Vec<(String, String, super::utils::FileOperationType)>> {
         let operations_array = operations_value
             .as_array()
             .ok_or_else(|| WorkflowError::validation("operations must be an array"))?;
@@ -729,19 +819,29 @@ impl FileMoverExecutor {
         let mut operations = Vec::new();
 
         for (index, op_obj) in operations_array.iter().enumerate() {
-            let op_obj = op_obj
-                .as_object()
-                .ok_or_else(|| WorkflowError::validation(format!("operations[{}] must be an object", index)))?;
+            let op_obj = op_obj.as_object().ok_or_else(|| {
+                WorkflowError::validation(format!("operations[{}] must be an object", index))
+            })?;
 
             let source = op_obj
                 .get("source")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| WorkflowError::validation(format!("operations[{}].source is required and must be a string", index)))?;
+                .ok_or_else(|| {
+                    WorkflowError::validation(format!(
+                        "operations[{}].source is required and must be a string",
+                        index
+                    ))
+                })?;
 
             let destination = op_obj
                 .get("destination")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| WorkflowError::validation(format!("operations[{}].destination is required and must be a string", index)))?;
+                .ok_or_else(|| {
+                    WorkflowError::validation(format!(
+                        "operations[{}].destination is required and must be a string",
+                        index
+                    ))
+                })?;
 
             let operation_type_str = op_obj
                 .get("operation_type")
@@ -753,10 +853,12 @@ impl FileMoverExecutor {
                 "Copy" => super::utils::FileOperationType::Copy,
                 "Link" => super::utils::FileOperationType::Link,
                 "HardLink" => super::utils::FileOperationType::HardLink,
-                _ => return Err(WorkflowError::validation(format!(
-                    "operations[{}].operation_type must be one of: Move, Copy, Link, HardLink", 
-                    index
-                ))),
+                _ => {
+                    return Err(WorkflowError::validation(format!(
+                        "operations[{}].operation_type must be one of: Move, Copy, Link, HardLink",
+                        index
+                    )))
+                }
             };
 
             operations.push((source.to_string(), destination.to_string(), operation_type));
@@ -843,12 +945,17 @@ impl ToolExecutor for FileMoverExecutor {
         );
 
         // Perform preflight check
-        let operations_for_preflight: Vec<(PathBuf, PathBuf, super::utils::FileOperationType)> = operations
-            .iter()
-            .map(|(source, destination, op_type)| {
-                (PathBuf::from(source), PathBuf::from(destination), op_type.clone())
-            })
-            .collect();
+        let operations_for_preflight: Vec<(PathBuf, PathBuf, super::utils::FileOperationType)> =
+            operations
+                .iter()
+                .map(|(source, destination, op_type)| {
+                    (
+                        PathBuf::from(source),
+                        PathBuf::from(destination),
+                        op_type.clone(),
+                    )
+                })
+                .collect();
 
         let preflight_result = file_manager.preflight_check(&operations_for_preflight)?;
 
@@ -875,7 +982,10 @@ impl ToolExecutor for FileMoverExecutor {
 
         // Execute operations
         for (source, destination, operation_type) in operations {
-            debug!("Executing {:?} operation: {} -> {}", operation_type, source, destination);
+            debug!(
+                "Executing {:?} operation: {} -> {}",
+                operation_type, source, destination
+            );
 
             let result = match operation_type {
                 super::utils::FileOperationType::Move => {
@@ -896,7 +1006,10 @@ impl ToolExecutor for FileMoverExecutor {
                 Ok(op_result) => {
                     operations_completed += 1;
                     total_bytes_moved += op_result.bytes_moved;
-                    debug!("Operation completed successfully: {} bytes moved", op_result.bytes_moved);
+                    debug!(
+                        "Operation completed successfully: {} bytes moved",
+                        op_result.bytes_moved
+                    );
                 }
                 Err(e) => {
                     operations_failed += 1;
@@ -945,26 +1058,28 @@ impl ToolExecutor for FileMoverExecutor {
             .ok_or_else(|| WorkflowError::validation("operations must be an array"))?;
 
         if operations_array.is_empty() {
-            return Err(WorkflowError::validation("operations array cannot be empty"));
+            return Err(WorkflowError::validation(
+                "operations array cannot be empty",
+            ));
         }
 
         // Validate each operation
         for (index, op_obj) in operations_array.iter().enumerate() {
-            let op_obj = op_obj
-                .as_object()
-                .ok_or_else(|| WorkflowError::validation(format!("operations[{}] must be an object", index)))?;
+            let op_obj = op_obj.as_object().ok_or_else(|| {
+                WorkflowError::validation(format!("operations[{}] must be an object", index))
+            })?;
 
             // Check required fields
             if !op_obj.get("source").and_then(|v| v.as_str()).is_some() {
                 return Err(WorkflowError::validation(format!(
-                    "operations[{}].source is required and must be a string", 
+                    "operations[{}].source is required and must be a string",
                     index
                 )));
             }
 
             if !op_obj.get("destination").and_then(|v| v.as_str()).is_some() {
                 return Err(WorkflowError::validation(format!(
-                    "operations[{}].destination is required and must be a string", 
+                    "operations[{}].destination is required and must be a string",
                     index
                 )));
             }
@@ -980,7 +1095,7 @@ impl ToolExecutor for FileMoverExecutor {
                     }
                 } else {
                     return Err(WorkflowError::validation(format!(
-                        "operations[{}].operation_type must be a string", 
+                        "operations[{}].operation_type must be a string",
                         index
                     )));
                 }
@@ -990,25 +1105,42 @@ impl ToolExecutor for FileMoverExecutor {
         // Validate optional parameters
         if let Some(conflict_resolution) = params.get("conflict_resolution") {
             if let Some(conflict_str) = conflict_resolution.as_str() {
-                if !matches!(conflict_str, "Skip" | "Overwrite" | "Rename" | "Fail" | "Ask" | "Merge" | "KeepBoth" | "KeepNewer" | "KeepLarger") {
+                if !matches!(
+                    conflict_str,
+                    "Skip"
+                        | "Overwrite"
+                        | "Rename"
+                        | "Fail"
+                        | "Ask"
+                        | "Merge"
+                        | "KeepBoth"
+                        | "KeepNewer"
+                        | "KeepLarger"
+                ) {
                     return Err(WorkflowError::validation(
                         "conflict_resolution must be one of: Skip, Overwrite, Rename, Fail, Ask, Merge, KeepBoth, KeepNewer, KeepLarger"
                     ));
                 }
             } else {
-                return Err(WorkflowError::validation("conflict_resolution must be a string"));
+                return Err(WorkflowError::validation(
+                    "conflict_resolution must be a string",
+                ));
             }
         }
 
         if let Some(check_disk_space) = params.get("check_disk_space") {
             if !check_disk_space.is_boolean() {
-                return Err(WorkflowError::validation("check_disk_space must be a boolean"));
+                return Err(WorkflowError::validation(
+                    "check_disk_space must be a boolean",
+                ));
             }
         }
 
         if let Some(create_directories) = params.get("create_directories") {
             if !create_directories.is_boolean() {
-                return Err(WorkflowError::validation("create_directories must be a boolean"));
+                return Err(WorkflowError::validation(
+                    "create_directories must be a boolean",
+                ));
             }
         }
 
@@ -1070,17 +1202,16 @@ impl FolderMergerExecutor {
             .ok_or_else(|| WorkflowError::validation("source_directories must be an array"))?;
 
         if directories_array.is_empty() {
-            return Err(WorkflowError::validation("source_directories array cannot be empty"));
+            return Err(WorkflowError::validation(
+                "source_directories array cannot be empty",
+            ));
         }
 
         let mut directories = Vec::new();
         for (index, dir_value) in directories_array.iter().enumerate() {
-            let dir_str = dir_value
-                .as_str()
-                .ok_or_else(|| WorkflowError::validation(format!(
-                    "source_directories[{}] must be a string", 
-                    index
-                )))?;
+            let dir_str = dir_value.as_str().ok_or_else(|| {
+                WorkflowError::validation(format!("source_directories[{}] must be a string", index))
+            })?;
             directories.push(dir_str.to_string());
         }
 
@@ -1088,10 +1219,14 @@ impl FolderMergerExecutor {
     }
 
     /// Create folder merger configuration from parameters
-    fn create_merger_config(&self, params: &Value, experimental_mode: bool) -> super::utils::FolderMergerConfig {
+    fn create_merger_config(
+        &self,
+        params: &Value,
+        experimental_mode: bool,
+    ) -> super::utils::FolderMergerConfig {
         let merge_strategy = self.parse_merge_strategy(params);
         let duplicate_handling = self.parse_duplicate_handling(params);
-        
+
         let max_recursion_depth = params
             .get("max_recursion_depth")
             .and_then(|v| v.as_u64())
@@ -1133,10 +1268,13 @@ impl ToolExecutor for FolderMergerExecutor {
         let folder_merger = super::utils::FolderMerger::with_config(merger_config);
 
         // Perform folder comparison
-        debug!("Comparing folders across {} source directories", source_directories.len());
-        let comparison_result = folder_merger.compare_folders(&source_directories).map_err(|e| {
-            WorkflowError::tool(format!("Failed to compare folders: {}", e))
-        })?;
+        debug!(
+            "Comparing folders across {} source directories",
+            source_directories.len()
+        );
+        let comparison_result = folder_merger
+            .compare_folders(&source_directories)
+            .map_err(|e| WorkflowError::tool(format!("Failed to compare folders: {}", e)))?;
 
         debug!(
             "Folder comparison complete: {} common folders, {} unique folders",
@@ -1157,17 +1295,23 @@ impl ToolExecutor for FolderMergerExecutor {
         // Create file operation manager for merge operations
         let file_operation_manager = super::utils::FileOperationManager::with_config(
             self.config.temp_directory.clone(),
-            experimental_mode, // dry_run mode
+            experimental_mode,                       // dry_run mode
             super::utils::ConflictResolution::Merge, // Use merge resolution for folder operations
-            true, // create_directories
-            true, // check_disk_space
+            true,                                    // create_directories
+            true,                                    // check_disk_space
         );
 
         // Execute merge operations
-        debug!("Executing merge operations for {} common folders", comparison_result.common_folders.len());
-        let merge_result = folder_merger.execute_merge_operations(&comparison_result, &file_operation_manager).await.map_err(|e| {
-            WorkflowError::tool(format!("Failed to execute merge operations: {}", e))
-        })?;
+        debug!(
+            "Executing merge operations for {} common folders",
+            comparison_result.common_folders.len()
+        );
+        let merge_result = folder_merger
+            .execute_merge_operations(&comparison_result, &file_operation_manager)
+            .await
+            .map_err(|e| {
+                WorkflowError::tool(format!("Failed to execute merge operations: {}", e))
+            })?;
 
         info!(
             "Folder merger completed: {} folders merged, {} operations performed, {} bytes moved in {}ms",
@@ -1198,14 +1342,16 @@ impl ToolExecutor for FolderMergerExecutor {
             .ok_or_else(|| WorkflowError::validation("source_directories must be an array"))?;
 
         if directories_array.is_empty() {
-            return Err(WorkflowError::validation("source_directories array cannot be empty"));
+            return Err(WorkflowError::validation(
+                "source_directories array cannot be empty",
+            ));
         }
 
         // Validate each directory path
         for (index, dir_value) in directories_array.iter().enumerate() {
             if !dir_value.is_string() {
                 return Err(WorkflowError::validation(format!(
-                    "source_directories[{}] must be a string", 
+                    "source_directories[{}] must be a string",
                     index
                 )));
             }
@@ -1214,9 +1360,12 @@ impl ToolExecutor for FolderMergerExecutor {
         // Validate optional merge_strategy parameter
         if let Some(strategy) = params.get("merge_strategy") {
             if let Some(strategy_str) = strategy.as_str() {
-                if !matches!(strategy_str, "SizeBased" | "DateBased" | "Manual" | "Intelligent") {
+                if !matches!(
+                    strategy_str,
+                    "SizeBased" | "DateBased" | "Manual" | "Intelligent"
+                ) {
                     return Err(WorkflowError::validation(
-                        "merge_strategy must be one of: SizeBased, DateBased, Manual, Intelligent"
+                        "merge_strategy must be one of: SizeBased, DateBased, Manual, Intelligent",
                     ));
                 }
             } else {
@@ -1227,24 +1376,33 @@ impl ToolExecutor for FolderMergerExecutor {
         // Validate optional duplicate_handling parameter
         if let Some(handling) = params.get("duplicate_handling") {
             if let Some(handling_str) = handling.as_str() {
-                if !matches!(handling_str, "Skip" | "Rename" | "KeepNewer" | "KeepLarger" | "Merge") {
+                if !matches!(
+                    handling_str,
+                    "Skip" | "Rename" | "KeepNewer" | "KeepLarger" | "Merge"
+                ) {
                     return Err(WorkflowError::validation(
                         "duplicate_handling must be one of: Skip, Rename, KeepNewer, KeepLarger, Merge"
                     ));
                 }
             } else {
-                return Err(WorkflowError::validation("duplicate_handling must be a string"));
+                return Err(WorkflowError::validation(
+                    "duplicate_handling must be a string",
+                ));
             }
         }
 
         // Validate optional numeric parameters
         if let Some(depth) = params.get("max_recursion_depth") {
             if !depth.is_number() {
-                return Err(WorkflowError::validation("max_recursion_depth must be a number"));
+                return Err(WorkflowError::validation(
+                    "max_recursion_depth must be a number",
+                ));
             }
             if let Some(depth_val) = depth.as_u64() {
                 if depth_val == 0 || depth_val > 100 {
-                    return Err(WorkflowError::validation("max_recursion_depth must be between 1 and 100"));
+                    return Err(WorkflowError::validation(
+                        "max_recursion_depth must be between 1 and 100",
+                    ));
                 }
             }
         }
@@ -1252,17 +1410,23 @@ impl ToolExecutor for FolderMergerExecutor {
         if let Some(threshold) = params.get("min_confidence_threshold") {
             if let Some(threshold_val) = threshold.as_f64() {
                 if threshold_val < 0.0 || threshold_val > 1.0 {
-                    return Err(WorkflowError::validation("min_confidence_threshold must be between 0.0 and 1.0"));
+                    return Err(WorkflowError::validation(
+                        "min_confidence_threshold must be between 0.0 and 1.0",
+                    ));
                 }
             } else {
-                return Err(WorkflowError::validation("min_confidence_threshold must be a number"));
+                return Err(WorkflowError::validation(
+                    "min_confidence_threshold must be a number",
+                ));
             }
         }
 
         // Validate optional boolean parameters
         if let Some(experimental) = params.get("experimental_mode") {
             if !experimental.is_boolean() {
-                return Err(WorkflowError::validation("experimental_mode must be a boolean"));
+                return Err(WorkflowError::validation(
+                    "experimental_mode must be a boolean",
+                ));
             }
         }
 
@@ -1285,9 +1449,13 @@ impl PlaceholderExecutor {
 
 #[async_trait::async_trait]
 impl ToolExecutor for PlaceholderExecutor {
-    async fn execute(&self, params: Value, _context: crate::core::ExecutionContext) -> Result<Value> {
+    async fn execute(
+        &self,
+        params: Value,
+        _context: crate::core::ExecutionContext,
+    ) -> Result<Value> {
         warn!("Placeholder executor called for tool: {}", self.tool_name);
-        
+
         // Return a placeholder response indicating the tool is not yet implemented
         Ok(json!({
             "status": "not_implemented",
@@ -1333,7 +1501,7 @@ mod tests {
         let config = create_test_config();
         let plugin_info = create_test_plugin_info();
         let registry = FileManagementToolRegistry::new(config, plugin_info);
-        
+
         assert_eq!(registry.tool_count(), 0);
     }
 
@@ -1342,10 +1510,10 @@ mod tests {
         let config = create_test_config();
         let plugin_info = create_test_plugin_info();
         let mut registry = FileManagementToolRegistry::new(config, plugin_info);
-        
+
         let result = registry.register_all_tools();
         assert!(result.is_ok());
-        
+
         let tools = result.unwrap();
         assert!(tools.len() > 0);
         assert_eq!(registry.tool_count(), tools.len());
@@ -1356,15 +1524,15 @@ mod tests {
         let config = create_test_config();
         let plugin_info = create_test_plugin_info();
         let mut registry = FileManagementToolRegistry::new(config, plugin_info);
-        
+
         // Test text processor registration
         let result = registry.register_text_processor_tool();
         assert!(result.is_ok());
-        
+
         let tool = result.unwrap();
         assert_eq!(tool.name(), "text-processor");
         assert_eq!(tool.version(), "1.0.0");
-        
+
         // Test tool retrieval
         let retrieved_tool = registry.get_tool("text-processor");
         assert!(retrieved_tool.is_some());
@@ -1375,10 +1543,10 @@ mod tests {
         let executor = PlaceholderExecutor::new("test-tool");
         let context = crate::core::ExecutionContext::new();
         let params = json!({"test": "value"});
-        
+
         let result = executor.execute(params.clone(), context).await;
         assert!(result.is_ok());
-        
+
         let response = result.unwrap();
         assert_eq!(response["status"], "not_implemented");
         assert_eq!(response["tool_name"], "test-tool");
@@ -1389,7 +1557,7 @@ mod tests {
     async fn test_ac_matcher_executor() {
         let executor = AcMatcherExecutor::new();
         let context = crate::core::ExecutionContext::new();
-        
+
         let params = json!({
             "text": "hello world test hello",
             "patterns": [
@@ -1400,16 +1568,16 @@ mod tests {
             "case_sensitive": false,
             "find_overlapping": false
         });
-        
+
         let result = executor.execute(params, context).await;
         assert!(result.is_ok());
-        
+
         let response = result.unwrap();
         assert_eq!(response["total_matches"], 4); // hello appears twice
         assert!(response["matches"].is_array());
         assert!(response["categories_found"].is_array());
         assert!(response["statistics"].is_object());
-        
+
         let categories = response["categories_found"].as_array().unwrap();
         assert!(categories.contains(&json!("greeting")));
         assert!(categories.contains(&json!("noun")));
@@ -1420,7 +1588,7 @@ mod tests {
     async fn test_ac_matcher_executor_overlapping() {
         let executor = AcMatcherExecutor::new();
         let context = crate::core::ExecutionContext::new();
-        
+
         let params = json!({
             "text": "abcde",
             "patterns": [
@@ -1430,10 +1598,10 @@ mod tests {
             ],
             "find_overlapping": true
         });
-        
+
         let result = executor.execute(params, context).await;
         assert!(result.is_ok());
-        
+
         let response = result.unwrap();
         assert_eq!(response["total_matches"], 3); // All three overlapping patterns
     }
@@ -1441,21 +1609,21 @@ mod tests {
     #[tokio::test]
     async fn test_ac_matcher_executor_validation() {
         let executor = AcMatcherExecutor::new();
-        
+
         // Test missing text parameter
         let params = json!({
             "patterns": [{"pattern": "test", "category": "test"}]
         });
         let result = executor.validate_parameters(&params);
         assert!(result.is_err());
-        
+
         // Test missing patterns parameter
         let params = json!({
             "text": "test"
         });
         let result = executor.validate_parameters(&params);
         assert!(result.is_err());
-        
+
         // Test empty patterns array
         let params = json!({
             "text": "test",
@@ -1463,7 +1631,7 @@ mod tests {
         });
         let result = executor.validate_parameters(&params);
         assert!(result.is_err());
-        
+
         // Test invalid pattern object
         let params = json!({
             "text": "test",
@@ -1471,7 +1639,7 @@ mod tests {
         });
         let result = executor.validate_parameters(&params);
         assert!(result.is_err());
-        
+
         // Test valid parameters
         let params = json!({
             "text": "test",
@@ -1485,7 +1653,7 @@ mod tests {
     async fn test_ac_matcher_executor_unicode() {
         let executor = AcMatcherExecutor::new();
         let context = crate::core::ExecutionContext::new();
-        
+
         let params = json!({
             "text": "hello测试world",
             "patterns": [
@@ -1494,13 +1662,13 @@ mod tests {
                 {"pattern": "world", "category": "english"}
             ]
         });
-        
+
         let result = executor.execute(params, context).await;
         assert!(result.is_ok());
-        
+
         let response = result.unwrap();
         assert_eq!(response["total_matches"], 3);
-        
+
         let categories = response["categories_found"].as_array().unwrap();
         assert!(categories.contains(&json!("english")));
         assert!(categories.contains(&json!("chinese")));
@@ -1510,13 +1678,13 @@ mod tests {
     async fn test_ac_matcher_executor_empty_patterns() {
         let executor = AcMatcherExecutor::new();
         let context = crate::core::ExecutionContext::new();
-        
+
         // This should be caught by validation, but test the execution path too
         let params = json!({
             "text": "test text",
             "patterns": []
         });
-        
+
         // Validation should fail
         let validation_result = executor.validate_parameters(&params);
         assert!(validation_result.is_err());

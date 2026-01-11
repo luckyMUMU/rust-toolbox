@@ -1,94 +1,112 @@
 //! TUI Widget System Module
-//! 
+//!
 //! This module provides the enhanced Widget system for the TUI interface,
 //! including the Widget trait, layout management, and component lifecycle.
 
-pub mod widget;
-pub mod layout;
-pub mod theme;
-pub mod event;
 pub mod action;
+pub mod app;
+pub mod backends;
+pub mod config;
+pub mod error;
+pub mod event;
+pub mod feedback;
 pub mod focus;
 pub mod help;
+pub mod layout;
+pub mod memory;
+pub mod monitoring;
 pub mod navigation;
-pub mod widgets;
-pub mod system_monitor;
-pub mod app;
+pub mod performance;
+pub mod platform;
+pub mod startup;
 pub mod state;
 pub mod sync;
-pub mod backends;
-pub mod error;
-pub mod feedback;
+pub mod system_monitor;
+pub mod theme;
 pub mod undo;
-pub mod performance;
-pub mod memory;
 pub mod virtualization;
-pub mod startup;
-pub mod monitoring;
-pub mod platform;
-pub mod config;
+pub mod widget;
+pub mod widgets;
 
 // Re-export public types
-pub use widget::{Widget, WidgetId, WidgetState, WidgetContext, WidgetError, BaseWidget};
-pub use layout::{LayoutManager, LayoutConstraints, LayoutDirection, LayoutNode};
-pub use theme::{Theme, ColorScheme, StyleScheme, ThemeManager};
-pub use event::{EventHandler, TuiEvent, EventResult};
 pub use action::{Action, ActionDispatcher, ActionResult};
-pub use focus::{FocusManager, FocusCapability, NavigationConfig, NavigationMode, FocusChangeEvent};
-pub use help::{HelpSystem, ShortcutInfo, HelpContent, HelpDisplayMode};
-pub use navigation::{NavigationStack, ModalDialog, EscKeyBehavior, NavigationTrigger};
-pub use widgets::{WorkflowListWidget, ExecutionMonitorWidget, LogViewerWidget, ToolManagerWidget, SystemStatusWidget, SyncStatusWidget};
-pub use system_monitor::{SystemMonitor, CpuInfo, MemoryInfo, DiskInfo, NetworkInfo, ProcessInfo, ProcessSortBy};
-pub use app::{MainTuiInterface};
-pub use state::{SharedAppState, StateChangeEvent, StateSubscriber, SystemStatus, ConnectionStatus};
-pub use sync::{DataSyncManager, SyncConfig, SyncMetrics, SyncStatus, SyncEvent, SyncBackend, CacheBackend, CacheMetadata, CachePriority, CompactionResult, OfflineCacheManager};
-pub use backends::{MockSyncBackend, MemoryCacheBackend, HttpSyncBackend};
-pub use error::{TuiError, ErrorSeverity, RecoveryStrategy, ErrorContext, ErrorManager, ErrorDisplayWidget, ErrorRecoveryHandler};
+pub use app::MainTuiInterface;
+pub use backends::{HttpSyncBackend, MemoryCacheBackend, MockSyncBackend};
+pub use config::{
+    AccessibilityConfig, ConfigPresetManager, InterfaceConfig, KeybindingsConfig, LayoutConfig,
+    LayoutDefinition, PerformanceConfig, ResponsiveBreakpoints, ThemeManagerConfig, TuiConfig,
+    TuiConfigManager, UserPreferences,
+};
+pub use error::{
+    ErrorContext, ErrorDisplayWidget, ErrorManager, ErrorRecoveryHandler, ErrorSeverity,
+    RecoveryStrategy, TuiError,
+};
+pub use event::{EventHandler, EventResult, TuiEvent};
 pub use feedback::{
-    ProgressIndicator, ProgressStatus, ConfirmationDialog, ConfirmationOption, ConfirmationAction,
-    DialogType, Notification, NotificationType, StatusMessage, StatusType, FeedbackManager, FeedbackWidget
+    ConfirmationAction, ConfirmationDialog, ConfirmationOption, DialogType, FeedbackManager,
+    FeedbackWidget, Notification, NotificationType, ProgressIndicator, ProgressStatus,
+    StatusMessage, StatusType,
 };
-pub use undo::{
-    UndoableOperation, OperationResult, OperationType, UndoManager, ErrorReport, ErrorReportType,
-    ErrorReportManager, UndoHistoryWidget, ErrorReportWidget
+pub use focus::{
+    FocusCapability, FocusChangeEvent, FocusManager, NavigationConfig, NavigationMode,
 };
-pub use performance::{
-    RenderingPerformanceManager, RenderingConfig, FrameRateStats, FrameRateMonitor,
-    RenderingOptimizationReport, RenderingRecommendation, RenderingOptimizationType,
-    OptimizationPriority, DirtyRegion, RenderOperation
-};
+pub use help::{HelpContent, HelpDisplayMode, HelpSystem, ShortcutInfo};
+pub use layout::{LayoutConstraints, LayoutDirection, LayoutManager, LayoutNode};
 pub use memory::{
-    TuiMemoryManager, TuiMemoryConfig, WidgetMemoryUsage, MemoryLeakDetection, LeakAction,
-    CleanupReport, TuiMemoryStatistics, MemoryLeakDetector, TuiCleanupScheduler
-};
-pub use virtualization::{
-    VirtualListWidget, VirtualTableWidget, VirtualDataProvider, VirtualItem, VirtualizationConfig,
-    VirtualizationMetrics, MockDataProvider
-};
-pub use startup::{
-    StartupPerformanceManager, StartupConfig, ComponentInitializer, ComponentInfo, InitializationPriority,
-    InitializationStatus, StartupMetrics, StartupPhase, LazyComponentLoader, StartupOptimization,
-    StartupOptimizationType, OptimizationPriority as StartupOptimizationPriority
+    CleanupReport, LeakAction, MemoryLeakDetection, MemoryLeakDetector, TuiCleanupScheduler,
+    TuiMemoryConfig, TuiMemoryManager, TuiMemoryStatistics, WidgetMemoryUsage,
 };
 pub use monitoring::{
-    TuiPerformanceMonitor, MonitoringConfig, PerformanceSnapshot, PerformanceAlert, AlertType,
-    AlertSeverity, ProfilingData, DebugInfo, PerformanceReport, PerformanceSummary, PerformanceTrends,
-    PerformanceBottleneck, PerformanceRecommendation, ProfilingSession, ExportFormat, LogLevel
+    AlertSeverity, AlertType, DebugInfo, ExportFormat, LogLevel, MonitoringConfig,
+    PerformanceAlert, PerformanceBottleneck, PerformanceRecommendation, PerformanceReport,
+    PerformanceSnapshot, PerformanceSummary, PerformanceTrends, ProfilingData, ProfilingSession,
+    TuiPerformanceMonitor,
+};
+pub use navigation::{EscKeyBehavior, ModalDialog, NavigationStack, NavigationTrigger};
+pub use performance::{
+    DirtyRegion, FrameRateMonitor, FrameRateStats, OptimizationPriority, RenderOperation,
+    RenderingConfig, RenderingOptimizationReport, RenderingOptimizationType,
+    RenderingPerformanceManager, RenderingRecommendation,
 };
 pub use platform::{
-    PlatformManager, PlatformConfig, Platform, TerminalCapabilities, ColorSupport,
-    PlatformOptimizations, CompatibilitySettings, TerminalInfo, PlatformCompatibilityReport,
-    TerminalTester, TerminalTestResults, TestResult
+    ColorSupport, CompatibilitySettings, Platform, PlatformCompatibilityReport, PlatformConfig,
+    PlatformManager, PlatformOptimizations, TerminalCapabilities, TerminalInfo,
+    TerminalTestResults, TerminalTester, TestResult,
 };
-pub use config::{
-    TuiConfig, TuiConfigManager, InterfaceConfig, ThemeManagerConfig, LayoutConfig,
-    PerformanceConfig, AccessibilityConfig, KeybindingsConfig, UserPreferences,
-    ConfigPresetManager, LayoutDefinition, ResponsiveBreakpoints
+pub use startup::{
+    ComponentInfo, ComponentInitializer, InitializationPriority, InitializationStatus,
+    LazyComponentLoader, OptimizationPriority as StartupOptimizationPriority, StartupConfig,
+    StartupMetrics, StartupOptimization, StartupOptimizationType, StartupPerformanceManager,
+    StartupPhase,
+};
+pub use state::{
+    ConnectionStatus, SharedAppState, StateChangeEvent, StateSubscriber, SystemStatus,
+};
+pub use sync::{
+    CacheBackend, CacheMetadata, CachePriority, CompactionResult, DataSyncManager,
+    OfflineCacheManager, SyncBackend, SyncConfig, SyncEvent, SyncMetrics, SyncStatus,
+};
+pub use system_monitor::{
+    CpuInfo, DiskInfo, MemoryInfo, NetworkInfo, ProcessInfo, ProcessSortBy, SystemMonitor,
+};
+pub use theme::{ColorScheme, StyleScheme, Theme, ThemeManager};
+pub use undo::{
+    ErrorReport, ErrorReportManager, ErrorReportType, ErrorReportWidget, OperationResult,
+    OperationType, UndoHistoryWidget, UndoManager, UndoableOperation,
+};
+pub use virtualization::{
+    MockDataProvider, VirtualDataProvider, VirtualItem, VirtualListWidget, VirtualTableWidget,
+    VirtualizationConfig, VirtualizationMetrics,
+};
+pub use widget::{BaseWidget, Widget, WidgetContext, WidgetError, WidgetId, WidgetState};
+pub use widgets::{
+    ExecutionMonitorWidget, LogViewerWidget, SyncStatusWidget, SystemStatusWidget,
+    ToolManagerWidget, WorkflowListWidget,
 };
 
 use crate::error::Result;
 use async_trait::async_trait;
-use ratatui::{Frame, layout::Rect};
+use ratatui::{layout::Rect, Frame};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -109,20 +127,20 @@ impl WidgetRegistry {
             theme: Arc::new(RwLock::new(Theme::default())),
         }
     }
-    
+
     /// Register a widget with the registry
     pub async fn register_widget(&self, id: WidgetId, widget: Box<dyn Widget>) -> Result<()> {
         let mut widgets = self.widgets.write().await;
         widgets.insert(id, widget);
         Ok(())
     }
-    
+
     /// Unregister a widget from the registry
     pub async fn unregister_widget(&self, id: &WidgetId) -> Result<Option<Box<dyn Widget>>> {
         let mut widgets = self.widgets.write().await;
         Ok(widgets.remove(id))
     }
-    
+
     /// Get a widget by ID
     pub async fn get_widget(&self, id: &WidgetId) -> Option<Box<dyn Widget>> {
         let widgets = self.widgets.read().await;
@@ -130,33 +148,39 @@ impl WidgetRegistry {
         // In practice, we'd need to handle borrowing differently
         None
     }
-    
+
     /// Initialize all registered widgets
     pub async fn initialize_all(&self) -> Result<()> {
         let mut widgets = self.widgets.write().await;
         for (id, widget) in widgets.iter_mut() {
             widget.initialize().await.map_err(|e| {
                 tracing::error!("Failed to initialize widget {}: {}", id, e);
-                crate::error::WorkflowError::ValidationError(format!("Widget initialization failed: {}", e))
+                crate::error::WorkflowError::ValidationError(format!(
+                    "Widget initialization failed: {}",
+                    e
+                ))
             })?;
         }
         tracing::info!("Initialized all widgets");
         Ok(())
     }
-    
+
     /// Cleanup all registered widgets
     pub async fn cleanup_all(&self) -> Result<()> {
         let mut widgets = self.widgets.write().await;
         for (id, widget) in widgets.iter_mut() {
             widget.cleanup().await.map_err(|e| {
                 tracing::error!("Failed to cleanup widget {}: {}", id, e);
-                crate::error::WorkflowError::ValidationError(format!("Widget cleanup failed: {}", e))
+                crate::error::WorkflowError::ValidationError(format!(
+                    "Widget cleanup failed: {}",
+                    e
+                ))
             })?;
         }
         tracing::info!("Cleaned up all widgets");
         Ok(())
     }
-    
+
     /// Update all widgets that need periodic updates
     pub async fn update_all(&self) -> Result<()> {
         let mut widgets = self.widgets.write().await;
@@ -164,23 +188,26 @@ impl WidgetRegistry {
             if widget.needs_update() {
                 widget.update().await.map_err(|e| {
                     tracing::error!("Failed to update widget {}: {}", id, e);
-                    crate::error::WorkflowError::ValidationError(format!("Widget update failed: {}", e))
+                    crate::error::WorkflowError::ValidationError(format!(
+                        "Widget update failed: {}",
+                        e
+                    ))
                 })?;
             }
         }
         Ok(())
     }
-    
+
     /// Get the layout manager
     pub async fn layout_manager(&self) -> Arc<RwLock<LayoutManager>> {
         Arc::clone(&self.layout_manager)
     }
-    
+
     /// Get the theme
     pub async fn theme(&self) -> Arc<RwLock<Theme>> {
         Arc::clone(&self.theme)
     }
-    
+
     /// Set a new theme
     pub async fn set_theme(&self, theme: Theme) -> Result<()> {
         let mut current_theme = self.theme.write().await;
@@ -216,39 +243,39 @@ impl EnhancedTuiApp {
             should_quit: false,
         })
     }
-    
+
     /// Run the TUI application
     pub async fn run(&mut self) -> Result<()> {
         // Initialize widgets
         self.widget_registry.initialize_all().await?;
-        
+
         // Start event handling
         self.event_handler.start_event_loop().await?;
-        
+
         // Main loop would go here
         tracing::info!("TUI application started with enhanced widget system");
-        
+
         // Cleanup
         self.widget_registry.cleanup_all().await?;
-        
+
         Ok(())
     }
-    
+
     /// Get the widget registry
     pub fn widget_registry(&self) -> &WidgetRegistry {
         &self.widget_registry
     }
-    
+
     /// Get the theme manager
     pub fn theme_manager(&self) -> &ThemeManager {
         &self.theme_manager
     }
-    
+
     /// Get the event handler
     pub fn event_handler(&self) -> &EventHandler {
         &self.event_handler
     }
-    
+
     /// Get the action dispatcher
     pub fn action_dispatcher(&self) -> &ActionDispatcher {
         &self.action_dispatcher
@@ -276,19 +303,20 @@ impl BasicTuiInterface {
             is_running: false,
         }
     }
-    
+
     pub async fn initialize(&mut self) -> Result<()> {
         self.app = Some(EnhancedTuiApp::new().await?);
         Ok(())
     }
-    
+
     pub async fn run(&mut self) -> Result<()> {
         if let Some(ref mut app) = self.app {
             app.run().await
         } else {
-            Err(crate::error::WorkflowError::ValidationError(
-                "TUI app not initialized".to_string()
-            ).into())
+            Err(
+                crate::error::WorkflowError::ValidationError("TUI app not initialized".to_string())
+                    .into(),
+            )
         }
     }
 }
@@ -304,16 +332,16 @@ impl EnhancedTuiInterface for BasicTuiInterface {
         println!("TUI interface starting (use run() method for async operation)");
         Ok(())
     }
-    
+
     fn stop(&self) -> Result<()> {
         println!("TUI interface stopping");
         Ok(())
     }
-    
+
     fn is_running(&self) -> bool {
         self.is_running
     }
-    
+
     fn refresh(&self) -> Result<()> {
         Ok(())
     }

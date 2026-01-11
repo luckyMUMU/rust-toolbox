@@ -1,49 +1,49 @@
 //! Standalone TUI Test Runner
-//! 
+//!
 //! This is a simple test runner that validates TUI unit test functionality
 //! without depending on the broken main library code.
 
 fn main() {
     println!("Running TUI Unit Tests...");
-    
+
     // Run theme tests
     test_theme_functionality();
-    
+
     // Run widget tests
     test_widget_functionality();
-    
+
     // Run layout tests
     test_layout_functionality();
-    
+
     // Run event tests
     test_event_functionality();
-    
+
     // Run error tests
     test_error_functionality();
-    
+
     // Run integration tests
     test_integration_functionality();
-    
+
     println!("All TUI unit tests completed successfully!");
 }
 
 fn test_theme_functionality() {
     println!("✓ Theme system tests");
-    
+
     // Basic theme creation
     let dark_theme = create_dark_theme();
     assert_eq!(dark_theme.name, "Dark");
-    
+
     let light_theme = create_light_theme();
     assert_eq!(light_theme.name, "Light");
-    
+
     // Theme manager
     let mut manager = ThemeManager::new();
     assert_eq!(manager.current_theme().name, "Dark");
-    
+
     assert!(manager.set_theme("Light").is_ok());
     assert_eq!(manager.current_theme().name, "Light");
-    
+
     println!("  - Theme creation: ✓");
     println!("  - Theme switching: ✓");
     println!("  - Status styles: ✓");
@@ -51,30 +51,28 @@ fn test_theme_functionality() {
 
 fn test_widget_functionality() {
     println!("✓ Widget system tests");
-    
+
     // Widget lifecycle
     let mut widget = TestWidget::new("test".to_string(), "Test Widget".to_string());
-    
+
     widget.initialize();
     assert_eq!(widget.context().state, WidgetState::Inactive);
-    
+
     widget.activate();
     assert!(widget.context().is_active());
-    
+
     widget.focus();
     assert!(widget.context().has_focus);
-    
+
     widget.blur();
     assert!(!widget.context().has_focus);
-    
+
     // Size constraints
-    let constraints = SizeConstraints::new()
-        .min_size(10, 5)
-        .max_size(100, 50);
-    
+    let constraints = SizeConstraints::new().min_size(10, 5).max_size(100, 50);
+
     assert!(constraints.satisfies(50, 25));
     assert!(!constraints.satisfies(5, 25));
-    
+
     println!("  - Widget lifecycle: ✓");
     println!("  - Size constraints: ✓");
     println!("  - Widget resize: ✓");
@@ -82,23 +80,23 @@ fn test_widget_functionality() {
 
 fn test_layout_functionality() {
     println!("✓ Layout system tests");
-    
+
     let mut manager = LayoutManager::new();
-    
+
     manager.add_child(LayoutNode::new("child1".to_string()).with_weight(1.0));
     manager.add_child(LayoutNode::new("child2".to_string()).with_weight(2.0));
-    
+
     let total_area = Rect::new(0, 0, 100, 100);
     let layout = manager.calculate_layout(total_area);
-    
+
     assert_eq!(layout.len(), 2);
-    
+
     let area1 = layout.get("child1").unwrap();
     let area2 = layout.get("child2").unwrap();
-    
+
     // Child2 should get more space due to higher weight
     assert!(area2.height >= area1.height);
-    
+
     println!("  - Layout calculation: ✓");
     println!("  - Weight distribution: ✓");
     println!("  - Constraint handling: ✓");
@@ -106,19 +104,19 @@ fn test_layout_functionality() {
 
 fn test_event_functionality() {
     println!("✓ Event system tests");
-    
+
     let handler = create_default_bindings();
-    
+
     // Test key bindings
     let quit_key = KeyEvent::new(KeyCode::Char('q')).with_ctrl();
     assert_eq!(handler.handle_key(quit_key), Action::Quit);
-    
+
     let refresh_key = KeyEvent::new(KeyCode::F(5));
     assert_eq!(handler.handle_key(refresh_key), Action::Refresh);
-    
+
     let unknown_key = KeyEvent::new(KeyCode::Char('x'));
     assert_eq!(handler.handle_key(unknown_key), Action::None);
-    
+
     println!("  - Key binding: ✓");
     println!("  - Event handling: ✓");
     println!("  - Action dispatch: ✓");
@@ -126,28 +124,25 @@ fn test_event_functionality() {
 
 fn test_error_functionality() {
     println!("✓ Error handling tests");
-    
+
     let mut manager = ErrorManager::new();
-    
+
     // Test error reporting
     let error = TuiError::new(
         "Test error".to_string(),
         ErrorSeverity::Medium,
         "test".to_string(),
     );
-    
+
     manager.report_error(error);
     assert_eq!(manager.error_count(), 1);
-    
+
     // Test critical errors
-    let critical_error = TuiError::critical(
-        "Critical error".to_string(),
-        "critical".to_string(),
-    );
-    
+    let critical_error = TuiError::critical("Critical error".to_string(), "critical".to_string());
+
     manager.report_error(critical_error);
     assert!(manager.has_critical_errors());
-    
+
     println!("  - Error reporting: ✓");
     println!("  - Error filtering: ✓");
     println!("  - Critical error detection: ✓");
@@ -155,29 +150,29 @@ fn test_error_functionality() {
 
 fn test_integration_functionality() {
     println!("✓ Integration tests");
-    
+
     // Test complete workflow
     let mut theme_manager = ThemeManager::new();
     let mut layout_manager = LayoutManager::new();
     let mut widget = TestWidget::new("main".to_string(), "Main Widget".to_string());
     let event_handler = create_default_bindings();
     let mut error_manager = ErrorManager::new();
-    
+
     // Set up components
     theme_manager.set_theme("Dark").unwrap();
     layout_manager.add_child(LayoutNode::new("main".to_string()));
     widget.initialize();
     widget.activate();
-    
+
     // Test integration
     let layout = layout_manager.calculate_layout(Rect::new(0, 0, 80, 24));
     assert!(layout.contains_key("main"));
-    
+
     let quit_action = event_handler.handle_key(KeyEvent::new(KeyCode::Char('q')).with_ctrl());
     assert_eq!(quit_action, Action::Quit);
-    
+
     assert_eq!(error_manager.error_count(), 0);
-    
+
     println!("  - Component integration: ✓");
     println!("  - End-to-end workflow: ✓");
     println!("  - Error-free operation: ✓");
@@ -189,9 +184,23 @@ fn test_integration_functionality() {
 
 #[derive(Debug, Clone, PartialEq)]
 enum Color {
-    Black, Red, Green, Yellow, Blue, Magenta, Cyan, Gray,
-    DarkGray, LightRed, LightGreen, LightYellow, LightBlue,
-    LightMagenta, LightCyan, White, Rgb(u8, u8, u8),
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    Gray,
+    DarkGray,
+    LightRed,
+    LightGreen,
+    LightYellow,
+    LightBlue,
+    LightMagenta,
+    LightCyan,
+    White,
+    Rgb(u8, u8, u8),
 }
 
 #[derive(Debug, Clone)]
@@ -278,11 +287,11 @@ impl ThemeManager {
             current_theme: create_dark_theme(),
         }
     }
-    
+
     fn current_theme(&self) -> &Theme {
         &self.current_theme
     }
-    
+
     fn set_theme(&mut self, name: &str) -> Result<(), String> {
         match name {
             "Dark" => self.current_theme = create_dark_theme(),
@@ -303,7 +312,12 @@ struct Rect {
 
 impl Rect {
     fn new(x: u16, y: u16, width: u16, height: u16) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 }
 
@@ -332,7 +346,7 @@ impl WidgetContext {
             area: None,
         }
     }
-    
+
     fn is_active(&self) -> bool {
         matches!(self.state, WidgetState::Active | WidgetState::Focused)
     }
@@ -355,31 +369,39 @@ impl SizeConstraints {
             max_height: None,
         }
     }
-    
+
     fn min_size(mut self, width: u16, height: u16) -> Self {
         self.min_width = Some(width);
         self.min_height = Some(height);
         self
     }
-    
+
     fn max_size(mut self, width: u16, height: u16) -> Self {
         self.max_width = Some(width);
         self.max_height = Some(height);
         self
     }
-    
+
     fn satisfies(&self, width: u16, height: u16) -> bool {
         if let Some(min_w) = self.min_width {
-            if width < min_w { return false; }
+            if width < min_w {
+                return false;
+            }
         }
         if let Some(max_w) = self.max_width {
-            if width > max_w { return false; }
+            if width > max_w {
+                return false;
+            }
         }
         if let Some(min_h) = self.min_height {
-            if height < min_h { return false; }
+            if height < min_h {
+                return false;
+            }
         }
         if let Some(max_h) = self.max_height {
-            if height > max_h { return false; }
+            if height > max_h {
+                return false;
+            }
         }
         true
     }
@@ -397,28 +419,28 @@ impl TestWidget {
             constraints: SizeConstraints::new(),
         }
     }
-    
+
     fn context(&self) -> &WidgetContext {
         &self.context
     }
-    
+
     fn initialize(&mut self) {
         self.context.state = WidgetState::Inactive;
     }
-    
+
     fn activate(&mut self) {
         if self.context.state == WidgetState::Inactive {
             self.context.state = WidgetState::Active;
         }
     }
-    
+
     fn focus(&mut self) {
         if self.context.state == WidgetState::Active {
             self.context.state = WidgetState::Focused;
             self.context.has_focus = true;
         }
     }
-    
+
     fn blur(&mut self) {
         if self.context.state == WidgetState::Focused {
             self.context.state = WidgetState::Active;
@@ -440,7 +462,7 @@ impl LayoutNode {
             weight: 1.0,
         }
     }
-    
+
     fn with_weight(mut self, weight: f32) -> Self {
         self.weight = weight;
         self
@@ -457,37 +479,37 @@ impl LayoutManager {
             children: Vec::new(),
         }
     }
-    
+
     fn add_child(&mut self, node: LayoutNode) {
         self.children.push(node);
     }
-    
+
     fn calculate_layout(&self, total_area: Rect) -> std::collections::HashMap<String, Rect> {
         use std::collections::HashMap;
-        
+
         let mut layout = HashMap::new();
-        
+
         if self.children.is_empty() {
             return layout;
         }
-        
+
         let total_weight: f32 = self.children.iter().map(|c| c.weight).sum();
         let mut y = total_area.y;
-        
+
         for child in &self.children {
             let height = ((child.weight / total_weight) * total_area.height as f32) as u16;
-            
+
             let area = Rect {
                 x: total_area.x,
                 y,
                 width: total_area.width,
                 height,
             };
-            
+
             layout.insert(child.widget_id.clone(), area);
             y += height;
         }
-        
+
         layout
     }
 }
@@ -506,12 +528,9 @@ struct KeyEvent {
 
 impl KeyEvent {
     fn new(code: KeyCode) -> Self {
-        Self {
-            code,
-            ctrl: false,
-        }
+        Self { code, ctrl: false }
     }
-    
+
     fn with_ctrl(mut self) -> Self {
         self.ctrl = true;
         self
@@ -583,7 +602,7 @@ impl TuiError {
             component,
         }
     }
-    
+
     fn critical(message: String, component: String) -> Self {
         Self {
             message,
@@ -599,20 +618,20 @@ struct ErrorManager {
 
 impl ErrorManager {
     fn new() -> Self {
-        Self {
-            errors: Vec::new(),
-        }
+        Self { errors: Vec::new() }
     }
-    
+
     fn report_error(&mut self, error: TuiError) {
         self.errors.push(error);
     }
-    
+
     fn error_count(&self) -> usize {
         self.errors.len()
     }
-    
+
     fn has_critical_errors(&self) -> bool {
-        self.errors.iter().any(|e| matches!(e.severity, ErrorSeverity::Critical))
+        self.errors
+            .iter()
+            .any(|e| matches!(e.severity, ErrorSeverity::Critical))
     }
 }

@@ -1,5 +1,5 @@
 //! Event handling system for TUI widgets
-//! 
+//!
 //! This module provides event processing and handling for the TUI interface.
 
 use crate::error::Result;
@@ -79,10 +79,10 @@ pub struct EventHandler {
 pub trait EventFilter: Send + Sync {
     /// Filter an event, returning None to drop it or Some to keep it
     fn filter(&self, event: &TuiEvent) -> Option<TuiEvent>;
-    
+
     /// Get the filter's name
     fn name(&self) -> &str;
-    
+
     /// Get the filter's priority (higher priority filters run first)
     fn priority(&self) -> i32 {
         0
@@ -117,11 +117,11 @@ impl EventHandler {
             event_filters: Vec::new(),
         }
     }
-    
+
     /// Start the event handling loop
     pub async fn start_event_loop(&mut self) -> Result<()> {
         let sender = self.event_sender.clone();
-        
+
         tokio::spawn(async move {
             loop {
                 match ratatui::crossterm::event::read() {
@@ -139,11 +139,11 @@ impl EventHandler {
                 }
             }
         });
-        
+
         tracing::info!("Started event handling loop");
         Ok(())
     }
-    
+
     /// Convert crossterm events to TUI events
     fn convert_terminal_event(event: Event) -> Option<TuiEvent> {
         match event {
@@ -162,7 +162,7 @@ impl EventHandler {
             Event::Paste(text) => Some(TuiEvent::Paste(text)),
         }
     }
-    
+
     /// Process the next event from the queue
     pub async fn process_next_event(&mut self) -> Option<EventResult> {
         if let Some(event) = self.event_receiver.recv().await {
@@ -171,7 +171,7 @@ impl EventHandler {
             None
         }
     }
-    
+
     /// Process a TUI event and convert it to an action
     pub async fn process_event(&mut self, event: TuiEvent) -> EventResult {
         // Apply event filters
@@ -180,7 +180,7 @@ impl EventHandler {
             Some(e) => e,
             None => return EventResult::ConsumedNoAction, // Event was filtered out
         };
-        
+
         match event {
             TuiEvent::Key(key_event) => self.process_key_event(key_event).await,
             TuiEvent::Mouse(mouse_event) => self.process_mouse_event(mouse_event).await,
@@ -193,15 +193,15 @@ impl EventHandler {
             TuiEvent::Custom(name, data) => self.process_custom_event(name, data).await,
         }
     }
-    
+
     /// Apply event filters to an event
     fn apply_filters(&self, event: TuiEvent) -> Option<TuiEvent> {
         let mut current_event = Some(event);
-        
+
         // Sort filters by priority (highest first)
         let mut filters: Vec<_> = self.event_filters.iter().collect();
         filters.sort_by(|a, b| b.priority().cmp(&a.priority()));
-        
+
         for filter in filters {
             if let Some(e) = current_event {
                 current_event = filter.filter(&e);
@@ -211,121 +211,125 @@ impl EventHandler {
                 }
             }
         }
-        
+
         current_event
     }
-    
+
     /// Process keyboard events
     async fn process_key_event(&self, key_event: KeyEvent) -> EventResult {
         // Handle global shortcuts first
         if let Some(action) = self.handle_global_shortcuts(&key_event) {
             return EventResult::Consumed(action);
         }
-        
+
         // Convert key event to action based on context
         match self.key_event_to_action(key_event) {
             Ok(action) => EventResult::Consumed(action),
             Err(e) => EventResult::Error(e.to_string()),
         }
     }
-    
+
     /// Handle global keyboard shortcuts
     fn handle_global_shortcuts(&self, key_event: &KeyEvent) -> Option<Action> {
         let key_combo = (key_event.code, key_event.modifiers);
-        
+
         // Check if this key combination is bound to a global action
         if let Some(action) = self.key_bindings.global_shortcuts.get(&key_combo) {
             return Some(action.clone());
         }
-        
+
         // Fallback to hardcoded shortcuts for compatibility
         self.handle_hardcoded_shortcuts(key_event)
     }
-    
+
     /// Handle hardcoded shortcuts (fallback)
     fn handle_hardcoded_shortcuts(&self, key_event: &KeyEvent) -> Option<Action> {
         match (key_event.code, key_event.modifiers) {
             // Quit shortcuts
             (KeyCode::Char('q'), KeyModifiers::CONTROL) => Some(Action::Quit),
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => Some(Action::Quit),
-            
+
             // Navigation shortcuts
             (KeyCode::F(1), KeyModifiers::NONE) => Some(Action::Navigate(ViewType::WorkflowList)),
-            (KeyCode::F(2), KeyModifiers::NONE) => Some(Action::Navigate(ViewType::ExecutionMonitor)),
+            (KeyCode::F(2), KeyModifiers::NONE) => {
+                Some(Action::Navigate(ViewType::ExecutionMonitor))
+            }
             (KeyCode::F(3), KeyModifiers::NONE) => Some(Action::Navigate(ViewType::ToolManager)),
             (KeyCode::F(4), KeyModifiers::NONE) => Some(Action::Navigate(ViewType::PluginManager)),
             (KeyCode::F(5), KeyModifiers::NONE) => Some(Action::Navigate(ViewType::SystemStatus)),
             (KeyCode::F(6), KeyModifiers::NONE) => Some(Action::Navigate(ViewType::LogViewer)),
-            
+
             // Refresh
             (KeyCode::F(12), KeyModifiers::NONE) => Some(Action::Refresh),
             (KeyCode::Char('r'), KeyModifiers::CONTROL) => Some(Action::Refresh),
-            
+
             // Focus management
             (KeyCode::Tab, KeyModifiers::NONE) => Some(Action::FocusNext),
             (KeyCode::Tab, KeyModifiers::SHIFT) => Some(Action::FocusPrevious),
-            
+
             // Search
             (KeyCode::Char('/'), KeyModifiers::NONE) => Some(Action::Search(String::new())),
             (KeyCode::Char('f'), KeyModifiers::CONTROL) => Some(Action::Search(String::new())),
-            
+
             // Back/Cancel
             (KeyCode::Esc, KeyModifiers::NONE) => Some(Action::GoBack),
-            
+
             _ => None,
         }
     }
-    
+
     /// Convert key event to action
     fn key_event_to_action(&self, key_event: KeyEvent) -> Result<Action> {
         match key_event.code {
             // Navigation keys - let widgets handle these
-            KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right |
-            KeyCode::PageUp | KeyCode::PageDown | KeyCode::Home | KeyCode::End => {
-                Ok(Action::None)
-            }
-            
+            KeyCode::Up
+            | KeyCode::Down
+            | KeyCode::Left
+            | KeyCode::Right
+            | KeyCode::PageUp
+            | KeyCode::PageDown
+            | KeyCode::Home
+            | KeyCode::End => Ok(Action::None),
+
             // Action keys - let widgets handle these
-            KeyCode::Enter | KeyCode::Delete | KeyCode::Backspace => {
-                Ok(Action::None)
-            }
-            
+            KeyCode::Enter | KeyCode::Delete | KeyCode::Backspace => Ok(Action::None),
+
             // Character input - let widgets handle these
             KeyCode::Char(_) => Ok(Action::None),
-            
+
             _ => Ok(Action::None),
         }
     }
-    
+
     /// Process mouse events
     async fn process_mouse_event(&self, _mouse_event: MouseEvent) -> EventResult {
         if !self.mouse_enabled {
             return EventResult::NotHandled;
         }
-        
+
         // For now, let widgets handle mouse events
         EventResult::NotHandled
     }
-    
+
     /// Process terminal resize events
     async fn process_resize_event(&mut self, width: u16, height: u16) -> EventResult {
         let now = Instant::now();
-        
+
         // Debounce resize events to avoid excessive redraws
         if let Some(last_resize) = self.last_resize {
             if now.duration_since(last_resize) < self.resize_debounce {
                 return EventResult::NotHandled;
             }
         }
-        
+
         self.last_resize = Some(now);
-        
+
         tracing::debug!("Terminal resized to {}x{}", width, height);
-        
+
         // The resize will be handled by the main render loop
         EventResult::Consumed(Action::None)
     }
-    
+
     /// Process focus events
     async fn process_focus_event(&self, gained: bool) -> EventResult {
         if gained {
@@ -336,110 +340,118 @@ impl EventHandler {
             EventResult::NotHandled
         }
     }
-    
+
     /// Process paste events
     async fn process_paste_event(&self, text: String) -> EventResult {
         tracing::debug!("Text pasted: {} characters", text.len());
-        
+
         // For now, ignore paste events - will be handled by specific widgets
         // that support text input (like search boxes)
         EventResult::NotHandled
     }
-    
+
     /// Process custom events
     async fn process_custom_event(&self, name: String, data: serde_json::Value) -> EventResult {
         tracing::debug!("Custom event: {} with data: {:?}", name, data);
         EventResult::Consumed(Action::Custom(name, data))
     }
-    
+
     /// Send a custom event
     pub fn send_custom_event(&self, name: String, data: serde_json::Value) -> Result<()> {
         let event = TuiEvent::Custom(name, data);
-        self.event_sender.send(event)
-            .map_err(|e| crate::error::WorkflowError::ValidationError(
-                format!("Failed to send custom event: {}", e)
-            ))?;
+        self.event_sender.send(event).map_err(|e| {
+            crate::error::WorkflowError::ValidationError(format!(
+                "Failed to send custom event: {}",
+                e
+            ))
+        })?;
         Ok(())
     }
-    
+
     /// Send a tick event
     pub fn send_tick(&self) -> Result<()> {
-        self.event_sender.send(TuiEvent::Tick)
-            .map_err(|e| crate::error::WorkflowError::ValidationError(
-                format!("Failed to send tick event: {}", e)
-            ))?;
+        self.event_sender.send(TuiEvent::Tick).map_err(|e| {
+            crate::error::WorkflowError::ValidationError(format!(
+                "Failed to send tick event: {}",
+                e
+            ))
+        })?;
         Ok(())
     }
-    
+
     /// Check if there are pending events
     pub fn has_pending_events(&self) -> bool {
         !self.event_receiver.is_empty()
     }
-    
+
     /// Enable or disable mouse support
     pub fn set_mouse_enabled(&mut self, enabled: bool) {
         self.mouse_enabled = enabled;
-        tracing::debug!("Mouse support {}", if enabled { "enabled" } else { "disabled" });
+        tracing::debug!(
+            "Mouse support {}",
+            if enabled { "enabled" } else { "disabled" }
+        );
     }
-    
+
     /// Get current mouse support status
     pub fn is_mouse_enabled(&self) -> bool {
         self.mouse_enabled
     }
-    
+
     /// Set resize debounce duration
     pub fn set_resize_debounce(&mut self, duration: Duration) {
         self.resize_debounce = duration;
     }
-    
+
     /// Get reference to key bindings
     pub fn key_bindings(&self) -> &KeyBindings {
         &self.key_bindings
     }
-    
+
     /// Get mutable reference to key bindings
     pub fn key_bindings_mut(&mut self) -> &mut KeyBindings {
         &mut self.key_bindings
     }
-    
+
     /// Update key bindings
     pub fn set_key_bindings(&mut self, bindings: KeyBindings) {
         self.key_bindings = bindings;
         tracing::debug!("Updated key bindings");
     }
-    
+
     /// Add an event filter
     pub fn add_event_filter(&mut self, filter: Box<dyn EventFilter>) {
         tracing::debug!("Added event filter: {}", filter.name());
         self.event_filters.push(filter);
-        
+
         // Sort filters by priority
-        self.event_filters.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.event_filters
+            .sort_by(|a, b| b.priority().cmp(&a.priority()));
     }
-    
+
     /// Remove an event filter by name
     pub fn remove_event_filter(&mut self, name: &str) -> bool {
         let initial_len = self.event_filters.len();
         self.event_filters.retain(|f| f.name() != name);
         let removed = self.event_filters.len() < initial_len;
-        
+
         if removed {
             tracing::debug!("Removed event filter: {}", name);
         }
-        
+
         removed
     }
-    
+
     /// Get help for current global shortcuts
     pub fn get_global_shortcuts_help(&self) -> Vec<ShortcutHelp> {
         self.key_bindings.get_global_shortcuts_help()
     }
-    
+
     /// Get help for view-specific shortcuts
     pub fn get_view_shortcuts_help(&self, view: &ViewType) -> Vec<ShortcutHelp> {
         self.key_bindings.get_view_shortcuts_help(view)
     }
-    
+
     /// Get help for widget-specific shortcuts
     pub fn get_widget_shortcuts_help(&self, widget_id: &str) -> Vec<ShortcutHelp> {
         self.key_bindings.get_widget_shortcuts_help(widget_id)
@@ -450,41 +462,65 @@ impl KeyBindings {
     /// Create default key bindings
     pub fn default() -> Self {
         let mut global_shortcuts = HashMap::new();
-        
+
         // Quit shortcuts
         global_shortcuts.insert((KeyCode::Char('q'), KeyModifiers::CONTROL), Action::Quit);
         global_shortcuts.insert((KeyCode::Char('c'), KeyModifiers::CONTROL), Action::Quit);
-        
+
         // Function key navigation
-        global_shortcuts.insert((KeyCode::F(1), KeyModifiers::NONE), Action::Navigate(ViewType::WorkflowList));
-        global_shortcuts.insert((KeyCode::F(2), KeyModifiers::NONE), Action::Navigate(ViewType::ExecutionMonitor));
-        global_shortcuts.insert((KeyCode::F(3), KeyModifiers::NONE), Action::Navigate(ViewType::ToolManager));
-        global_shortcuts.insert((KeyCode::F(4), KeyModifiers::NONE), Action::Navigate(ViewType::PluginManager));
-        global_shortcuts.insert((KeyCode::F(5), KeyModifiers::NONE), Action::Navigate(ViewType::SystemStatus));
-        global_shortcuts.insert((KeyCode::F(6), KeyModifiers::NONE), Action::Navigate(ViewType::LogViewer));
-        
+        global_shortcuts.insert(
+            (KeyCode::F(1), KeyModifiers::NONE),
+            Action::Navigate(ViewType::WorkflowList),
+        );
+        global_shortcuts.insert(
+            (KeyCode::F(2), KeyModifiers::NONE),
+            Action::Navigate(ViewType::ExecutionMonitor),
+        );
+        global_shortcuts.insert(
+            (KeyCode::F(3), KeyModifiers::NONE),
+            Action::Navigate(ViewType::ToolManager),
+        );
+        global_shortcuts.insert(
+            (KeyCode::F(4), KeyModifiers::NONE),
+            Action::Navigate(ViewType::PluginManager),
+        );
+        global_shortcuts.insert(
+            (KeyCode::F(5), KeyModifiers::NONE),
+            Action::Navigate(ViewType::SystemStatus),
+        );
+        global_shortcuts.insert(
+            (KeyCode::F(6), KeyModifiers::NONE),
+            Action::Navigate(ViewType::LogViewer),
+        );
+
         // Refresh
         global_shortcuts.insert((KeyCode::F(12), KeyModifiers::NONE), Action::Refresh);
         global_shortcuts.insert((KeyCode::Char('r'), KeyModifiers::CONTROL), Action::Refresh);
-        
+
         // Focus management
         global_shortcuts.insert((KeyCode::Tab, KeyModifiers::NONE), Action::FocusNext);
         global_shortcuts.insert((KeyCode::Tab, KeyModifiers::SHIFT), Action::FocusPrevious);
-        
+
         // Search and filter
-        global_shortcuts.insert((KeyCode::Char('/'), KeyModifiers::NONE), Action::Search(String::new()));
-        global_shortcuts.insert((KeyCode::Char('f'), KeyModifiers::CONTROL), Action::Search(String::new()));
-        
+        global_shortcuts.insert(
+            (KeyCode::Char('/'), KeyModifiers::NONE),
+            Action::Search(String::new()),
+        );
+        global_shortcuts.insert(
+            (KeyCode::Char('f'), KeyModifiers::CONTROL),
+            Action::Search(String::new()),
+        );
+
         // Back/Cancel
         global_shortcuts.insert((KeyCode::Esc, KeyModifiers::NONE), Action::GoBack);
-        
+
         Self {
             global_shortcuts,
             context_shortcuts: HashMap::new(),
             widget_shortcuts: HashMap::new(),
         }
     }
-    
+
     /// Get all global shortcuts help
     pub fn get_global_shortcuts_help(&self) -> Vec<ShortcutHelp> {
         vec![
@@ -518,71 +554,59 @@ impl KeyBindings {
             },
         ]
     }
-    
+
     /// Get shortcuts for a specific view
     pub fn get_view_shortcuts_help(&self, view: &ViewType) -> Vec<ShortcutHelp> {
         match view {
-            ViewType::WorkflowList => vec![
-                ShortcutHelp {
-                    category: "工作流操作".to_string(),
-                    shortcuts: vec![
-                        ("Enter".to_string(), "执行选中的工作流".to_string()),
-                        ("↑/↓".to_string(), "选择工作流".to_string()),
-                        ("d".to_string(), "切换详情视图".to_string()),
-                    ],
-                },
-            ],
-            ViewType::ExecutionMonitor => vec![
-                ShortcutHelp {
-                    category: "执行控制".to_string(),
-                    shortcuts: vec![
-                        ("Space".to_string(), "暂停/恢复执行".to_string()),
-                        ("s".to_string(), "停止执行".to_string()),
-                        ("c".to_string(), "取消执行".to_string()),
-                    ],
-                },
-            ],
-            ViewType::ToolManager => vec![
-                ShortcutHelp {
-                    category: "工具操作".to_string(),
-                    shortcuts: vec![
-                        ("Enter".to_string(), "执行工具".to_string()),
-                        ("i".to_string(), "查看工具信息".to_string()),
-                    ],
-                },
-            ],
-            ViewType::PluginManager => vec![
-                ShortcutHelp {
-                    category: "插件操作".to_string(),
-                    shortcuts: vec![
-                        ("i".to_string(), "安装插件".to_string()),
-                        ("u".to_string(), "卸载插件".to_string()),
-                        ("r".to_string(), "重新加载插件".to_string()),
-                    ],
-                },
-            ],
-            ViewType::SystemStatus => vec![
-                ShortcutHelp {
-                    category: "系统监控".to_string(),
-                    shortcuts: vec![
-                        ("r".to_string(), "刷新系统状态".to_string()),
-                        ("d".to_string(), "显示详细信息".to_string()),
-                    ],
-                },
-            ],
-            ViewType::LogViewer => vec![
-                ShortcutHelp {
-                    category: "日志操作".to_string(),
-                    shortcuts: vec![
-                        ("1-5".to_string(), "按级别过滤日志".to_string()),
-                        ("c".to_string(), "清除日志".to_string()),
-                        ("e".to_string(), "导出日志".to_string()),
-                    ],
-                },
-            ],
+            ViewType::WorkflowList => vec![ShortcutHelp {
+                category: "工作流操作".to_string(),
+                shortcuts: vec![
+                    ("Enter".to_string(), "执行选中的工作流".to_string()),
+                    ("↑/↓".to_string(), "选择工作流".to_string()),
+                    ("d".to_string(), "切换详情视图".to_string()),
+                ],
+            }],
+            ViewType::ExecutionMonitor => vec![ShortcutHelp {
+                category: "执行控制".to_string(),
+                shortcuts: vec![
+                    ("Space".to_string(), "暂停/恢复执行".to_string()),
+                    ("s".to_string(), "停止执行".to_string()),
+                    ("c".to_string(), "取消执行".to_string()),
+                ],
+            }],
+            ViewType::ToolManager => vec![ShortcutHelp {
+                category: "工具操作".to_string(),
+                shortcuts: vec![
+                    ("Enter".to_string(), "执行工具".to_string()),
+                    ("i".to_string(), "查看工具信息".to_string()),
+                ],
+            }],
+            ViewType::PluginManager => vec![ShortcutHelp {
+                category: "插件操作".to_string(),
+                shortcuts: vec![
+                    ("i".to_string(), "安装插件".to_string()),
+                    ("u".to_string(), "卸载插件".to_string()),
+                    ("r".to_string(), "重新加载插件".to_string()),
+                ],
+            }],
+            ViewType::SystemStatus => vec![ShortcutHelp {
+                category: "系统监控".to_string(),
+                shortcuts: vec![
+                    ("r".to_string(), "刷新系统状态".to_string()),
+                    ("d".to_string(), "显示详细信息".to_string()),
+                ],
+            }],
+            ViewType::LogViewer => vec![ShortcutHelp {
+                category: "日志操作".to_string(),
+                shortcuts: vec![
+                    ("1-5".to_string(), "按级别过滤日志".to_string()),
+                    ("c".to_string(), "清除日志".to_string()),
+                    ("e".to_string(), "导出日志".to_string()),
+                ],
+            }],
         }
     }
-    
+
     /// Get shortcuts for a specific widget
     pub fn get_widget_shortcuts_help(&self, widget_id: &str) -> Vec<ShortcutHelp> {
         if let Some(shortcuts) = self.widget_shortcuts.get(widget_id) {
@@ -592,7 +616,7 @@ impl KeyBindings {
                 let description = format!("{}", action);
                 help_shortcuts.push((key_str, description));
             }
-            
+
             vec![ShortcutHelp {
                 category: format!("Widget: {}", widget_id),
                 shortcuts: help_shortcuts,
@@ -601,38 +625,59 @@ impl KeyBindings {
             vec![]
         }
     }
-    
+
     /// Add a global shortcut
-    pub fn add_global_shortcut(&mut self, key_code: KeyCode, modifiers: KeyModifiers, action: Action) {
+    pub fn add_global_shortcut(
+        &mut self,
+        key_code: KeyCode,
+        modifiers: KeyModifiers,
+        action: Action,
+    ) {
         self.global_shortcuts.insert((key_code, modifiers), action);
     }
-    
+
     /// Add a context-specific shortcut
-    pub fn add_context_shortcut(&mut self, view: ViewType, key_code: KeyCode, modifiers: KeyModifiers, action: Action) {
+    pub fn add_context_shortcut(
+        &mut self,
+        view: ViewType,
+        key_code: KeyCode,
+        modifiers: KeyModifiers,
+        action: Action,
+    ) {
         self.context_shortcuts
             .entry(view)
             .or_insert_with(HashMap::new)
             .insert((key_code, modifiers), action);
     }
-    
+
     /// Add a widget-specific shortcut
-    pub fn add_widget_shortcut(&mut self, widget_id: String, key_code: KeyCode, modifiers: KeyModifiers, action: Action) {
+    pub fn add_widget_shortcut(
+        &mut self,
+        widget_id: String,
+        key_code: KeyCode,
+        modifiers: KeyModifiers,
+        action: Action,
+    ) {
         self.widget_shortcuts
             .entry(widget_id)
             .or_insert_with(HashMap::new)
             .insert((key_code, modifiers), action);
     }
-    
+
     /// Remove a global shortcut
-    pub fn remove_global_shortcut(&mut self, key_code: KeyCode, modifiers: KeyModifiers) -> Option<Action> {
+    pub fn remove_global_shortcut(
+        &mut self,
+        key_code: KeyCode,
+        modifiers: KeyModifiers,
+    ) -> Option<Action> {
         self.global_shortcuts.remove(&(key_code, modifiers))
     }
-    
+
     /// Clear all shortcuts for a view
     pub fn clear_context_shortcuts(&mut self, view: &ViewType) {
         self.context_shortcuts.remove(view);
     }
-    
+
     /// Clear all shortcuts for a widget
     pub fn clear_widget_shortcuts(&mut self, widget_id: &str) {
         self.widget_shortcuts.remove(widget_id);
@@ -642,7 +687,7 @@ impl KeyBindings {
 /// Format a key combination for display
 fn format_key_combination(key_code: KeyCode, modifiers: KeyModifiers) -> String {
     let mut parts = Vec::new();
-    
+
     if modifiers.contains(KeyModifiers::CONTROL) {
         parts.push("Ctrl");
     }
@@ -652,7 +697,7 @@ fn format_key_combination(key_code: KeyCode, modifiers: KeyModifiers) -> String 
     if modifiers.contains(KeyModifiers::SHIFT) {
         parts.push("Shift");
     }
-    
+
     let key_str = match key_code {
         KeyCode::Char(c) => {
             if c == ' ' {
@@ -660,7 +705,7 @@ fn format_key_combination(key_code: KeyCode, modifiers: KeyModifiers) -> String 
             } else {
                 c.to_uppercase().to_string()
             }
-        },
+        }
         KeyCode::F(n) => format!("F{}", n),
         KeyCode::Enter => "Enter".to_string(),
         KeyCode::Tab => "Tab".to_string(),
@@ -677,7 +722,7 @@ fn format_key_combination(key_code: KeyCode, modifiers: KeyModifiers) -> String 
         KeyCode::End => "End".to_string(),
         _ => format!("{:?}", key_code),
     };
-    
+
     parts.push(&key_str);
     parts.join("+")
 }
@@ -717,11 +762,11 @@ impl EventFilter for PredicateEventFilter {
             None
         }
     }
-    
+
     fn name(&self) -> &str {
         &self.name
     }
-    
+
     fn priority(&self) -> i32 {
         self.priority
     }

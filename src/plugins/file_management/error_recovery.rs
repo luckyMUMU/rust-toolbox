@@ -1,6 +1,8 @@
 //! Error recovery utilities for file management operations
 
-use super::error::{FileManagementError, FileManagementResult, ErrorContext, RecoverySuggestion, ErrorSeverity};
+use super::error::{
+    ErrorContext, ErrorSeverity, FileManagementError, FileManagementResult, RecoverySuggestion,
+};
 use crate::performance::PerformanceManager;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -8,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// Error recovery manager for handling and recovering from errors
 pub struct ErrorRecoveryManager {
@@ -23,25 +25,25 @@ pub struct ErrorRecoveryManager {
 pub struct RecoveryConfig {
     /// Maximum number of retry attempts
     pub max_retries: usize,
-    
+
     /// Base delay between retries (exponential backoff)
     pub base_retry_delay_ms: u64,
-    
+
     /// Maximum delay between retries
     pub max_retry_delay_ms: u64,
-    
+
     /// Exponential backoff multiplier
     pub backoff_multiplier: f64,
-    
+
     /// Enable automatic recovery for recoverable errors
     pub enable_auto_recovery: bool,
-    
+
     /// Timeout for recovery operations
     pub recovery_timeout_ms: u64,
-    
+
     /// Enable recovery statistics collection
     pub enable_recovery_stats: bool,
-    
+
     /// Minimum confidence threshold for automatic recovery
     pub min_auto_recovery_confidence: f64,
 }
@@ -101,16 +103,16 @@ pub struct RecoverySession {
 pub trait RecoveryStrategy {
     /// Name of the recovery strategy
     fn name(&self) -> &str;
-    
+
     /// Check if this strategy can handle the given error
     fn can_handle(&self, error: &FileManagementError) -> bool;
-    
+
     /// Attempt to recover from the error
     async fn recover(&self, error: &FileManagementError) -> FileManagementResult<()>;
-    
+
     /// Get confidence level for this recovery strategy (0.0 to 1.0)
     fn confidence(&self, error: &FileManagementError) -> f64;
-    
+
     /// Get estimated recovery time
     fn estimated_recovery_time(&self, error: &FileManagementError) -> Duration;
 }
@@ -124,10 +126,10 @@ impl ErrorRecoveryManager {
             recovery_config: config,
             recovery_stats: RecoveryStats::default(),
         };
-        
+
         // Register default recovery strategies
         manager.register_default_strategies();
-        
+
         manager
     }
 
@@ -158,10 +160,13 @@ impl ErrorRecoveryManager {
     }
 
     /// Attempt to recover from an error
-    pub async fn recover_from_error(&mut self, error: FileManagementError) -> FileManagementResult<()> {
+    pub async fn recover_from_error(
+        &mut self,
+        error: FileManagementError,
+    ) -> FileManagementResult<()> {
         let session_id = uuid::Uuid::new_v4().to_string();
         let start_time = Instant::now();
-        
+
         let mut session = RecoverySession {
             session_id: session_id.clone(),
             original_error: error.to_string(),
@@ -178,7 +183,9 @@ impl ErrorRecoveryManager {
 
         // Update statistics
         self.recovery_stats.total_errors += 1;
-        *self.recovery_stats.recovery_attempts_by_category
+        *self
+            .recovery_stats
+            .recovery_attempts_by_category
             .entry(error.category().to_string())
             .or_insert(0) += 1;
 
@@ -191,17 +198,19 @@ impl ErrorRecoveryManager {
         }
 
         // Find suitable recovery strategies
-        let mut strategies: Vec<(&String, &Box<dyn RecoveryStrategy + Send + Sync>)> = 
-            self.recovery_strategies
-                .iter()
-                .filter(|(_, strategy)| strategy.can_handle(&error))
-                .collect();
+        let mut strategies: Vec<(&String, &Box<dyn RecoveryStrategy + Send + Sync>)> = self
+            .recovery_strategies
+            .iter()
+            .filter(|(_, strategy)| strategy.can_handle(&error))
+            .collect();
 
         // Sort strategies by confidence (highest first)
         strategies.sort_by(|a, b| {
             let conf_a = a.1.confidence(&error);
             let conf_b = b.1.confidence(&error);
-            conf_b.partial_cmp(&conf_a).unwrap_or(std::cmp::Ordering::Equal)
+            conf_b
+                .partial_cmp(&conf_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         if strategies.is_empty() {
@@ -213,34 +222,42 @@ impl ErrorRecoveryManager {
 
         // Attempt recovery with each strategy
         let mut last_error = error;
-        
+
         for attempt_num in 1..=self.recovery_config.max_retries {
             for (strategy_name, strategy) in &strategies {
                 let attempt_start = Instant::now();
-                
-                info!("Recovery attempt {} using strategy: {}", attempt_num, strategy_name);
-                
+
+                info!(
+                    "Recovery attempt {} using strategy: {}",
+                    attempt_num, strategy_name
+                );
+
                 // Check confidence threshold for automatic recovery
                 let confidence = strategy.confidence(&last_error);
-                if self.recovery_config.enable_auto_recovery && 
-                   confidence < self.recovery_config.min_auto_recovery_confidence {
-                    debug!("Skipping strategy {} due to low confidence: {}", strategy_name, confidence);
+                if self.recovery_config.enable_auto_recovery
+                    && confidence < self.recovery_config.min_auto_recovery_confidence
+                {
+                    debug!(
+                        "Skipping strategy {} due to low confidence: {}",
+                        strategy_name, confidence
+                    );
                     continue;
                 }
 
                 // Attempt recovery
                 let recovery_result = tokio::time::timeout(
                     Duration::from_millis(self.recovery_config.recovery_timeout_ms),
-                    strategy.recover(&last_error)
-                ).await;
+                    strategy.recover(&last_error),
+                )
+                .await;
 
                 let attempt_duration = attempt_start.elapsed().as_millis() as u64;
-                
+
                 match recovery_result {
                     Ok(Ok(())) => {
                         // Recovery successful
                         info!("Recovery successful with strategy: {}", strategy_name);
-                        
+
                         session.attempts.push(RecoveryAttempt {
                             attempt_number: attempt_num,
                             strategy_used: strategy_name.to_string(),
@@ -248,25 +265,30 @@ impl ErrorRecoveryManager {
                             duration_ms: attempt_duration,
                             error_message: None,
                         });
-                        
+
                         session.final_success = true;
                         session.completed_at = Some(chrono::Utc::now());
                         session.total_duration_ms = start_time.elapsed().as_millis() as u64;
-                        
+
                         // Update statistics
                         self.recovery_stats.recovered_errors += 1;
-                        *self.recovery_stats.successful_recoveries_by_category
+                        *self
+                            .recovery_stats
+                            .successful_recoveries_by_category
                             .entry(last_error.category().to_string())
                             .or_insert(0) += 1;
-                        
+
                         self.update_recovery_stats(&session);
-                        
+
                         return Ok(());
                     }
                     Ok(Err(recovery_error)) => {
                         // Recovery failed
-                        warn!("Recovery failed with strategy {}: {}", strategy_name, recovery_error);
-                        
+                        warn!(
+                            "Recovery failed with strategy {}: {}",
+                            strategy_name, recovery_error
+                        );
+
                         session.attempts.push(RecoveryAttempt {
                             attempt_number: attempt_num,
                             strategy_used: strategy_name.to_string(),
@@ -274,13 +296,13 @@ impl ErrorRecoveryManager {
                             duration_ms: attempt_duration,
                             error_message: Some(recovery_error.to_string()),
                         });
-                        
+
                         last_error = recovery_error;
                     }
                     Err(_) => {
                         // Recovery timed out
                         warn!("Recovery timed out with strategy: {}", strategy_name);
-                        
+
                         session.attempts.push(RecoveryAttempt {
                             attempt_number: attempt_num,
                             strategy_used: strategy_name.to_string(),
@@ -295,21 +317,24 @@ impl ErrorRecoveryManager {
             // Wait before next attempt (exponential backoff)
             if attempt_num < self.recovery_config.max_retries {
                 let delay = self.calculate_retry_delay(attempt_num);
-                debug!("Waiting {} ms before next recovery attempt", delay.as_millis());
+                debug!(
+                    "Waiting {} ms before next recovery attempt",
+                    delay.as_millis()
+                );
                 sleep(delay).await;
             }
         }
 
         // All recovery attempts failed
         error!("All recovery attempts failed for error: {}", last_error);
-        
+
         session.completed_at = Some(chrono::Utc::now());
         session.total_duration_ms = start_time.elapsed().as_millis() as u64;
-        
+
         // Update statistics
         self.recovery_stats.failed_recoveries += 1;
         self.update_recovery_stats(&session);
-        
+
         Err(FileManagementError::recovery(
             "All recovery attempts failed",
             last_error,
@@ -318,9 +343,12 @@ impl ErrorRecoveryManager {
 
     /// Calculate retry delay with exponential backoff
     fn calculate_retry_delay(&self, attempt_number: usize) -> Duration {
-        let delay_ms = (self.recovery_config.base_retry_delay_ms as f64 * 
-                       self.recovery_config.backoff_multiplier.powi(attempt_number as i32 - 1)) as u64;
-        
+        let delay_ms = (self.recovery_config.base_retry_delay_ms as f64
+            * self
+                .recovery_config
+                .backoff_multiplier
+                .powi(attempt_number as i32 - 1)) as u64;
+
         Duration::from_millis(delay_ms.min(self.recovery_config.max_retry_delay_ms))
     }
 
@@ -331,19 +359,21 @@ impl ErrorRecoveryManager {
         }
 
         // Calculate success rate
-        let total_attempts = self.recovery_stats.recovered_errors + self.recovery_stats.failed_recoveries;
+        let total_attempts =
+            self.recovery_stats.recovered_errors + self.recovery_stats.failed_recoveries;
         if total_attempts > 0 {
-            self.recovery_stats.recovery_success_rate = 
+            self.recovery_stats.recovery_success_rate =
                 self.recovery_stats.recovered_errors as f64 / total_attempts as f64;
         }
 
         // Update average recovery time
-        let total_recovery_time = self.recovery_stats.average_recovery_time_ms * 
-                                 (total_attempts.saturating_sub(1)) as u64 + 
-                                 session.total_duration_ms;
-        
+        let total_recovery_time = self.recovery_stats.average_recovery_time_ms
+            * (total_attempts.saturating_sub(1)) as u64
+            + session.total_duration_ms;
+
         if total_attempts > 0 {
-            self.recovery_stats.average_recovery_time_ms = total_recovery_time / total_attempts as u64;
+            self.recovery_stats.average_recovery_time_ms =
+                total_recovery_time / total_attempts as u64;
         }
     }
 
@@ -414,23 +444,30 @@ impl RecoveryStrategy for SpaceCleanupStrategy {
     }
 
     async fn recover(&self, error: &FileManagementError) -> FileManagementResult<()> {
-        if let FileManagementError::InsufficientSpace { required, available, .. } = error {
+        if let FileManagementError::InsufficientSpace {
+            required,
+            available,
+            ..
+        } = error
+        {
             let needed = required - available;
             info!("Attempting to free {} bytes of disk space", needed);
-            
+
             // In a real implementation, this would:
             // 1. Clean up temporary files
             // 2. Clear caches
             // 3. Remove old log files
             // 4. Compress large files
-            
+
             // For now, just simulate cleanup
             sleep(Duration::from_millis(500)).await;
-            
+
             // Simulate successful cleanup
             Ok(())
         } else {
-            Err(FileManagementError::other("Not an insufficient space error"))
+            Err(FileManagementError::other(
+                "Not an insufficient space error",
+            ))
         }
     }
 
@@ -469,15 +506,15 @@ impl RecoveryStrategy for PermissionFixStrategy {
     async fn recover(&self, error: &FileManagementError) -> FileManagementResult<()> {
         if let FileManagementError::PermissionDenied { path, .. } = error {
             info!("Attempting to fix permissions for: {}", path.display());
-            
+
             // In a real implementation, this would:
             // 1. Check current permissions
             // 2. Attempt to change permissions if possible
             // 3. Suggest running as administrator
-            
+
             // For now, just simulate permission fix
             sleep(Duration::from_millis(200)).await;
-            
+
             // Simulate that we can't actually fix permissions automatically
             Err(FileManagementError::permission_denied(path))
         } else {
@@ -520,7 +557,7 @@ impl RecoveryStrategy for PathCreationStrategy {
     async fn recover(&self, error: &FileManagementError) -> FileManagementResult<()> {
         if let FileManagementError::NotFound { path, .. } = error {
             info!("Attempting to create missing path: {}", path.display());
-            
+
             // Try to create the parent directory
             if let Some(parent) = path.parent() {
                 if !parent.exists() {
@@ -530,12 +567,12 @@ impl RecoveryStrategy for PathCreationStrategy {
                             e,
                         )
                     })?;
-                    
+
                     info!("Successfully created directory: {}", parent.display());
                     return Ok(());
                 }
             }
-            
+
             Err(FileManagementError::not_found(path))
         } else {
             Err(FileManagementError::other("Not a not found error"))
@@ -575,13 +612,21 @@ impl RecoveryStrategy for TimeoutAdjustmentStrategy {
     }
 
     async fn recover(&self, error: &FileManagementError) -> FileManagementResult<()> {
-        if let FileManagementError::Timeout { operation, duration_seconds, .. } = error {
-            info!("Adjusting timeout for operation: {} (was {} seconds)", operation, duration_seconds);
-            
+        if let FileManagementError::Timeout {
+            operation,
+            duration_seconds,
+            ..
+        } = error
+        {
+            info!(
+                "Adjusting timeout for operation: {} (was {} seconds)",
+                operation, duration_seconds
+            );
+
             // In a real implementation, this would adjust the timeout configuration
             // For now, just simulate the adjustment
             sleep(Duration::from_millis(100)).await;
-            
+
             Ok(())
         } else {
             Err(FileManagementError::other("Not a timeout error"))
@@ -623,19 +668,21 @@ impl RecoveryStrategy for ResourceCleanupStrategy {
     async fn recover(&self, error: &FileManagementError) -> FileManagementResult<()> {
         if let FileManagementError::ResourceExhaustion { resource, .. } = error {
             info!("Cleaning up {} resources", resource);
-            
+
             // In a real implementation, this would:
             // 1. Close unused file handles
             // 2. Clear memory caches
             // 3. Reduce concurrency limits
             // 4. Garbage collect
-            
+
             // For now, just simulate cleanup
             sleep(Duration::from_secs(1)).await;
-            
+
             Ok(())
         } else {
-            Err(FileManagementError::other("Not a resource exhaustion error"))
+            Err(FileManagementError::other(
+                "Not a resource exhaustion error",
+            ))
         }
     }
 
@@ -661,14 +708,14 @@ mod tests {
     async fn test_error_recovery_manager() {
         let config = RecoveryConfig::default();
         let mut manager = ErrorRecoveryManager::new(config);
-        
+
         // Test recovery from a timeout error
         let error = FileManagementError::timeout("test_operation", 30);
         let result = manager.recover_from_error(error).await;
-        
+
         // Should succeed with timeout adjustment strategy
         assert!(result.is_ok());
-        
+
         let stats = manager.get_recovery_stats();
         assert_eq!(stats.total_errors, 1);
         assert_eq!(stats.recovered_errors, 1);
@@ -678,10 +725,10 @@ mod tests {
     async fn test_space_cleanup_strategy() {
         let strategy = SpaceCleanupStrategy::new();
         let error = FileManagementError::insufficient_space(1000, 500);
-        
+
         assert!(strategy.can_handle(&error));
         assert!(strategy.confidence(&error) > 0.5);
-        
+
         let result = strategy.recover(&error).await;
         assert!(result.is_ok());
     }
@@ -690,7 +737,7 @@ mod tests {
     async fn test_path_creation_strategy() {
         let strategy = PathCreationStrategy::new();
         let error = FileManagementError::not_found(PathBuf::from("/nonexistent/path"));
-        
+
         assert!(strategy.can_handle(&error));
         assert!(strategy.confidence(&error) > 0.7);
     }

@@ -1,9 +1,9 @@
 //! State management for workflows and executions
 
-use crate::error::Result;
-use crate::storage::{CacheBackend, StorageBackend, RetentionPolicy, BackupManager, BackupConfig};
-use crate::workflow::{WorkflowState, ExecutionRecord};
 use crate::core::WorkflowId;
+use crate::error::Result;
+use crate::storage::{BackupConfig, BackupManager, CacheBackend, RetentionPolicy, StorageBackend};
+use crate::workflow::{ExecutionRecord, WorkflowState};
 use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,17 +16,14 @@ pub struct StateManager {
 }
 
 impl StateManager {
-    pub fn new(
-        storage: Arc<dyn StorageBackend>,
-        cache: Arc<dyn CacheBackend>,
-    ) -> Self {
-        Self { 
-            storage, 
+    pub fn new(storage: Arc<dyn StorageBackend>, cache: Arc<dyn CacheBackend>) -> Self {
+        Self {
+            storage,
             cache,
             backup_manager: None,
         }
     }
-    
+
     /// Create StateManager with backup functionality
     pub fn with_backup(
         storage: Arc<dyn StorageBackend>,
@@ -34,25 +31,25 @@ impl StateManager {
         backup_config: BackupConfig,
     ) -> Result<Self> {
         let backup_manager = BackupManager::new(storage.clone(), backup_config)?;
-        Ok(Self { 
-            storage, 
+        Ok(Self {
+            storage,
             cache,
             backup_manager: Some(backup_manager),
         })
     }
-    
+
     /// Get the cache backend for external use
     pub fn get_cache_backend(&self) -> Arc<dyn CacheBackend> {
         self.cache.clone()
     }
-    
+
     /// Create a StateManager with file storage and simple memory cache
     pub fn with_file_storage<P: Into<std::path::PathBuf>>(base_path: P) -> Result<Self> {
         let storage = Arc::new(crate::storage::FileStorage::new(base_path)?);
         let cache = Arc::new(crate::storage::SimpleMemoryCache::new());
         Ok(Self::new(storage, cache))
     }
-    
+
     /// Create a StateManager with local memory cache
     pub fn with_local_cache(
         storage: Arc<dyn StorageBackend>,
@@ -74,58 +71,62 @@ impl StateManager {
     pub async fn save_workflow_state(&self, id: WorkflowId, state: WorkflowState) -> Result<()> {
         let key = format!("workflow:state:{}", id);
         let value = serde_json::to_vec(&state)?;
-        
+
         // Save to storage backend first
         self.storage.save(&key, &value).await?;
-        
+
         // Update cache with 1 hour TTL
-        self.cache.set(&key, value, Some(Duration::from_secs(3600))).await?;
-        
+        self.cache
+            .set(&key, value, Some(Duration::from_secs(3600)))
+            .await?;
+
         Ok(())
     }
-    
+
     /// Load workflow state from cache or storage
     pub async fn load_workflow_state(&self, id: WorkflowId) -> Result<Option<WorkflowState>> {
         let key = format!("workflow:state:{}", id);
-        
+
         // Try cache first
         if let Some(cached_value) = self.cache.get(&key).await {
             if let Ok(state) = serde_json::from_slice(&cached_value) {
                 return Ok(Some(state));
             }
         }
-        
+
         // Cache miss, try storage
         if let Some(value) = self.storage.load(&key).await? {
             let state: WorkflowState = serde_json::from_slice(&value)?;
-            
+
             // Update cache
-            self.cache.set(&key, value, Some(Duration::from_secs(3600))).await?;
-            
+            self.cache
+                .set(&key, value, Some(Duration::from_secs(3600)))
+                .await?;
+
             Ok(Some(state))
         } else {
             Ok(None)
         }
     }
-    
+
     /// Delete workflow state from storage and cache
     pub async fn delete_workflow_state(&self, id: WorkflowId) -> Result<()> {
         let key = format!("workflow:state:{}", id);
-        
+
         // Remove from storage
         self.storage.delete(&key).await?;
-        
+
         // Remove from cache
         self.cache.delete(&key).await?;
-        
+
         Ok(())
     }
-    
+
     /// List all workflow IDs with states
     pub async fn list_workflow_states(&self) -> Result<Vec<WorkflowId>> {
         let keys = self.storage.list_keys("workflow:state:").await?;
         let mut workflow_ids = Vec::new();
-        
+
         for key in keys {
             if let Some(id_str) = key.strip_prefix("workflow:state:") {
                 if let Ok(id) = id_str.parse() {
@@ -133,57 +134,70 @@ impl StateManager {
                 }
             }
         }
-        
+
         Ok(workflow_ids)
     }
-    
+
     /// Check if workflow state exists
     pub async fn workflow_state_exists(&self, id: WorkflowId) -> Result<bool> {
         let key = format!("workflow:state:{}", id);
-        
+
         // Check cache first
         if self.cache.get(&key).await.is_some() {
             return Ok(true);
         }
-        
+
         // Check storage
         self.storage.exists(&key).await
     }
-    
+
     /// Save multiple workflow states in batch
-    pub async fn batch_save_workflow_states(&self, states: Vec<(WorkflowId, WorkflowState)>) -> Result<()> {
+    pub async fn batch_save_workflow_states(
+        &self,
+        states: Vec<(WorkflowId, WorkflowState)>,
+    ) -> Result<()> {
         let mut items = Vec::new();
         let mut cache_items = Vec::new();
-        
+
         for (id, state) in states {
             let key = format!("workflow:state:{}", id);
             let value = serde_json::to_vec(&state)?;
             items.push((key.clone(), value.clone()));
             cache_items.push((key, value));
         }
-        
+
         // Batch save to storage
         self.storage.batch_save(items).await?;
-        
+
         // Update cache
         for (key, value) in cache_items {
-            self.cache.set(&key, value, Some(Duration::from_secs(3600))).await?;
+            self.cache
+                .set(&key, value, Some(Duration::from_secs(3600)))
+                .await?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Load multiple workflow states in batch
-    pub async fn batch_load_workflow_states(&self, ids: Vec<WorkflowId>) -> Result<Vec<Option<WorkflowState>>> {
-        let keys: Vec<String> = ids.iter().map(|id| format!("workflow:state:{}", id)).collect();
+    pub async fn batch_load_workflow_states(
+        &self,
+        ids: Vec<WorkflowId>,
+    ) -> Result<Vec<Option<WorkflowState>>> {
+        let keys: Vec<String> = ids
+            .iter()
+            .map(|id| format!("workflow:state:{}", id))
+            .collect();
         let values = self.storage.batch_load(keys.clone()).await?;
-        
+
         let mut results = Vec::new();
         for (i, value_opt) in values.into_iter().enumerate() {
             if let Some(value) = value_opt {
                 if let Ok(state) = serde_json::from_slice(&value) {
                     // Update cache
-                    self.cache.set(&keys[i], value, Some(Duration::from_secs(3600))).await?;
+                    self.cache
+                        .set(&keys[i], value, Some(Duration::from_secs(3600)))
+                        .await?;
                     results.push(Some(state));
                 } else {
                     results.push(None);
@@ -192,92 +206,108 @@ impl StateManager {
                 results.push(None);
             }
         }
-        
+
         Ok(results)
     }
-    
+
     /// Clear cache
     pub async fn clear_cache(&self) -> Result<()> {
         self.cache.clear().await
     }
-    
+
     /// Get cache size
     pub fn cache_size(&self) -> usize {
         self.cache.size()
     }
-    
+
     /// Get backup manager reference
     pub fn backup_manager(&self) -> Option<&BackupManager> {
         self.backup_manager.as_ref()
     }
-    
+
     /// Create a full backup of all system data
     pub async fn create_backup(&self) -> Result<crate::storage::BackupMetadata> {
         match &self.backup_manager {
             Some(manager) => manager.create_full_backup().await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
-    
+
     /// Create an incremental backup
-    pub async fn create_incremental_backup(&self, previous_backup_id: &str) -> Result<crate::storage::BackupMetadata> {
+    pub async fn create_incremental_backup(
+        &self,
+        previous_backup_id: &str,
+    ) -> Result<crate::storage::BackupMetadata> {
         match &self.backup_manager {
             Some(manager) => manager.create_incremental_backup(previous_backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
-    
+
     /// Restore system state from backup
-    pub async fn restore_from_backup(&self, backup_id: &str) -> Result<crate::storage::RestoreResult> {
+    pub async fn restore_from_backup(
+        &self,
+        backup_id: &str,
+    ) -> Result<crate::storage::RestoreResult> {
         match &self.backup_manager {
             Some(manager) => manager.restore_from_backup(backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
-    
+
     /// Verify backup integrity
-    pub async fn verify_backup(&self, backup_id: &str) -> Result<crate::storage::BackupVerification> {
+    pub async fn verify_backup(
+        &self,
+        backup_id: &str,
+    ) -> Result<crate::storage::BackupVerification> {
         match &self.backup_manager {
             Some(manager) => manager.verify_backup(backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
-    
+
     /// List available backups
     pub async fn list_backups(&self) -> Result<Vec<crate::storage::BackupMetadata>> {
         match &self.backup_manager {
             Some(manager) => manager.list_backups().await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
-    
+
     /// Delete a backup
     pub async fn delete_backup(&self, backup_id: &str) -> Result<()> {
         match &self.backup_manager {
             Some(manager) => manager.delete_backup(backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
-    
+
     /// Get backup statistics
     pub async fn get_backup_statistics(&self) -> Result<crate::storage::BackupStatistics> {
         match &self.backup_manager {
             Some(manager) => manager.get_backup_statistics().await,
             None => Err(crate::error::WorkflowError::BackupError(
-                "Backup manager not configured".to_string()
-            ).into()),
+                "Backup manager not configured".to_string(),
+            )
+            .into()),
         }
     }
 }
@@ -286,24 +316,32 @@ impl StateManager {
 impl StateManager {
     /// Save execution record to history
     pub async fn save_execution_record(&self, record: ExecutionRecord) -> Result<()> {
-        let key = format!("execution:history:{}:{}", record.workflow_id, record.execution_id);
+        let key = format!(
+            "execution:history:{}:{}",
+            record.workflow_id, record.execution_id
+        );
         let value = serde_json::to_vec(&record)?;
-        
+
         // Save to storage
         self.storage.save(&key, &value).await?;
-        
+
         // Cache with shorter TTL for history records
-        self.cache.set(&key, value, Some(Duration::from_secs(1800))).await?; // 30 minutes
-        
+        self.cache
+            .set(&key, value, Some(Duration::from_secs(1800)))
+            .await?; // 30 minutes
+
         Ok(())
     }
-    
+
     /// Get execution history for a workflow
-    pub async fn get_execution_history(&self, workflow_id: WorkflowId) -> Result<Vec<ExecutionRecord>> {
+    pub async fn get_execution_history(
+        &self,
+        workflow_id: WorkflowId,
+    ) -> Result<Vec<ExecutionRecord>> {
         let prefix = format!("execution:history:{}", workflow_id);
         let keys = self.storage.list_keys(&prefix).await?;
         let values = self.storage.batch_load(keys).await?;
-        
+
         let mut history = Vec::new();
         for value_opt in values {
             if let Some(value) = value_opt {
@@ -312,98 +350,111 @@ impl StateManager {
                 }
             }
         }
-        
+
         // Sort by timestamp (newest first)
         history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        
+
         Ok(history)
     }
-    
+
     /// Get execution history with pagination
     pub async fn get_execution_history_paginated(
-        &self, 
-        workflow_id: WorkflowId, 
-        limit: usize, 
-        offset: usize
+        &self,
+        workflow_id: WorkflowId,
+        limit: usize,
+        offset: usize,
     ) -> Result<Vec<ExecutionRecord>> {
         let mut history = self.get_execution_history(workflow_id).await?;
-        
+
         // Apply pagination
         let start = offset.min(history.len());
         let end = (offset + limit).min(history.len());
-        
+
         if start < end {
             history.drain(..start);
             history.truncate(limit);
         } else {
             history.clear();
         }
-        
+
         Ok(history)
     }
-    
+
     /// Get execution record by ID
-    pub async fn get_execution_record(&self, workflow_id: WorkflowId, execution_id: &str) -> Result<Option<ExecutionRecord>> {
+    pub async fn get_execution_record(
+        &self,
+        workflow_id: WorkflowId,
+        execution_id: &str,
+    ) -> Result<Option<ExecutionRecord>> {
         let key = format!("execution:history:{}:{}", workflow_id, execution_id);
-        
+
         // Try cache first
         if let Some(cached_value) = self.cache.get(&key).await {
             if let Ok(record) = serde_json::from_slice(&cached_value) {
                 return Ok(Some(record));
             }
         }
-        
+
         // Try storage
         if let Some(value) = self.storage.load(&key).await? {
             let record: ExecutionRecord = serde_json::from_slice(&value)?;
-            
+
             // Update cache
-            self.cache.set(&key, value, Some(Duration::from_secs(1800))).await?;
-            
+            self.cache
+                .set(&key, value, Some(Duration::from_secs(1800)))
+                .await?;
+
             Ok(Some(record))
         } else {
             Ok(None)
         }
     }
-    
+
     /// Delete execution record
-    pub async fn delete_execution_record(&self, workflow_id: WorkflowId, execution_id: &str) -> Result<()> {
+    pub async fn delete_execution_record(
+        &self,
+        workflow_id: WorkflowId,
+        execution_id: &str,
+    ) -> Result<()> {
         let key = format!("execution:history:{}:{}", workflow_id, execution_id);
-        
+
         // Remove from storage
         self.storage.delete(&key).await?;
-        
+
         // Remove from cache
         self.cache.delete(&key).await?;
-        
+
         Ok(())
     }
-    
+
     /// Delete all execution history for a workflow
     pub async fn delete_workflow_history(&self, workflow_id: WorkflowId) -> Result<()> {
         let prefix = format!("execution:history:{}", workflow_id);
         let keys = self.storage.list_keys(&prefix).await?;
-        
+
         // Delete from storage
         for key in &keys {
             self.storage.delete(key).await?;
         }
-        
+
         // Delete from cache
         for key in &keys {
             self.cache.delete(key).await?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Get execution statistics for a workflow
-    pub async fn get_execution_statistics(&self, workflow_id: WorkflowId) -> Result<ExecutionStatistics> {
+    pub async fn get_execution_statistics(
+        &self,
+        workflow_id: WorkflowId,
+    ) -> Result<ExecutionStatistics> {
         let history = self.get_execution_history(workflow_id).await?;
-        
+
         let mut stats = ExecutionStatistics::default();
         stats.total_executions = history.len();
-        
+
         for record in &history {
             match record.status {
                 crate::core::ExecutionStatus::Completed => stats.successful_executions += 1,
@@ -411,7 +462,7 @@ impl StateManager {
                 crate::core::ExecutionStatus::Cancelled => stats.cancelled_executions += 1,
                 _ => {}
             }
-            
+
             if let Some(duration) = record.duration {
                 stats.total_duration += duration;
                 if stats.min_duration.is_none() || Some(duration) < stats.min_duration {
@@ -422,27 +473,31 @@ impl StateManager {
                 }
             }
         }
-        
+
         if stats.total_executions > 0 {
             stats.success_rate = stats.successful_executions as f64 / stats.total_executions as f64;
             if let Some(total_duration) = stats.total_duration.to_std().ok() {
-                stats.average_duration = Some(chrono::Duration::from_std(
-                    total_duration / stats.total_executions as u32
-                ).unwrap_or_default());
+                stats.average_duration = Some(
+                    chrono::Duration::from_std(total_duration / stats.total_executions as u32)
+                        .unwrap_or_default(),
+                );
             }
         }
-        
+
         Ok(stats)
     }
-    
+
     /// Clean up old execution records based on retention policy
-    pub async fn cleanup_execution_history(&self, retention_policy: RetentionPolicy) -> Result<usize> {
+    pub async fn cleanup_execution_history(
+        &self,
+        retention_policy: RetentionPolicy,
+    ) -> Result<usize> {
         let cutoff_time = Utc::now() - retention_policy.max_age;
         let all_keys = self.storage.list_keys("execution:history:").await?;
-        
+
         let mut deleted_count = 0;
         let mut records_to_check = Vec::new();
-        
+
         // Load all execution records to check timestamps
         for key in &all_keys {
             if let Some(value) = self.storage.load(key).await? {
@@ -451,31 +506,34 @@ impl StateManager {
                 }
             }
         }
-        
+
         // Sort by timestamp (oldest first)
         records_to_check.sort_by(|a, b| a.1.timestamp.cmp(&b.1.timestamp));
-        
+
         // Delete old records
         for (key, record) in &records_to_check {
-            let should_delete = record.timestamp < cutoff_time || 
-                (retention_policy.max_count.is_some() && 
-                 deleted_count < records_to_check.len().saturating_sub(retention_policy.max_count.unwrap()));
-            
+            let should_delete = record.timestamp < cutoff_time
+                || (retention_policy.max_count.is_some()
+                    && deleted_count
+                        < records_to_check
+                            .len()
+                            .saturating_sub(retention_policy.max_count.unwrap()));
+
             if should_delete {
                 self.storage.delete(key).await?;
                 self.cache.delete(key).await?;
                 deleted_count += 1;
             }
         }
-        
+
         Ok(deleted_count)
     }
-    
+
     /// Get recent execution records across all workflows
     pub async fn get_recent_executions(&self, limit: usize) -> Result<Vec<ExecutionRecord>> {
         let all_keys = self.storage.list_keys("execution:history:").await?;
         let values = self.storage.batch_load(all_keys).await?;
-        
+
         let mut all_records = Vec::new();
         for value_opt in values {
             if let Some(value) = value_opt {
@@ -484,11 +542,11 @@ impl StateManager {
                 }
             }
         }
-        
+
         // Sort by timestamp (newest first) and limit
         all_records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         all_records.truncate(limit);
-        
+
         Ok(all_records)
     }
 }

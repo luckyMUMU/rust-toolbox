@@ -1,10 +1,10 @@
 //! Error types for the File Management Plugin
 
 use crate::error::WorkflowError;
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use thiserror::Error;
-use serde::{Serialize, Deserialize};
 
 /// Result type for file management operations
 pub type FileManagementResult<T> = Result<T, FileManagementError>;
@@ -15,7 +15,7 @@ pub type FileManagementResult<T> = Result<T, FileManagementError>;
 pub enum FileManagementError {
     /// File or directory not found
     #[error("File or directory not found: {path}")]
-    NotFound { 
+    NotFound {
         path: PathBuf,
         #[serde(skip)]
         context: ErrorContext,
@@ -23,7 +23,7 @@ pub enum FileManagementError {
 
     /// Permission denied for file operation
     #[error("Permission denied for operation on: {path}")]
-    PermissionDenied { 
+    PermissionDenied {
         path: PathBuf,
         #[serde(skip)]
         context: ErrorContext,
@@ -31,8 +31,8 @@ pub enum FileManagementError {
 
     /// Insufficient disk space
     #[error("Insufficient disk space: required {required} bytes, available {available} bytes")]
-    InsufficientSpace { 
-        required: u64, 
+    InsufficientSpace {
+        required: u64,
         available: u64,
         #[serde(skip)]
         context: ErrorContext,
@@ -40,7 +40,7 @@ pub enum FileManagementError {
 
     /// File operation conflict (e.g., destination already exists)
     #[error("File operation conflict: {message}")]
-    Conflict { 
+    Conflict {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -48,8 +48,8 @@ pub enum FileManagementError {
 
     /// Invalid file path or name
     #[error("Invalid path: {path} - {reason}")]
-    InvalidPath { 
-        path: PathBuf, 
+    InvalidPath {
+        path: PathBuf,
         reason: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -57,7 +57,7 @@ pub enum FileManagementError {
 
     /// Text processing error
     #[error("Text processing error: {message}")]
-    TextProcessing { 
+    TextProcessing {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -65,7 +65,7 @@ pub enum FileManagementError {
 
     /// Classification error
     #[error("Classification error: {message}")]
-    Classification { 
+    Classification {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -73,7 +73,7 @@ pub enum FileManagementError {
 
     /// Pattern matching error
     #[error("Pattern matching error: {message}")]
-    PatternMatching { 
+    PatternMatching {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -81,7 +81,7 @@ pub enum FileManagementError {
 
     /// Human decision timeout
     #[error("Human decision timed out after {timeout_seconds} seconds")]
-    HumanDecisionTimeout { 
+    HumanDecisionTimeout {
         timeout_seconds: u64,
         #[serde(skip)]
         context: ErrorContext,
@@ -96,7 +96,7 @@ pub enum FileManagementError {
 
     /// Experimental mode violation (trying to perform real operations in experimental mode)
     #[error("Operation not allowed in experimental mode: {operation}")]
-    ExperimentalModeViolation { 
+    ExperimentalModeViolation {
         operation: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -104,8 +104,8 @@ pub enum FileManagementError {
 
     /// Batch processing error
     #[error("Batch processing error: {failed_count} of {total_count} operations failed")]
-    BatchProcessing { 
-        failed_count: usize, 
+    BatchProcessing {
+        failed_count: usize,
         total_count: usize,
         #[serde(skip)]
         context: ErrorContext,
@@ -113,7 +113,7 @@ pub enum FileManagementError {
 
     /// Configuration error
     #[error("Configuration error: {message}")]
-    Configuration { 
+    Configuration {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -121,7 +121,7 @@ pub enum FileManagementError {
 
     /// Validation error
     #[error("Validation error: {message}")]
-    Validation { 
+    Validation {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -192,7 +192,7 @@ pub enum FileManagementError {
 
     /// Generic error for other cases
     #[error("File management error: {message}")]
-    Other { 
+    Other {
         message: String,
         #[serde(skip)]
         context: ErrorContext,
@@ -204,28 +204,28 @@ pub enum FileManagementError {
 pub struct ErrorContext {
     /// Operation that was being performed when error occurred
     pub operation: Option<String>,
-    
+
     /// Component or tool that generated the error
     pub component: Option<String>,
-    
+
     /// Additional metadata about the error
     pub metadata: HashMap<String, String>,
-    
+
     /// Timestamp when error occurred
     pub timestamp: Option<chrono::DateTime<chrono::Utc>>,
-    
+
     /// Stack trace or call chain
     pub call_stack: Vec<String>,
-    
+
     /// Recovery suggestions
     pub recovery_suggestions: Vec<RecoverySuggestion>,
-    
+
     /// Error severity level
     pub severity: ErrorSeverity,
-    
+
     /// Whether this error should be retried
     pub retryable: bool,
-    
+
     /// User-friendly error message
     pub user_message: Option<String>,
 }
@@ -235,7 +235,7 @@ pub struct ErrorContext {
 pub struct RecoverySuggestion {
     pub action: String,
     pub description: String,
-    pub confidence: f64, // 0.0 to 1.0
+    pub confidence: f64,             // 0.0 to 1.0
     pub estimated_success_rate: f64, // 0.0 to 1.0
 }
 
@@ -346,22 +346,22 @@ impl ErrorContext {
     /// Get context summary for logging
     pub fn summary(&self) -> String {
         let mut parts = Vec::new();
-        
+
         if let Some(ref op) = self.operation {
             parts.push(format!("operation: {}", op));
         }
-        
+
         if let Some(ref comp) = self.component {
             parts.push(format!("component: {}", comp));
         }
-        
+
         parts.push(format!("severity: {:?}", self.severity));
         parts.push(format!("retryable: {}", self.retryable));
-        
+
         if !self.recovery_suggestions.is_empty() {
             parts.push(format!("suggestions: {}", self.recovery_suggestions.len()));
         }
-        
+
         parts.join(", ")
     }
 }
@@ -388,7 +388,11 @@ impl RecoverySuggestion {
     }
 
     /// Create a recovery suggestion with success rate
-    pub fn with_success_rate<S: Into<String>>(action: S, description: S, success_rate: f64) -> Self {
+    pub fn with_success_rate<S: Into<String>>(
+        action: S,
+        description: S,
+        success_rate: f64,
+    ) -> Self {
         Self {
             action: action.into(),
             description: description.into(),
@@ -399,10 +403,10 @@ impl RecoverySuggestion {
 
     /// Create a fully specified recovery suggestion
     pub fn new_full<S: Into<String>>(
-        action: S, 
-        description: S, 
-        confidence: f64, 
-        success_rate: f64
+        action: S,
+        description: S,
+        confidence: f64,
+        success_rate: f64,
     ) -> Self {
         Self {
             action: action.into(),
@@ -416,7 +420,7 @@ impl RecoverySuggestion {
 impl FileManagementError {
     /// Create a not found error with context
     pub fn not_found<P: Into<PathBuf>>(path: P) -> Self {
-        Self::NotFound { 
+        Self::NotFound {
             path: path.into(),
             context: ErrorContext::default(),
         }
@@ -424,7 +428,7 @@ impl FileManagementError {
 
     /// Create a not found error with enhanced context
     pub fn not_found_with_context<P: Into<PathBuf>>(path: P, context: ErrorContext) -> Self {
-        Self::NotFound { 
+        Self::NotFound {
             path: path.into(),
             context,
         }
@@ -432,15 +436,18 @@ impl FileManagementError {
 
     /// Create a permission denied error
     pub fn permission_denied<P: Into<PathBuf>>(path: P) -> Self {
-        Self::PermissionDenied { 
+        Self::PermissionDenied {
             path: path.into(),
             context: ErrorContext::default(),
         }
     }
 
     /// Create a permission denied error with context
-    pub fn permission_denied_with_context<P: Into<PathBuf>>(path: P, context: ErrorContext) -> Self {
-        Self::PermissionDenied { 
+    pub fn permission_denied_with_context<P: Into<PathBuf>>(
+        path: P,
+        context: ErrorContext,
+    ) -> Self {
+        Self::PermissionDenied {
             path: path.into(),
             context,
         }
@@ -448,17 +455,21 @@ impl FileManagementError {
 
     /// Create an insufficient space error
     pub fn insufficient_space(required: u64, available: u64) -> Self {
-        Self::InsufficientSpace { 
-            required, 
+        Self::InsufficientSpace {
+            required,
             available,
             context: ErrorContext::default(),
         }
     }
 
     /// Create an insufficient space error with context
-    pub fn insufficient_space_with_context(required: u64, available: u64, context: ErrorContext) -> Self {
-        Self::InsufficientSpace { 
-            required, 
+    pub fn insufficient_space_with_context(
+        required: u64,
+        available: u64,
+        context: ErrorContext,
+    ) -> Self {
+        Self::InsufficientSpace {
+            required,
             available,
             context,
         }
@@ -506,7 +517,11 @@ impl FileManagementError {
     }
 
     /// Create an invalid path error with context
-    pub fn invalid_path_with_context<P: Into<PathBuf>, S: Into<String>>(path: P, reason: S, context: ErrorContext) -> Self {
+    pub fn invalid_path_with_context<P: Into<PathBuf>, S: Into<String>>(
+        path: P,
+        reason: S,
+        context: ErrorContext,
+    ) -> Self {
         Self::InvalidPath {
             path: path.into(),
             reason: reason.into(),
@@ -523,7 +538,10 @@ impl FileManagementError {
     }
 
     /// Create a text processing error with context
-    pub fn text_processing_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
+    pub fn text_processing_with_context<S: Into<String>>(
+        message: S,
+        context: ErrorContext,
+    ) -> Self {
         Self::TextProcessing {
             message: message.into(),
             context,
@@ -555,7 +573,10 @@ impl FileManagementError {
     }
 
     /// Create a pattern matching error with context
-    pub fn pattern_matching_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
+    pub fn pattern_matching_with_context<S: Into<String>>(
+        message: S,
+        context: ErrorContext,
+    ) -> Self {
         Self::PatternMatching {
             message: message.into(),
             context,
@@ -564,15 +585,18 @@ impl FileManagementError {
 
     /// Create a human decision timeout error
     pub fn human_decision_timeout(timeout_seconds: u64) -> Self {
-        Self::HumanDecisionTimeout { 
+        Self::HumanDecisionTimeout {
             timeout_seconds,
             context: ErrorContext::default(),
         }
     }
 
     /// Create a human decision timeout error with context
-    pub fn human_decision_timeout_with_context(timeout_seconds: u64, context: ErrorContext) -> Self {
-        Self::HumanDecisionTimeout { 
+    pub fn human_decision_timeout_with_context(
+        timeout_seconds: u64,
+        context: ErrorContext,
+    ) -> Self {
+        Self::HumanDecisionTimeout {
             timeout_seconds,
             context,
         }
@@ -587,9 +611,7 @@ impl FileManagementError {
 
     /// Create a human decision cancelled error with context
     pub fn human_decision_cancelled_with_context(context: ErrorContext) -> Self {
-        Self::HumanDecisionCancelled {
-            context,
-        }
+        Self::HumanDecisionCancelled { context }
     }
 
     /// Create an experimental mode violation error
@@ -601,7 +623,10 @@ impl FileManagementError {
     }
 
     /// Create an experimental mode violation error with context
-    pub fn experimental_mode_violation_with_context<S: Into<String>>(operation: S, context: ErrorContext) -> Self {
+    pub fn experimental_mode_violation_with_context<S: Into<String>>(
+        operation: S,
+        context: ErrorContext,
+    ) -> Self {
         Self::ExperimentalModeViolation {
             operation: operation.into(),
             context,
@@ -618,7 +643,11 @@ impl FileManagementError {
     }
 
     /// Create a batch processing error with context
-    pub fn batch_processing_with_context(failed_count: usize, total_count: usize, context: ErrorContext) -> Self {
+    pub fn batch_processing_with_context(
+        failed_count: usize,
+        total_count: usize,
+        context: ErrorContext,
+    ) -> Self {
         Self::BatchProcessing {
             failed_count,
             total_count,
@@ -668,7 +697,11 @@ impl FileManagementError {
     }
 
     /// Create an I/O error with context
-    pub fn io_with_context<S: Into<String>>(message: S, source: std::io::Error, context: ErrorContext) -> Self {
+    pub fn io_with_context<S: Into<String>>(
+        message: S,
+        source: std::io::Error,
+        context: ErrorContext,
+    ) -> Self {
         Self::Io {
             message: message.into(),
             source,
@@ -686,7 +719,11 @@ impl FileManagementError {
     }
 
     /// Create a JSON error with context
-    pub fn json_with_context<S: Into<String>>(message: S, source: serde_json::Error, context: ErrorContext) -> Self {
+    pub fn json_with_context<S: Into<String>>(
+        message: S,
+        source: serde_json::Error,
+        context: ErrorContext,
+    ) -> Self {
         Self::Json {
             message: message.into(),
             source,
@@ -720,7 +757,11 @@ impl FileManagementError {
     }
 
     /// Create a resource exhaustion error with context
-    pub fn resource_exhaustion_with_context<S: Into<String>>(resource: S, message: S, context: ErrorContext) -> Self {
+    pub fn resource_exhaustion_with_context<S: Into<String>>(
+        resource: S,
+        message: S,
+        context: ErrorContext,
+    ) -> Self {
         Self::ResourceExhaustion {
             resource: resource.into(),
             message: message.into(),
@@ -738,7 +779,11 @@ impl FileManagementError {
     }
 
     /// Create a timeout error with context
-    pub fn timeout_with_context<S: Into<String>>(operation: S, duration_seconds: u64, context: ErrorContext) -> Self {
+    pub fn timeout_with_context<S: Into<String>>(
+        operation: S,
+        duration_seconds: u64,
+        context: ErrorContext,
+    ) -> Self {
         Self::Timeout {
             operation: operation.into(),
             duration_seconds,
@@ -772,7 +817,11 @@ impl FileManagementError {
     }
 
     /// Create a recovery error with context
-    pub fn recovery_with_context<S: Into<String>>(message: S, original_error: FileManagementError, context: ErrorContext) -> Self {
+    pub fn recovery_with_context<S: Into<String>>(
+        message: S,
+        original_error: FileManagementError,
+        context: ErrorContext,
+    ) -> Self {
         Self::Recovery {
             message: message.into(),
             original_error: Box::new(original_error),
@@ -817,7 +866,7 @@ impl FileManagementError {
             Self::Json { context, .. } => context.retryable,
             Self::Performance { context, .. } => true, // Can retry with different settings
             Self::ResourceExhaustion { context, .. } => true, // Can retry after cleanup
-            Self::Timeout { context, .. } => true, // Can retry with longer timeout
+            Self::Timeout { context, .. } => true,     // Can retry with longer timeout
             Self::Concurrency { context, .. } => true, // Can retry with different concurrency
             Self::Recovery { context, .. } => context.retryable,
             Self::Other { context, .. } => context.retryable,
@@ -992,25 +1041,44 @@ impl FileManagementError {
             // Generate user-friendly message based on error type
             match self {
                 Self::NotFound { path, .. } => {
-                    format!("The file or folder '{}' could not be found.", path.display())
+                    format!(
+                        "The file or folder '{}' could not be found.",
+                        path.display()
+                    )
                 }
                 Self::PermissionDenied { path, .. } => {
                     format!("Permission denied when accessing '{}'.", path.display())
                 }
-                Self::InsufficientSpace { required, available, .. } => {
-                    format!("Not enough disk space. Need {} MB but only {} MB available.", 
-                           required / (1024 * 1024), available / (1024 * 1024))
+                Self::InsufficientSpace {
+                    required,
+                    available,
+                    ..
+                } => {
+                    format!(
+                        "Not enough disk space. Need {} MB but only {} MB available.",
+                        required / (1024 * 1024),
+                        available / (1024 * 1024)
+                    )
                 }
                 Self::Conflict { message, .. } => {
                     format!("File operation conflict: {}", message)
                 }
-                Self::HumanDecisionTimeout { timeout_seconds, .. } => {
-                    format!("Decision timed out after {} seconds. Please try again.", timeout_seconds)
+                Self::HumanDecisionTimeout {
+                    timeout_seconds, ..
+                } => {
+                    format!(
+                        "Decision timed out after {} seconds. Please try again.",
+                        timeout_seconds
+                    )
                 }
                 Self::HumanDecisionCancelled { .. } => {
                     "Operation was cancelled by user.".to_string()
                 }
-                Self::BatchProcessing { failed_count, total_count, .. } => {
+                Self::BatchProcessing {
+                    failed_count,
+                    total_count,
+                    ..
+                } => {
                     format!("{} out of {} operations failed.", failed_count, total_count)
                 }
                 _ => self.to_string(),
@@ -1021,13 +1089,16 @@ impl FileManagementError {
     /// Generate recovery suggestions based on error type
     pub fn generate_recovery_suggestions(&self) -> Vec<RecoverySuggestion> {
         let mut suggestions = self.context().recovery_suggestions.clone();
-        
+
         // Add default suggestions based on error type
         match self {
             Self::NotFound { path, .. } => {
                 suggestions.push(RecoverySuggestion {
                     action: "check_path".to_string(),
-                    description: format!("Verify that the path '{}' exists and is accessible.", path.display()),
+                    description: format!(
+                        "Verify that the path '{}' exists and is accessible.",
+                        path.display()
+                    ),
                     confidence: 0.8,
                     estimated_success_rate: 0.7,
                 });
@@ -1047,22 +1118,30 @@ impl FileManagementError {
                 });
                 suggestions.push(RecoverySuggestion {
                     action: "run_as_admin".to_string(),
-                    description: "Try running the operation with administrator privileges.".to_string(),
+                    description: "Try running the operation with administrator privileges."
+                        .to_string(),
                     confidence: 0.7,
                     estimated_success_rate: 0.9,
                 });
             }
-            Self::InsufficientSpace { required, available, .. } => {
+            Self::InsufficientSpace {
+                required,
+                available,
+                ..
+            } => {
                 suggestions.push(RecoverySuggestion {
                     action: "free_space".to_string(),
-                    description: format!("Free up at least {} MB of disk space.", 
-                                       (required - available) / (1024 * 1024)),
+                    description: format!(
+                        "Free up at least {} MB of disk space.",
+                        (required - available) / (1024 * 1024)
+                    ),
                     confidence: 0.9,
                     estimated_success_rate: 0.9,
                 });
                 suggestions.push(RecoverySuggestion {
                     action: "use_different_location".to_string(),
-                    description: "Choose a different destination with more available space.".to_string(),
+                    description: "Choose a different destination with more available space."
+                        .to_string(),
                     confidence: 0.8,
                     estimated_success_rate: 0.9,
                 });
@@ -1070,13 +1149,15 @@ impl FileManagementError {
             Self::Timeout { .. } => {
                 suggestions.push(RecoverySuggestion {
                     action: "increase_timeout".to_string(),
-                    description: "Increase the timeout duration and retry the operation.".to_string(),
+                    description: "Increase the timeout duration and retry the operation."
+                        .to_string(),
                     confidence: 0.8,
                     estimated_success_rate: 0.7,
                 });
                 suggestions.push(RecoverySuggestion {
                     action: "reduce_batch_size".to_string(),
-                    description: "Process fewer items at once to reduce operation time.".to_string(),
+                    description: "Process fewer items at once to reduce operation time."
+                        .to_string(),
                     confidence: 0.7,
                     estimated_success_rate: 0.8,
                 });
@@ -1104,7 +1185,7 @@ impl FileManagementError {
                 });
             }
         }
-        
+
         suggestions
     }
 }
@@ -1119,8 +1200,12 @@ impl From<FileManagementError> for WorkflowError {
             FileManagementError::PermissionDenied { path, .. } => WorkflowError::PermissionDenied {
                 message: format!("Permission denied for: {}", path.display()),
             },
-            FileManagementError::Validation { message, .. } => WorkflowError::ValidationError(message),
-            FileManagementError::Configuration { message, .. } => WorkflowError::ValidationError(message),
+            FileManagementError::Validation { message, .. } => {
+                WorkflowError::ValidationError(message)
+            }
+            FileManagementError::Configuration { message, .. } => {
+                WorkflowError::ValidationError(message)
+            }
             FileManagementError::Io { source, .. } => WorkflowError::Io(source),
             other => WorkflowError::Plugin {
                 message: other.to_string(),
@@ -1151,13 +1236,13 @@ mod tests {
     #[test]
     fn test_error_creation() {
         let path = Path::new("/test/path");
-        
+
         let err = FileManagementError::not_found(path);
         assert!(matches!(err, FileManagementError::NotFound { .. }));
-        
+
         let err = FileManagementError::permission_denied(path);
         assert!(matches!(err, FileManagementError::PermissionDenied { .. }));
-        
+
         let err = FileManagementError::insufficient_space(1000, 500);
         assert!(matches!(err, FileManagementError::InsufficientSpace { .. }));
     }
@@ -1172,16 +1257,25 @@ mod tests {
 
     #[test]
     fn test_error_categories() {
-        assert_eq!(FileManagementError::not_found("/test").category(), "not_found");
-        assert_eq!(FileManagementError::conflict("/test/path", "test").category(), "conflict");
-        assert_eq!(FileManagementError::text_processing("test").category(), "text_processing");
+        assert_eq!(
+            FileManagementError::not_found("/test").category(),
+            "not_found"
+        );
+        assert_eq!(
+            FileManagementError::conflict("/test/path", "test").category(),
+            "conflict"
+        );
+        assert_eq!(
+            FileManagementError::text_processing("test").category(),
+            "text_processing"
+        );
     }
 
     #[test]
     fn test_workflow_error_conversion() {
         let fm_err = FileManagementError::not_found("/test/path");
         let workflow_err: WorkflowError = fm_err.into();
-        
+
         match workflow_err {
             WorkflowError::NotFound { resource } => {
                 assert!(resource.contains("/test/path"));

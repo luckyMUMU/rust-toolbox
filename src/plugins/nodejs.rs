@@ -12,9 +12,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use std::time::Duration;
 use tokio::process::Command as AsyncCommand;
+use tokio::sync::Mutex;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
@@ -83,13 +83,12 @@ impl PackageJson {
             )));
         }
 
-        let content = tokio::fs::read_to_string(path).await.map_err(|e| {
-            WorkflowError::plugin(format!("Failed to read package.json: {}", e))
-        })?;
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|e| WorkflowError::plugin(format!("Failed to read package.json: {}", e)))?;
 
-        let package_json: PackageJson = serde_json::from_str(&content).map_err(|e| {
-            WorkflowError::plugin(format!("Failed to parse package.json: {}", e))
-        })?;
+        let package_json: PackageJson = serde_json::from_str(&content)
+            .map_err(|e| WorkflowError::plugin(format!("Failed to parse package.json: {}", e)))?;
 
         Ok(package_json)
     }
@@ -97,15 +96,15 @@ impl PackageJson {
     /// Get all dependencies (both dependencies and devDependencies)
     pub fn get_all_dependencies(&self) -> HashMap<String, String> {
         let mut all_deps = HashMap::new();
-        
+
         if let Some(deps) = &self.dependencies {
             all_deps.extend(deps.clone());
         }
-        
+
         if let Some(dev_deps) = &self.dev_dependencies {
             all_deps.extend(dev_deps.clone());
         }
-        
+
         all_deps
     }
 }
@@ -154,7 +153,10 @@ impl NodeJsEnvironment {
             let package_json_path = project_dir.join("package.json");
             if package_json_path.exists() {
                 self.package_json = Some(PackageJson::load_from_file(&package_json_path).await?);
-                info!("Loaded package.json from project directory: {:?}", package_json_path);
+                info!(
+                    "Loaded package.json from project directory: {:?}",
+                    package_json_path
+                );
             }
         }
 
@@ -192,7 +194,9 @@ impl NodeJsEnvironment {
             )));
         }
 
-        let node_version = String::from_utf8_lossy(&node_output.stdout).trim().to_string();
+        let node_version = String::from_utf8_lossy(&node_output.stdout)
+            .trim()
+            .to_string();
         info!("Node.js version: {}", node_version);
 
         // Only check npm if auto_install_dependencies is enabled
@@ -217,7 +221,9 @@ impl NodeJsEnvironment {
                 )));
             }
 
-            let npm_version = String::from_utf8_lossy(&npm_output.stdout).trim().to_string();
+            let npm_version = String::from_utf8_lossy(&npm_output.stdout)
+                .trim()
+                .to_string();
             info!("npm version: {}", npm_version);
         } else {
             debug!("Skipping npm verification (auto_install_dependencies is disabled)");
@@ -229,7 +235,7 @@ impl NodeJsEnvironment {
     /// Install dependencies from package.json
     async fn install_dependencies(&self) -> Result<()> {
         let working_dir = self.get_working_directory()?;
-        
+
         info!("Installing Node.js dependencies in: {:?}", working_dir);
 
         let output = AsyncCommand::new(&self.npm_executable)
@@ -237,9 +243,7 @@ impl NodeJsEnvironment {
             .current_dir(&working_dir)
             .output()
             .await
-            .map_err(|e| {
-                WorkflowError::plugin(format!("Failed to run npm install: {}", e))
-            })?;
+            .map_err(|e| WorkflowError::plugin(format!("Failed to run npm install: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -342,7 +346,8 @@ impl NodeJsEnvironment {
             let new_node_path = if current_node_path.is_empty() {
                 node_modules_path.to_string_lossy().to_string()
             } else {
-                format!("{}{}{}", 
+                format!(
+                    "{}{}{}",
                     node_modules_path.to_string_lossy(),
                     if cfg!(windows) { ";" } else { ":" },
                     current_node_path
@@ -369,9 +374,8 @@ impl NodeJsEnvironment {
             "context": enhanced_context
         });
 
-        let input_json = serde_json::to_string(&input_data).map_err(|e| {
-            WorkflowError::plugin(format!("Failed to serialize input data: {}", e))
-        })?;
+        let input_json = serde_json::to_string(&input_data)
+            .map_err(|e| WorkflowError::plugin(format!("Failed to serialize input data: {}", e)))?;
 
         // Execute the command with timeout and enhanced error handling
         let execution_future = async {
@@ -393,10 +397,7 @@ impl NodeJsEnvironment {
                     ))
                 })?;
                 stdin.shutdown().await.map_err(|e| {
-                    WorkflowError::plugin(format!(
-                        "Failed to close Node.js process stdin: {}",
-                        e
-                    ))
+                    WorkflowError::plugin(format!("Failed to close Node.js process stdin: {}", e))
                 })?;
             }
 
@@ -436,7 +437,7 @@ impl NodeJsEnvironment {
         // Check if the process succeeded
         if !output.status.success() {
             let exit_code = output.status.code().unwrap_or(-1);
-            
+
             // Try to parse stdout as JSON error first
             if let Ok(error_json) = serde_json::from_str::<Value>(&stdout) {
                 if let Some(error_msg) = error_json.get("error").and_then(|e| e.as_str()) {
@@ -446,7 +447,7 @@ impl NodeJsEnvironment {
                     )));
                 }
             }
-            
+
             // Fallback to stderr or generic error
             let error_message = if !stderr.is_empty() {
                 stderr.to_string()
@@ -488,7 +489,10 @@ impl NodeJsEnvironment {
             }
         }
 
-        debug!("Node.js script executed successfully: {:?}", full_script_path);
+        debug!(
+            "Node.js script executed successfully: {:?}",
+            full_script_path
+        );
         Ok(result)
     }
 
@@ -536,7 +540,9 @@ impl NodeJsEnvironment {
         }
 
         // Check if the script has a .js or .mjs extension
-        let extension = resolved_script_path.extension().and_then(|ext| ext.to_str());
+        let extension = resolved_script_path
+            .extension()
+            .and_then(|ext| ext.to_str());
         if !matches!(extension, Some("js") | Some("mjs") | Some("cjs")) {
             return Err(WorkflowError::plugin(format!(
                 "Script must have .js, .mjs, or .cjs extension: {:?}",
@@ -546,7 +552,13 @@ impl NodeJsEnvironment {
 
         // Try to check the script syntax
         let output = AsyncCommand::new(&self.node_executable)
-            .args(["-c", &format!("require('fs').readFileSync('{}', 'utf8')", resolved_script_path.display())])
+            .args([
+                "-c",
+                &format!(
+                    "require('fs').readFileSync('{}', 'utf8')",
+                    resolved_script_path.display()
+                ),
+            ])
             .current_dir(&working_dir)
             .output()
             .await
@@ -562,14 +574,17 @@ impl NodeJsEnvironment {
             )));
         }
 
-        debug!("Node.js script validation passed: {:?}", resolved_script_path);
+        debug!(
+            "Node.js script validation passed: {:?}",
+            resolved_script_path
+        );
         Ok(())
     }
 
     /// Get information about the Node.js environment
     pub async fn get_environment_info(&self) -> Result<Value> {
         let working_dir = self.get_working_directory()?;
-        
+
         let output = AsyncCommand::new(&self.node_executable)
             .args(["-e", "console.log(JSON.stringify({version: process.version, platform: process.platform, arch: process.arch, execPath: process.execPath}))"])
             .current_dir(&working_dir)
@@ -589,10 +604,7 @@ impl NodeJsEnvironment {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let info: Value = serde_json::from_str(&stdout).map_err(|e| {
-            WorkflowError::plugin(format!(
-                "Failed to parse Node.js environment info: {}",
-                e
-            ))
+            WorkflowError::plugin(format!("Failed to parse Node.js environment info: {}", e))
         })?;
 
         Ok(info)
@@ -601,7 +613,7 @@ impl NodeJsEnvironment {
     /// Install a specific npm package
     pub async fn install_package(&self, package_name: &str, version: Option<&str>) -> Result<()> {
         let working_dir = self.get_working_directory()?;
-        
+
         let package_spec = if let Some(version) = version {
             format!("{}@{}", package_name, version)
         } else {
@@ -615,9 +627,7 @@ impl NodeJsEnvironment {
             .current_dir(&working_dir)
             .output()
             .await
-            .map_err(|e| {
-                WorkflowError::plugin(format!("Failed to install npm package: {}", e))
-            })?;
+            .map_err(|e| WorkflowError::plugin(format!("Failed to install npm package: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -898,7 +908,10 @@ impl Plugin for NodeJsPlugin {
         // Store the config for later async initialization
         self.config = Some(config);
         self.status = PluginStatus::Ready;
-        info!("Node.js plugin initialized successfully: {}", self.info.name);
+        info!(
+            "Node.js plugin initialized successfully: {}",
+            self.info.name
+        );
         Ok(())
     }
 
@@ -939,8 +952,11 @@ impl NodeJsPlugin {
         // Initialize the Node.js environment
         let mut environment = self.environment.lock().await;
         environment.initialize().await?;
-        
-        info!("Node.js plugin async initialization completed: {}", self.info.name);
+
+        info!(
+            "Node.js plugin async initialization completed: {}",
+            self.info.name
+        );
         Ok(())
     }
 }
@@ -1066,7 +1082,9 @@ impl NodeJsPluginBuilder {
 
         // Add tools
         for (tool_info, script_path, timeout) in self.tools {
-            plugin.add_basic_tool(tool_info, script_path, timeout).await?;
+            plugin
+                .add_basic_tool(tool_info, script_path, timeout)
+                .await?;
         }
 
         Ok(plugin)

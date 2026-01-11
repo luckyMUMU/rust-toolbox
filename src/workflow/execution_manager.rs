@@ -1,11 +1,11 @@
 //! Execution manager for synchronous and asynchronous workflow execution
 
 use crate::core::{
-    ExecutionContext, ExecutionMode, ExecutionStatus, WorkflowId, 
-    ConcurrencyConfig, TaskPriority, ResourceLimits, ExecutionMetrics
+    ConcurrencyConfig, ExecutionContext, ExecutionMetrics, ExecutionMode, ExecutionStatus,
+    ResourceLimits, TaskPriority, WorkflowId,
 };
 use crate::error::{Result, WorkflowError};
-use crate::workflow::{WorkflowDefinition, WorkflowExecution, WorkflowEngine};
+use crate::workflow::{WorkflowDefinition, WorkflowEngine, WorkflowExecution};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, Semaphore, Notify};
+use tokio::sync::{Notify, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -117,11 +117,9 @@ pub struct DefaultExecutionManager {
 
 impl DefaultExecutionManager {
     /// Create a new execution manager
-    pub fn new(
-        engine: Arc<dyn WorkflowEngine>,
-        concurrency_config: ConcurrencyConfig,
-    ) -> Self {
-        let execution_semaphore = Arc::new(Semaphore::new(concurrency_config.max_concurrent_workflows));
+    pub fn new(engine: Arc<dyn WorkflowEngine>, concurrency_config: ConcurrencyConfig) -> Self {
+        let execution_semaphore =
+            Arc::new(Semaphore::new(concurrency_config.max_concurrent_workflows));
         let task_queue = Arc::new(RwLock::new(VecDeque::new()));
         let queue_notify = Arc::new(Notify::new());
 
@@ -146,7 +144,7 @@ impl DefaultExecutionManager {
     fn start_background_processor(&self) {
         // For now, we'll use a simplified approach without complex task management
         // In a real implementation, this would be more sophisticated
-        
+
         // The background processor would run in a separate task
         // but for simplicity in this implementation, we'll handle async execution
         // directly in the execute_async method
@@ -159,7 +157,10 @@ impl DefaultExecutionManager {
         _context: ExecutionContext,
     ) -> Result<WorkflowExecution> {
         // Acquire semaphore permit for concurrency control
-        let _permit = self.execution_semaphore.acquire().await
+        let _permit = self
+            .execution_semaphore
+            .acquire()
+            .await
             .map_err(|_| WorkflowError::ResourceExhausted)?;
 
         // Execute workflow directly
@@ -185,7 +186,8 @@ impl DefaultExecutionManager {
         }
 
         // Add to execution handles
-        self.execution_handles.insert(handle.execution_id.clone(), handle.clone());
+        self.execution_handles
+            .insert(handle.execution_id.clone(), handle.clone());
 
         // Create initial execution state with Pending status
         let initial_execution = crate::workflow::WorkflowExecution {
@@ -198,11 +200,11 @@ impl DefaultExecutionManager {
             node_states: std::collections::HashMap::new(),
             global_context: serde_json::Value::Object(serde_json::Map::new()),
         };
-        
+
         // Store initial execution state
         self.active_executions.insert(
-            handle.execution_id.clone(), 
-            Arc::new(RwLock::new(initial_execution))
+            handle.execution_id.clone(),
+            Arc::new(RwLock::new(initial_execution)),
         );
 
         // For simplified implementation, execute directly in background
@@ -232,7 +234,12 @@ impl DefaultExecutionManager {
                         execution.completed_at = Some(chrono::Utc::now());
                         // Store error in global_context
                         if let serde_json::Value::Object(ref mut map) = execution.global_context {
-                            map.insert("error".to_string(), serde_json::Value::String("Failed to acquire execution permit".to_string()));
+                            map.insert(
+                                "error".to_string(),
+                                serde_json::Value::String(
+                                    "Failed to acquire execution permit".to_string(),
+                                ),
+                            );
                         }
                     }
                     execution_handles.remove(&handle_id);
@@ -260,7 +267,10 @@ impl DefaultExecutionManager {
                         execution.completed_at = Some(chrono::Utc::now());
                         // Store error in global_context
                         if let serde_json::Value::Object(ref mut map) = execution.global_context {
-                            map.insert("error".to_string(), serde_json::Value::String(error.to_string()));
+                            map.insert(
+                                "error".to_string(),
+                                serde_json::Value::String(error.to_string()),
+                            );
                         }
                     }
                 }
@@ -285,7 +295,7 @@ impl DefaultExecutionManager {
         // 2. CPU time tracking with process monitoring
         // 3. File descriptor limits using rlimit
         // 4. Execution timeouts with tokio::time::timeout
-        
+
         tracing::debug!(
             "Applying resource limits for execution {}: memory={:?}, cpu_time={:?}, execution_time={:?}",
             execution_id,
@@ -293,20 +303,25 @@ impl DefaultExecutionManager {
             limits.max_cpu_time,
             limits.max_execution_time
         );
-        
+
         // For now, just validate the limits are reasonable
         if let Some(max_memory) = limits.max_memory_bytes {
-            if max_memory < 1024 * 1024 { // Less than 1MB
-                return Err(WorkflowError::workflow_execution("Memory limit too restrictive"));
+            if max_memory < 1024 * 1024 {
+                // Less than 1MB
+                return Err(WorkflowError::workflow_execution(
+                    "Memory limit too restrictive",
+                ));
             }
         }
-        
+
         if let Some(max_cpu_time) = limits.max_cpu_time {
             if max_cpu_time < Duration::from_secs(1) {
-                return Err(WorkflowError::workflow_execution("CPU time limit too restrictive"));
+                return Err(WorkflowError::workflow_execution(
+                    "CPU time limit too restrictive",
+                ));
             }
         }
-        
+
         Ok(())
     }
 
@@ -318,16 +333,16 @@ impl DefaultExecutionManager {
         // 2. CPU time tracking with process statistics
         // 3. File descriptor counting
         // 4. Automatic cleanup of resource-heavy tasks
-        
+
         let active_count = self.active_executions.len();
         let queued_count = self.execution_handles.len();
-        
+
         tracing::debug!(
             "Resource usage monitoring: {} active executions, {} queued executions",
             active_count,
             queued_count
         );
-        
+
         // Check if we're approaching resource limits
         if active_count > (self.concurrency_config.max_concurrent_workflows * 80 / 100) {
             tracing::warn!(
@@ -336,7 +351,7 @@ impl DefaultExecutionManager {
                 self.concurrency_config.max_concurrent_workflows
             );
         }
-        
+
         Ok(())
     }
 
@@ -355,7 +370,7 @@ impl DefaultExecutionManager {
     pub async fn cleanup_completed_executions(&self) -> Result<usize> {
         let mut cleaned_count = 0;
         let mut to_remove = Vec::new();
-        
+
         // Find completed executions
         for entry in self.active_executions.iter() {
             let execution = entry.value().read().await;
@@ -363,13 +378,13 @@ impl DefaultExecutionManager {
                 to_remove.push(entry.key().clone());
             }
         }
-        
+
         // Remove completed executions
         for execution_id in to_remove {
             self.active_executions.remove(&execution_id);
             cleaned_count += 1;
         }
-        
+
         tracing::debug!("Cleaned up {} completed executions", cleaned_count);
         Ok(cleaned_count)
     }
@@ -383,7 +398,8 @@ impl ExecutionManager for DefaultExecutionManager {
         mode: ExecutionMode,
         context: ExecutionContext,
     ) -> Result<ExecutionResult> {
-        self.execute_workflow_with_priority(definition, mode, context, TaskPriority::Normal).await
+        self.execute_workflow_with_priority(definition, mode, context, TaskPriority::Normal)
+            .await
     }
 
     async fn execute_workflow_with_priority(
@@ -425,16 +441,16 @@ impl ExecutionManager for DefaultExecutionManager {
         // Add timeout to prevent infinite waiting
         let timeout_duration = Duration::from_secs(30); // 30 second timeout for tests
         let start_time = std::time::Instant::now();
-        
+
         // Poll for completion with timeout
         loop {
             // Check for timeout
             if start_time.elapsed() > timeout_duration {
                 return Err(WorkflowError::ExecutionTimeout.into());
             }
-            
+
             let status = self.get_execution_status(handle).await?;
-            
+
             if status.is_terminal() {
                 // Get final execution state
                 if let Some(execution_arc) = self.active_executions.get(&handle.execution_id) {
@@ -484,10 +500,10 @@ impl ExecutionManager for DefaultExecutionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::{StateManager, SimpleMemoryCache, StorageBackend};
+    use crate::storage::{SimpleMemoryCache, StateManager, StorageBackend};
     use crate::tools::ToolRegistry;
     use crate::workflow::engine::DefaultWorkflowEngine;
-    use crate::workflow::{WorkflowNode, NodeType};
+    use crate::workflow::{NodeType, WorkflowNode};
     use std::collections::HashMap;
     use std::sync::Arc;
     use tokio::sync::RwLock;
@@ -509,7 +525,12 @@ mod tests {
             Vec::new()
         }
 
-        async fn execute_tool(&self, _name: &str, _params: Value, _context: ExecutionContext) -> Result<Value> {
+        async fn execute_tool(
+            &self,
+            _name: &str,
+            _params: Value,
+            _context: ExecutionContext,
+        ) -> Result<Value> {
             // Simulate some work
             tokio::time::sleep(Duration::from_millis(10)).await;
             Ok(Value::String("mock_result".to_string()))
@@ -527,32 +548,35 @@ mod tests {
             Ok(())
         }
 
-        fn resolve_dependencies(&self, _tool_names: Vec<String>) -> Result<crate::tools::ResolutionResult> {
+        fn resolve_dependencies(
+            &self,
+            _tool_names: Vec<String>,
+        ) -> Result<crate::tools::ResolutionResult> {
             Ok(crate::tools::ResolutionResult {
                 resolved_versions: std::collections::HashMap::new(),
                 conflicts: Vec::new(),
                 warnings: Vec::new(),
             })
         }
-        
+
         fn check_version_conflicts(&self) -> Result<Vec<String>> {
             Ok(Vec::new())
         }
-        
+
         fn get_dependents(&self, _tool_name: &str) -> Vec<crate::core::ToolInfo> {
             Vec::new()
         }
-        
+
         async fn execute_tool_with_templates(
             &self,
             name: &str,
             params: Value,
             _template_context: &crate::tools::TemplateContext,
-            execution_context: ExecutionContext
+            execution_context: ExecutionContext,
         ) -> Result<Value> {
             self.execute_tool(name, params, execution_context).await
         }
-        
+
         fn get_tool_templates(&self, _tool_name: &str) -> Vec<crate::tools::ParameterTemplate> {
             Vec::new()
         }
@@ -600,7 +624,8 @@ mod tests {
 
         async fn list_keys(&self, prefix: &str) -> Result<Vec<String>> {
             let data = self.data.read().await;
-            Ok(data.keys()
+            Ok(data
+                .keys()
                 .filter(|k| k.starts_with(prefix))
                 .cloned()
                 .collect())
@@ -621,7 +646,8 @@ mod tests {
 
         async fn batch_load(&self, keys: Vec<String>) -> Result<Vec<Option<Vec<u8>>>> {
             let data = self.data.read().await;
-            Ok(keys.into_iter()
+            Ok(keys
+                .into_iter()
                 .map(|key| data.get(&key).cloned())
                 .collect())
         }
@@ -635,17 +661,17 @@ mod tests {
         let state_manager = Arc::new(StateManager::new(storage, cache));
         let tool_registry = Arc::new(MockToolRegistry);
         let engine = Arc::new(DefaultWorkflowEngine::new(state_manager, tool_registry, 10));
-        
+
         DefaultExecutionManager::new(engine, ConcurrencyConfig::default())
     }
 
     // Helper function to create a simple test workflow
     fn create_test_workflow(name: &str) -> WorkflowDefinition {
         let mut workflow = WorkflowDefinition::new(name, "1.0.0");
-        
+
         let node1 = WorkflowNode::new("node1", NodeType::Tool);
         workflow.add_node(node1).unwrap();
-        
+
         workflow
     }
 
@@ -654,28 +680,43 @@ mod tests {
         // **Feature: workflow-toolkit, Property 9: Synchronous asynchronous execution mode**
         // *For any* task type, synchronous execution should block until completion
         // **Validates: Requirements 5.1**
-        
+
         let manager = create_test_execution_manager();
         let workflow = create_test_workflow("sync_test");
         let context = ExecutionContext::new();
 
         let start_time = Utc::now();
-        let result = manager.execute_workflow(workflow, ExecutionMode::Sync, context).await;
+        let result = manager
+            .execute_workflow(workflow, ExecutionMode::Sync, context)
+            .await;
         let end_time = Utc::now();
 
         if let Err(ref error) = result {
             println!("Synchronous execution failed with error: {:?}", error);
         }
-        assert!(result.is_ok(), "Synchronous execution should succeed: {:?}", result);
-        
+        assert!(
+            result.is_ok(),
+            "Synchronous execution should succeed: {:?}",
+            result
+        );
+
         match result.unwrap() {
             ExecutionResult::Sync(execution) => {
-                assert!(execution.status.is_terminal(), "Synchronous execution should be complete");
-                assert!(execution.completed_at.is_some(), "Synchronous execution should have completion time");
-                
+                assert!(
+                    execution.status.is_terminal(),
+                    "Synchronous execution should be complete"
+                );
+                assert!(
+                    execution.completed_at.is_some(),
+                    "Synchronous execution should have completion time"
+                );
+
                 // Verify that execution took some time (blocking behavior)
                 let duration = end_time.signed_duration_since(start_time);
-                assert!(duration.num_milliseconds() >= 0, "Synchronous execution should take measurable time");
+                assert!(
+                    duration.num_milliseconds() >= 0,
+                    "Synchronous execution should take measurable time"
+                );
             }
             ExecutionResult::Async(_) => {
                 panic!("Synchronous execution should return sync result");
@@ -688,33 +729,44 @@ mod tests {
         // **Feature: workflow-toolkit, Property 9: Synchronous asynchronous execution mode**
         // *For any* task type, asynchronous execution should return immediately with execution handle
         // **Validates: Requirements 5.1**
-        
+
         let manager = create_test_execution_manager();
         let workflow = create_test_workflow("async_test");
         let context = ExecutionContext::new();
 
         let start_time = Utc::now();
-        let result = manager.execute_workflow(workflow, ExecutionMode::Async, context).await;
+        let result = manager
+            .execute_workflow(workflow, ExecutionMode::Async, context)
+            .await;
         let end_time = Utc::now();
 
         assert!(result.is_ok(), "Asynchronous execution should succeed");
-        
+
         match result.unwrap() {
             ExecutionResult::Async(handle) => {
-                assert_eq!(handle.mode, ExecutionMode::Async, "Handle should indicate async mode");
-                
+                assert_eq!(
+                    handle.mode,
+                    ExecutionMode::Async,
+                    "Handle should indicate async mode"
+                );
+
                 // Verify that execution returned immediately (non-blocking behavior)
                 let duration = end_time.signed_duration_since(start_time);
-                assert!(duration.num_milliseconds() < 100, "Asynchronous execution should return quickly");
-                
+                assert!(
+                    duration.num_milliseconds() < 100,
+                    "Asynchronous execution should return quickly"
+                );
+
                 // Verify we can get status
                 let status = manager.get_execution_status(&handle).await;
                 assert!(status.is_ok(), "Should be able to get execution status");
-                
+
                 // The status should be Pending or Running (not terminal yet)
                 let status = status.unwrap();
-                assert!(!status.is_terminal() || status == ExecutionStatus::Completed, 
-                       "Async execution should be pending/running or completed quickly");
+                assert!(
+                    !status.is_terminal() || status == ExecutionStatus::Completed,
+                    "Async execution should be pending/running or completed quickly"
+                );
             }
             ExecutionResult::Sync(_) => {
                 panic!("Asynchronous execution should return async result");
@@ -727,7 +779,7 @@ mod tests {
         // **Feature: workflow-toolkit, Property 9: Synchronous asynchronous execution mode**
         // *For any* workflow, both sync and async modes should produce equivalent results
         // **Validates: Requirements 5.1**
-        
+
         let manager = create_test_execution_manager();
         let workflow1 = create_test_workflow("consistency_test_sync");
         let workflow2 = create_test_workflow("consistency_test_async");
@@ -735,8 +787,12 @@ mod tests {
         let context2 = ExecutionContext::new();
 
         // Execute same workflow in both modes
-        let sync_result = manager.execute_workflow(workflow1, ExecutionMode::Sync, context1).await;
-        let async_result = manager.execute_workflow(workflow2, ExecutionMode::Async, context2).await;
+        let sync_result = manager
+            .execute_workflow(workflow1, ExecutionMode::Sync, context1)
+            .await;
+        let async_result = manager
+            .execute_workflow(workflow2, ExecutionMode::Async, context2)
+            .await;
 
         assert!(sync_result.is_ok(), "Sync execution should succeed");
         assert!(async_result.is_ok(), "Async execution should succeed");
@@ -753,16 +809,30 @@ mod tests {
 
         // Wait for async execution to complete
         let async_execution = manager.wait_for_completion(&async_handle).await;
-        assert!(async_execution.is_ok(), "Async execution should complete successfully");
+        assert!(
+            async_execution.is_ok(),
+            "Async execution should complete successfully"
+        );
         let async_execution = async_execution.unwrap();
 
         // Both executions should have completed successfully
-        assert_eq!(sync_execution.status, ExecutionStatus::Completed, "Sync execution should be completed");
-        assert_eq!(async_execution.status, ExecutionStatus::Completed, "Async execution should be completed");
-        
+        assert_eq!(
+            sync_execution.status,
+            ExecutionStatus::Completed,
+            "Sync execution should be completed"
+        );
+        assert_eq!(
+            async_execution.status,
+            ExecutionStatus::Completed,
+            "Async execution should be completed"
+        );
+
         // Both should have similar structure (same number of nodes, etc.)
-        assert_eq!(sync_execution.node_states.len(), async_execution.node_states.len(), 
-                  "Both executions should have same number of nodes");
+        assert_eq!(
+            sync_execution.node_states.len(),
+            async_execution.node_states.len(),
+            "Both executions should have same number of nodes"
+        );
     }
 
     #[tokio::test]
@@ -771,7 +841,7 @@ mod tests {
         let mut config = ConcurrencyConfig::default();
         config.max_concurrent_workflows = 2;
         config.task_queue_size = 5;
-        
+
         let storage = Arc::new(MockStorageBackend::new());
         let cache = Arc::new(SimpleMemoryCache::new());
         let state_manager = Arc::new(StateManager::new(storage, cache));
@@ -784,21 +854,29 @@ mod tests {
         for i in 0..3 {
             let workflow = create_test_workflow(&format!("concurrent_test_{}", i));
             let context = ExecutionContext::new();
-            let result = manager.execute_workflow(workflow, ExecutionMode::Async, context).await;
-            
+            let result = manager
+                .execute_workflow(workflow, ExecutionMode::Async, context)
+                .await;
+
             if let Ok(ExecutionResult::Async(handle)) = result {
                 handles.push(handle);
             }
         }
 
         // Should have at least some handles (up to queue limit)
-        assert!(!handles.is_empty(), "Should be able to queue some workflows");
+        assert!(
+            !handles.is_empty(),
+            "Should be able to queue some workflows"
+        );
         assert!(handles.len() <= 5, "Should respect queue size limit");
 
         // Check that we can get status for all handles
         for handle in &handles {
             let status = manager.get_execution_status(handle).await;
-            assert!(status.is_ok(), "Should be able to get status for queued workflows");
+            assert!(
+                status.is_ok(),
+                "Should be able to get status for queued workflows"
+            );
         }
     }
 }

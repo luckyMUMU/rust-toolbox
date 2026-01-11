@@ -14,19 +14,19 @@ use std::time::Duration;
 pub trait Plugin: Send + Sync {
     /// Get plugin information
     fn info(&self) -> &PluginInfo;
-    
+
     /// Initialize the plugin with configuration
     fn initialize(&mut self, config: PluginConfig) -> Result<()>;
-    
+
     /// Get all tools provided by this plugin
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>>;
-    
+
     /// Shutdown the plugin and cleanup resources
     fn shutdown(&mut self) -> Result<()>;
-    
+
     /// Check if the plugin is initialized
     fn is_initialized(&self) -> bool;
-    
+
     /// Get plugin status
     fn status(&self) -> PluginStatus;
 }
@@ -94,10 +94,10 @@ pub struct ResourceLimits {
 impl Default for ResourceLimits {
     fn default() -> Self {
         Self {
-            max_memory: Some(1024 * 1024 * 1024), // 1GB
-            max_cpu_time: Some(Duration::from_secs(300)), // 5 minutes
+            max_memory: Some(1024 * 1024 * 1024),               // 1GB
+            max_cpu_time: Some(Duration::from_secs(300)),       // 5 minutes
             max_execution_time: Some(Duration::from_secs(600)), // 10 minutes
-            max_file_size: Some(100 * 1024 * 1024), // 100MB
+            max_file_size: Some(100 * 1024 * 1024),             // 100MB
             max_network_connections: Some(10),
         }
     }
@@ -143,7 +143,10 @@ impl NativePlugin {
             tools: Vec::new(),
             status: PluginStatus::Uninitialized,
             config: None,
-            inner: Some(crate::plugins::native::NativePlugin::new(info, library_path)),
+            inner: Some(crate::plugins::native::NativePlugin::new(
+                info,
+                library_path,
+            )),
         }
     }
 }
@@ -152,7 +155,7 @@ impl Plugin for NativePlugin {
     fn info(&self) -> &PluginInfo {
         &self.info
     }
-    
+
     fn initialize(&mut self, config: PluginConfig) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.initialize(config.clone())?;
@@ -162,7 +165,7 @@ impl Plugin for NativePlugin {
         }
         Ok(())
     }
-    
+
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
         if let Some(ref inner) = self.inner {
             inner.get_tools()
@@ -170,7 +173,7 @@ impl Plugin for NativePlugin {
             self.tools.clone()
         }
     }
-    
+
     fn shutdown(&mut self) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.shutdown()?;
@@ -179,7 +182,7 @@ impl Plugin for NativePlugin {
         }
         Ok(())
     }
-    
+
     fn is_initialized(&self) -> bool {
         if let Some(ref inner) = self.inner {
             inner.is_initialized()
@@ -187,7 +190,7 @@ impl Plugin for NativePlugin {
             matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
         }
     }
-    
+
     fn status(&self) -> PluginStatus {
         if let Some(ref inner) = self.inner {
             inner.status()
@@ -207,12 +210,18 @@ pub struct PythonPlugin {
 }
 
 impl PythonPlugin {
-    pub fn new(info: PluginInfo, runtime_config: crate::plugins::python::PythonRuntimeConfig) -> Self {
+    pub fn new(
+        info: PluginInfo,
+        runtime_config: crate::plugins::python::PythonRuntimeConfig,
+    ) -> Self {
         Self {
             info: info.clone(),
             status: PluginStatus::Uninitialized,
             config: None,
-            inner: Some(crate::plugins::python::PythonPlugin::new(info, runtime_config)),
+            inner: Some(crate::plugins::python::PythonPlugin::new(
+                info,
+                runtime_config,
+            )),
         }
     }
 }
@@ -221,7 +230,7 @@ impl Plugin for PythonPlugin {
     fn info(&self) -> &PluginInfo {
         &self.info
     }
-    
+
     fn initialize(&mut self, config: PluginConfig) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.initialize(config.clone())?;
@@ -230,7 +239,7 @@ impl Plugin for PythonPlugin {
         }
         Ok(())
     }
-    
+
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
         if let Some(ref inner) = self.inner {
             inner.get_tools()
@@ -238,7 +247,7 @@ impl Plugin for PythonPlugin {
             Vec::new()
         }
     }
-    
+
     fn shutdown(&mut self) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.shutdown()?;
@@ -246,7 +255,7 @@ impl Plugin for PythonPlugin {
         }
         Ok(())
     }
-    
+
     fn is_initialized(&self) -> bool {
         if let Some(ref inner) = self.inner {
             inner.is_initialized()
@@ -254,7 +263,7 @@ impl Plugin for PythonPlugin {
             matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
         }
     }
-    
+
     fn status(&self) -> PluginStatus {
         if let Some(ref inner) = self.inner {
             inner.status()
@@ -274,12 +283,18 @@ pub struct NodeJsPlugin {
 }
 
 impl NodeJsPlugin {
-    pub fn new(info: PluginInfo, runtime_config: crate::plugins::nodejs::NodeJsRuntimeConfig) -> Self {
+    pub fn new(
+        info: PluginInfo,
+        runtime_config: crate::plugins::nodejs::NodeJsRuntimeConfig,
+    ) -> Self {
         Self {
             info: info.clone(),
             status: PluginStatus::Uninitialized,
             config: None,
-            inner: Some(crate::plugins::nodejs::NodeJsPlugin::new(info, runtime_config)),
+            inner: Some(crate::plugins::nodejs::NodeJsPlugin::new(
+                info,
+                runtime_config,
+            )),
         }
     }
 }
@@ -288,7 +303,7 @@ impl Plugin for NodeJsPlugin {
     fn info(&self) -> &PluginInfo {
         &self.info
     }
-    
+
     fn initialize(&mut self, config: PluginConfig) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.initialize(config.clone())?;
@@ -297,7 +312,7 @@ impl Plugin for NodeJsPlugin {
         }
         Ok(())
     }
-    
+
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
         if let Some(ref inner) = self.inner {
             inner.get_tools()
@@ -305,7 +320,7 @@ impl Plugin for NodeJsPlugin {
             Vec::new()
         }
     }
-    
+
     fn shutdown(&mut self) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.shutdown()?;
@@ -313,7 +328,7 @@ impl Plugin for NodeJsPlugin {
         }
         Ok(())
     }
-    
+
     fn is_initialized(&self) -> bool {
         if let Some(ref inner) = self.inner {
             inner.is_initialized()
@@ -321,7 +336,7 @@ impl Plugin for NodeJsPlugin {
             matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
         }
     }
-    
+
     fn status(&self) -> PluginStatus {
         if let Some(ref inner) = self.inner {
             inner.status()
@@ -341,12 +356,18 @@ pub struct DockerPlugin {
 }
 
 impl DockerPlugin {
-    pub fn new(info: PluginInfo, runtime_config: crate::plugins::docker::DockerRuntimeConfig) -> Result<Self> {
+    pub fn new(
+        info: PluginInfo,
+        runtime_config: crate::plugins::docker::DockerRuntimeConfig,
+    ) -> Result<Self> {
         Ok(Self {
             info: info.clone(),
             status: PluginStatus::Uninitialized,
             config: None,
-            inner: Some(crate::plugins::docker::DockerPlugin::new(info, runtime_config)?),
+            inner: Some(crate::plugins::docker::DockerPlugin::new(
+                info,
+                runtime_config,
+            )?),
         })
     }
 }
@@ -355,7 +376,7 @@ impl Plugin for DockerPlugin {
     fn info(&self) -> &PluginInfo {
         &self.info
     }
-    
+
     fn initialize(&mut self, config: PluginConfig) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.initialize(config.clone())?;
@@ -364,7 +385,7 @@ impl Plugin for DockerPlugin {
         }
         Ok(())
     }
-    
+
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
         if let Some(ref inner) = self.inner {
             inner.get_tools()
@@ -372,7 +393,7 @@ impl Plugin for DockerPlugin {
             Vec::new()
         }
     }
-    
+
     fn shutdown(&mut self) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.shutdown()?;
@@ -380,7 +401,7 @@ impl Plugin for DockerPlugin {
         }
         Ok(())
     }
-    
+
     fn is_initialized(&self) -> bool {
         if let Some(ref inner) = self.inner {
             inner.is_initialized()
@@ -388,7 +409,7 @@ impl Plugin for DockerPlugin {
             matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
         }
     }
-    
+
     fn status(&self) -> PluginStatus {
         if let Some(ref inner) = self.inner {
             inner.status()
@@ -423,7 +444,7 @@ impl Plugin for WasmPlugin {
     fn info(&self) -> &PluginInfo {
         &self.info
     }
-    
+
     fn initialize(&mut self, config: PluginConfig) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.initialize(config.clone())?;
@@ -432,7 +453,7 @@ impl Plugin for WasmPlugin {
         }
         Ok(())
     }
-    
+
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
         if let Some(ref inner) = self.inner {
             inner.get_tools()
@@ -440,7 +461,7 @@ impl Plugin for WasmPlugin {
             Vec::new()
         }
     }
-    
+
     fn shutdown(&mut self) -> Result<()> {
         if let Some(ref mut inner) = self.inner {
             inner.shutdown()?;
@@ -448,7 +469,7 @@ impl Plugin for WasmPlugin {
         }
         Ok(())
     }
-    
+
 */
 
 /*
@@ -459,7 +480,7 @@ impl Plugin for WasmPlugin {
             matches!(self.status, PluginStatus::Ready | PluginStatus::Running)
         }
     }
-    
+
     fn status(&self) -> PluginStatus {
         if let Some(ref inner) = self.inner {
             inner.status()

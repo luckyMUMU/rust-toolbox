@@ -1,28 +1,28 @@
 //! Data Synchronization System for TUI
-//! 
+//!
 //! This module provides comprehensive data synchronization capabilities,
 //! including periodic updates, real-time notifications, connection management,
 //! and offline caching.
 
+use crate::core::{PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::state::{
-    SharedAppState, ConnectionStatus, SystemStatus, ExecutionInfo, 
-    StateChangeEvent, PerformanceMetrics
+    ConnectionStatus, ExecutionInfo, PerformanceMetrics, SharedAppState, StateChangeEvent,
+    SystemStatus,
 };
 use crate::interfaces::tui::widgets::{
-    workflow_list::{WorkflowInfo, WorkflowStatus, ExecutionStatus},
     log_viewer::LogEntry,
+    workflow_list::{ExecutionStatus, WorkflowInfo, WorkflowStatus},
 };
-use crate::core::{ToolInfo, PluginInfo};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc, Duration as ChronoDuration};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex, broadcast, mpsc};
-use tokio::time::{interval, timeout, sleep};
-use tracing::{info, warn, error, debug, trace};
+use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
+use tokio::time::{interval, sleep, timeout};
+use tracing::{debug, error, info, trace, warn};
 
 /// Configuration for data synchronization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,7 +115,10 @@ pub enum SyncStatus {
     /// Connection lost, using cached data
     Offline,
     /// Retrying after failure
-    Retrying { attempt: u32, next_retry_in: Duration },
+    Retrying {
+        attempt: u32,
+        next_retry_in: Duration,
+    },
 }
 
 /// Data source for synchronization
@@ -137,35 +140,32 @@ pub enum SyncEvent {
     /// Sync operation started
     SyncStarted { source: DataSource },
     /// Sync operation completed successfully
-    SyncCompleted { 
-        source: DataSource, 
+    SyncCompleted {
+        source: DataSource,
         duration: Duration,
         items_updated: u32,
     },
     /// Sync operation failed
-    SyncFailed { 
-        source: DataSource, 
+    SyncFailed {
+        source: DataSource,
         error: String,
         retry_in: Option<Duration>,
     },
     /// Connection status changed
-    ConnectionChanged { 
-        old_status: ConnectionStatus, 
-        new_status: ConnectionStatus 
+    ConnectionChanged {
+        old_status: ConnectionStatus,
+        new_status: ConnectionStatus,
     },
     /// Real-time event received
     RealtimeEvent { event: StateChangeEvent },
     /// Cache operation performed
-    CacheOperation { 
-        operation: String, 
+    CacheOperation {
+        operation: String,
         success: bool,
         size_bytes: Option<u64>,
     },
     /// Data quality changed
-    DataQualityChanged { 
-        freshness: f64, 
-        completeness: f64 
-    },
+    DataQualityChanged { freshness: f64, completeness: f64 },
 }
 
 /// Trait for data synchronization backends
@@ -173,25 +173,25 @@ pub enum SyncEvent {
 pub trait SyncBackend: Send + Sync {
     /// Fetch workflows from the backend
     async fn fetch_workflows(&self) -> Result<Vec<WorkflowInfo>>;
-    
+
     /// Fetch executions from the backend
     async fn fetch_executions(&self) -> Result<Vec<ExecutionInfo>>;
-    
+
     /// Fetch tools from the backend
     async fn fetch_tools(&self) -> Result<Vec<ToolInfo>>;
-    
+
     /// Fetch plugins from the backend
     async fn fetch_plugins(&self) -> Result<Vec<PluginInfo>>;
-    
+
     /// Fetch system status from the backend
     async fn fetch_system_status(&self) -> Result<SystemStatus>;
-    
+
     /// Fetch recent logs from the backend
     async fn fetch_logs(&self, since: Option<DateTime<Utc>>) -> Result<Vec<LogEntry>>;
-    
+
     /// Check backend health/connectivity
     async fn health_check(&self) -> Result<bool>;
-    
+
     /// Get backend connection info
     fn connection_info(&self) -> String;
 }
@@ -201,118 +201,120 @@ pub trait SyncBackend: Send + Sync {
 pub trait CacheBackend: Send + Sync {
     /// Store data in cache (using JSON serialization)
     async fn store_bytes(&self, key: &str, data: &[u8], ttl: Duration) -> Result<()>;
-    
+
     /// Retrieve data from cache (returns raw bytes)
     async fn retrieve_bytes(&self, key: &str) -> Result<Option<Vec<u8>>>;
-    
+
     /// Check if cache entry exists and is valid
     async fn exists(&self, key: &str) -> Result<bool>;
-    
+
     /// Remove cache entry
     async fn remove(&self, key: &str) -> Result<()>;
-    
+
     /// Clear all cache entries
     async fn clear(&self) -> Result<()>;
-    
+
     /// Get cache statistics
     async fn stats(&self) -> Result<CacheStats>;
-    
+
     /// Store data with metadata for offline access (using JSON serialization)
     async fn store_bytes_with_metadata(
-        &self, 
-        key: &str, 
-        data: &[u8], 
+        &self,
+        key: &str,
+        data: &[u8],
         ttl: Duration,
-        metadata: CacheMetadata
+        metadata: CacheMetadata,
     ) -> Result<()>;
-    
+
     /// Retrieve data with metadata (returns raw bytes and metadata)
     async fn retrieve_bytes_with_metadata(
-        &self, 
-        key: &str
+        &self,
+        key: &str,
     ) -> Result<Option<(Vec<u8>, CacheMetadata)>>;
-    
+
     /// Get all cache keys matching a pattern
     async fn list_keys(&self, pattern: Option<&str>) -> Result<Vec<String>>;
-    
+
     /// Get cache entry metadata without retrieving data
     async fn get_metadata(&self, key: &str) -> Result<Option<CacheMetadata>>;
-    
+
     /// Update cache entry TTL
     async fn extend_ttl(&self, key: &str, additional_ttl: Duration) -> Result<bool>;
-    
+
     /// Compact cache by removing expired entries
     async fn compact(&self) -> Result<CompactionResult>;
-    
+
     /// Export cache data for backup
     async fn export(&self) -> Result<Vec<u8>>;
-    
+
     /// Import cache data from backup
     async fn import(&self, data: &[u8]) -> Result<()>;
 }
 
 /// Helper trait for type-safe cache operations
+#[async_trait]
 pub trait CacheOperations {
     /// Store typed data in cache
     async fn store<T: Serialize + Send>(&self, key: &str, data: &T, ttl: Duration) -> Result<()>;
-    
+
     /// Retrieve typed data from cache
     async fn retrieve<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<Option<T>>;
-    
+
     /// Store typed data with metadata
     async fn store_with_metadata<T: Serialize + Send>(
-        &self, 
-        key: &str, 
-        data: &T, 
+        &self,
+        key: &str,
+        data: &T,
         ttl: Duration,
-        metadata: CacheMetadata
+        metadata: CacheMetadata,
     ) -> Result<()>;
-    
+
     /// Retrieve typed data with metadata
     async fn retrieve_with_metadata<T: for<'de> Deserialize<'de>>(
-        &self, 
-        key: &str
+        &self,
+        key: &str,
     ) -> Result<Option<(T, CacheMetadata)>>;
 }
 
 /// Blanket implementation for all CacheBackend implementations
 #[async_trait]
-impl<T: CacheBackend + ?Sized> CacheOperations for T {
-    async fn store<S: Serialize + Send + Sync>(&self, key: &str, data: &S, ttl: Duration) -> Result<()> {
+impl<B: CacheBackend + ?Sized> CacheOperations for B {
+    async fn store<T: Serialize + Send>(&self, key: &str, data: &T, ttl: Duration) -> Result<()> {
         let bytes = serde_json::to_vec(data)
             .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
         self.store_bytes(key, &bytes, ttl).await
     }
-    
-    async fn retrieve<D: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<Option<D>> {
+
+    async fn retrieve<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<Option<T>> {
         if let Some(bytes) = self.retrieve_bytes(key).await? {
             let data = serde_json::from_slice(&bytes)
-                .map_err(|e| WorkflowError::validation(format!("Deserialization error: {}", e)))?;
+                .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
             Ok(Some(data))
         } else {
             Ok(None)
         }
     }
-    
-    async fn store_with_metadata<S: Serialize + Send + Sync>(
-        &self, 
-        key: &str, 
-        data: &S, 
+
+    async fn store_with_metadata<T: Serialize + Send>(
+        &self,
+        key: &str,
+        data: &T,
         ttl: Duration,
-        metadata: CacheMetadata
+        metadata: CacheMetadata,
     ) -> Result<()> {
         let bytes = serde_json::to_vec(data)
             .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
-        self.store_bytes_with_metadata(key, &bytes, ttl, metadata).await
+        self.store_bytes_with_metadata(key, &bytes, ttl, metadata)
+            .await
     }
-    
-    async fn retrieve_with_metadata<D: for<'de> Deserialize<'de>>(
-        &self, 
-        key: &str
-    ) -> Result<Option<(D, CacheMetadata)>> {
+
+    async fn retrieve_with_metadata<T: for<'de> Deserialize<'de>>(
+        &self,
+        key: &str,
+    ) -> Result<Option<(T, CacheMetadata)>> {
         if let Some((bytes, metadata)) = self.retrieve_bytes_with_metadata(key).await? {
             let data = serde_json::from_slice(&bytes)
-                .map_err(|e| WorkflowError::validation(format!("Deserialization error: {}", e)))?;
+                .map_err(|e| WorkflowError::validation(format!("Serialization error: {}", e)))?;
             Ok(Some((data, metadata)))
         } else {
             Ok(None)
@@ -428,10 +430,7 @@ pub enum InvalidationCondition {
 
 impl OfflineCacheManager {
     /// Create a new offline cache manager
-    pub fn new(
-        cache: Arc<dyn CacheBackend>,
-        config: SyncConfig,
-    ) -> Self {
+    pub fn new(cache: Arc<dyn CacheBackend>, config: SyncConfig) -> Self {
         Self {
             cache,
             config,
@@ -440,26 +439,26 @@ impl OfflineCacheManager {
             invalidation_rules: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-    
+
     /// Enable offline mode
     pub async fn enable_offline_mode(&self) -> Result<()> {
         *self.offline_mode.write().await = true;
         info!("Offline mode enabled");
         Ok(())
     }
-    
+
     /// Disable offline mode
     pub async fn disable_offline_mode(&self) -> Result<()> {
         *self.offline_mode.write().await = false;
         info!("Offline mode disabled");
         Ok(())
     }
-    
+
     /// Check if in offline mode
     pub async fn is_offline_mode(&self) -> bool {
         *self.offline_mode.read().await
     }
-    
+
     /// Store data with enhanced metadata for offline access
     pub async fn store_offline_data<T: Serialize + Send>(
         &self,
@@ -472,7 +471,9 @@ impl OfflineCacheManager {
         let metadata = CacheMetadata {
             created_at: Utc::now(),
             last_accessed: Utc::now(),
-            expires_at: Utc::now() + ChronoDuration::from_std(ttl).map_err(|e| WorkflowError::validation(e.to_string()))?,
+            expires_at: Utc::now()
+                + ChronoDuration::from_std(ttl)
+                    .map_err(|e| WorkflowError::validation(e.to_string()))?,
             access_count: 0,
             size_bytes: 0, // Will be calculated by the cache backend
             source: DataSource::Cache,
@@ -481,16 +482,18 @@ impl OfflineCacheManager {
             offline_capable: true,
             checksum: None, // Will be calculated by the cache backend
         };
-        
-        self.cache.store_with_metadata(key, data, ttl, metadata).await?;
-        
+
+        self.cache
+            .store_with_metadata(key, data, ttl, metadata)
+            .await?;
+
         // Update statistics
         self.update_stats_after_store().await;
-        
+
         debug!("Stored offline data for key: {}", key);
         Ok(())
     }
-    
+
     /// Retrieve data with offline fallback
     pub async fn retrieve_offline_data<T: for<'de> Deserialize<'de>>(
         &self,
@@ -501,29 +504,29 @@ impl OfflineCacheManager {
                 // Update access statistics
                 metadata.last_accessed = Utc::now();
                 metadata.access_count += 1;
-                
+
                 // Update statistics
                 self.update_stats_after_access(true).await;
-                
+
                 debug!("Cache hit for offline data: {}", key);
                 Ok(Some(data))
             }
             None => {
                 // Update statistics
                 self.update_stats_after_access(false).await;
-                
+
                 debug!("Cache miss for offline data: {}", key);
                 Ok(None)
             }
         }
     }
-    
+
     /// Get cache data freshness score (0.0 = stale, 1.0 = fresh)
     pub async fn get_data_freshness(&self, key: &str) -> Result<f64> {
         if let Some(metadata) = self.cache.get_metadata(key).await? {
             let age = Utc::now() - metadata.created_at;
             let max_age = metadata.expires_at - metadata.created_at;
-            
+
             if age >= max_age {
                 Ok(0.0) // Expired
             } else {
@@ -534,7 +537,7 @@ impl OfflineCacheManager {
             Ok(0.0) // Not found
         }
     }
-    
+
     /// Preload critical data for offline access
     pub async fn preload_critical_data(
         &self,
@@ -542,7 +545,7 @@ impl OfflineCacheManager {
         backend: &Arc<dyn SyncBackend>,
     ) -> Result<()> {
         info!("Preloading critical data for offline access");
-        
+
         // Preload workflows with high priority
         if let Ok(workflows) = backend.fetch_workflows().await {
             self.store_offline_data(
@@ -551,9 +554,10 @@ impl OfflineCacheManager {
                 Duration::from_secs(self.config.cache_expiry_hours * 3600),
                 CachePriority::Critical,
                 vec!["workflows".to_string(), "critical".to_string()],
-            ).await?;
+            )
+            .await?;
         }
-        
+
         // Preload system status with high priority
         if let Ok(system_status) = backend.fetch_system_status().await {
             self.store_offline_data(
@@ -562,9 +566,10 @@ impl OfflineCacheManager {
                 Duration::from_secs(3600), // 1 hour for system status
                 CachePriority::High,
                 vec!["system".to_string(), "status".to_string()],
-            ).await?;
+            )
+            .await?;
         }
-        
+
         // Preload recent executions
         if let Ok(executions) = backend.fetch_executions().await {
             self.store_offline_data(
@@ -573,78 +578,96 @@ impl OfflineCacheManager {
                 Duration::from_secs(self.config.cache_expiry_hours * 3600),
                 CachePriority::High,
                 vec!["executions".to_string(), "critical".to_string()],
-            ).await?;
+            )
+            .await?;
         }
-        
+
         info!("Critical data preloading completed");
         Ok(())
     }
-    
+
     /// Load cached data when offline
     pub async fn load_offline_data(&self, state: &Arc<SharedAppState>) -> Result<()> {
         info!("Loading cached data for offline mode");
-        
+
         // Load workflows from cache
-        if let Some(workflows) = self.retrieve_offline_data::<Vec<WorkflowInfo>>("critical_workflows").await? {
+        if let Some(workflows) = self
+            .retrieve_offline_data::<Vec<WorkflowInfo>>("critical_workflows")
+            .await?
+        {
             state.set_workflows(workflows).await?;
             debug!("Loaded workflows from cache");
         }
-        
+
         // Load system status from cache
-        if let Some(system_status) = self.retrieve_offline_data::<SystemStatus>("critical_system_status").await? {
+        if let Some(system_status) = self
+            .retrieve_offline_data::<SystemStatus>("critical_system_status")
+            .await?
+        {
             state.set_system_status(system_status).await?;
             debug!("Loaded system status from cache");
         }
-        
+
         // Load executions from cache
-        if let Some(executions) = self.retrieve_offline_data::<Vec<crate::interfaces::tui::state::ExecutionInfo>>("critical_executions").await? {
+        if let Some(executions) = self
+            .retrieve_offline_data::<Vec<crate::interfaces::tui::state::ExecutionInfo>>(
+                "critical_executions",
+            )
+            .await?
+        {
             state.set_executions(executions).await?;
             debug!("Loaded executions from cache");
         }
-        
+
         // Load tools from cache if available
         if let Some(tools) = self.retrieve_offline_data::<Vec<ToolInfo>>("tools").await? {
             state.set_tools(tools).await?;
             debug!("Loaded tools from cache");
         }
-        
+
         // Load plugins from cache if available
-        if let Some(plugins) = self.retrieve_offline_data::<Vec<PluginInfo>>("plugins").await? {
+        if let Some(plugins) = self
+            .retrieve_offline_data::<Vec<PluginInfo>>("plugins")
+            .await?
+        {
             state.set_plugins(plugins).await?;
             debug!("Loaded plugins from cache");
         }
-        
+
         info!("Offline data loading completed");
         Ok(())
     }
-    
+
     /// Perform intelligent cache cleanup
     pub async fn intelligent_cleanup(&self) -> Result<CompactionResult> {
         info!("Performing intelligent cache cleanup");
-        
+
         let start_time = std::time::Instant::now();
         let mut entries_removed = 0u64;
         let mut bytes_freed = 0u64;
-        
+
         // Get all cache keys
         let keys = self.cache.list_keys(None).await?;
-        
+
         for key in keys {
             if let Some(metadata) = self.cache.get_metadata(&key).await? {
                 let should_remove = self.should_remove_entry(&metadata).await;
-                
+
                 if should_remove {
                     bytes_freed += metadata.size_bytes;
                     entries_removed += 1;
                     self.cache.remove(&key).await?;
-                    debug!("Removed cache entry: {} ({}bytes)", key, metadata.size_bytes);
+                    debug!(
+                        "Removed cache entry: {} ({}bytes)",
+                        key, metadata.size_bytes
+                    );
                 }
             }
         }
-        
+
         // Perform cache compaction
         let compaction_result = self.cache.compact().await?;
-        
+
         let total_result = CompactionResult {
             entries_removed: entries_removed + compaction_result.entries_removed,
             bytes_freed: bytes_freed + compaction_result.bytes_freed,
@@ -652,32 +675,30 @@ impl OfflineCacheManager {
             entries_remaining: compaction_result.entries_remaining,
             size_after_bytes: compaction_result.size_after_bytes,
         };
-        
+
         info!(
             "Cache cleanup completed: removed {} entries, freed {} bytes in {:?}",
-            total_result.entries_removed,
-            total_result.bytes_freed,
-            total_result.duration
+            total_result.entries_removed, total_result.bytes_freed, total_result.duration
         );
-        
+
         Ok(total_result)
     }
-    
+
     /// Check if a cache entry should be removed
     async fn should_remove_entry(&self, metadata: &CacheMetadata) -> bool {
         let now = Utc::now();
-        
+
         // Never remove critical entries unless they're very old
         if metadata.priority == CachePriority::Critical {
             let max_critical_age = ChronoDuration::days(7);
             return now - metadata.created_at > max_critical_age;
         }
-        
+
         // Remove expired entries
         if now > metadata.expires_at {
             return true;
         }
-        
+
         // Remove entries that haven't been accessed recently
         let last_access_threshold = match metadata.priority {
             CachePriority::Low => ChronoDuration::hours(6),
@@ -685,19 +706,19 @@ impl OfflineCacheManager {
             CachePriority::High => ChronoDuration::days(3),
             CachePriority::Critical => ChronoDuration::days(7),
         };
-        
+
         if now - metadata.last_accessed > last_access_threshold {
             return true;
         }
-        
+
         // Remove entries with very low access count
         if metadata.access_count == 0 && now - metadata.created_at > ChronoDuration::hours(1) {
             return true;
         }
-        
+
         false
     }
-    
+
     /// Update statistics after storing data
     async fn update_stats_after_store(&self) {
         if let Ok(cache_stats) = self.cache.stats().await {
@@ -705,7 +726,7 @@ impl OfflineCacheManager {
             *stats = cache_stats;
         }
     }
-    
+
     /// Update statistics after accessing data
     async fn update_stats_after_access(&self, hit: bool) {
         let mut stats = self.stats.write().await;
@@ -714,71 +735,82 @@ impl OfflineCacheManager {
         } else {
             stats.miss_count += 1;
         }
-        
+
         // Calculate hit rate
         let total_accesses = stats.hit_count + stats.miss_count;
         if total_accesses > 0 {
             stats.cache_hit_rate = stats.hit_count as f64 / total_accesses as f64;
         }
     }
-    
+
     /// Get cache statistics
     pub async fn get_stats(&self) -> CacheStats {
         self.stats.read().await.clone()
     }
-    
+
     /// Add cache invalidation rule
     pub async fn add_invalidation_rule(&self, name: String, rule: CacheInvalidationRule) {
         self.invalidation_rules.write().await.insert(name, rule);
     }
-    
+
     /// Remove cache invalidation rule
     pub async fn remove_invalidation_rule(&self, name: &str) {
         self.invalidation_rules.write().await.remove(name);
     }
-    
+
     /// Apply invalidation rules
     pub async fn apply_invalidation_rules(&self, event: &StateChangeEvent) -> Result<()> {
         let rules = self.invalidation_rules.read().await;
-        
+
         for (name, rule) in rules.iter() {
             if self.should_invalidate_for_event(rule, event).await {
                 debug!("Applying invalidation rule: {}", name);
-                
+
                 // Get keys matching the pattern
                 let keys = self.cache.list_keys(Some(&rule.key_pattern)).await?;
-                
+
                 for key in keys {
                     self.cache.remove(&key).await?;
                     debug!("Invalidated cache entry: {}", key);
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Check if cache should be invalidated for an event
-    async fn should_invalidate_for_event(&self, rule: &CacheInvalidationRule, event: &StateChangeEvent) -> bool {
+    async fn should_invalidate_for_event(
+        &self,
+        rule: &CacheInvalidationRule,
+        event: &StateChangeEvent,
+    ) -> bool {
         for condition in &rule.conditions {
             match (condition, event) {
-                (InvalidationCondition::SystemStatusChanged, StateChangeEvent::SystemStatusUpdated) => return true,
-                (InvalidationCondition::WorkflowStatusChanged { workflow_name }, 
-                 StateChangeEvent::WorkflowStatusChanged { name, .. }) if name == workflow_name => return true,
-                (InvalidationCondition::ExecutionCompleted { execution_id }, 
-                 StateChangeEvent::ExecutionCompleted { id }) if id == execution_id => return true,
+                (
+                    InvalidationCondition::SystemStatusChanged,
+                    StateChangeEvent::SystemStatusUpdated,
+                ) => return true,
+                (
+                    InvalidationCondition::WorkflowStatusChanged { workflow_name },
+                    StateChangeEvent::WorkflowStatusChanged { name, .. },
+                ) if name == workflow_name => return true,
+                (
+                    InvalidationCondition::ExecutionCompleted { execution_id },
+                    StateChangeEvent::ExecutionCompleted { id },
+                ) if id == execution_id => return true,
                 _ => {}
             }
         }
-        
+
         false
     }
-    
+
     /// Export cache for backup
     pub async fn export_cache(&self) -> Result<Vec<u8>> {
         self.cache.export().await
     }
-    
+
     /// Import cache from backup
     pub async fn import_cache(&self, data: &[u8]) -> Result<()> {
         self.cache.import(data).await
@@ -820,7 +852,7 @@ impl DataSyncManager {
         cache: Option<Arc<dyn CacheBackend>>,
     ) -> Self {
         let (event_sender, _) = broadcast::channel(1000);
-        
+
         // Create offline cache manager if caching is enabled
         let offline_cache = if config.enable_offline_cache && cache.is_some() {
             Some(Arc::new(OfflineCacheManager::new(
@@ -830,7 +862,7 @@ impl DataSyncManager {
         } else {
             None
         };
-        
+
         Self {
             state,
             config,
@@ -846,44 +878,47 @@ impl DataSyncManager {
             cleanup_handle: Arc::new(Mutex::new(None)),
         }
     }
-    
+
     /// Start the synchronization manager
     pub async fn start(&mut self) -> Result<()> {
         info!("Starting data synchronization manager");
-        
+
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         self.shutdown_tx = Some(shutdown_tx);
-        
+
         // Start periodic sync task
         let (sync_shutdown_tx, sync_shutdown_rx) = mpsc::channel(1);
         let sync_handle = self.start_periodic_sync(sync_shutdown_rx).await?;
         *self.sync_handle.lock().await = Some(sync_handle);
-        
+
         // Start real-time updates if enabled
         if self.config.enable_realtime_updates {
             let (realtime_shutdown_tx, realtime_shutdown_rx) = mpsc::channel(1);
             let realtime_handle = self.start_realtime_updates(realtime_shutdown_rx).await?;
             *self.realtime_handle.lock().await = Some(realtime_handle);
         }
-        
+
         // Start connection health monitoring
         let (health_shutdown_tx, health_shutdown_rx) = mpsc::channel(1);
         let health_handle = self.start_health_monitoring(health_shutdown_rx).await?;
         *self.health_handle.lock().await = Some(health_handle);
-        
+
         // Start cache cleanup task if offline caching is enabled
         if self.config.enable_offline_cache && self.offline_cache.is_some() {
             let (cleanup_shutdown_tx, cleanup_shutdown_rx) = mpsc::channel(1);
             let cleanup_handle = self.start_cache_cleanup(cleanup_shutdown_rx).await?;
             *self.cleanup_handle.lock().await = Some(cleanup_handle);
         }
-        
+
         // Perform initial sync or load from cache
         match self.sync_all_data(DataSource::Api).await {
             Ok(_) => {
                 // Preload critical data for offline access
                 if let Some(offline_cache) = &self.offline_cache {
-                    if let Err(e) = offline_cache.preload_critical_data(&self.state, &self.backend).await {
+                    if let Err(e) = offline_cache
+                        .preload_critical_data(&self.state, &self.backend)
+                        .await
+                    {
                         warn!("Failed to preload critical data: {}", e);
                     }
                 }
@@ -901,69 +936,69 @@ impl DataSyncManager {
                 }
             }
         }
-        
+
         info!("Data synchronization manager started successfully");
         Ok(())
     }
-    
+
     /// Stop the synchronization manager
     pub async fn stop(&mut self) -> Result<()> {
         info!("Stopping data synchronization manager");
-        
+
         // Send shutdown signal
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             let _ = shutdown_tx.send(()).await;
         }
-        
+
         // Wait for tasks to complete
         if let Some(handle) = self.sync_handle.lock().await.take() {
             handle.abort();
         }
-        
+
         if let Some(handle) = self.realtime_handle.lock().await.take() {
             handle.abort();
         }
-        
+
         if let Some(handle) = self.health_handle.lock().await.take() {
             handle.abort();
         }
-        
+
         if let Some(handle) = self.cleanup_handle.lock().await.take() {
             handle.abort();
         }
-        
+
         info!("Data synchronization manager stopped");
         Ok(())
     }
-    
+
     /// Subscribe to synchronization events
     pub fn subscribe_events(&self) -> broadcast::Receiver<SyncEvent> {
         self.event_sender.subscribe()
     }
-    
+
     /// Get current synchronization metrics
     pub async fn get_metrics(&self) -> SyncMetrics {
         let mut metrics = self.metrics.read().await.clone();
-        
+
         // Update cache hit rate from offline cache if available
         if let Some(offline_cache) = &self.offline_cache {
             let cache_stats = offline_cache.get_stats().await;
             metrics.cache_hit_rate = cache_stats.cache_hit_rate;
         }
-        
+
         metrics
     }
-    
+
     /// Manually trigger a full data synchronization
     pub async fn sync_now(&self) -> Result<()> {
         info!("Manual sync triggered");
         self.sync_all_data(DataSource::Api).await
     }
-    
+
     /// Force refresh from backend (bypass cache)
     pub async fn force_refresh(&self) -> Result<()> {
         info!("Force refresh triggered");
-        
+
         // Clear cache if available
         if let Some(cache) = &self.cache {
             cache.clear().await?;
@@ -971,17 +1006,18 @@ impl DataSyncManager {
                 operation: "clear_all".to_string(),
                 success: true,
                 size_bytes: None,
-            }).await;
+            })
+            .await;
         }
-        
+
         // Disable offline mode temporarily
         if let Some(offline_cache) = &self.offline_cache {
             offline_cache.disable_offline_mode().await?;
         }
-        
+
         // Sync from API
         let result = self.sync_all_data(DataSource::Api).await;
-        
+
         // Re-enable offline mode if sync failed
         if result.is_err() {
             if let Some(offline_cache) = &self.offline_cache {
@@ -989,10 +1025,10 @@ impl DataSyncManager {
                 offline_cache.load_offline_data(&self.state).await?;
             }
         }
-        
+
         result
     }
-    
+
     /// Enable offline mode
     pub async fn enable_offline_mode(&self) -> Result<()> {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1004,7 +1040,7 @@ impl DataSyncManager {
         }
         Ok(())
     }
-    
+
     /// Disable offline mode
     pub async fn disable_offline_mode(&self) -> Result<()> {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1013,7 +1049,7 @@ impl DataSyncManager {
         }
         Ok(())
     }
-    
+
     /// Check if in offline mode
     pub async fn is_offline_mode(&self) -> bool {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1022,7 +1058,7 @@ impl DataSyncManager {
             false
         }
     }
-    
+
     /// Get cache statistics
     pub async fn get_cache_stats(&self) -> Option<CacheStats> {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1031,7 +1067,7 @@ impl DataSyncManager {
             None
         }
     }
-    
+
     /// Perform cache cleanup
     pub async fn cleanup_cache(&self) -> Result<Option<CompactionResult>> {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1040,7 +1076,7 @@ impl DataSyncManager {
             Ok(None)
         }
     }
-    
+
     /// Export cache for backup
     pub async fn export_cache(&self) -> Result<Option<Vec<u8>>> {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1049,7 +1085,7 @@ impl DataSyncManager {
             Ok(None)
         }
     }
-    
+
     /// Import cache from backup
     pub async fn import_cache(&self, data: &[u8]) -> Result<()> {
         if let Some(offline_cache) = &self.offline_cache {
@@ -1059,19 +1095,22 @@ impl DataSyncManager {
         }
         Ok(())
     }
-    
+
     /// Start periodic synchronization task
-    async fn start_periodic_sync(&self, mut shutdown_rx: mpsc::Receiver<()>) -> Result<tokio::task::JoinHandle<()>> {
+    async fn start_periodic_sync(
+        &self,
+        mut shutdown_rx: mpsc::Receiver<()>,
+    ) -> Result<tokio::task::JoinHandle<()>> {
         let state = Arc::clone(&self.state);
         let backend = Arc::clone(&self.backend);
         let cache = self.cache.clone();
         let metrics = Arc::clone(&self.metrics);
         let event_sender = self.event_sender.clone();
         let config = self.config.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(config.sync_interval_seconds));
-            
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -1094,32 +1133,35 @@ impl DataSyncManager {
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     /// Start real-time updates task
-    async fn start_realtime_updates(&self, mut shutdown_rx: mpsc::Receiver<()>) -> Result<tokio::task::JoinHandle<()>> {
+    async fn start_realtime_updates(
+        &self,
+        mut shutdown_rx: mpsc::Receiver<()>,
+    ) -> Result<tokio::task::JoinHandle<()>> {
         let state = Arc::clone(&self.state);
         let event_sender = self.event_sender.clone();
         let config = self.config.clone();
-        
+
         let handle = tokio::spawn(async move {
             // This would connect to WebSocket/SSE endpoint for real-time updates
             // For now, simulate with periodic checks for demonstration
             let mut interval = interval(Duration::from_secs(5));
-            
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
                         // Simulate real-time event
                         let event = StateChangeEvent::DataRefreshed;
                         let sync_event = SyncEvent::RealtimeEvent { event: event.clone() };
-                        
+
                         if let Err(e) = event_sender.send(sync_event) {
                             warn!("Failed to broadcast real-time event: {}", e);
                         }
-                        
+
                         trace!("Real-time update check completed");
                     }
                     _ = shutdown_rx.recv() => {
@@ -1129,20 +1171,23 @@ impl DataSyncManager {
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     /// Start cache cleanup task
-    async fn start_cache_cleanup(&self, mut shutdown_rx: mpsc::Receiver<()>) -> Result<tokio::task::JoinHandle<()>> {
+    async fn start_cache_cleanup(
+        &self,
+        mut shutdown_rx: mpsc::Receiver<()>,
+    ) -> Result<tokio::task::JoinHandle<()>> {
         let offline_cache = self.offline_cache.clone();
         let config = self.config.clone();
         let event_sender = self.event_sender.clone();
-        
+
         let handle = tokio::spawn(async move {
             // Run cleanup every hour
             let mut interval = interval(Duration::from_secs(3600));
-            
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -1154,7 +1199,7 @@ impl DataSyncManager {
                                         success: true,
                                         size_bytes: Some(result.bytes_freed),
                                     });
-                                    
+
                                     debug!(
                                         "Cache cleanup completed: {} entries removed, {} bytes freed",
                                         result.entries_removed,
@@ -1179,19 +1224,22 @@ impl DataSyncManager {
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    async fn start_health_monitoring(&self, mut shutdown_rx: mpsc::Receiver<()>) -> Result<tokio::task::JoinHandle<()>> {
+    async fn start_health_monitoring(
+        &self,
+        mut shutdown_rx: mpsc::Receiver<()>,
+    ) -> Result<tokio::task::JoinHandle<()>> {
         let state = Arc::clone(&self.state);
         let backend = Arc::clone(&self.backend);
         let event_sender = self.event_sender.clone();
         let config = self.config.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(config.health_check_interval_seconds));
             let mut last_status = ConnectionStatus::Disconnected;
-            
+
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -1204,21 +1252,21 @@ impl DataSyncManager {
                             Ok(Err(e)) => ConnectionStatus::Error(e.to_string()),
                             Err(_) => ConnectionStatus::Error("Health check timeout".to_string()),
                         };
-                        
+
                         if new_status != last_status {
                             if let Err(e) = state.set_connection_status(new_status.clone()).await {
                                 error!("Failed to update connection status: {}", e);
                             }
-                            
+
                             let sync_event = SyncEvent::ConnectionChanged {
                                 old_status: last_status.clone(),
                                 new_status: new_status.clone(),
                             };
-                            
+
                             if let Err(e) = event_sender.send(sync_event) {
                                 warn!("Failed to broadcast connection change: {}", e);
                             }
-                            
+
                             last_status = new_status;
                         }
                     }
@@ -1229,10 +1277,10 @@ impl DataSyncManager {
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     /// Perform comprehensive data synchronization
     async fn sync_all_data(&self, source: DataSource) -> Result<()> {
         Self::perform_sync(
@@ -1243,9 +1291,10 @@ impl DataSyncManager {
             &self.event_sender,
             &self.config,
             source,
-        ).await
+        )
+        .await
     }
-    
+
     /// Internal sync implementation with retry logic
     async fn perform_sync(
         state: &Arc<SharedAppState>,
@@ -1259,24 +1308,26 @@ impl DataSyncManager {
         let start_time = Instant::now();
         let mut attempt = 0;
         let mut last_error: Option<String> = None;
-        
+
         // Update metrics - sync started
         {
             let mut m = metrics.write().await;
             m.current_status = SyncStatus::Syncing;
             m.total_syncs += 1;
         }
-        
+
         // Broadcast sync started event
-        let _ = event_sender.send(SyncEvent::SyncStarted { source: source.clone() });
-        
+        let _ = event_sender.send(SyncEvent::SyncStarted {
+            source: source.clone(),
+        });
+
         loop {
             attempt += 1;
-            
+
             match Self::perform_single_sync(state, backend, cache, source.clone()).await {
                 Ok(items_updated) => {
                     let duration = start_time.elapsed();
-                    
+
                     // Update metrics - sync succeeded
                     {
                         let mut m = metrics.write().await;
@@ -1284,31 +1335,36 @@ impl DataSyncManager {
                         m.current_status = SyncStatus::Success;
                         m.last_sync_time = Some(Utc::now());
                         m.last_successful_sync = Some(Utc::now());
-                        
+
                         // Update average duration
-                        let total_duration = m.average_sync_duration_ms * (m.successful_syncs - 1) as f64;
-                        m.average_sync_duration_ms = (total_duration + duration.as_millis() as f64) / m.successful_syncs as f64;
-                        
+                        let total_duration =
+                            m.average_sync_duration_ms * (m.successful_syncs - 1) as f64;
+                        m.average_sync_duration_ms = (total_duration + duration.as_millis() as f64)
+                            / m.successful_syncs as f64;
+
                         // Update data freshness
                         m.data_freshness = 1.0; // Fresh data
-                        
+
                         // Update connection quality based on success
                         m.connection_quality = (m.connection_quality * 0.9 + 0.1).min(1.0);
                     }
-                    
+
                     // Broadcast sync completed event
                     let _ = event_sender.send(SyncEvent::SyncCompleted {
                         source,
                         duration,
                         items_updated,
                     });
-                    
-                    info!("Data sync completed successfully in {:?}, {} items updated", duration, items_updated);
+
+                    info!(
+                        "Data sync completed successfully in {:?}, {} items updated",
+                        duration, items_updated
+                    );
                     return Ok(());
                 }
                 Err(e) => {
                     last_error = Some(e.to_string());
-                    
+
                     if attempt >= config.max_retry_attempts {
                         // Update metrics - sync failed
                         {
@@ -1316,70 +1372,76 @@ impl DataSyncManager {
                             m.failed_syncs += 1;
                             m.current_status = SyncStatus::Failed(e.to_string());
                             m.last_sync_time = Some(Utc::now());
-                            
+
                             // Decrease connection quality
                             m.connection_quality = (m.connection_quality * 0.8).max(0.0);
-                            
+
                             // Decrease data freshness over time
                             if let Some(last_success) = m.last_successful_sync {
                                 let age = Utc::now() - last_success;
-                                m.data_freshness = (1.0 - (age.num_minutes() as f64 / 60.0)).max(0.0);
+                                m.data_freshness =
+                                    (1.0 - (age.num_minutes() as f64 / 60.0)).max(0.0);
                             }
                         }
-                        
+
                         // Broadcast sync failed event
                         let _ = event_sender.send(SyncEvent::SyncFailed {
                             source,
                             error: e.to_string(),
                             retry_in: None,
                         });
-                        
+
                         error!("Data sync failed after {} attempts: {}", attempt, e);
-                        
+
                         // Try to load from cache if available
                         if let Some(cache_backend) = cache {
-                            if let Err(cache_err) = Self::load_from_cache(state, cache_backend).await {
+                            if let Err(cache_err) =
+                                Self::load_from_cache(state, cache_backend).await
+                            {
                                 warn!("Failed to load from cache: {}", cache_err);
                             } else {
                                 info!("Loaded data from cache after sync failure");
-                                
+
                                 // Update status to offline
                                 let mut m = metrics.write().await;
                                 m.current_status = SyncStatus::Offline;
                             }
                         }
-                        
+
                         return Err(e);
                     } else {
                         // Calculate retry delay with exponential backoff
-                        let delay_ms = config.initial_retry_delay_ms as f64 * 
-                            config.retry_backoff_multiplier.powi((attempt - 1) as i32);
+                        let delay_ms = config.initial_retry_delay_ms as f64
+                            * config.retry_backoff_multiplier.powi((attempt - 1) as i32);
                         let retry_delay = Duration::from_millis(delay_ms as u64);
-                        
+
                         // Update metrics - retrying
                         {
                             let mut m = metrics.write().await;
-                            m.current_status = SyncStatus::Retrying { 
-                                attempt, 
-                                next_retry_in: retry_delay 
+                            m.current_status = SyncStatus::Retrying {
+                                attempt,
+                                next_retry_in: retry_delay,
                             };
                         }
-                        
+
                         // Broadcast retry event
                         let _ = event_sender.send(SyncEvent::SyncFailed {
                             source: source.clone(),
                             error: e.to_string(),
                             retry_in: Some(retry_delay),
                         });
-                        
-                        warn!("Sync attempt {} failed: {}, retrying in {:?}", attempt, e, retry_delay);
+
+                        warn!(
+                            "Sync attempt {} failed: {}, retrying in {:?}",
+                            attempt, e, retry_delay
+                        );
                         sleep(retry_delay).await;
                     }
                 }
             }
         }
     }
-    
+
     /// Perform a single synchronization attempt
     async fn perform_single_sync(
         state: &Arc<SharedAppState>,
@@ -1388,7 +1450,7 @@ impl DataSyncManager {
         source: DataSource,
     ) -> Result<u32> {
         let mut items_updated = 0;
-        
+
         match source {
             DataSource::Api => {
                 // Fetch data from backend API
@@ -1400,31 +1462,40 @@ impl DataSyncManager {
                     backend.fetch_system_status(),
                     backend.fetch_logs(None)
                 )?;
-                
+
                 // Update state
                 state.set_workflows(workflows.clone()).await?;
                 state.set_executions(executions.clone()).await?;
                 state.set_tools(tools.clone()).await?;
                 state.set_plugins(plugins.clone()).await?;
                 state.set_system_status(system_status.clone()).await?;
-                
+
                 // Add logs
                 for log in logs {
                     state.add_log_entry(log).await?;
                 }
-                
-                items_updated = workflows.len() as u32 + executions.len() as u32 + 
-                              tools.len() as u32 + plugins.len() as u32 + 1; // +1 for system status
-                
+
+                items_updated = workflows.len() as u32
+                    + executions.len() as u32
+                    + tools.len() as u32
+                    + plugins.len() as u32
+                    + 1; // +1 for system status
+
                 // Cache the data if caching is enabled
                 if let Some(cache_backend) = cache {
                     let cache_ttl = Duration::from_secs(3600); // 1 hour
-                    
-                    let _ = cache_backend.store("workflows", &workflows, cache_ttl).await;
-                    let _ = cache_backend.store("executions", &executions, cache_ttl).await;
+
+                    let _ = cache_backend
+                        .store("workflows", &workflows, cache_ttl)
+                        .await;
+                    let _ = cache_backend
+                        .store("executions", &executions, cache_ttl)
+                        .await;
                     let _ = cache_backend.store("tools", &tools, cache_ttl).await;
                     let _ = cache_backend.store("plugins", &plugins, cache_ttl).await;
-                    let _ = cache_backend.store("system_status", &system_status, cache_ttl).await;
+                    let _ = cache_backend
+                        .store("system_status", &system_status, cache_ttl)
+                        .await;
                 }
             }
             DataSource::Cache => {
@@ -1432,7 +1503,9 @@ impl DataSyncManager {
                     Self::load_from_cache(state, cache_backend).await?;
                     items_updated = 1; // Approximate
                 } else {
-                    return Err(WorkflowError::ValidationError("Cache not available".to_string()));
+                    return Err(WorkflowError::ValidationError(
+                        "Cache not available".to_string(),
+                    ));
                 }
             }
             DataSource::Mock => {
@@ -1445,10 +1518,10 @@ impl DataSyncManager {
                 items_updated = 0;
             }
         }
-        
+
         Ok(items_updated)
     }
-    
+
     /// Load data from cache
     async fn load_from_cache(
         state: &Arc<SharedAppState>,
@@ -1459,35 +1532,35 @@ impl DataSyncManager {
         let tools: Option<Vec<ToolInfo>> = cache.retrieve("tools").await?;
         let plugins: Option<Vec<PluginInfo>> = cache.retrieve("plugins").await?;
         let system_status: Option<SystemStatus> = cache.retrieve("system_status").await?;
-        
+
         if let Some(workflows) = workflows {
             state.set_workflows(workflows).await?;
         }
-        
+
         if let Some(executions) = executions {
             state.set_executions(executions).await?;
         }
-        
+
         if let Some(tools) = tools {
             state.set_tools(tools).await?;
         }
-        
+
         if let Some(plugins) = plugins {
             state.set_plugins(plugins).await?;
         }
-        
+
         if let Some(system_status) = system_status {
             state.set_system_status(system_status).await?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Load mock data for testing
     async fn load_mock_data(state: &Arc<SharedAppState>) -> Result<()> {
-        use crate::interfaces::tui::widgets::workflow_list::{WorkflowStatus, ExecutionStatus};
-        use crate::interfaces::tui::state::{SystemHealth, NetworkStatus};
-        
+        use crate::interfaces::tui::state::{NetworkStatus, SystemHealth};
+        use crate::interfaces::tui::widgets::workflow_list::{ExecutionStatus, WorkflowStatus};
+
         // Mock workflows
         let workflows = vec![
             WorkflowInfo {
@@ -1515,19 +1588,17 @@ impl DataSyncManager {
                 success_rate: Some(0.98),
             },
         ];
-        
+
         // Mock executions
-        let executions = vec![
-            ExecutionInfo {
-                id: "exec-001".to_string(),
-                workflow_name: "系统监控".to_string(),
-                status: ExecutionStatus::Running,
-                started_at: Utc::now() - ChronoDuration::minutes(5),
-                completed_at: None,
-                progress: 0.65,
-            },
-        ];
-        
+        let executions = vec![ExecutionInfo {
+            id: "exec-001".to_string(),
+            workflow_name: "系统监控".to_string(),
+            status: ExecutionStatus::Running,
+            started_at: Utc::now() - ChronoDuration::minutes(5),
+            completed_at: None,
+            progress: 0.65,
+        }];
+
         // Mock system status
         let system_status = SystemStatus {
             cpu_usage: 45.2,
@@ -1535,8 +1606,8 @@ impl DataSyncManager {
             memory_total: 16 * 1024 * 1024 * 1024, // 16GB
             memory_used: 10 * 1024 * 1024 * 1024,  // 10GB
             disk_usage: 78.5,
-            disk_total: 500 * 1024 * 1024 * 1024,  // 500GB
-            disk_used: 392 * 1024 * 1024 * 1024,   // 392GB
+            disk_total: 500 * 1024 * 1024 * 1024, // 500GB
+            disk_used: 392 * 1024 * 1024 * 1024,  // 392GB
             active_workflows: 3,
             system_health: SystemHealth::Healthy,
             uptime: Duration::from_secs(86400 * 7), // 7 days
@@ -1545,17 +1616,17 @@ impl DataSyncManager {
             process_count: 245,
             thread_count: 1024,
         };
-        
+
         // Update state
         state.set_workflows(workflows).await?;
         state.set_executions(executions).await?;
         state.set_tools(vec![]).await?; // Empty for mock
         state.set_plugins(vec![]).await?; // Empty for mock
         state.set_system_status(system_status).await?;
-        
+
         Ok(())
     }
-    
+
     /// Broadcast a synchronization event
     async fn broadcast_event(&self, event: SyncEvent) {
         if let Err(e) = self.event_sender.send(event) {
@@ -1608,8 +1679,16 @@ impl std::fmt::Display for SyncStatus {
             SyncStatus::Success => write!(f, "成功"),
             SyncStatus::Failed(err) => write!(f, "失败: {}", err),
             SyncStatus::Offline => write!(f, "离线"),
-            SyncStatus::Retrying { attempt, next_retry_in } => {
-                write!(f, "重试中 ({}/3) - {}秒后重试", attempt, next_retry_in.as_secs())
+            SyncStatus::Retrying {
+                attempt,
+                next_retry_in,
+            } => {
+                write!(
+                    f,
+                    "重试中 ({}/3) - {}秒后重试",
+                    attempt,
+                    next_retry_in.as_secs()
+                )
             }
         }
     }

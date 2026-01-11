@@ -1,97 +1,209 @@
-# WORKFLOW TOOLKIT - PROJECT KNOWLEDGE BASE
+<!-- OPENSPEC:START -->
+# OpenSpec Instructions
 
-**Generated:** 2026-01-10  
-**Language:** Rust (2021 Edition)  
-**Architecture:** Multi-interface workflow execution system
+These instructions are for AI assistants working in this project.
 
-## OVERVIEW
-Workflow Toolkit is a multi-interface workflow engine with CLI, TUI, and MCP server support. Built with tokio async runtime, petgraph DAG scheduler, and extensible plugin system for native, Python, Node.js, and Docker plugins.
+Always open `@/openspec/AGENTS.md` when the request:
+- Mentions planning or proposals (words like proposal, spec, change, plan)
+- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
+- Sounds ambiguous and you need the authoritative spec before coding
 
-## STRUCTURE
+Use `@/openspec/AGENTS.md` to learn:
+- How to create and apply change proposals
+- Spec format and conventions
+- Project structure and guidelines
+
+Keep this managed block so 'openspec update' can refresh the instructions.
+
+<!-- OPENSPEC:END -->
+
+# Workflow Toolkit - Agent Instructions
+
+**Project:** Multi-interface workflow execution system (Rust 2021 Edition)  
+**Architecture:** CLI, TUI, and MCP server with DAG-based workflow engine  
+**Generated:** 2026-01-11
+
+## Quick Reference
+
+### Build & Test Commands
+```bash
+# Build
+cargo build                    # Debug build
+cargo build --release          # Optimized build  
+cargo build --all-features     # With LanceDB support
+cargo check                    # Quick type check
+
+# Test
+cargo test                     # All tests
+cargo test -- --nocapture      # With output
+cargo test workflow::tests     # Specific module
+cargo test property_tests      # Property-based tests
+cargo test --test integration_tests  # Integration only
+cargo test tui_unit_tests --test tui_standalone_unit_tests  # Single test file
+
+# Run
+cargo run -- --help            # CLI help
+cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- tui               # Start TUI
+cargo run -- tool list         # List tools
+
+# Format & Lint
+cargo fmt
+cargo clippy -- -D warnings
+cargo clippy --fix
+
+# Examples
+cargo run --example comprehensive_workflow_example
+cargo run --example python_plugin_example
+cargo run --example file_management_example
 ```
-rust-tool-v2/
-├── src/                    # Core library (11 modules)
-│   ├── workflow/          # DAG engine, scheduler, execution (13 files)
-│   ├── plugins/           # Native, Python, Node.js, Docker, WASM (11 files)
-│   │   └── file_management/# Specialized file ops (19 files)
-│   ├── tools/             # Tool registry, templates, versioning (7 files)
-│   ├── interfaces/        # CLI, TUI, MCP server (4 files)
-│   │   ├── cli/           # Clap-based CLI (6 files)
-│   │   └── tui/           # Ratatui-based TUI (6 files)
-│   ├── storage/           # Backends, state, backup (6 files)
-│   ├── performance/       # Cache, metrics, profiling (6 files)
-│   ├── config.rs          # Hierarchical config (env > CLI > file > defaults)
-│   ├── core.rs            # Shared types, ExecutionContext, RetryPolicy
-│   └── error.rs           # WorkflowError with 20+ variants
-├── examples/              # 23 comprehensive examples
-├── tests/                 # Integration + property-based tests (6 files)
-├── docs/                  # Documentation (11 files)
-├── config/                # Default configuration
-└── Cargo.toml             # 87 dependencies, 12 features
+
+### Single Test Execution
+```bash
+# Run one specific test
+cargo test test_name -- --nocapture
+
+# Run test in specific file
+cargo test --test tui_standalone_unit_tests -- test_name
+
+# Run with filter
+cargo test workflow -- --test-threads=1
 ```
 
-## WHERE TO LOOK
-| Task | Location | Notes |
-|------|----------|-------|
-| **Workflow execution** | `src/workflow/engine.rs` | DefaultWorkflowEngine with parallel semaphore |
-| **DAG scheduling** | `src/workflow/scheduler.rs` | petgraph-based topological sort |
-| **Tool registration** | `src/tools/registry.rs` | DashMap for concurrent access |
-| **Plugin loading** | `src/plugins/manager.rs` | RuntimeManager + PluginManager |
-| **CLI commands** | `src/interfaces/cli/commands.rs` | Clap subcommands |
-| **TUI event loop** | `src/interfaces/tui/event.rs` | Crossterm + ratatui |
-| **State persistence** | `src/storage/state_manager.rs` | FileStorage + SimpleMemoryCache |
-| **Performance tuning** | `src/performance/` | Moka cache, concurrency control |
-| **Configuration** | `src/config.rs` | Priority system, hot reload |
-| **Error handling** | `src/error.rs` | thiserror with 20+ error types |
+## Code Style Guidelines
 
-## CODE MAP (Key Symbols)
-| Symbol | Type | Location | Role |
-|--------|------|----------|------|
-| `WorkflowEngine` | Trait | `src/workflow/engine.rs` | Core execution trait |
-| `DefaultWorkflowEngine` | Struct | `src/workflow/engine.rs` | Main implementation |
-| `ToolRegistry` | Trait | `src/tools/registry.rs` | Tool management |
-| `BasicToolRegistry` | Struct | `src/tools/registry.rs` | DashMap-based registry |
-| `PluginManager` | Struct | `src/plugins/manager.rs` | Plugin lifecycle |
-| `ExecutionContext` | Struct | `src/core.rs` | Runtime context |
-| `WorkflowError` | Enum | `src/error.rs` | Error types |
-| `ConfigManager` | Struct | `src/config.rs` | Config with hot reload |
-| `AsyncFunctionExecutor` | Struct | `src/tools/node.rs` | Async tool executor |
-
-## CONVENTIONS (DEVIATIONS FROM STANDARD)
-
-### Import Order
+### Import Order (STRICT)
 ```rust
-// Standard library → External (alphabetical) → Internal modules
+// 1. Standard library
 use std::sync::Arc;
+use std::time::Duration;
+
+// 2. External crates (alphabetical)
 use async_trait::async_trait;
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{RwLock, Semaphore};
+
+// 3. Internal modules
 use crate::core::{ExecutionContext, WorkflowId};
+use crate::error::{Result, WorkflowError};
+use crate::tools::ToolNode;
 ```
 
 ### Error Handling
-- **NEVER** use `as any`, `@ts-ignore`, or type suppression
-- **ALWAYS** use `Result<T, WorkflowError>` for fallible operations
-- **CONSTRUCTORS** for common errors: `WorkflowError::workflow_execution()`, `WorkflowError::tool()`
-- **TIMEOUTS** use `tokio::time::timeout` with proper error mapping
+```rust
+// ✅ CORRECT: Use thiserror with constructors
+pub fn do_something() -> Result<()> {
+    let value = operation().map_err(|e| {
+        WorkflowError::workflow_execution(&format!("Failed: {}", e))
+    })?;
+    Ok(())
+}
+
+// ✅ CORRECT: Constructor methods for common errors
+return Err(WorkflowError::tool("Invalid parameters"));
+return Err(WorkflowError::plugin("Loading failed"));
+return Err(WorkflowError::storage("Connection lost"));
+
+// ❌ NEVER: Type suppression
+let x: u32 = value as any;           // Forbidden
+#[ts-ignore]                         // Forbidden
+let x = value as u32;                // Use try_into() instead
+
+// ❌ NEVER: Empty error handling
+catch(e) {}                          // Forbidden - always handle errors
+```
 
 ### Async Patterns
-- **TRAITS** use `#[async_trait]` from `async_trait` crate
-- **CONCURRENCY** use `DashMap` for read-heavy, `RwLock` for mutable shared state
-- **SEMAPHORES** control parallel execution: `Arc<Semaphore>`
-- **CHANNELS** use `tokio::sync::mpsc` for async communication
+```rust
+// ✅ CORRECT: Async traits
+#[async_trait]
+pub trait WorkflowEngine: Send + Sync {
+    async fn execute(&self, def: WorkflowDefinition) -> Result<WorkflowExecution>;
+}
+
+// ✅ CORRECT: Concurrent collections
+use dashmap::DashMap;  // For read-heavy concurrent access
+use tokio::sync::RwLock; // For mutable shared state
+
+// ✅ CORRECT: Semaphore for concurrency control
+let semaphore = Arc::new(Semaphore::new(4));
+let permit = semaphore.acquire().await?;
+```
 
 ### Type Safety
-- **NEWTYPE** pattern for domain types: `WorkflowId(Uuid)`
-- **ENUMS** for state: `ExecutionStatus` with `is_terminal()`, `can_pause()`, `can_resume()`
-- **STRONG TYPES** over primitives: `Duration`, `PathBuf`, `DateTime<Utc>`
-- **TRY_INTO** for conversions: `let x: u32 = value.try_into()?`
+```rust
+// ✅ CORRECT: Newtype pattern
+pub struct WorkflowId(Uuid);
+
+// ✅ CORRECT: Strong types over primitives
+use std::path::PathBuf;
+use std::time::Duration;
+use chrono::{DateTime, Utc};
+
+// ✅ CORRECT: TryInto for conversions
+let count: usize = value.try_into()?;
+
+// ✅ CORRECT: Enums with helper methods
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionStatus {
+    Pending, Running, Paused, Completed, Failed, Cancelled, Timeout,
+}
+
+impl ExecutionStatus {
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled | Self::Timeout)
+    }
+}
+```
 
 ### Testing
-- **UNIT** tests in `#[cfg(test)]` modules within same file
-- **ASYNC** tests use `#[tokio::test]`
-- **INTEGRATION** tests in `tests/` directory
-- **PROPERTY** tests use `proptest` crate
-- **FIXTURES** use `tempfile::TempDir` for isolation
+```rust
+// ✅ CORRECT: Unit tests in same file
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_something() {
+        // Test logic
+    }
+    
+    #[tokio::test]
+    async fn test_async_something() {
+        // Async test logic
+    }
+}
+
+// ✅ CORRECT: Use tempfile for isolation
+#[tokio::test]
+async fn test_with_temp_dir() {
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    // Use temp_dir.path()
+}
+
+// ✅ CORRECT: Property-based tests
+#[test]
+fn test_property() {
+    proptest!(|(input: Vec<String>)| {
+        // Test with random input
+    });
+}
+```
+
+### Logging
+```rust
+// ✅ CORRECT: Use tracing macros
+use tracing::{info, debug, warn, error};
+
+info!("Workflow started: {}", workflow_id);
+debug!("Parameters: {:?}", params);
+warn!("Resource threshold approaching");
+error!("Execution failed: {}", error);
+
+// ❌ NEVER: println! or eprintln!
+println!("Debug info");  // Forbidden - use tracing
+```
 
 ### Configuration Priority
 1. Command line arguments (highest)
@@ -99,25 +211,151 @@ use crate::core::{ExecutionContext, WorkflowId};
 3. Config file (`config/default.toml`)
 4. Built-in defaults (lowest)
 
-### Logging
-- **NEVER** use `println!` or `eprintln!`
-- **ALWAYS** use `tracing` macros: `info!`, `debug!`, `warn!`, `error!`
-- **ENV FILTER** via `RUST_LOG` environment variable
+```rust
+// Environment variable format
+export WORKFLOW_TOOLKIT_SERVER__HTTP_PORT=8080
+export WORKFLOW_TOOLKIT_LOGGING__LEVEL=debug
+```
 
-## ANTI-PATTERNS (FORBIDDEN IN THIS PROJECT)
+## Project Structure
+
+```
+rust-tool-v2/
+├── src/                          # Core library
+│   ├── lib.rs                    # Module declarations, re-exports
+│   ├── core.rs                   # Shared types, ExecutionContext, enums
+│   ├── error.rs                  # WorkflowError with 20+ variants
+│   ├── config.rs                 # Hierarchical config with hot reload
+│   │
+│   ├── workflow/                 # DAG engine (13 files)
+│   │   ├── engine.rs             # DefaultWorkflowEngine with semaphore
+│   │   ├── scheduler.rs          # DagScheduler (petgraph-based)
+│   │   ├── validator.rs          # Workflow validation
+│   │   ├── execution_manager.rs  # Parallel execution control
+│   │   ├── audit.rs              # Audit logging
+│   │   └── result_cache.rs       # TTL-based caching
+│   │
+│   ├── tools/                    # Tool system (7 files)
+│   │   ├── registry.rs           # BasicToolRegistry (DashMap-based)
+│   │   ├── node.rs               # ToolNode trait, BasicTool
+│   │   ├── templates.rs          # Parameter templates
+│   │   ├── versioning.rs         # Dependency resolution
+│   │   └── dependency.rs         # Version matching
+│   │
+│   ├── plugins/                  # Plugin system (11 files)
+│   │   ├── manager.rs            # PluginManager, RuntimeManager
+│   │   ├── native.rs             # Native Rust plugins
+│   │   ├── python.rs             # Python integration
+│   │   ├── nodejs.rs             # Node.js integration
+│   │   ├── docker.rs             # Docker container execution
+│   │   └── file_management/      # Specialized file ops (19 files)
+│   │       ├── classifier.rs     # AI-powered classification
+│   │       ├── batch_processor.rs # Bulk operations
+│   │       └── text_processor.rs # Text analysis
+│   │
+│   ├── interfaces/               # User interfaces
+│   │   ├── cli/                  # Clap-based CLI (6 files)
+│   │   │   ├── app.rs            # Main CLI application
+│   │   │   ├── commands.rs       # Command definitions
+│   │   │   └── output.rs         # Formatted output
+│   │   └── tui/                  # Ratatui-based TUI (20+ files)
+│   │       ├── app.rs            # TUI application
+│   │       ├── widgets/          # Widget system
+│   │       ├── event.rs          # Event handling
+│   │       ├── layout.rs         # Layout management
+│   │       ├── theme.rs          # Theme system
+│   │       ├── monitoring.rs     # System monitoring
+│   │       ├── memory.rs         # Memory management
+│   │       ├── performance.rs    # Performance optimization
+│   │       └── config.rs         # TUI configuration
+│   │
+│   ├── storage/                  # Persistence layer (6 files)
+│   │   ├── state_manager.rs      # StateManager
+│   │   ├── backends.rs           # FileStorage, LanceDB
+│   │   ├── cache.rs              # SimpleMemoryCache
+│   │   └── backup.rs             # Backup/restore
+│   │
+│   └── performance/              # Optimization (6 files)
+│       ├── cache.rs              # Moka-based caching
+│       ├── metrics.rs            # Metrics collection
+│       ├── profiler.rs           # Performance profiling
+│       └── concurrency.rs        # Concurrency control
+│
+├── examples/                     # 23 comprehensive examples
+│   ├── comprehensive_workflow_example.rs
+│   ├── python_plugin_example.rs
+│   ├── file_management_example.rs
+│   └── templates/                # Workflow templates
+│
+├── tests/                        # Test suite
+│   ├── integration_tests.rs      # End-to-end workflows
+│   ├── tui_standalone_unit_tests.rs  # TUI unit tests
+│   ├── tui_integration_tests.rs  # TUI integration
+│   ├── tui_performance_benchmark_tests.rs
+│   ├── file_management_integration_tests.rs
+│   └── template_property_tests.rs
+│
+├── config/                       # Default configuration
+│   └── default.toml
+│
+├── docs/                         # Documentation
+│   └── AGENTS.md                 # Per-directory instructions
+│
+├── openspec/                     # Spec-driven development
+│   ├── AGENTS.md                 # OpenSpec instructions
+│   ├── specs/                    # Current capabilities
+│   └── changes/                  # Proposed changes
+│
+└── Cargo.toml                    # 87 dependencies, 12 features
+```
+
+## Key Components & Locations
+
+| Component | Location | Key Types |
+|-----------|----------|-----------|
+| **Workflow Engine** | `src/workflow/engine.rs` | `WorkflowEngine` trait, `DefaultWorkflowEngine` |
+| **DAG Scheduler** | `src/workflow/scheduler.rs` | `DagScheduler` (petgraph-based) |
+| **Tool Registry** | `src/tools/registry.rs` | `ToolRegistry` trait, `BasicToolRegistry` |
+| **Plugin Manager** | `src/plugins/manager.rs` | `PluginManager`, `RuntimeManager` |
+| **Config Manager** | `src/config.rs` | `ConfigManager` with hot reload |
+| **Error Types** | `src/error.rs` | `WorkflowError` with 20+ variants |
+| **Core Types** | `src/core.rs` | `ExecutionContext`, `ExecutionStatus`, `RetryPolicy` |
+| **Storage** | `src/storage/` | `StateManager`, `FileStorage`, `SimpleMemoryCache` |
+| **CLI** | `src/interfaces/cli/` | `CliApp`, `Cli`, commands |
+| **TUI** | `src/interfaces/tui/` | `TuiApp`, widgets, event loop |
+
+## Dependency Highlights
+
+| Crate | Version | Purpose |
+|-------|---------|---------|
+| `tokio` | 1.42+ | Async runtime (full features) |
+| `petgraph` | 0.6+ | DAG operations |
+| `clap` | 4.5+ | CLI parsing with derive |
+| `ratatui` | 0.29+ | TUI framework |
+| `serde` | 1.0+ | Serialization |
+| `thiserror` | 2.0+ | Error handling |
+| `dashmap` | 6.1+ | Concurrent HashMap |
+| `moka` | 0.12+ | High-performance caching |
+| `async-trait` | 0.1+ | Async trait support |
+| `uuid` | 1.11+ | UUID generation |
+| `chrono` | 0.4+ | Date/time handling |
+| `lancedb` | 0.20+ | Vector DB (optional) |
+
+## Anti-Patterns (FORBIDDEN)
 
 | Pattern | Why Forbidden | Alternative |
 |---------|---------------|-------------|
-| `as any` | Loses type safety | Use `try_into()`, `into()`, proper conversions |
-| `@ts-ignore` | Hides errors | Fix the error or use `#[allow(clippy::...)]` with justification |
+| `as any` | Loses type safety | Use `try_into()`, `into()` |
+| `@ts-ignore` | Hides errors | Fix error or use `#[allow(...)]` |
 | `empty catch {}` | Swallows errors | Use `?` or handle explicitly |
 | `println!` | No structured logging | Use `tracing::info!` |
 | `std::sync::Mutex` in async | Blocks executor | Use `tokio::sync::RwLock` or `DashMap` |
 | `unwrap()` in production | Panics | Use `?` with proper error handling |
-| `clone()` on Arc unnecessarily | Performance cost | Use `Arc::clone(&value)` or references |
+| `clone()` on Arc unnecessarily | Performance cost | Use `Arc::clone(&value)` |
 | Manual error types | Inconsistent | Use `thiserror::Error` |
+| Type suppression | Hides bugs | Fix types properly |
 
-## UNIQUE STYLES
+## Common Patterns
 
 ### Builder Pattern
 ```rust
@@ -139,9 +377,6 @@ let executor = Arc::new(AsyncFunctionExecutor::new(|params, context| async move 
 
 ### DashMap Usage
 ```rust
-// For concurrent access to tools
-tools: DashMap<String, Arc<dyn ToolNode>>
-
 // Insert
 tools.insert("echo".to_string(), Arc::new(echo_tool));
 
@@ -153,55 +388,13 @@ if let Some(tool) = tools.get("echo") {
 
 ### Error Context
 ```rust
-// Provide context for errors
 pub fn load_config(path: &Path) -> Result<Config> {
     Config::load_from_path(path)
         .map_err(|e| WorkflowError::Config(e).into())
 }
 ```
 
-## COMMANDS
-
-### Build & Test
-```bash
-cargo build                    # Debug build
-cargo build --release          # Optimized build
-cargo build --all-features     # With LanceDB
-cargo check                    # Quick check
-
-cargo test                     # All tests
-cargo test -- --nocapture      # With output
-cargo test workflow::tests     # Specific module
-cargo test property_tests      # Property-based tests
-cargo test --test integration_tests  # Integration only
-```
-
-### Development
-```bash
-cargo fmt                      # Format code
-cargo clippy -- -D warnings    # Lint strictly
-cargo clippy --fix             # Auto-fix
-cargo doc --open               # Generate docs
-cargo run --example comprehensive_workflow_example  # Run examples
-```
-
-### Application
-```bash
-cargo run -- --help
-cargo run -- workflow execute examples/hello-world.yaml
-cargo run -- tool list
-cargo run -- tui
-cargo run -- server --http-port 8080 --ws-port 8081
-```
-
-### With Environment
-```bash
-RUST_LOG=debug cargo test
-RUST_LOG=trace cargo run -- workflow execute workflow.yaml
-WORKFLOW_TOOLKIT_LOGGING__LEVEL=debug cargo run
-```
-
-## GOTCHAS
+## Gotchas & Important Notes
 
 1. **LanceDB Feature**: Optional, requires `--features lancedb` or `--all-features`
 2. **Temp Directory**: Creates `std::env::temp_dir()/workflow-toolkit/` at runtime
@@ -211,10 +404,18 @@ WORKFLOW_TOOLKIT_LOGGING__LEVEL=debug cargo run
 6. **Async Tests**: Must use `#[tokio::test]`, not `#[test]`
 7. **Tool Registry**: Thread-safe via `Arc<dyn ToolRegistry>`, not `RwLock`
 8. **Plugin Sandboxing**: Configurable via `plugins.sandbox_enabled` in config
-9. **MCP Server**: Currently commented out in Cargo.toml (dependency issues)
-10. **WASM Support**: Temporarily disabled, use Docker/Python/Node.js plugins
+9. **MCP Server**: ⚠️ **DISABLED** - Dependencies commented out in Cargo.toml. Code exists in `src/interfaces/mcp.rs` but requires `mcp-protocol-server`, `jsonrpc-*` crates. Documentation references it but won't compile without dependencies.
+10. **WASM Support**: ⚠️ **DISABLED** - `wasmtime` and `extism` commented out. Use Docker/Python/Node.js plugins instead.
+11. **Build Issues**: On Windows, large dependencies may cause memory allocation failures. Use `cargo check` for verification.
 
-## PERFORMANCE NOTES
+## Current Build Status
+
+✅ **Compiles**: `cargo check` passes with 0 errors  
+⚠️ **Full Build**: May fail on Windows due to memory issues  
+❌ **MCP Server**: Disabled (dependencies commented out)  
+❌ **WASM Plugins**: Disabled (dependencies commented out)  
+
+## Performance Notes
 
 - **Caching**: Uses `moka::future::Cache` with TTL support
 - **Concurrency**: `dashmap::DashMap` for read-heavy workloads
@@ -222,30 +423,129 @@ WORKFLOW_TOOLKIT_LOGGING__LEVEL=debug cargo run
 - **Metrics**: Optional `metrics` crate integration (commented out)
 - **Profiling**: Built-in profiler in `src/performance/profiler.rs`
 
-## DEPENDENCY HIGHLIGHTS
+## Testing Strategy
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `tokio` | 1.42+ | Async runtime |
-| `petgraph` | 0.6+ | DAG operations |
-| `clap` | 4.5+ | CLI parsing |
-| `ratatui` | 0.29+ | TUI framework |
-| `serde` | 1.0+ | Serialization |
-| `thiserror` | 2.0+ | Error handling |
-| `dashmap` | 6.1+ | Concurrent HashMap |
-| `moka` | 0.12+ | Caching |
-| `async-trait` | 0.1+ | Async traits |
-| `uuid` | 1.11+ | UUID generation |
-| `chrono` | 0.4+ | Date/time |
-| `lancedb` | 0.20+ | Vector DB (optional) |
+### Test Types
+- **Unit**: In-module `#[cfg(test)]` (same file)
+- **Integration**: `tests/` directory
+- **Property**: Randomized input testing (`proptest`)
+- **E2E**: Full system workflows
 
-## NEXT STEPS FOR NEW CONTRIBUTORS
+### Test Execution
+```bash
+# All tests
+cargo test
 
-1. **Read**: `README.md` and `DESIGN.md` for architecture
-2. **Build**: `cargo build && cargo test` to verify setup
-3. **Examples**: Run `cargo run --example comprehensive_workflow_example`
-4. **Tests**: Study `tests/integration_tests.rs` for patterns
-5. **Pick**: Choose a module from "WHERE TO LOOK" table
-6. **Follow**: Conventions and anti-patterns strictly
-7. **Test**: Add tests for all new code
-8. **Lint**: Run `cargo fmt && cargo clippy -- -D warnings`
+# Specific test file
+cargo test --test tui_standalone_unit_tests
+
+# Single test
+cargo test test_name -- --nocapture
+
+# With environment
+RUST_LOG=debug cargo test
+```
+
+### Test Patterns
+```rust
+#[tokio::test]
+async fn test_workflow_execution() {
+    let fixture = IntegrationTestFixture::new().await;
+    let result = fixture.workflow_engine.execute_workflow(workflow).await;
+    assert!(result.is_ok());
+}
+```
+
+## Development Workflow
+
+### Before Starting Any Task
+1. Read `openspec/AGENTS.md` for spec-driven development
+2. Check existing specs in `openspec/specs/`
+3. Run `cargo check` to verify compilation
+4. Review related module AGENTS.md files
+
+### Implementation Steps
+1. **Plan**: Create TODO list for multi-step tasks
+2. **Implement**: Follow code style guidelines strictly
+3. **Test**: Add tests for all new code
+4. **Verify**: Run `cargo test`, `cargo fmt`, `cargo clippy -- -D warnings`
+5. **Check**: Run `lsp_diagnostics` on changed files
+
+### Before Committing
+```bash
+cargo fmt
+cargo clippy -- -D warnings
+cargo test
+cargo build --release
+```
+
+## Environment Setup
+
+### Required Tools
+- Rust 1.70+ (2021 Edition)
+- Cargo (latest)
+- Python 3.8+ (for Python plugins)
+- Node.js 16+ (for Node.js plugins)
+- Docker (for Docker plugins)
+
+### Environment Variables
+```bash
+# Logging
+export RUST_LOG=info
+export WORKFLOW_TOOLKIT_LOGGING__LEVEL=info
+
+# Server
+export WORKFLOW_TOOLKIT_SERVER__HTTP_PORT=8080
+export WORKFLOW_TOOLKIT_SERVER__WS_PORT=8081
+
+# Storage
+export WORKFLOW_TOOLKIT_STORAGE__DATABASE_PATH="./data/workflow.db"
+
+# TUI
+export WORKFLOW_TOOLKIT_TUI__THEME="dark"
+export WORKFLOW_TOOLKIT_TUI__REFRESH_RATE=60
+```
+
+## When to Consult Oracle
+
+Consult Oracle for:
+- Complex architecture decisions
+- After 2+ failed fix attempts
+- Unfamiliar code patterns
+- Security/performance concerns
+- Multi-system tradeoffs
+
+Don't consult for:
+- Simple file operations
+- First attempt at fixes
+- Questions answerable from code
+- Trivial decisions
+
+## Summary for Agents
+
+**Always:**
+- Use strict type safety (no `as any`, no `@ts-ignore`)
+- Follow import order (std → external → internal)
+- Use `tracing` macros, never `println!`
+- Use `Result<T, WorkflowError>` for fallible operations
+- Use `#[tokio::test]` for async tests
+- Use `tempfile::TempDir` for test isolation
+- Create TODO lists for multi-step tasks
+- Run `cargo fmt && cargo clippy -- -D warnings && cargo test` before completion
+
+**Never:**
+- Suppress types or errors
+- Use blocking mutex in async code
+- Leave errors unhandled
+- Commit without testing
+- Skip TODO tracking for complex tasks
+
+**Key Files to Remember:**
+- `src/core.rs` - Shared types
+- `src/error.rs` - Error handling
+- `src/config.rs` - Configuration
+- `src/workflow/engine.rs` - Workflow execution
+- `src/tools/registry.rs` - Tool management
+- `src/interfaces/cli/app.rs` - CLI interface
+- `src/interfaces/tui/app.rs` - TUI interface
+- `openspec/AGENTS.md` - Spec-driven development

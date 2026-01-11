@@ -12,9 +12,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use std::time::Duration;
 use tokio::process::Command as AsyncCommand;
+use tokio::sync::Mutex;
 use tokio::time::timeout;
 use tracing::{debug, info};
 
@@ -147,9 +147,7 @@ impl PythonEnvironment {
             .arg(requirements_file)
             .output()
             .await
-            .map_err(|e| {
-                WorkflowError::plugin(format!("Failed to install requirements: {}", e))
-            })?;
+            .map_err(|e| WorkflowError::plugin(format!("Failed to install requirements: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -179,13 +177,19 @@ impl PythonEnvironment {
 
         // Resolve script path relative to working directory if needed
         let (resolved_script_path, working_dir) = if script_path.is_absolute() {
-            (script_path.to_path_buf(), self.config.working_directory.clone())
+            (
+                script_path.to_path_buf(),
+                self.config.working_directory.clone(),
+            )
         } else if let Some(working_dir) = &self.config.working_directory {
             // If we have a working directory, use the script path as-is (relative to working dir)
             (script_path.to_path_buf(), Some(working_dir.clone()))
         } else {
             // No working directory, resolve relative to current directory
-            (script_path.to_path_buf(), script_path.parent().map(|p| p.to_path_buf()))
+            (
+                script_path.to_path_buf(),
+                script_path.parent().map(|p| p.to_path_buf()),
+            )
         };
 
         // Check if the script exists (resolve the full path for checking)
@@ -256,9 +260,8 @@ impl PythonEnvironment {
             "context": enhanced_context
         });
 
-        let input_json = serde_json::to_string(&input_data).map_err(|e| {
-            WorkflowError::plugin(format!("Failed to serialize input data: {}", e))
-        })?;
+        let input_json = serde_json::to_string(&input_data)
+            .map_err(|e| WorkflowError::plugin(format!("Failed to serialize input data: {}", e)))?;
 
         // Execute the command with timeout and enhanced error handling
         let execution_future = async {
@@ -280,10 +283,7 @@ impl PythonEnvironment {
                     ))
                 })?;
                 stdin.shutdown().await.map_err(|e| {
-                    WorkflowError::plugin(format!(
-                        "Failed to close Python process stdin: {}",
-                        e
-                    ))
+                    WorkflowError::plugin(format!("Failed to close Python process stdin: {}", e))
                 })?;
             }
 
@@ -323,7 +323,7 @@ impl PythonEnvironment {
         // Check if the process succeeded
         if !output.status.success() {
             let exit_code = output.status.code().unwrap_or(-1);
-            
+
             // Try to parse stdout as JSON error first
             if let Ok(error_json) = serde_json::from_str::<Value>(&stdout) {
                 if let Some(error_msg) = error_json.get("error").and_then(|e| e.as_str()) {
@@ -333,7 +333,7 @@ impl PythonEnvironment {
                     )));
                 }
             }
-            
+
             // Fallback to stderr or generic error
             let error_message = if !stderr.is_empty() {
                 stderr.to_string()
@@ -375,7 +375,10 @@ impl PythonEnvironment {
             }
         }
 
-        debug!("Python script executed successfully: {:?}", full_script_path);
+        debug!(
+            "Python script executed successfully: {:?}",
+            full_script_path
+        );
         Ok(result)
     }
 
@@ -455,10 +458,7 @@ impl PythonEnvironment {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let info: Value = serde_json::from_str(&stdout).map_err(|e| {
-            WorkflowError::plugin(format!(
-                "Failed to parse Python environment info: {}",
-                e
-            ))
+            WorkflowError::plugin(format!("Failed to parse Python environment info: {}", e))
         })?;
 
         Ok(info)
@@ -766,8 +766,11 @@ impl PythonPlugin {
         // Initialize the Python environment
         let mut environment = self.environment.lock().await;
         environment.initialize().await?;
-        
-        info!("Python plugin async initialization completed: {}", self.info.name);
+
+        info!(
+            "Python plugin async initialization completed: {}",
+            self.info.name
+        );
         Ok(())
     }
 }
@@ -878,7 +881,9 @@ impl PythonPluginBuilder {
 
         // Add tools
         for (tool_info, script_path, timeout) in self.tools {
-            plugin.add_basic_tool(tool_info, script_path, timeout).await?;
+            plugin
+                .add_basic_tool(tool_info, script_path, timeout)
+                .await?;
         }
 
         Ok(plugin)

@@ -7,9 +7,15 @@ pub mod state_manager;
 #[cfg(test)]
 mod tests;
 
-pub use backends::{CacheBackend, StorageBackend, SimpleMemoryCache, FileStorage, LocalMemoryCache, CacheConfig, StorageRecord, RetentionPolicy, CacheStats};
-pub use backup::{BackupManager, BackupConfig, BackupMetadata, BackupType, BackupData, BackupVerification, RestoreResult, BackupStatistics};
+pub use backends::{
+    CacheBackend, CacheConfig, CacheStats, FileStorage, LocalMemoryCache, RetentionPolicy,
+    SimpleMemoryCache, StorageBackend, StorageRecord,
+};
+pub use backup::{
+    BackupConfig, BackupData, BackupManager, BackupMetadata, BackupStatistics, BackupType,
+    BackupVerification, RestoreResult,
+};
 
 #[cfg(feature = "lancedb")]
 pub use backends::LanceDbStorage;
-pub use state_manager::{StateManager, ExecutionStatistics};
+pub use state_manager::{ExecutionStatistics, StateManager};

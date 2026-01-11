@@ -65,7 +65,10 @@ impl WorkflowDefinition {
 
     /// Get all nodes of a specific type
     pub fn get_nodes_by_type(&self, node_type: NodeType) -> Vec<&WorkflowNode> {
-        self.nodes.iter().filter(|n| n.node_type == node_type).collect()
+        self.nodes
+            .iter()
+            .filter(|n| n.node_type == node_type)
+            .collect()
     }
 
     /// Get incoming edges for a node
@@ -81,13 +84,19 @@ impl WorkflowDefinition {
     /// Get all root nodes (nodes with no incoming edges)
     pub fn get_root_nodes(&self) -> Vec<&WorkflowNode> {
         let nodes_with_incoming: HashSet<_> = self.edges.iter().map(|e| &e.to).collect();
-        self.nodes.iter().filter(|n| !nodes_with_incoming.contains(&n.id)).collect()
+        self.nodes
+            .iter()
+            .filter(|n| !nodes_with_incoming.contains(&n.id))
+            .collect()
     }
 
     /// Get all leaf nodes (nodes with no outgoing edges)
     pub fn get_leaf_nodes(&self) -> Vec<&WorkflowNode> {
         let nodes_with_outgoing: HashSet<_> = self.edges.iter().map(|e| &e.from).collect();
-        self.nodes.iter().filter(|n| !nodes_with_outgoing.contains(&n.id)).collect()
+        self.nodes
+            .iter()
+            .filter(|n| !nodes_with_outgoing.contains(&n.id))
+            .collect()
     }
 
     /// Generate a unique workflow ID
@@ -99,11 +108,16 @@ impl WorkflowDefinition {
     pub fn validate(&self) -> Result<()> {
         // Basic validation - more comprehensive validation will be in the validator module
         if self.name.is_empty() {
-            return Err(WorkflowError::InvalidWorkflowName("Name cannot be empty".to_string()).into());
+            return Err(
+                WorkflowError::InvalidWorkflowName("Name cannot be empty".to_string()).into(),
+            );
         }
-        
+
         if self.version.is_empty() {
-            return Err(WorkflowError::InvalidWorkflowVersion("Version cannot be empty".to_string()).into());
+            return Err(WorkflowError::InvalidWorkflowVersion(
+                "Version cannot be empty".to_string(),
+            )
+            .into());
         }
 
         if self.nodes.is_empty() {
@@ -206,7 +220,10 @@ impl WorkflowNode {
 
     /// Check if this node is a control flow node
     pub fn is_control_flow(&self) -> bool {
-        matches!(self.node_type, NodeType::Condition | NodeType::Loop | NodeType::Parallel)
+        matches!(
+            self.node_type,
+            NodeType::Condition | NodeType::Loop | NodeType::Parallel
+        )
     }
 
     /// Validate the node

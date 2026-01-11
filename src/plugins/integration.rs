@@ -2,14 +2,14 @@
 
 use crate::core::PluginInfo;
 use crate::error::{Result, WorkflowError};
-use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
 use crate::plugins::manager::PluginManager;
-use crate::tools::{ToolNode, ToolRegistry, BasicToolRegistry};
+use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
+use crate::tools::{BasicToolRegistry, ToolNode, ToolRegistry};
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// Integrated plugin and tool management system
-/// 
+///
 /// This system ensures that plugin tools are properly registered with the main
 /// workflow-toolkit tool registry, satisfying requirements 7.1 and 7.2.
 pub struct IntegratedPluginSystem {
@@ -22,7 +22,7 @@ impl IntegratedPluginSystem {
     pub fn new() -> Self {
         let tool_registry = Arc::new(RwLock::new(BasicToolRegistry::new()));
         let plugin_manager = PluginManager::with_tool_registry(tool_registry.clone());
-        
+
         Self {
             plugin_manager,
             tool_registry,
@@ -32,7 +32,7 @@ impl IntegratedPluginSystem {
     /// Create a new integrated plugin system with existing tool registry
     pub fn with_tool_registry(tool_registry: Arc<RwLock<BasicToolRegistry>>) -> Self {
         let plugin_manager = PluginManager::with_tool_registry(tool_registry.clone());
-        
+
         Self {
             plugin_manager,
             tool_registry,
@@ -40,28 +40,34 @@ impl IntegratedPluginSystem {
     }
 
     /// Load a plugin and register its tools with the main tool registry
-    /// 
+    ///
     /// This method ensures requirement 7.1 is satisfied by registering all plugin tools
     /// with the workflow-toolkit tool registry.
     pub fn load_plugin(&mut self, plugin: Box<dyn Plugin>, config: PluginConfig) -> Result<()> {
-        info!("Loading plugin '{}' with integrated tool registration", config.name);
-        
+        info!(
+            "Loading plugin '{}' with integrated tool registration",
+            config.name
+        );
+
         // Load the plugin through the plugin manager
         // The plugin manager will automatically register tools with the tool registry
         self.plugin_manager.load_plugin(plugin, config)?;
-        
+
         info!("Plugin loaded and tools registered successfully");
         Ok(())
     }
 
     /// Unload a plugin and unregister its tools from the main tool registry
     pub fn unload_plugin(&mut self, name: &str) -> Result<()> {
-        info!("Unloading plugin '{}' with integrated tool unregistration", name);
-        
+        info!(
+            "Unloading plugin '{}' with integrated tool unregistration",
+            name
+        );
+
         // Unload the plugin through the plugin manager
         // The plugin manager will automatically unregister tools from the tool registry
         self.plugin_manager.unload_plugin(name)?;
-        
+
         info!("Plugin unloaded and tools unregistered successfully");
         Ok(())
     }
@@ -78,39 +84,42 @@ impl IntegratedPluginSystem {
 
     /// List all available tools (from all plugins and direct registrations)
     pub fn list_all_tools(&self) -> Result<Vec<crate::core::ToolInfo>> {
-        let registry = self.tool_registry.read().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let registry = self
+            .tool_registry
+            .read()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to acquire read lock on tool registry".to_string(),
-            }
-        })?;
-        
+            })?;
+
         Ok(registry.list_tools())
     }
 
     /// Execute a tool by name (satisfies requirement 7.2 - standard parameter system)
     pub async fn execute_tool(
-        &self, 
-        name: &str, 
-        params: serde_json::Value, 
-        context: crate::core::ExecutionContext
+        &self,
+        name: &str,
+        params: serde_json::Value,
+        context: crate::core::ExecutionContext,
     ) -> Result<serde_json::Value> {
-        let registry = self.tool_registry.read().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let registry = self
+            .tool_registry
+            .read()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to acquire read lock on tool registry".to_string(),
-            }
-        })?;
-        
+            })?;
+
         registry.execute_tool(name, params, context).await
     }
 
     /// Validate tool parameters (satisfies requirement 7.2 - standard parameter system)
     pub fn validate_tool_params(&self, name: &str, params: &serde_json::Value) -> Result<()> {
-        let registry = self.tool_registry.read().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let registry = self
+            .tool_registry
+            .read()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to acquire read lock on tool registry".to_string(),
-            }
-        })?;
-        
+            })?;
+
         registry.validate_tool_params(name, params)
     }
 
@@ -126,66 +135,71 @@ impl IntegratedPluginSystem {
 
     /// Get tool count from the integrated registry
     pub fn tool_count(&self) -> Result<usize> {
-        let registry = self.tool_registry.read().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let registry = self
+            .tool_registry
+            .read()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to acquire read lock on tool registry".to_string(),
-            }
-        })?;
-        
+            })?;
+
         Ok(registry.tool_count())
     }
 
     /// Check if a tool exists in the integrated registry
     pub fn has_tool(&self, name: &str) -> Result<bool> {
-        let registry = self.tool_registry.read().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let registry = self
+            .tool_registry
+            .read()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to acquire read lock on tool registry".to_string(),
-            }
-        })?;
-        
+            })?;
+
         Ok(registry.has_tool(name))
     }
 
     /// Shutdown all plugins and clear the tool registry
     pub fn shutdown_all(&mut self) -> Result<()> {
         info!("Shutting down integrated plugin system");
-        
+
         // Shutdown all plugins (this will unregister their tools)
         self.plugin_manager.shutdown_all()?;
-        
+
         // Clear any remaining tools from the registry
         {
-            let mut registry = self.tool_registry.write().map_err(|_| {
-                WorkflowError::ConcurrentAccess {
-                    message: "Failed to acquire write lock on tool registry".to_string(),
-                }
-            })?;
+            let mut registry =
+                self.tool_registry
+                    .write()
+                    .map_err(|_| WorkflowError::ConcurrentAccess {
+                        message: "Failed to acquire write lock on tool registry".to_string(),
+                    })?;
             registry.clear();
         }
-        
+
         info!("Integrated plugin system shut down successfully");
         Ok(())
     }
 
     /// Register a tool directly with the tool registry (for non-plugin tools)
     pub fn register_tool(&mut self, tool: Arc<dyn ToolNode>) -> Result<()> {
-        let mut registry = self.tool_registry.write().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire write lock on tool registry".to_string(),
-            }
-        })?;
-        
+        let mut registry =
+            self.tool_registry
+                .write()
+                .map_err(|_| WorkflowError::ConcurrentAccess {
+                    message: "Failed to acquire write lock on tool registry".to_string(),
+                })?;
+
         registry.register_tool(tool)
     }
 
     /// Unregister a tool directly from the tool registry
     pub fn unregister_tool(&mut self, name: &str) -> Result<()> {
-        let mut registry = self.tool_registry.write().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire write lock on tool registry".to_string(),
-            }
-        })?;
-        
+        let mut registry =
+            self.tool_registry
+                .write()
+                .map_err(|_| WorkflowError::ConcurrentAccess {
+                    message: "Failed to acquire write lock on tool registry".to_string(),
+                })?;
+
         registry.unregister_tool(name)
     }
 }
@@ -238,23 +252,23 @@ impl Default for IntegratedPluginSystemBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plugins::file_management::{FileManagementPlugin, FileManagementConfig};
-    use crate::plugins::types::{SecurityPolicy, ResourceLimits};
     use crate::core::PluginType;
+    use crate::plugins::file_management::{FileManagementConfig, FileManagementPlugin};
+    use crate::plugins::types::{ResourceLimits, SecurityPolicy};
     use std::collections::HashMap;
     use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_integrated_plugin_system() {
         let mut system = IntegratedPluginSystem::new();
-        
+
         // Create a file management plugin
         let temp_dir = TempDir::new().unwrap();
         let plugin = FileManagementPlugin::builder()
             .temp_directory(temp_dir.path())
             .build()
             .unwrap();
-        
+
         let config = PluginConfig {
             name: "file-management".to_string(),
             plugin_type: PluginType::Native,
@@ -277,35 +291,39 @@ mod tests {
             dependencies: Vec::new(),
             metadata: HashMap::new(),
         };
-        
+
         // Load the plugin
         assert!(system.load_plugin(Box::new(plugin), config).is_ok());
-        
+
         // Check that tools are registered
         let tool_count = system.tool_count().unwrap();
-        assert!(tool_count > 0, "Expected tools to be registered, but got {}", tool_count);
-        
+        assert!(
+            tool_count > 0,
+            "Expected tools to be registered, but got {}",
+            tool_count
+        );
+
         // Check that we can list tools
         let tools = system.list_all_tools().unwrap();
         assert!(!tools.is_empty(), "Expected tools to be listed");
-        
+
         // Check that we can find specific tools
         assert!(system.has_tool("text-processor").unwrap());
         assert!(system.has_tool("folder-classifier").unwrap());
-        
+
         // Test plugin listing
         let plugins = system.list_plugins().unwrap();
         assert_eq!(plugins.len(), 1);
         assert_eq!(plugins[0].name, "file-management");
-        
+
         // Test plugin status
         let status = system.get_plugin_status("file-management").unwrap();
         assert!(status.is_some());
         assert_eq!(status.unwrap(), PluginStatus::Ready);
-        
+
         // Test shutdown
         assert!(system.shutdown_all().is_ok());
-        
+
         // After shutdown, no tools should be available
         let tool_count_after = system.tool_count().unwrap();
         assert_eq!(tool_count_after, 0);
@@ -318,7 +336,7 @@ mod tests {
             .temp_directory(temp_dir.path())
             .build()
             .unwrap();
-        
+
         let config = PluginConfig {
             name: "file-management".to_string(),
             plugin_type: PluginType::Native,
@@ -341,13 +359,12 @@ mod tests {
             dependencies: Vec::new(),
             metadata: HashMap::new(),
         };
-        
-        let result = IntegratedPluginSystemBuilder::new()
-            .add_plugin(Box::new(plugin), config);
-        
+
+        let result = IntegratedPluginSystemBuilder::new().add_plugin(Box::new(plugin), config);
+
         assert!(result.is_ok());
         let system = result.unwrap().build();
-        
+
         // Verify the system has tools registered
         let tool_count = system.tool_count().unwrap();
         assert!(tool_count > 0);

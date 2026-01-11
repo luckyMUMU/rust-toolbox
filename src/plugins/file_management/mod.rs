@@ -1,5 +1,5 @@
 //! File Management Plugin Module
-//! 
+//!
 //! This module contains all components for the file management plugin including
 //! tools, utilities, and error handling.
 
@@ -23,84 +23,79 @@ pub mod text_processor_tool;
 pub mod utils;
 
 // Re-export main plugin components
-pub use plugin::{
-    FileManagementPlugin, FileManagementPluginBuilder, FileManagementConfig,
-};
-pub use error::{FileManagementError, FileManagementResult};
-pub use registry::FileManagementToolRegistry;
-pub use human_decision_tool::{
-    HumanDecisionParams, DecisionContext, DecisionOption, HumanDecisionResult,
-    HumanDecisionExecutor, create_human_decision_tool,
-};
 pub use batch_processor::{
-    BatchProcessor, BatchProcessorConfig, BatchItem, BatchResult, BatchStatus,
-    BatchProgress, BatchItemResult, BatchItemStatus, BatchPerformanceMetrics,
+    BatchItem, BatchItemResult, BatchItemStatus, BatchPerformanceMetrics, BatchProcessor,
+    BatchProcessorConfig, BatchProgress, BatchResult, BatchStatus,
 };
 pub use batch_processor_tool::{
-    BatchProcessorTool, BatchProcessorParams, BatchProcessorResult,
-    BatchProcessingMode, BatchItemParams,
-};
-pub use progress_tracker::{
-    ProgressTracker, ProgressTrackerConfig, ProgressEvent, AggregatedStats,
-    PerformanceTrend, ToolUsageStats,
-};
-pub use text_processor_tool::{
-    TextProcessorTool, TextProcessorParams, TextProcessorResult,
-    TextOperation, ChineseProcessingConfig, TextOutputFormat,
+    BatchItemParams, BatchProcessingMode, BatchProcessorParams, BatchProcessorResult,
+    BatchProcessorTool,
 };
 pub use classification_tool::{
-    ClassificationTool, ClassificationEngine, ClassificationParams, ClassificationResult,
-    ClassificationRules, ClassificationRule, ClassificationCandidate, ClassificationStatus,
-    ClassificationOutputFormat,
+    ClassificationCandidate, ClassificationEngine, ClassificationOutputFormat,
+    ClassificationParams, ClassificationResult, ClassificationRule, ClassificationRules,
+    ClassificationStatus, ClassificationTool,
+};
+pub use error::{FileManagementError, FileManagementResult};
+pub use human_decision_tool::{
+    create_human_decision_tool, DecisionContext, DecisionOption, HumanDecisionExecutor,
+    HumanDecisionParams, HumanDecisionResult,
+};
+pub use plugin::{FileManagementConfig, FileManagementPlugin, FileManagementPluginBuilder};
+pub use progress_tracker::{
+    AggregatedStats, PerformanceTrend, ProgressEvent, ProgressTracker, ProgressTrackerConfig,
+    ToolUsageStats,
+};
+pub use registry::FileManagementToolRegistry;
+pub use text_processor_tool::{
+    ChineseProcessingConfig, TextOperation, TextOutputFormat, TextProcessorParams,
+    TextProcessorResult, TextProcessorTool,
 };
 // pub use rule_config::{
 //     RuleConfigLoader, KeywordCombination, EnhancedClassificationRule,
 // };
-pub use utils::{
-    FileOperationManager, TextProcessor, PathUtils, ValidationUtils,
-    ExperimentalMode, HumanDecisionContext, TextNormalizationConfig,
-    PinyinStyle, PinyinResult, ChineseTextType, MixedTextResult,
-    FolderMerger, FolderMergerConfig, FolderComparisonResult, CommonFolderInfo,
-    FolderLocationInfo, UniqueFolderInfo, MergeDirection, MergeRecommendation,
-    MergeStrategy, DuplicateHandling, FolderMergeResult, SingleFolderMergeResult,
-    FolderMergeError, MergeOperationStats,
-};
 pub use ac_automaton::{
-    Pattern, AutomatonNode, PatternMatch, AutomatonConfig, AutomatonStats,
-    AutomatonError, AutomatonResult,
-};
-pub use result_review_tool::{
-    ResultReviewTool, ResultReviewConfig, ResultReviewParams, ReviewMode,
-    ConfirmationOptions, DefaultAction, ExperimentalResult, OperationImpact,
-    RiskLevel, ResultReviewResult, ReviewSummary, ConfirmationDetail,
-    ConfirmationDecision, create_result_review_tool, create_result_review_tool_with_config,
+    AutomatonConfig, AutomatonError, AutomatonNode, AutomatonResult, AutomatonStats, Pattern,
+    PatternMatch,
 };
 pub use batch_confirmation_tool::{
-    BatchConfirmationTool, BatchConfirmationConfig, BatchConfirmationParams,
-    ConfirmationStrategy, BatchOptions, UserPreferences, OperationBatch,
-    BatchSummary, RiskDistribution, ReversibilitySummary, RecommendedAction,
-    BatchConfirmationResult, ProcessedBatch, BatchDecision, BatchDecisionType,
-    ConfirmationMethod, OperationModification, ModificationType, OverallSummary,
     create_batch_confirmation_tool, create_batch_confirmation_tool_with_config,
-};
-pub use result_confirmation_tool::{
-    ResultConfirmationTool, ResultConfirmationConfig, ResultConfirmationParams,
-    ConfirmationMode, ReviewOptions, RollbackOptions, BackupStrategy,
-    ResultConfirmationResult, ConfirmationPhase, PhaseType, PhaseOutput,
-    RollbackPlan, RollbackOperation, RollbackType, ExecutionSummary,
-    RiskAssessment, ResourceRequirements,
-    create_result_confirmation_tool, create_result_confirmation_tool_with_config,
-};
-pub use performance::{
-    OptimizedFileOperationManager, PerformanceStats, MemoryPoolStats, CacheStats,
-    CachedResult, StreamingUtils, CompressionUtils,
+    BatchConfirmationConfig, BatchConfirmationParams, BatchConfirmationResult,
+    BatchConfirmationTool, BatchDecision, BatchDecisionType, BatchOptions, BatchSummary,
+    ConfirmationMethod, ConfirmationStrategy, ModificationType, OperationBatch,
+    OperationModification, OverallSummary, ProcessedBatch, RecommendedAction, ReversibilitySummary,
+    RiskDistribution, UserPreferences,
 };
 pub use error_recovery::{
-    ErrorRecoveryManager, RecoveryConfig, RecoveryStats, RecoveryAttempt,
-    RecoverySession, RecoveryStrategy,
+    ErrorRecoveryManager, RecoveryAttempt, RecoveryConfig, RecoverySession, RecoveryStats,
+    RecoveryStrategy,
 };
 pub use monitoring::{
-    FileManagementMonitor, MonitoringConfig, MonitoringStats, AuditEntry,
-    AuditResult, ResourceUsage, OperationMetrics, ErrorTracker, Alert,
-    AlertType, AlertSeverity,
+    Alert, AlertSeverity, AlertType, AuditEntry, AuditResult, ErrorTracker, FileManagementMonitor,
+    MonitoringConfig, MonitoringStats, OperationMetrics, ResourceUsage,
+};
+pub use performance::{
+    CacheStats, CachedResult, CompressionUtils, MemoryPoolStats, OptimizedFileOperationManager,
+    PerformanceStats, StreamingUtils,
+};
+pub use result_confirmation_tool::{
+    create_result_confirmation_tool, create_result_confirmation_tool_with_config, BackupStrategy,
+    ConfirmationMode, ConfirmationPhase, ExecutionSummary, PhaseOutput, PhaseType,
+    ResourceRequirements, ResultConfirmationConfig, ResultConfirmationParams,
+    ResultConfirmationResult, ResultConfirmationTool, ReviewOptions, RiskAssessment,
+    RollbackOperation, RollbackOptions, RollbackPlan, RollbackType,
+};
+pub use result_review_tool::{
+    create_result_review_tool, create_result_review_tool_with_config, ConfirmationDecision,
+    ConfirmationDetail, ConfirmationOptions, DefaultAction, ExperimentalResult, OperationImpact,
+    ResultReviewConfig, ResultReviewParams, ResultReviewResult, ResultReviewTool, ReviewMode,
+    ReviewSummary, RiskLevel,
+};
+pub use utils::{
+    ChineseTextType, CommonFolderInfo, DuplicateHandling, ExperimentalMode, FileOperationManager,
+    FolderComparisonResult, FolderLocationInfo, FolderMergeError, FolderMergeResult, FolderMerger,
+    FolderMergerConfig, HumanDecisionContext, MergeDirection, MergeOperationStats,
+    MergeRecommendation, MergeStrategy, MixedTextResult, PathUtils, PinyinResult, PinyinStyle,
+    SingleFolderMergeResult, TextNormalizationConfig, TextProcessor, UniqueFolderInfo,
+    ValidationUtils,
 };

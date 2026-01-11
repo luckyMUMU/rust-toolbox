@@ -1,5 +1,5 @@
 //! Action system for TUI widgets
-//! 
+//!
 //! This module defines the action types and dispatcher for handling user interactions.
 
 use crate::error::Result;
@@ -12,34 +12,34 @@ use tokio::sync::mpsc;
 pub enum Action {
     /// No action
     None,
-    
+
     /// Application control
     Quit,
     Refresh,
-    
+
     // Navigation actions
     Navigate(ViewType),
     Back,
     GoBack,
     GoForward,
-    
+
     // Widget focus actions
     FocusNext,
     FocusPrevious,
     FocusWidget(String),
-    
+
     // List navigation actions
     SelectNext,
     SelectPrevious,
     SelectFirst,
     SelectLast,
     SelectItem(usize),
-    
+
     // Input actions
     StartInput(InputMode),
     ConfirmInput(String),
     CancelInput,
-    
+
     // UI actions
     Search(String),
     Filter(String),
@@ -47,7 +47,7 @@ pub enum Action {
     ClearFilter,
     ToggleDetails,
     ToggleHelp,
-    
+
     // Workflow actions
     ExecuteWorkflow(String),
     PauseWorkflow(String),
@@ -58,12 +58,12 @@ pub enum Action {
     CreateWorkflow,
     EditWorkflow(String),
     DeleteWorkflow(String),
-    
+
     // Tool actions
     ExecuteTool(String),
     ShowToolDetails(String),
     RefreshTools,
-    
+
     // Plugin actions
     InstallPlugin(String),
     UninstallPlugin(String),
@@ -75,26 +75,26 @@ pub enum Action {
     ShowPluginFilters,
     ShowDependencyGraph,
     RefreshPlugins,
-    
+
     // System actions
     RefreshSystemStatus,
     ShowSystemDetails,
-    
+
     // Log actions
     ShowLogs,
     FilterLogs(LogLevel),
     ClearLogs,
     ExportLogs,
-    
+
     // Error handling
     ShowError(String),
     DismissError,
-    
+
     // Configuration
     ShowSettings,
     ChangeTheme(String),
     SaveSettings,
-    
+
     // Custom actions (for widget-specific behavior)
     Custom(String, serde_json::Value),
 }
@@ -190,25 +190,25 @@ impl ActionWithMetadata {
             context: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Set the action priority
     pub fn with_priority(mut self, priority: ActionPriority) -> Self {
         self.priority = priority;
         self
     }
-    
+
     /// Set the action source
     pub fn with_source(mut self, source: String) -> Self {
         self.source = Some(source);
         self
     }
-    
+
     /// Add context information
     pub fn with_context(mut self, key: String, value: String) -> Self {
         self.context.insert(key, value);
         self
     }
-    
+
     /// Get the age of this action
     pub fn age(&self) -> std::time::Duration {
         self.timestamp.elapsed()
@@ -227,13 +227,13 @@ pub struct ActionDispatcher {
 pub trait ActionHandler: Send + Sync {
     /// Handle an action and return the result
     async fn handle(&mut self, action: &Action) -> Result<ActionResult>;
-    
+
     /// Check if this handler can process the given action
     fn can_handle(&self, action: &Action) -> bool;
-    
+
     /// Get the handler's name
     fn name(&self) -> &str;
-    
+
     /// Get the handler's priority
     fn priority(&self) -> ActionPriority {
         ActionPriority::Normal
@@ -250,13 +250,13 @@ impl ActionDispatcher {
             handlers: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Register an action handler
     pub fn register_handler(&mut self, name: String, handler: Box<dyn ActionHandler>) {
         tracing::debug!("Registered action handler: {}", name);
         self.handlers.insert(name, handler);
     }
-    
+
     /// Unregister an action handler
     pub fn unregister_handler(&mut self, name: &str) -> Option<Box<dyn ActionHandler>> {
         let handler = self.handlers.remove(name);
@@ -265,65 +265,79 @@ impl ActionDispatcher {
         }
         handler
     }
-    
+
     /// Dispatch an action for processing
     pub fn dispatch(&self, action: Action) -> Result<()> {
         let action_with_metadata = ActionWithMetadata::new(action);
-        self.action_sender.send(action_with_metadata)
-            .map_err(|e| crate::error::WorkflowError::ValidationError(
-                format!("Failed to dispatch action: {}", e)
-            ))?;
+        self.action_sender.send(action_with_metadata).map_err(|e| {
+            crate::error::WorkflowError::ValidationError(format!(
+                "Failed to dispatch action: {}",
+                e
+            ))
+        })?;
         Ok(())
     }
-    
+
     /// Dispatch an action with metadata
     pub fn dispatch_with_metadata(&self, action: ActionWithMetadata) -> Result<()> {
-        self.action_sender.send(action)
-            .map_err(|e| crate::error::WorkflowError::ValidationError(
-                format!("Failed to dispatch action: {}", e)
-            ))?;
+        self.action_sender.send(action).map_err(|e| {
+            crate::error::WorkflowError::ValidationError(format!(
+                "Failed to dispatch action: {}",
+                e
+            ))
+        })?;
         Ok(())
     }
-    
+
     /// Process the next action in the queue
     pub async fn process_next(&mut self) -> Option<ActionResult> {
         if let Some(action_with_metadata) = self.action_receiver.recv().await {
-            Some(self.process_action_with_metadata(action_with_metadata).await)
+            Some(
+                self.process_action_with_metadata(action_with_metadata)
+                    .await,
+            )
         } else {
             None
         }
     }
-    
+
     /// Process all pending actions
     pub async fn process_all(&mut self) -> Vec<ActionResult> {
         let mut results = Vec::new();
-        
+
         while let Ok(action_with_metadata) = self.action_receiver.try_recv() {
-            let result = self.process_action_with_metadata(action_with_metadata).await;
+            let result = self
+                .process_action_with_metadata(action_with_metadata)
+                .await;
             results.push(result);
         }
-        
+
         results
     }
-    
+
     /// Process a specific action
     pub async fn process_action(&mut self, action: Action) -> ActionResult {
         let action_with_metadata = ActionWithMetadata::new(action);
         Box::pin(self.process_action_with_metadata(action_with_metadata)).await
     }
-    
+
     /// Process an action with metadata
-    async fn process_action_with_metadata(&mut self, action_with_metadata: ActionWithMetadata) -> ActionResult {
+    async fn process_action_with_metadata(
+        &mut self,
+        action_with_metadata: ActionWithMetadata,
+    ) -> ActionResult {
         let action = &action_with_metadata.action;
-        
+
         // Find handlers that can process this action
-        let mut capable_handlers: Vec<_> = self.handlers.iter_mut()
+        let mut capable_handlers: Vec<_> = self
+            .handlers
+            .iter_mut()
             .filter(|(_, handler)| handler.can_handle(action))
             .collect();
-        
+
         // Sort by priority
         capable_handlers.sort_by(|(_, a), (_, b)| b.priority().cmp(&a.priority()));
-        
+
         // Try each handler until one succeeds
         for (name, handler) in capable_handlers {
             match handler.handle(action).await {
@@ -332,41 +346,60 @@ impl ActionDispatcher {
                     return ActionResult::Success;
                 }
                 Ok(ActionResult::Forward(forwarded_action)) => {
-                    tracing::debug!("Action {:?} forwarded by {} to {:?}", action, name, forwarded_action);
+                    tracing::debug!(
+                        "Action {:?} forwarded by {} to {:?}",
+                        action,
+                        name,
+                        forwarded_action
+                    );
                     return Box::pin(self.process_action(forwarded_action)).await;
                 }
                 Ok(result) => {
-                    tracing::debug!("Action {:?} handled by {} with result: {:?}", action, name, result);
+                    tracing::debug!(
+                        "Action {:?} handled by {} with result: {:?}",
+                        action,
+                        name,
+                        result
+                    );
                     return result;
                 }
                 Err(e) => {
-                    tracing::warn!("Handler {} failed to process action {:?}: {}", name, action, e);
+                    tracing::warn!(
+                        "Handler {} failed to process action {:?}: {}",
+                        name,
+                        action,
+                        e
+                    );
                     continue;
                 }
             }
         }
-        
+
         // No handler could process the action
         tracing::warn!("No handler found for action: {:?}", action);
         ActionResult::Error(format!("No handler found for action: {:?}", action))
     }
-    
+
     /// Check if there are pending actions
     pub fn has_pending_actions(&self) -> bool {
         !self.action_receiver.is_empty()
     }
-    
+
     /// Get the number of pending actions
     pub fn pending_action_count(&self) -> usize {
         // Note: This is an approximation as the receiver doesn't expose exact count
-        if self.action_receiver.is_empty() { 0 } else { 1 }
+        if self.action_receiver.is_empty() {
+            0
+        } else {
+            1
+        }
     }
-    
+
     /// Get the names of all registered handlers
     pub fn handler_names(&self) -> Vec<String> {
         self.handlers.keys().cloned().collect()
     }
-    
+
     /// Clear all pending actions
     pub fn clear_pending(&mut self) {
         while self.action_receiver.try_recv().is_ok() {
@@ -466,7 +499,9 @@ impl fmt::Display for ActionResult {
             ActionResult::Success => write!(f, "Success"),
             ActionResult::Error(msg) => write!(f, "Error: {}", msg),
             ActionResult::RequiresConfirmation(msg) => write!(f, "RequiresConfirmation: {}", msg),
-            ActionResult::RequiresInput(mode, prompt) => write!(f, "RequiresInput({:?}): {}", mode, prompt),
+            ActionResult::RequiresInput(mode, prompt) => {
+                write!(f, "RequiresInput({:?}): {}", mode, prompt)
+            }
             ActionResult::Ignored => write!(f, "Ignored"),
             ActionResult::Forward(action) => write!(f, "Forward({})", action),
         }

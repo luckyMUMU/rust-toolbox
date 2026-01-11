@@ -1,5 +1,5 @@
 //! TUI Error Handling System
-//! 
+//!
 //! This module provides comprehensive error handling for the TUI interface,
 //! including error classification, recovery strategies, and user-friendly error display.
 
@@ -28,31 +28,31 @@ use tracing::{error, info, warn};
 pub enum TuiError {
     #[error("渲染错误: {message}")]
     RenderError { message: String },
-    
+
     #[error("输入处理错误: {message}")]
     InputError { message: String },
-    
+
     #[error("数据同步错误: {message}")]
     DataError { message: String },
-    
+
     #[error("配置错误: {message}")]
     ConfigError { message: String },
-    
+
     #[error("终端操作错误: {message}")]
     TerminalError { message: String },
-    
+
     #[error("Widget错误: {widget_id} - {message}")]
     WidgetError { widget_id: String, message: String },
-    
+
     #[error("布局错误: {message}")]
     LayoutError { message: String },
-    
+
     #[error("主题错误: {message}")]
     ThemeError { message: String },
-    
+
     #[error("网络连接错误: {message}")]
     NetworkError { message: String },
-    
+
     #[error("权限错误: {message}")]
     PermissionError { message: String },
 }
@@ -72,9 +72,7 @@ impl From<WorkflowError> for TuiError {
             WorkflowError::Storage { message } => TuiError::DataError {
                 message: format!("存储错误: {}", message),
             },
-            WorkflowError::PermissionDenied { message } => TuiError::PermissionError {
-                message,
-            },
+            WorkflowError::PermissionDenied { message } => TuiError::PermissionError { message },
             _ => TuiError::DataError {
                 message: format!("系统错误: {}", err),
             },
@@ -111,7 +109,7 @@ impl ErrorSeverity {
             ErrorSeverity::Critical => Color::Magenta,
         }
     }
-    
+
     pub fn icon(&self) -> &'static str {
         match self {
             ErrorSeverity::Info => "ℹ",
@@ -160,7 +158,10 @@ impl ErrorContext {
         let (severity, recovery_strategy, user_message, suggestions) = match &error {
             TuiError::RenderError { .. } => (
                 ErrorSeverity::Warning,
-                RecoveryStrategy::Retry { max_attempts: 3, delay_ms: 100 },
+                RecoveryStrategy::Retry {
+                    max_attempts: 3,
+                    delay_ms: 100,
+                },
                 "界面渲染出现问题，正在尝试恢复".to_string(),
                 vec!["检查终端大小".to_string(), "重启应用程序".to_string()],
             ),
@@ -172,7 +173,10 @@ impl ErrorContext {
             ),
             TuiError::DataError { .. } => (
                 ErrorSeverity::Error,
-                RecoveryStrategy::Retry { max_attempts: 5, delay_ms: 1000 },
+                RecoveryStrategy::Retry {
+                    max_attempts: 5,
+                    delay_ms: 1000,
+                },
                 "数据同步失败，正在重试".to_string(),
                 vec!["检查网络连接".to_string(), "刷新数据".to_string()],
             ),
@@ -196,7 +200,10 @@ impl ErrorContext {
             ),
             TuiError::NetworkError { .. } => (
                 ErrorSeverity::Error,
-                RecoveryStrategy::Retry { max_attempts: 3, delay_ms: 2000 },
+                RecoveryStrategy::Retry {
+                    max_attempts: 3,
+                    delay_ms: 2000,
+                },
                 "网络连接失败，正在重试".to_string(),
                 vec!["检查网络连接".to_string(), "切换到离线模式".to_string()],
             ),
@@ -213,7 +220,7 @@ impl ErrorContext {
                 vec!["重试操作".to_string(), "重启应用程序".to_string()],
             ),
         };
-        
+
         Self {
             technical_details: format!("{:?}", error),
             user_message,
@@ -226,28 +233,28 @@ impl ErrorContext {
             retry_count: 0,
         }
     }
-    
+
     pub fn with_user_message(mut self, message: String) -> Self {
         self.user_message = message;
         self
     }
-    
+
     pub fn with_suggestions(mut self, suggestions: Vec<String>) -> Self {
         self.recovery_suggestions = suggestions;
         self
     }
-    
+
     pub fn increment_retry(&mut self) {
         self.retry_count += 1;
     }
-    
+
     pub fn should_retry(&self) -> bool {
         match &self.recovery_strategy {
             RecoveryStrategy::Retry { max_attempts, .. } => self.retry_count < *max_attempts,
             _ => false,
         }
     }
-    
+
     pub fn retry_delay(&self) -> Duration {
         match &self.recovery_strategy {
             RecoveryStrategy::Retry { delay_ms, .. } => {
@@ -295,25 +302,34 @@ impl ErrorRecoveryHandler for DefaultRecoveryHandler {
                 }
             }
             RecoveryStrategy::UseDefault => {
-                info!("Using default recovery for component '{}'", context.component);
+                info!(
+                    "Using default recovery for component '{}'",
+                    context.component
+                );
                 Ok(true)
             }
             RecoveryStrategy::Skip => {
-                info!("Skipping failed operation for component '{}'", context.component);
+                info!(
+                    "Skipping failed operation for component '{}'",
+                    context.component
+                );
                 Ok(true)
             }
             RecoveryStrategy::Degrade => {
-                warn!("Degrading functionality for component '{}'", context.component);
+                warn!(
+                    "Degrading functionality for component '{}'",
+                    context.component
+                );
                 Ok(true)
             }
             _ => Ok(false), // Other strategies need specialized handlers
         }
     }
-    
+
     fn can_handle(&self, _error: &TuiError) -> bool {
         true // Default handler can handle any error
     }
-    
+
     fn priority(&self) -> u32 {
         0 // Lowest priority
     }
@@ -331,7 +347,7 @@ pub struct ErrorManager {
 impl ErrorManager {
     pub fn new() -> Self {
         let (error_sender, error_receiver) = mpsc::unbounded_channel();
-        
+
         Self {
             handlers: vec![Arc::new(DefaultRecoveryHandler)],
             error_history: Arc::new(RwLock::new(VecDeque::new())),
@@ -340,22 +356,34 @@ impl ErrorManager {
             max_history: 100,
         }
     }
-    
+
     pub fn add_handler(&mut self, handler: Arc<dyn ErrorRecoveryHandler>) {
         self.handlers.push(handler);
         // Sort by priority (higher priority first)
-        self.handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.handlers
+            .sort_by(|a, b| b.priority().cmp(&a.priority()));
     }
-    
+
     pub async fn handle_error(&self, mut context: ErrorContext) -> Result<bool> {
         // Log the error
         match context.severity {
-            ErrorSeverity::Info => info!("TUI Info: {} - {}", context.component, context.user_message),
-            ErrorSeverity::Warning => warn!("TUI Warning: {} - {}", context.component, context.user_message),
-            ErrorSeverity::Error => error!("TUI Error: {} - {}", context.component, context.user_message),
-            ErrorSeverity::Critical => error!("TUI Critical: {} - {}", context.component, context.user_message),
+            ErrorSeverity::Info => {
+                info!("TUI Info: {} - {}", context.component, context.user_message)
+            }
+            ErrorSeverity::Warning => warn!(
+                "TUI Warning: {} - {}",
+                context.component, context.user_message
+            ),
+            ErrorSeverity::Error => error!(
+                "TUI Error: {} - {}",
+                context.component, context.user_message
+            ),
+            ErrorSeverity::Critical => error!(
+                "TUI Critical: {} - {}",
+                context.component, context.user_message
+            ),
         }
-        
+
         // Try recovery handlers in priority order
         for handler in &self.handlers {
             if handler.can_handle(&context.error) {
@@ -376,12 +404,12 @@ impl ErrorManager {
                 }
             }
         }
-        
+
         // No handler could recover
         self.add_to_history(context).await;
         Ok(false)
     }
-    
+
     pub async fn report_error(&self, error: TuiError, component: String) -> Result<()> {
         let context = ErrorContext::new(error, component);
         self.error_sender.send(context).map_err(|e| {
@@ -389,12 +417,12 @@ impl ErrorManager {
         })?;
         Ok(())
     }
-    
+
     pub async fn start_error_processing(&self) -> Result<()> {
         let mut receiver_guard = self.error_receiver.write().await;
         if let Some(mut receiver) = receiver_guard.take() {
             let error_manager = self.clone_for_processing().await;
-            
+
             tokio::spawn(async move {
                 while let Some(context) = receiver.recv().await {
                     if let Err(e) = error_manager.handle_error(context).await {
@@ -405,7 +433,7 @@ impl ErrorManager {
         }
         Ok(())
     }
-    
+
     async fn clone_for_processing(&self) -> Self {
         Self {
             handlers: self.handlers.clone(),
@@ -415,22 +443,22 @@ impl ErrorManager {
             max_history: self.max_history,
         }
     }
-    
+
     async fn add_to_history(&self, context: ErrorContext) {
         let mut history = self.error_history.write().await;
         history.push_back(context);
-        
+
         // Maintain max history size
         while history.len() > self.max_history {
             history.pop_front();
         }
     }
-    
+
     pub async fn get_recent_errors(&self, count: usize) -> Vec<ErrorContext> {
         let history = self.error_history.read().await;
         history.iter().rev().take(count).cloned().collect()
     }
-    
+
     pub async fn get_errors_by_severity(&self, severity: ErrorSeverity) -> Vec<ErrorContext> {
         let history = self.error_history.read().await;
         history
@@ -439,7 +467,7 @@ impl ErrorManager {
             .cloned()
             .collect()
     }
-    
+
     pub async fn clear_history(&self) {
         let mut history = self.error_history.write().await;
         history.clear();
@@ -463,28 +491,28 @@ impl ErrorDisplayWidget {
             auto_dismiss_duration: Duration::from_secs(5),
         }
     }
-    
+
     pub fn show_error(&mut self, context: ErrorContext) {
         // Auto-dismiss for info and warnings
         self.auto_dismiss_timer = match context.severity {
             ErrorSeverity::Info | ErrorSeverity::Warning => Some(Instant::now()),
             _ => None,
         };
-        
+
         self.current_error = Some(context);
         self.show_details = false;
     }
-    
+
     pub fn dismiss_error(&mut self) {
         self.current_error = None;
         self.auto_dismiss_timer = None;
         self.show_details = false;
     }
-    
+
     pub fn toggle_details(&mut self) {
         self.show_details = !self.show_details;
     }
-    
+
     pub fn should_auto_dismiss(&self) -> bool {
         if let Some(timer) = self.auto_dismiss_timer {
             timer.elapsed() >= self.auto_dismiss_duration
@@ -492,48 +520,48 @@ impl ErrorDisplayWidget {
             false
         }
     }
-    
+
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         // Check for auto-dismiss
         if self.should_auto_dismiss() {
             self.dismiss_error();
             return;
         }
-        
+
         if let Some(ref context) = self.current_error {
             self.render_error_dialog(frame, area, context);
         }
     }
-    
+
     fn render_error_dialog(&self, frame: &mut Frame, area: Rect, context: &ErrorContext) {
         // Calculate dialog size
         let dialog_width = area.width.min(80);
-        let dialog_height = if self.show_details { 
-            area.height.min(20) 
-        } else { 
-            area.height.min(10) 
+        let dialog_height = if self.show_details {
+            area.height.min(20)
+        } else {
+            area.height.min(10)
         };
-        
+
         let dialog_area = Rect {
             x: (area.width.saturating_sub(dialog_width)) / 2,
             y: (area.height.saturating_sub(dialog_height)) / 2,
             width: dialog_width,
             height: dialog_height,
         };
-        
+
         // Clear background
         frame.render_widget(Clear, dialog_area);
-        
+
         // Create dialog content
         let title = format!("{} {}", context.severity.icon(), context.severity);
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
             .border_style(Style::default().fg(context.severity.color()));
-        
+
         let inner_area = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
-        
+
         // Split content area
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -543,7 +571,7 @@ impl ErrorDisplayWidget {
                 Constraint::Length(2), // Controls
             ])
             .split(inner_area);
-        
+
         // Render message
         let message_text = Text::from(vec![
             Line::from(vec![
@@ -555,17 +583,17 @@ impl ErrorDisplayWidget {
                 Span::raw(&context.user_message),
             ]),
         ]);
-        
-        let message_paragraph = Paragraph::new(message_text)
-            .wrap(Wrap { trim: true });
+
+        let message_paragraph = Paragraph::new(message_text).wrap(Wrap { trim: true });
         frame.render_widget(message_paragraph, chunks[0]);
-        
+
         // Render details or suggestions
         if self.show_details {
             let details_text = Text::from(vec![
-                Line::from(vec![
-                    Span::styled("技术详情:", Style::default().add_modifier(Modifier::BOLD)),
-                ]),
+                Line::from(vec![Span::styled(
+                    "技术详情:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )]),
                 Line::from(Span::raw(&context.technical_details)),
                 Line::from(""),
                 Line::from(vec![
@@ -573,40 +601,37 @@ impl ErrorDisplayWidget {
                     Span::raw(format!(" {}", context.retry_count)),
                 ]),
             ]);
-            
-            let details_paragraph = Paragraph::new(details_text)
-                .wrap(Wrap { trim: true });
+
+            let details_paragraph = Paragraph::new(details_text).wrap(Wrap { trim: true });
             frame.render_widget(details_paragraph, chunks[1]);
         } else if !context.recovery_suggestions.is_empty() {
-            let mut suggestion_lines = vec![
-                Line::from(vec![
-                    Span::styled("建议操作:", Style::default().add_modifier(Modifier::BOLD)),
-                ]),
-            ];
-            
+            let mut suggestion_lines = vec![Line::from(vec![Span::styled(
+                "建议操作:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )])];
+
             for (i, suggestion) in context.recovery_suggestions.iter().enumerate() {
                 suggestion_lines.push(Line::from(format!("{}. {}", i + 1, suggestion)));
             }
-            
+
             let suggestions_text = Text::from(suggestion_lines);
-            let suggestions_paragraph = Paragraph::new(suggestions_text)
-                .wrap(Wrap { trim: true });
+            let suggestions_paragraph = Paragraph::new(suggestions_text).wrap(Wrap { trim: true });
             frame.render_widget(suggestions_paragraph, chunks[1]);
         }
-        
+
         // Render controls
         let controls_text = if self.show_details {
             "按 'd' 隐藏详情 | 按 Esc 关闭"
         } else {
             "按 'd' 显示详情 | 按 Esc 关闭"
         };
-        
+
         let controls_paragraph = Paragraph::new(controls_text)
             .alignment(Alignment::Center)
             .style(Style::default().fg(Color::Gray));
         frame.render_widget(controls_paragraph, chunks[2]);
     }
-    
+
     pub fn has_error(&self) -> bool {
         self.current_error.is_some()
     }
@@ -661,26 +686,26 @@ impl TuiError {
             message: message.into(),
         }
     }
-    
+
     pub fn input_error<S: Into<String>>(message: S) -> Self {
         Self::InputError {
             message: message.into(),
         }
     }
-    
+
     pub fn data_error<S: Into<String>>(message: S) -> Self {
         Self::DataError {
             message: message.into(),
         }
     }
-    
+
     pub fn widget_error<S: Into<String>>(widget_id: S, message: S) -> Self {
         Self::WidgetError {
             widget_id: widget_id.into(),
             message: message.into(),
         }
     }
-    
+
     pub fn network_error<S: Into<String>>(message: S) -> Self {
         Self::NetworkError {
             message: message.into(),

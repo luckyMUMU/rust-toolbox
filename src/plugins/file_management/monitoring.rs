@@ -1,45 +1,45 @@
 //! Monitoring and metrics for file management operations
 
-use crate::performance::{PerformanceManager, MetricsCollector};
 use super::error::{FileManagementError, FileManagementResult};
 use super::error_recovery::RecoveryStats;
+use crate::performance::{MetricsCollector, PerformanceManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::time::interval;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// Monitoring configuration for file management operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonitoringConfig {
     /// Enable monitoring
     pub enabled: bool,
-    
+
     /// Metrics collection interval
     pub collection_interval_seconds: u64,
-    
+
     /// Enable audit trail logging
     pub enable_audit_trail: bool,
-    
+
     /// Enable performance monitoring
     pub enable_performance_monitoring: bool,
-    
+
     /// Enable error tracking
     pub enable_error_tracking: bool,
-    
+
     /// Enable resource usage monitoring
     pub enable_resource_monitoring: bool,
-    
+
     /// Maximum number of audit entries to keep in memory
     pub max_audit_entries: usize,
-    
+
     /// Maximum number of performance samples to keep
     pub max_performance_samples: usize,
-    
+
     /// Enable real-time alerts
     pub enable_alerts: bool,
-    
+
     /// Alert thresholds
     pub alert_thresholds: AlertThresholds,
 }
@@ -66,16 +66,16 @@ impl Default for MonitoringConfig {
 pub struct AlertThresholds {
     /// Error rate threshold (errors per minute)
     pub error_rate_threshold: f64,
-    
+
     /// Average operation duration threshold (milliseconds)
     pub avg_duration_threshold_ms: u64,
-    
+
     /// Memory usage threshold (percentage)
     pub memory_usage_threshold: f64,
-    
+
     /// Disk usage threshold (percentage)
     pub disk_usage_threshold: f64,
-    
+
     /// Recovery failure rate threshold
     pub recovery_failure_rate_threshold: f64,
 }
@@ -83,10 +83,10 @@ pub struct AlertThresholds {
 impl Default for AlertThresholds {
     fn default() -> Self {
         Self {
-            error_rate_threshold: 10.0, // 10 errors per minute
-            avg_duration_threshold_ms: 5000, // 5 seconds
-            memory_usage_threshold: 0.9, // 90%
-            disk_usage_threshold: 0.95, // 95%
+            error_rate_threshold: 10.0,           // 10 errors per minute
+            avg_duration_threshold_ms: 5000,      // 5 seconds
+            memory_usage_threshold: 0.9,          // 90%
+            disk_usage_threshold: 0.95,           // 95%
             recovery_failure_rate_threshold: 0.5, // 50%
         }
     }
@@ -358,7 +358,8 @@ impl FileManagementMonitor {
         }
 
         // Update operation metrics
-        self.update_operation_metrics(tool_name, &result, duration).await?;
+        self.update_operation_metrics(tool_name, &result, duration)
+            .await?;
 
         debug!("Recorded operation: {} by tool: {}", operation, tool_name);
         Ok(())
@@ -390,8 +391,14 @@ impl FileManagementMonitor {
             })?;
 
             error_tracker.total_errors += 1;
-            *error_tracker.errors_by_type.entry(error.category().to_string()).or_insert(0) += 1;
-            *error_tracker.errors_by_tool.entry(tool_name.to_string()).or_insert(0) += 1;
+            *error_tracker
+                .errors_by_type
+                .entry(error.category().to_string())
+                .or_insert(0) += 1;
+            *error_tracker
+                .errors_by_tool
+                .entry(tool_name.to_string())
+                .or_insert(0) += 1;
             error_tracker.recent_errors.push(error_entry);
 
             // Keep only recent errors (last 1000)
@@ -403,7 +410,11 @@ impl FileManagementMonitor {
             self.calculate_error_rate(&mut error_tracker);
         }
 
-        debug!("Recorded error: {} from tool: {}", error.category(), tool_name);
+        debug!(
+            "Recorded error: {} from tool: {}",
+            error.category(),
+            tool_name
+        );
         Ok(())
     }
 
@@ -419,21 +430,37 @@ impl FileManagementMonitor {
 
     /// Get current monitoring statistics
     pub async fn get_monitoring_stats(&self) -> FileManagementResult<MonitoringStats> {
-        let operation_metrics = self.operation_metrics.read().map_err(|_| {
-            FileManagementError::concurrency("Failed to acquire read lock on operation metrics")
-        })?.clone();
+        let operation_metrics = self
+            .operation_metrics
+            .read()
+            .map_err(|_| {
+                FileManagementError::concurrency("Failed to acquire read lock on operation metrics")
+            })?
+            .clone();
 
-        let error_tracker = self.error_tracker.read().map_err(|_| {
-            FileManagementError::concurrency("Failed to acquire read lock on error tracker")
-        })?.clone();
+        let error_tracker = self
+            .error_tracker
+            .read()
+            .map_err(|_| {
+                FileManagementError::concurrency("Failed to acquire read lock on error tracker")
+            })?
+            .clone();
 
-        let resource_monitor = self.resource_monitor.read().map_err(|_| {
-            FileManagementError::concurrency("Failed to acquire read lock on resource monitor")
-        })?.clone();
+        let resource_monitor = self
+            .resource_monitor
+            .read()
+            .map_err(|_| {
+                FileManagementError::concurrency("Failed to acquire read lock on resource monitor")
+            })?
+            .clone();
 
-        let alert_manager = self.alert_manager.read().map_err(|_| {
-            FileManagementError::concurrency("Failed to acquire read lock on alert manager")
-        })?.clone();
+        let alert_manager = self
+            .alert_manager
+            .read()
+            .map_err(|_| {
+                FileManagementError::concurrency("Failed to acquire read lock on alert manager")
+            })?
+            .clone();
 
         Ok(MonitoringStats {
             operation_metrics,
@@ -446,7 +473,10 @@ impl FileManagementMonitor {
     }
 
     /// Get audit trail entries
-    pub async fn get_audit_trail(&self, limit: Option<usize>) -> FileManagementResult<Vec<AuditEntry>> {
+    pub async fn get_audit_trail(
+        &self,
+        limit: Option<usize>,
+    ) -> FileManagementResult<Vec<AuditEntry>> {
         let audit_trail = self.audit_trail.read().map_err(|_| {
             FileManagementError::concurrency("Failed to acquire read lock on audit trail")
         })?;
@@ -467,8 +497,11 @@ impl FileManagementMonitor {
 
         // This would typically spawn a background task
         // For now, we'll just log that it would start
-        info!("Metrics collection task would start with interval: {:?}", interval_duration);
-        
+        info!(
+            "Metrics collection task would start with interval: {:?}",
+            interval_duration
+        );
+
         Ok(())
     }
 
@@ -515,10 +548,14 @@ impl FileManagementMonitor {
         }
 
         // Update tool-specific metrics
-        let tool_metrics = metrics.operations_by_tool.entry(tool_name.to_string()).or_default();
+        let tool_metrics = metrics
+            .operations_by_tool
+            .entry(tool_name.to_string())
+            .or_default();
         tool_metrics.total_calls += 1;
         tool_metrics.total_duration_ms += duration_ms;
-        tool_metrics.avg_duration_ms = tool_metrics.total_duration_ms as f64 / tool_metrics.total_calls as f64;
+        tool_metrics.avg_duration_ms =
+            tool_metrics.total_duration_ms as f64 / tool_metrics.total_calls as f64;
         tool_metrics.last_used = Some(chrono::Utc::now());
 
         match result {
@@ -535,7 +572,8 @@ impl FileManagementMonitor {
         let now = chrono::Utc::now();
         let one_minute_ago = now - chrono::Duration::minutes(1);
 
-        let recent_errors = error_tracker.recent_errors
+        let recent_errors = error_tracker
+            .recent_errors
             .iter()
             .filter(|e| e.timestamp > one_minute_ago)
             .count();
@@ -564,7 +602,7 @@ mod tests {
     async fn test_monitor_creation() {
         let config = MonitoringConfig::default();
         let monitor = FileManagementMonitor::new(config);
-        
+
         let stats = monitor.get_monitoring_stats().await.unwrap();
         assert_eq!(stats.operation_metrics.total_operations, 0);
         assert!(stats.monitoring_enabled);
@@ -574,10 +612,13 @@ mod tests {
     async fn test_operation_recording() {
         let config = MonitoringConfig::default();
         let monitor = FileManagementMonitor::new(config);
-        
+
         let mut params = HashMap::new();
-        params.insert("test_param".to_string(), serde_json::Value::String("test_value".to_string()));
-        
+        params.insert(
+            "test_param".to_string(),
+            serde_json::Value::String("test_value".to_string()),
+        );
+
         let resource_usage = ResourceUsage {
             memory_mb: 100,
             cpu_percent: 50.0,
@@ -585,20 +626,23 @@ mod tests {
             network_io_bytes: 0,
         };
 
-        monitor.record_operation(
-            "test_operation",
-            "test_tool",
-            Some("test_user"),
-            params,
-            AuditResult::Success,
-            Duration::from_millis(500),
-            resource_usage,
-        ).await.unwrap();
+        monitor
+            .record_operation(
+                "test_operation",
+                "test_tool",
+                Some("test_user"),
+                params,
+                AuditResult::Success,
+                Duration::from_millis(500),
+                resource_usage,
+            )
+            .await
+            .unwrap();
 
         let stats = monitor.get_monitoring_stats().await.unwrap();
         assert_eq!(stats.operation_metrics.total_operations, 1);
         assert_eq!(stats.operation_metrics.successful_operations, 1);
-        
+
         let audit_trail = monitor.get_audit_trail(None).await.unwrap();
         assert_eq!(audit_trail.len(), 1);
         assert_eq!(audit_trail[0].operation, "test_operation");
@@ -608,9 +652,12 @@ mod tests {
     async fn test_error_recording() {
         let config = MonitoringConfig::default();
         let monitor = FileManagementMonitor::new(config);
-        
+
         let error = FileManagementError::not_found("/test/path");
-        monitor.record_error(&error, "test_tool", false).await.unwrap();
+        monitor
+            .record_error(&error, "test_tool", false)
+            .await
+            .unwrap();
 
         let stats = monitor.get_monitoring_stats().await.unwrap();
         assert_eq!(stats.error_tracker.total_errors, 1);

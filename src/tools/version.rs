@@ -1,8 +1,8 @@
 //! Tool version management and dependency resolution
 
 use crate::error::{Result, WorkflowError};
-use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::algo::{is_cyclic_directed, toposort};
+use petgraph::graph::{DiGraph, NodeIndex};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -30,39 +30,39 @@ impl Version {
             build: None,
         }
     }
-    
+
     /// Create a version with pre-release identifier
     pub fn with_pre_release(mut self, pre_release: String) -> Self {
         self.pre_release = Some(pre_release);
         self
     }
-    
+
     /// Create a version with build metadata
     pub fn with_build(mut self, build: String) -> Self {
         self.build = Some(build);
         self
     }
-    
+
     /// Check if this version is compatible with another version
     pub fn is_compatible_with(&self, other: &Version) -> bool {
         // Major version must match for compatibility
         if self.major != other.major {
             return false;
         }
-        
+
         // Minor version can be higher or equal
         if self.minor < other.minor {
             return false;
         }
-        
+
         // If minor versions are equal, patch can be higher or equal
         if self.minor == other.minor && self.patch < other.patch {
             return false;
         }
-        
+
         true
     }
-    
+
     /// Check if this version satisfies a version requirement
     pub fn satisfies(&self, requirement: &VersionRequirement) -> bool {
         match requirement {
@@ -81,45 +81,49 @@ impl Version {
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
-        
+
         if let Some(pre) = &self.pre_release {
             write!(f, "-{}", pre)?;
         }
-        
+
         if let Some(build) = &self.build {
             write!(f, "+{}", build)?;
         }
-        
+
         Ok(())
     }
 }
 
 impl FromStr for Version {
     type Err = WorkflowError;
-    
+
     fn from_str(s: &str) -> Result<Self> {
         let mut parts = s.split('+');
         let version_part = parts.next().unwrap();
         let build = parts.next().map(|s| s.to_string());
-        
+
         let mut parts = version_part.split('-');
         let version_numbers = parts.next().unwrap();
         let pre_release = parts.next().map(|s| s.to_string());
-        
+
         let numbers: Vec<&str> = version_numbers.split('.').collect();
         if numbers.len() != 3 {
-            return Err(WorkflowError::ValidationError(
-                format!("Invalid version format: {}", s)
-            ));
+            return Err(WorkflowError::ValidationError(format!(
+                "Invalid version format: {}",
+                s
+            )));
         }
-        
-        let major = numbers[0].parse::<u32>()
-            .map_err(|_| WorkflowError::ValidationError(format!("Invalid major version: {}", numbers[0])))?;
-        let minor = numbers[1].parse::<u32>()
-            .map_err(|_| WorkflowError::ValidationError(format!("Invalid minor version: {}", numbers[1])))?;
-        let patch = numbers[2].parse::<u32>()
-            .map_err(|_| WorkflowError::ValidationError(format!("Invalid patch version: {}", numbers[2])))?;
-        
+
+        let major = numbers[0].parse::<u32>().map_err(|_| {
+            WorkflowError::ValidationError(format!("Invalid major version: {}", numbers[0]))
+        })?;
+        let minor = numbers[1].parse::<u32>().map_err(|_| {
+            WorkflowError::ValidationError(format!("Invalid minor version: {}", numbers[1]))
+        })?;
+        let patch = numbers[2].parse::<u32>().map_err(|_| {
+            WorkflowError::ValidationError(format!("Invalid patch version: {}", numbers[2]))
+        })?;
+
         Ok(Version {
             major,
             minor,
@@ -155,41 +159,41 @@ impl VersionRequirement {
     /// Parse a version requirement from string
     pub fn parse(s: &str) -> Result<Self> {
         let s = s.trim();
-        
+
         if s == "*" || s.is_empty() {
             return Ok(VersionRequirement::Any);
         }
-        
+
         if s.starts_with(">=") {
             let version = Version::from_str(&s[2..].trim())?;
             return Ok(VersionRequirement::GreaterThanOrEqual(version));
         }
-        
+
         if s.starts_with("<=") {
             let version = Version::from_str(&s[2..].trim())?;
             return Ok(VersionRequirement::LessThanOrEqual(version));
         }
-        
+
         if s.starts_with('>') {
             let version = Version::from_str(&s[1..].trim())?;
             return Ok(VersionRequirement::GreaterThan(version));
         }
-        
+
         if s.starts_with('<') {
             let version = Version::from_str(&s[1..].trim())?;
             return Ok(VersionRequirement::LessThan(version));
         }
-        
+
         if s.starts_with('~') {
             let version = Version::from_str(&s[1..].trim())?;
             return Ok(VersionRequirement::Compatible(version));
         }
-        
+
         if s.starts_with('=') {
             let version = Version::from_str(&s[1..].trim())?;
             return Ok(VersionRequirement::Exact(version));
         }
-        
+
         // Check for range format "1.0.0 - 2.0.0"
         if let Some(dash_pos) = s.find(" - ") {
             let min_str = s[..dash_pos].trim();
@@ -198,7 +202,7 @@ impl VersionRequirement {
             let max = Version::from_str(max_str)?;
             return Ok(VersionRequirement::Range { min, max });
         }
-        
+
         // Default to exact match
         let version = Version::from_str(s)?;
         Ok(VersionRequirement::Exact(version))
@@ -237,13 +241,13 @@ impl ToolDependency {
             optional: false,
         }
     }
-    
+
     /// Create an optional dependency
     pub fn optional(mut self) -> Self {
         self.optional = true;
         self
     }
-    
+
     /// Check if a tool version satisfies this dependency
     pub fn is_satisfied_by(&self, version: &Version) -> bool {
         version.satisfies(&self.version_requirement)
@@ -269,13 +273,13 @@ impl ToolVersion {
             conflicts: Vec::new(),
         }
     }
-    
+
     /// Add a dependency
     pub fn with_dependency(mut self, dependency: ToolDependency) -> Self {
         self.dependencies.push(dependency);
         self
     }
-    
+
     /// Add a conflict
     pub fn with_conflict(mut self, conflict: String) -> Self {
         self.conflicts.push(conflict);
@@ -318,7 +322,7 @@ impl ResolutionResult {
     pub fn is_successful(&self) -> bool {
         self.conflicts.is_empty()
     }
-    
+
     /// Get the resolved version for a tool
     pub fn get_version(&self, tool_name: &str) -> Option<&Version> {
         self.resolved_versions.get(tool_name)
@@ -337,7 +341,7 @@ impl DependencyResolver {
             available_versions: HashMap::new(),
         }
     }
-    
+
     /// Add available tool versions
     pub fn add_tool_version(&mut self, tool_version: ToolVersion) {
         let name = tool_version.name.clone();
@@ -346,30 +350,30 @@ impl DependencyResolver {
             .or_insert_with(Vec::new)
             .push(tool_version);
     }
-    
+
     /// Add multiple tool versions
     pub fn add_tool_versions(&mut self, tool_versions: Vec<ToolVersion>) {
         for tool_version in tool_versions {
             self.add_tool_version(tool_version);
         }
     }
-    
+
     /// Resolve dependencies for a set of required tools
     pub fn resolve_dependencies(
         &self,
         requirements: Vec<ToolDependency>,
     ) -> Result<ResolutionResult> {
         debug!("Resolving dependencies for {} tools", requirements.len());
-        
+
         let mut resolved_versions = HashMap::new();
         let mut conflicts = Vec::new();
         let mut warnings = Vec::new();
-        
+
         // Build dependency graph
         let mut graph = DiGraph::new();
         let mut node_map = HashMap::new();
         let mut tool_nodes = HashMap::new();
-        
+
         // Add all required tools as nodes
         for requirement in &requirements {
             if !node_map.contains_key(&requirement.name) {
@@ -378,50 +382,51 @@ impl DependencyResolver {
                 tool_nodes.insert(node_idx, requirement.name.clone());
             }
         }
-        
+
         // Collect all dependencies recursively
         let mut to_process = requirements.clone();
         let mut processed = HashSet::new();
-        
+
         while let Some(requirement) = to_process.pop() {
             if processed.contains(&requirement.name) {
                 continue;
             }
             processed.insert(requirement.name.clone());
-            
+
             // Find a suitable version for this requirement
             if let Some(versions) = self.available_versions.get(&requirement.name) {
                 let mut suitable_version = None;
-                
+
                 // Find the highest version that satisfies the requirement
-                for version in versions.iter().rev() { // Assume versions are sorted
+                for version in versions.iter().rev() {
+                    // Assume versions are sorted
                     if requirement.is_satisfied_by(&version.version) {
                         suitable_version = Some(version);
                         break;
                     }
                 }
-                
+
                 if let Some(version) = suitable_version {
                     resolved_versions.insert(requirement.name.clone(), version.version.clone());
-                    
+
                     // Add dependencies to processing queue
                     for dep in &version.dependencies {
                         if !processed.contains(&dep.name) {
                             to_process.push(dep.clone());
-                            
+
                             // Add dependency edge to graph
                             if !node_map.contains_key(&dep.name) {
                                 let node_idx = graph.add_node(dep.name.clone());
                                 node_map.insert(dep.name.clone(), node_idx);
                                 tool_nodes.insert(node_idx, dep.name.clone());
                             }
-                            
+
                             let from_node = node_map[&requirement.name];
                             let to_node = node_map[&dep.name];
                             graph.add_edge(from_node, to_node, ());
                         }
                     }
-                    
+
                     // Check for conflicts
                     for conflict in &version.conflicts {
                         if resolved_versions.contains_key(conflict) {
@@ -437,10 +442,8 @@ impl DependencyResolver {
                     }
                 } else {
                     // No suitable version found
-                    let available_versions = versions.iter()
-                        .map(|v| v.version.clone())
-                        .collect();
-                    
+                    let available_versions = versions.iter().map(|v| v.version.clone()).collect();
+
                     conflicts.push(VersionConflict {
                         tool_name: requirement.name.clone(),
                         required_versions: vec![requirement.version_requirement.clone()],
@@ -457,10 +460,13 @@ impl DependencyResolver {
                     conflict_type: ConflictType::NoSatisfyingVersion,
                 });
             } else {
-                warnings.push(format!("Optional tool '{}' not available", requirement.name));
+                warnings.push(format!(
+                    "Optional tool '{}' not available",
+                    requirement.name
+                ));
             }
         }
-        
+
         // Check for circular dependencies
         if is_cyclic_directed(&graph) {
             // Find the cycle (simplified approach)
@@ -471,17 +477,17 @@ impl DependencyResolver {
                 conflict_type: ConflictType::CircularDependency,
             });
         }
-        
+
         // Validate version compatibility
         self.validate_version_compatibility(&resolved_versions, &mut conflicts, &mut warnings)?;
-        
+
         Ok(ResolutionResult {
             resolved_versions,
             conflicts,
             warnings,
         })
     }
-    
+
     /// Validate that all resolved versions are compatible with each other
     fn validate_version_compatibility(
         &self,
@@ -491,9 +497,7 @@ impl DependencyResolver {
     ) -> Result<()> {
         for (tool_name, version) in resolved_versions {
             if let Some(tool_versions) = self.available_versions.get(tool_name) {
-                if let Some(tool_version) = tool_versions.iter()
-                    .find(|tv| tv.version == *version) {
-                    
+                if let Some(tool_version) = tool_versions.iter().find(|tv| tv.version == *version) {
                     // Check if all dependencies are satisfied
                     for dep in &tool_version.dependencies {
                         if let Some(dep_version) = resolved_versions.get(&dep.name) {
@@ -515,25 +519,27 @@ impl DependencyResolver {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Get available versions for a tool
     pub fn get_available_versions(&self, tool_name: &str) -> Option<&Vec<ToolVersion>> {
         self.available_versions.get(tool_name)
     }
-    
+
     /// Get the latest version of a tool
     pub fn get_latest_version(&self, tool_name: &str) -> Option<&Version> {
-        self.available_versions.get(tool_name)
+        self.available_versions
+            .get(tool_name)
             .and_then(|versions| versions.last())
             .map(|tv| &tv.version)
     }
-    
+
     /// Check if a tool version is available
     pub fn has_version(&self, tool_name: &str, version: &Version) -> bool {
-        self.available_versions.get(tool_name)
+        self.available_versions
+            .get(tool_name)
             .map_or(false, |versions| {
                 versions.iter().any(|tv| tv.version == *version)
             })
@@ -551,7 +557,7 @@ mod tests {
     use super::*;
     use proptest::prelude::*;
     use std::str::FromStr;
-    
+
     #[test]
     fn test_version_parsing() {
         let version = Version::from_str("1.2.3").unwrap();
@@ -560,7 +566,7 @@ mod tests {
         assert_eq!(version.patch, 3);
         assert_eq!(version.pre_release, None);
         assert_eq!(version.build, None);
-        
+
         let version = Version::from_str("1.2.3-alpha.1+build.123").unwrap();
         assert_eq!(version.major, 1);
         assert_eq!(version.minor, 2);
@@ -568,63 +574,61 @@ mod tests {
         assert_eq!(version.pre_release, Some("alpha.1".to_string()));
         assert_eq!(version.build, Some("build.123".to_string()));
     }
-    
+
     #[test]
     fn test_version_compatibility() {
         let v1_0_0 = Version::new(1, 0, 0);
         let v1_1_0 = Version::new(1, 1, 0);
         let v1_1_1 = Version::new(1, 1, 1);
         let v2_0_0 = Version::new(2, 0, 0);
-        
+
         assert!(v1_1_0.is_compatible_with(&v1_0_0));
         assert!(v1_1_1.is_compatible_with(&v1_1_0));
         assert!(!v1_0_0.is_compatible_with(&v1_1_0));
         assert!(!v2_0_0.is_compatible_with(&v1_0_0));
     }
-    
+
     #[test]
     fn test_version_requirements() {
         let v1_0_0 = Version::new(1, 0, 0);
         let v1_1_0 = Version::new(1, 1, 0);
         let v2_0_0 = Version::new(2, 0, 0);
-        
+
         let req = VersionRequirement::GreaterThanOrEqual(v1_0_0.clone());
         assert!(v1_0_0.satisfies(&req));
         assert!(v1_1_0.satisfies(&req));
         assert!(v2_0_0.satisfies(&req));
-        
+
         let req = VersionRequirement::Compatible(v1_0_0.clone());
         assert!(v1_0_0.satisfies(&req));
         assert!(v1_1_0.satisfies(&req));
         assert!(!v2_0_0.satisfies(&req));
     }
-    
+
     #[test]
     fn test_dependency_resolution() {
         let mut resolver = DependencyResolver::new();
-        
+
         // Add tool versions
         let tool_a_v1 = ToolVersion::new("tool_a".to_string(), Version::new(1, 0, 0))
             .with_dependency(ToolDependency::new(
                 "tool_b".to_string(),
                 VersionRequirement::GreaterThanOrEqual(Version::new(1, 0, 0)),
             ));
-        
+
         let tool_b_v1 = ToolVersion::new("tool_b".to_string(), Version::new(1, 0, 0));
         let tool_b_v2 = ToolVersion::new("tool_b".to_string(), Version::new(2, 0, 0));
-        
+
         resolver.add_tool_version(tool_a_v1);
         resolver.add_tool_version(tool_b_v1);
         resolver.add_tool_version(tool_b_v2);
-        
+
         // Resolve dependencies
-        let requirements = vec![
-            ToolDependency::new(
-                "tool_a".to_string(),
-                VersionRequirement::Any,
-            ),
-        ];
-        
+        let requirements = vec![ToolDependency::new(
+            "tool_a".to_string(),
+            VersionRequirement::Any,
+        )];
+
         let result = resolver.resolve_dependencies(requirements).unwrap();
         assert!(result.is_successful());
         assert_eq!(result.resolved_versions.len(), 2);
@@ -638,9 +642,8 @@ mod tests {
 
     // Generator for valid versions
     fn arb_version() -> impl Strategy<Value = Version> {
-        (0u32..100, 0u32..100, 0u32..100).prop_map(|(major, minor, patch)| {
-            Version::new(major, minor, patch)
-        })
+        (0u32..100, 0u32..100, 0u32..100)
+            .prop_map(|(major, minor, patch)| Version::new(major, minor, patch))
     }
 
     // Generator for tool names
@@ -660,14 +663,15 @@ mod tests {
 
     // Generator for tool dependencies
     fn arb_tool_dependency() -> impl Strategy<Value = ToolDependency> {
-        (arb_tool_name(), arb_version_requirement(), any::<bool>())
-            .prop_map(|(name, req, optional)| {
+        (arb_tool_name(), arb_version_requirement(), any::<bool>()).prop_map(
+            |(name, req, optional)| {
                 let mut dep = ToolDependency::new(name, req);
                 if optional {
                     dep = dep.optional();
                 }
                 dep
-            })
+            },
+        )
     }
 
     // Generator for tool versions with dependencies
@@ -675,14 +679,15 @@ mod tests {
         (
             arb_tool_name(),
             arb_version(),
-            prop::collection::vec(arb_tool_dependency(), 0..5)
-        ).prop_map(|(name, version, deps)| {
-            let mut tool_version = ToolVersion::new(name, version);
-            for dep in deps {
-                tool_version = tool_version.with_dependency(dep);
-            }
-            tool_version
-        })
+            prop::collection::vec(arb_tool_dependency(), 0..5),
+        )
+            .prop_map(|(name, version, deps)| {
+                let mut tool_version = ToolVersion::new(name, version);
+                for dep in deps {
+                    tool_version = tool_version.with_dependency(dep);
+                }
+                tool_version
+            })
     }
 
     proptest! {
@@ -697,7 +702,7 @@ mod tests {
             let version = Version::new(major, minor, patch);
             let version_str = version.to_string();
             let parsed_version = Version::from_str(&version_str).unwrap();
-            
+
             prop_assert_eq!(version, parsed_version);
         }
 
@@ -724,7 +729,7 @@ mod tests {
             // For any version and requirement, satisfies should be deterministic
             let satisfies1 = version.satisfies(&requirement);
             let satisfies2 = version.satisfies(&requirement);
-            
+
             prop_assert_eq!(satisfies1, satisfies2);
         }
 
@@ -737,17 +742,17 @@ mod tests {
             // For any set of tool versions and requirements, dependency resolution should be deterministic
             let mut resolver1 = DependencyResolver::new();
             let mut resolver2 = DependencyResolver::new();
-            
+
             // Add the same tool versions to both resolvers
             for tool_version in &tool_versions {
                 resolver1.add_tool_version(tool_version.clone());
                 resolver2.add_tool_version(tool_version.clone());
             }
-            
+
             // Resolve the same requirements
             let result1 = resolver1.resolve_dependencies(requirements.clone());
             let result2 = resolver2.resolve_dependencies(requirements);
-            
+
             // Results should be identical
             match (result1, result2) {
                 (Ok(res1), Ok(res2)) => {
@@ -771,11 +776,11 @@ mod tests {
             // **Feature: workflow-toolkit, Property 14: 工具版本依赖解析**
             // For any successful dependency resolution, there should be no conflicts
             let mut resolver = DependencyResolver::new();
-            
+
             for tool_version in tool_versions {
                 resolver.add_tool_version(tool_version);
             }
-            
+
             if let Ok(result) = resolver.resolve_dependencies(requirements) {
                 if result.is_successful() {
                     prop_assert!(result.conflicts.is_empty());
@@ -791,11 +796,11 @@ mod tests {
             // **Feature: workflow-toolkit, Property 14: 工具版本依赖解析**
             // For any successful resolution, resolved versions should satisfy their requirements
             let mut resolver = DependencyResolver::new();
-            
+
             for tool_version in tool_versions {
                 resolver.add_tool_version(tool_version);
             }
-            
+
             if let Ok(result) = resolver.resolve_dependencies(requirements.clone()) {
                 if result.is_successful() {
                     for requirement in requirements {

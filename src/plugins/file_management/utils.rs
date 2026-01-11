@@ -105,13 +105,10 @@ impl ConflictContext {
     ) -> Self {
         let source_metadata = Self::get_file_metadata(&source_path);
         let target_metadata = Self::get_file_metadata(&target_path);
-        
+
         // Suggest a resolution based on metadata
-        let suggested_resolution = Self::suggest_resolution(
-            &source_metadata,
-            &target_metadata,
-            &operation_type,
-        );
+        let suggested_resolution =
+            Self::suggest_resolution(&source_metadata, &target_metadata, &operation_type);
 
         Self {
             source_path,
@@ -125,16 +122,14 @@ impl ConflictContext {
 
     fn get_file_metadata(path: &Path) -> Option<ConflictFileMetadata> {
         if let Ok(metadata) = std::fs::metadata(path) {
-            let modified = metadata.modified()
-                .ok()
-                .and_then(|time| {
-                    time.duration_since(std::time::UNIX_EPOCH)
-                        .ok()
-                        .map(|duration| {
-                            chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
-                                .unwrap_or_else(chrono::Utc::now)
-                        })
-                });
+            let modified = metadata.modified().ok().and_then(|time| {
+                time.duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .map(|duration| {
+                        chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+                            .unwrap_or_else(chrono::Utc::now)
+                    })
+            });
 
             Some(ConflictFileMetadata {
                 size: metadata.len(),
@@ -160,7 +155,8 @@ impl ConflictContext {
                 }
 
                 // If source is newer, suggest overwrite
-                if let (Some(source_time), Some(target_time)) = (&source.modified, &target.modified) {
+                if let (Some(source_time), Some(target_time)) = (&source.modified, &target.modified)
+                {
                     if source_time > target_time {
                         return ConflictResolution::Overwrite;
                     } else if target_time > source_time {
@@ -249,7 +245,7 @@ impl FileOperationManager {
     /// Get available disk space for a path
     pub fn get_available_space<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<u64> {
         let path = path.as_ref();
-        
+
         // Try to get the parent directory if path doesn't exist
         let check_path = if path.exists() {
             path
@@ -286,17 +282,17 @@ impl FileOperationManager {
         // Define statvfs structure (simplified)
         #[repr(C)]
         struct StatVfs {
-            f_bsize: u64,    // File system block size
-            f_frsize: u64,   // Fragment size
-            f_blocks: u64,   // Size of fs in f_frsize units
-            f_bfree: u64,    // Number of free blocks
-            f_bavail: u64,   // Number of free blocks for unprivileged users
-            f_files: u64,    // Number of inodes
-            f_ffree: u64,    // Number of free inodes
-            f_favail: u64,   // Number of free inodes for unprivileged users
-            f_fsid: u64,     // File system ID
-            f_flag: u64,     // Mount flags
-            f_namemax: u64,  // Maximum filename length
+            f_bsize: u64,   // File system block size
+            f_frsize: u64,  // Fragment size
+            f_blocks: u64,  // Size of fs in f_frsize units
+            f_bfree: u64,   // Number of free blocks
+            f_bavail: u64,  // Number of free blocks for unprivileged users
+            f_files: u64,   // Number of inodes
+            f_ffree: u64,   // Number of free inodes
+            f_favail: u64,  // Number of free inodes for unprivileged users
+            f_fsid: u64,    // File system ID
+            f_flag: u64,    // Mount flags
+            f_namemax: u64, // Maximum filename length
         }
 
         extern "C" {
@@ -315,7 +311,10 @@ impl FileOperationManager {
             Ok(available_space)
         } else {
             // Fallback to a reasonable estimate if statvfs fails
-            warn!("statvfs failed for path {}, using fallback estimate", path.display());
+            warn!(
+                "statvfs failed for path {}, using fallback estimate",
+                path.display()
+            );
             Ok(1024 * 1024 * 1024 * 10) // 10GB estimate
         }
     }
@@ -358,16 +357,22 @@ impl FileOperationManager {
             Ok(free_bytes_available)
         } else {
             // Fallback to a reasonable estimate if Windows API fails
-            warn!("GetDiskFreeSpaceExW failed for path {}, using fallback estimate", path.display());
+            warn!(
+                "GetDiskFreeSpaceExW failed for path {}, using fallback estimate",
+                path.display()
+            );
             Ok(1024 * 1024 * 1024 * 10) // 10GB estimate
         }
     }
 
     /// Get detailed disk space information
-    pub fn get_disk_space_info<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<DiskSpaceInfo> {
+    pub fn get_disk_space_info<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> FileManagementResult<DiskSpaceInfo> {
         let path = path.as_ref();
         let available_space = self.get_available_space(path)?;
-        
+
         // Get total space (simplified - in a real implementation you'd get this from the OS)
         let total_space = available_space * 2; // Rough estimate
         let used_space = total_space - available_space;
@@ -425,13 +430,16 @@ impl FileOperationManager {
     /// Get the filesystem root for a given path
     fn get_filesystem_root<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<PathBuf> {
         let path = path.as_ref();
-        
+
         #[cfg(windows)]
         {
             // On Windows, get the drive letter
             if let Some(prefix) = path.components().next() {
                 if let std::path::Component::Prefix(prefix_component) = prefix {
-                    return Ok(PathBuf::from(format!("{}\\", prefix_component.as_os_str().to_string_lossy())));
+                    return Ok(PathBuf::from(format!(
+                        "{}\\",
+                        prefix_component.as_os_str().to_string_lossy()
+                    )));
                 }
             }
             Ok(PathBuf::from("C:\\")) // Fallback to C: drive
@@ -487,7 +495,10 @@ impl FileOperationManager {
 
             // Check if source exists
             if !source_path.exists() {
-                validation_errors.push(format!("Source path does not exist: {}", source_path.display()));
+                validation_errors.push(format!(
+                    "Source path does not exist: {}",
+                    source_path.display()
+                ));
                 continue;
             }
 
@@ -497,7 +508,7 @@ impl FileOperationManager {
                     // Move operations don't require additional space if on same filesystem
                     let source_root = self.get_filesystem_root(source_path)?;
                     let target_root = self.get_filesystem_root(target_path)?;
-                    
+
                     if source_root == target_root {
                         0 // Same filesystem, no additional space needed
                     } else {
@@ -541,7 +552,10 @@ impl FileOperationManager {
             validation_errors: validation_errors.clone(),
             total_estimated_bytes,
             space_check: space_check.clone(),
-            is_valid: validation_errors.is_empty() && space_check.as_ref().map_or(true, |sc| sc.has_sufficient_space),
+            is_valid: validation_errors.is_empty()
+                && space_check
+                    .as_ref()
+                    .map_or(true, |sc| sc.has_sufficient_space),
         })
     }
 
@@ -557,7 +571,10 @@ impl FileOperationManager {
 
         let available = self.get_available_space(&target_path)?;
         if available < required_bytes {
-            return Err(FileManagementError::insufficient_space(required_bytes, available));
+            return Err(FileManagementError::insufficient_space(
+                required_bytes,
+                available,
+            ));
         }
         Ok(())
     }
@@ -565,7 +582,7 @@ impl FileOperationManager {
     /// Validate that a path is safe for operations
     pub fn validate_path<P: AsRef<Path>>(&self, path: P) -> FileManagementResult<()> {
         let path = path.as_ref();
-        
+
         // Check for null bytes
         if path.to_string_lossy().contains('\0') {
             return Err(FileManagementError::invalid_path(
@@ -576,10 +593,7 @@ impl FileOperationManager {
 
         // Check for extremely long paths
         if path.to_string_lossy().len() > 4096 {
-            return Err(FileManagementError::invalid_path(
-                path,
-                "Path is too long",
-            ));
+            return Err(FileManagementError::invalid_path(path, "Path is too long"));
         }
 
         // Check for invalid characters (platform-specific)
@@ -606,7 +620,8 @@ impl FileOperationManager {
         source: P1,
         target: P2,
     ) -> FileManagementResult<FileOperationResult> {
-        self.execute_operation(source, target, FileOperationType::Move).await
+        self.execute_operation(source, target, FileOperationType::Move)
+            .await
     }
 
     /// Copy a file or directory
@@ -615,7 +630,8 @@ impl FileOperationManager {
         source: P1,
         target: P2,
     ) -> FileManagementResult<FileOperationResult> {
-        self.execute_operation(source, target, FileOperationType::Copy).await
+        self.execute_operation(source, target, FileOperationType::Copy)
+            .await
     }
 
     /// Create a symbolic link
@@ -624,7 +640,8 @@ impl FileOperationManager {
         source: P1,
         target: P2,
     ) -> FileManagementResult<FileOperationResult> {
-        self.execute_operation(source, target, FileOperationType::Link).await
+        self.execute_operation(source, target, FileOperationType::Link)
+            .await
     }
 
     /// Create a hard link
@@ -633,7 +650,8 @@ impl FileOperationManager {
         source: P1,
         target: P2,
     ) -> FileManagementResult<FileOperationResult> {
-        self.execute_operation(source, target, FileOperationType::HardLink).await
+        self.execute_operation(source, target, FileOperationType::HardLink)
+            .await
     }
 
     /// Execute a file operation with atomic behavior and error recovery
@@ -664,7 +682,10 @@ impl FileOperationManager {
         };
 
         // Check disk space requirements (except for links)
-        if matches!(operation_type, FileOperationType::Move | FileOperationType::Copy) {
+        if matches!(
+            operation_type,
+            FileOperationType::Move | FileOperationType::Copy
+        ) {
             self.check_space_requirements(&target_path, source_size)?;
         }
 
@@ -687,7 +708,9 @@ impl FileOperationManager {
         }
 
         // Handle conflicts
-        let final_target = self.resolve_conflict(&source_path, &target_path, &operation_type).await?;
+        let final_target = self
+            .resolve_conflict(&source_path, &target_path, &operation_type)
+            .await?;
         if final_target != target_path {
             target_path = final_target;
         }
@@ -706,7 +729,8 @@ impl FileOperationManager {
             );
             source_size
         } else {
-            self.perform_operation(&source_path, &target_path, &operation_type).await?
+            self.perform_operation(&source_path, &target_path, &operation_type)
+                .await?
         };
 
         let duration = start_time.elapsed().as_millis() as u64;
@@ -728,9 +752,14 @@ impl FileOperationManager {
     }
 
     /// Resolve file conflicts based on the configured strategy
-    async fn resolve_conflict<P: AsRef<Path>>(&self, source_path: &Path, target_path: P, operation_type: &FileOperationType) -> FileManagementResult<PathBuf> {
+    async fn resolve_conflict<P: AsRef<Path>>(
+        &self,
+        source_path: &Path,
+        target_path: P,
+        operation_type: &FileOperationType,
+    ) -> FileManagementResult<PathBuf> {
         let target_path = target_path.as_ref();
-        
+
         if !target_path.exists() {
             return Ok(target_path.to_path_buf());
         }
@@ -742,49 +771,55 @@ impl FileOperationManager {
         );
 
         match self.conflict_resolution {
-            ConflictResolution::Skip => {
-                Err(FileManagementError::conflict_simple(
-                    format!("Target exists and conflict resolution is set to skip: {}", target_path.display())
-                ))
-            }
+            ConflictResolution::Skip => Err(FileManagementError::conflict_simple(format!(
+                "Target exists and conflict resolution is set to skip: {}",
+                target_path.display()
+            ))),
             ConflictResolution::Overwrite => {
                 debug!("Overwriting existing target: {}", target_path.display());
                 Ok(target_path.to_path_buf())
             }
             ConflictResolution::Rename => {
                 let new_path = PathUtils::generate_unique_name(target_path);
-                debug!("Renaming target to avoid conflict: {} -> {}", target_path.display(), new_path.display());
+                debug!(
+                    "Renaming target to avoid conflict: {} -> {}",
+                    target_path.display(),
+                    new_path.display()
+                );
                 Ok(new_path)
             }
-            ConflictResolution::Fail => {
-                Err(FileManagementError::conflict_simple(
-                    format!("Target exists and conflict resolution is set to fail: {}", target_path.display())
-                ))
-            }
+            ConflictResolution::Fail => Err(FileManagementError::conflict_simple(format!(
+                "Target exists and conflict resolution is set to fail: {}",
+                target_path.display()
+            ))),
             ConflictResolution::Ask => {
                 // For now, use the suggested resolution - in a real implementation this would prompt the user
-                warn!("Human decision required for conflict, using suggested resolution: {:?}", conflict_context.suggested_resolution);
+                warn!(
+                    "Human decision required for conflict, using suggested resolution: {:?}",
+                    conflict_context.suggested_resolution
+                );
                 self.apply_suggested_resolution(&conflict_context).await
             }
-            ConflictResolution::Merge => {
-                self.resolve_merge_conflict(&conflict_context).await
-            }
+            ConflictResolution::Merge => self.resolve_merge_conflict(&conflict_context).await,
             ConflictResolution::KeepBoth => {
                 let new_path = PathUtils::generate_unique_name(target_path);
-                debug!("Keeping both files, renaming target: {} -> {}", target_path.display(), new_path.display());
+                debug!(
+                    "Keeping both files, renaming target: {} -> {}",
+                    target_path.display(),
+                    new_path.display()
+                );
                 Ok(new_path)
             }
-            ConflictResolution::KeepNewer => {
-                self.resolve_by_date(&conflict_context, true).await
-            }
-            ConflictResolution::KeepLarger => {
-                self.resolve_by_size(&conflict_context, true).await
-            }
+            ConflictResolution::KeepNewer => self.resolve_by_date(&conflict_context, true).await,
+            ConflictResolution::KeepLarger => self.resolve_by_size(&conflict_context, true).await,
         }
     }
 
     /// Apply the suggested resolution from conflict context
-    async fn apply_suggested_resolution(&self, context: &ConflictContext) -> FileManagementResult<PathBuf> {
+    async fn apply_suggested_resolution(
+        &self,
+        context: &ConflictContext,
+    ) -> FileManagementResult<PathBuf> {
         match context.suggested_resolution {
             ConflictResolution::Overwrite => Ok(context.target_path.clone()),
             ConflictResolution::Rename | ConflictResolution::KeepBoth => {
@@ -796,61 +831,99 @@ impl FileOperationManager {
     }
 
     /// Resolve merge conflicts for directories
-    async fn resolve_merge_conflict(&self, context: &ConflictContext) -> FileManagementResult<PathBuf> {
-        if let (Some(source_meta), Some(target_meta)) = (&context.source_metadata, &context.target_metadata) {
+    async fn resolve_merge_conflict(
+        &self,
+        context: &ConflictContext,
+    ) -> FileManagementResult<PathBuf> {
+        if let (Some(source_meta), Some(target_meta)) =
+            (&context.source_metadata, &context.target_metadata)
+        {
             if source_meta.is_directory && target_meta.is_directory {
                 // For directory merges, we return the target path and handle merging in the operation
-                debug!("Directory merge conflict resolved: merging into {}", context.target_path.display());
+                debug!(
+                    "Directory merge conflict resolved: merging into {}",
+                    context.target_path.display()
+                );
                 return Ok(context.target_path.clone());
             }
         }
-        
+
         // For non-directories, fall back to rename
         Ok(PathUtils::generate_unique_name(&context.target_path))
     }
 
     /// Resolve conflict by comparing file dates
-    async fn resolve_by_date(&self, context: &ConflictContext, keep_newer: bool) -> FileManagementResult<PathBuf> {
-        if let (Some(source_meta), Some(target_meta)) = (&context.source_metadata, &context.target_metadata) {
-            if let (Some(source_time), Some(target_time)) = (&source_meta.modified, &target_meta.modified) {
+    async fn resolve_by_date(
+        &self,
+        context: &ConflictContext,
+        keep_newer: bool,
+    ) -> FileManagementResult<PathBuf> {
+        if let (Some(source_meta), Some(target_meta)) =
+            (&context.source_metadata, &context.target_metadata)
+        {
+            if let (Some(source_time), Some(target_time)) =
+                (&source_meta.modified, &target_meta.modified)
+            {
                 let source_is_newer = source_time > target_time;
-                
+
                 if (keep_newer && source_is_newer) || (!keep_newer && !source_is_newer) {
-                    debug!("Resolving by date: overwriting target (source is {})", 
-                           if source_is_newer { "newer" } else { "older" });
+                    debug!(
+                        "Resolving by date: overwriting target (source is {})",
+                        if source_is_newer { "newer" } else { "older" }
+                    );
                     return Ok(context.target_path.clone());
                 } else {
-                    debug!("Resolving by date: keeping target (target is {})", 
-                           if source_is_newer { "older" } else { "newer" });
+                    debug!(
+                        "Resolving by date: keeping target (target is {})",
+                        if source_is_newer { "older" } else { "newer" }
+                    );
                     return Err(FileManagementError::conflict_simple(
-                        "Target is newer/older, skipping operation"
+                        "Target is newer/older, skipping operation",
                     ));
                 }
             }
         }
-        
+
         // If we can't compare dates, fall back to rename
         Ok(PathUtils::generate_unique_name(&context.target_path))
     }
 
     /// Resolve conflict by comparing file sizes
-    async fn resolve_by_size(&self, context: &ConflictContext, keep_larger: bool) -> FileManagementResult<PathBuf> {
-        if let (Some(source_meta), Some(target_meta)) = (&context.source_metadata, &context.target_metadata) {
+    async fn resolve_by_size(
+        &self,
+        context: &ConflictContext,
+        keep_larger: bool,
+    ) -> FileManagementResult<PathBuf> {
+        if let (Some(source_meta), Some(target_meta)) =
+            (&context.source_metadata, &context.target_metadata)
+        {
             let source_is_larger = source_meta.size > target_meta.size;
-            
+
             if (keep_larger && source_is_larger) || (!keep_larger && !source_is_larger) {
-                debug!("Resolving by size: overwriting target (source is {})", 
-                       if source_is_larger { "larger" } else { "smaller" });
+                debug!(
+                    "Resolving by size: overwriting target (source is {})",
+                    if source_is_larger {
+                        "larger"
+                    } else {
+                        "smaller"
+                    }
+                );
                 return Ok(context.target_path.clone());
             } else {
-                debug!("Resolving by size: keeping target (target is {})", 
-                       if source_is_larger { "smaller" } else { "larger" });
+                debug!(
+                    "Resolving by size: keeping target (target is {})",
+                    if source_is_larger {
+                        "smaller"
+                    } else {
+                        "larger"
+                    }
+                );
                 return Err(FileManagementError::conflict_simple(
-                    "Target is larger/smaller, skipping operation"
+                    "Target is larger/smaller, skipping operation",
                 ));
             }
         }
-        
+
         // If we can't compare sizes, fall back to rename
         Ok(PathUtils::generate_unique_name(&context.target_path))
     }
@@ -863,23 +936,19 @@ impl FileOperationManager {
         operation_type: &FileOperationType,
     ) -> FileManagementResult<u64> {
         match operation_type {
-            FileOperationType::Move => {
-                self.perform_move(source_path, target_path).await
-            }
-            FileOperationType::Copy => {
-                self.perform_copy(source_path, target_path).await
-            }
-            FileOperationType::Link => {
-                self.perform_symlink(source_path, target_path).await
-            }
-            FileOperationType::HardLink => {
-                self.perform_hardlink(source_path, target_path).await
-            }
+            FileOperationType::Move => self.perform_move(source_path, target_path).await,
+            FileOperationType::Copy => self.perform_copy(source_path, target_path).await,
+            FileOperationType::Link => self.perform_symlink(source_path, target_path).await,
+            FileOperationType::HardLink => self.perform_hardlink(source_path, target_path).await,
         }
     }
 
     /// Perform atomic move operation
-    async fn perform_move(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+    async fn perform_move(
+        &self,
+        source_path: &Path,
+        target_path: &Path,
+    ) -> FileManagementResult<u64> {
         let source_size = if source_path.is_file() {
             PathUtils::get_file_size(source_path)?
         } else {
@@ -889,71 +958,97 @@ impl FileOperationManager {
         // Try atomic rename first (works if on same filesystem)
         match std::fs::rename(source_path, target_path) {
             Ok(_) => {
-                debug!("Atomic move successful: {} -> {}", source_path.display(), target_path.display());
+                debug!(
+                    "Atomic move successful: {} -> {}",
+                    source_path.display(),
+                    target_path.display()
+                );
                 Ok(source_size)
             }
             Err(e) => {
                 // If atomic rename fails, fall back to copy + delete
                 warn!("Atomic move failed, falling back to copy+delete: {}", e);
-                
+
                 // Create a temporary target to ensure atomicity
                 let temp_target = self.create_temp_path(target_path)?;
-                
+
                 // Copy to temporary location first
                 let copied_size = self.perform_copy(source_path, &temp_target).await?;
-                
+
                 // Atomically move temp to final location
                 std::fs::rename(&temp_target, target_path).map_err(|e| {
                     // Clean up temp file on failure
                     let _ = std::fs::remove_file(&temp_target);
                     FileManagementError::io(
-                        format!("Failed to move temp file to target: {} -> {}", 
-                               temp_target.display(), target_path.display()),
+                        format!(
+                            "Failed to move temp file to target: {} -> {}",
+                            temp_target.display(),
+                            target_path.display()
+                        ),
                         e,
                     )
                 })?;
-                
+
                 // Remove source after successful copy
                 if source_path.is_dir() {
                     std::fs::remove_dir_all(source_path).map_err(|e| {
                         FileManagementError::io(
-                            format!("Failed to remove source directory after move: {}", source_path.display()),
+                            format!(
+                                "Failed to remove source directory after move: {}",
+                                source_path.display()
+                            ),
                             e,
                         )
                     })?;
                 } else {
                     std::fs::remove_file(source_path).map_err(|e| {
                         FileManagementError::io(
-                            format!("Failed to remove source file after move: {}", source_path.display()),
+                            format!(
+                                "Failed to remove source file after move: {}",
+                                source_path.display()
+                            ),
                             e,
                         )
                     })?;
                 }
-                
+
                 Ok(copied_size)
             }
         }
     }
 
     /// Perform copy operation
-    async fn perform_copy(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+    async fn perform_copy(
+        &self,
+        source_path: &Path,
+        target_path: &Path,
+    ) -> FileManagementResult<u64> {
         if source_path.is_file() {
             self.copy_file_atomic(source_path, target_path).await
         } else {
             // Check if target exists and is a directory for potential merging
-            if target_path.exists() && target_path.is_dir() && self.conflict_resolution == ConflictResolution::Merge {
+            if target_path.exists()
+                && target_path.is_dir()
+                && self.conflict_resolution == ConflictResolution::Merge
+            {
                 self.merge_directories(source_path, target_path).await
             } else {
-                self.copy_directory_recursive(source_path, target_path).await
+                self.copy_directory_recursive(source_path, target_path)
+                    .await
             }
         }
     }
 
     /// Merge source directory into existing target directory
-    fn merge_directories<'a>(&'a self, source_path: &'a Path, target_path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<u64>> + Send + 'a>> {
+    fn merge_directories<'a>(
+        &'a self,
+        source_path: &'a Path,
+        target_path: &'a Path,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<u64>> + Send + 'a>>
+    {
         Box::pin(async move {
             let mut total_bytes = 0;
-            
+
             // Read source directory
             let mut entries = tokio::fs::read_dir(source_path).await.map_err(|e| {
                 FileManagementError::io(
@@ -961,79 +1056,107 @@ impl FileOperationManager {
                     e,
                 )
             })?;
-            
+
             while let Some(entry) = entries.next_entry().await.map_err(|e| {
                 FileManagementError::io(
-                    format!("Failed to read directory entry in {}", source_path.display()),
+                    format!(
+                        "Failed to read directory entry in {}",
+                        source_path.display()
+                    ),
                     e,
                 )
             })? {
                 let entry_path = entry.path();
                 let entry_name = entry.file_name();
                 let target_entry = target_path.join(entry_name);
-                
+
                 if entry_path.is_dir() {
                     if target_entry.exists() && target_entry.is_dir() {
                         // Recursively merge subdirectories
                         total_bytes += self.merge_directories(&entry_path, &target_entry).await?;
                     } else {
                         // Copy directory normally
-                        total_bytes += self.copy_directory_recursive(&entry_path, &target_entry).await?;
+                        total_bytes += self
+                            .copy_directory_recursive(&entry_path, &target_entry)
+                            .await?;
                     }
                 } else {
                     // For files, apply conflict resolution
                     if target_entry.exists() {
-                        let resolved_target = self.resolve_conflict(&entry_path, &target_entry, &FileOperationType::Copy).await?;
+                        let resolved_target = self
+                            .resolve_conflict(&entry_path, &target_entry, &FileOperationType::Copy)
+                            .await?;
                         total_bytes += self.copy_file_atomic(&entry_path, &resolved_target).await?;
                     } else {
                         total_bytes += self.copy_file_atomic(&entry_path, &target_entry).await?;
                     }
                 }
             }
-            
+
             Ok(total_bytes)
         })
     }
 
     /// Atomic file copy
-    async fn copy_file_atomic(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+    async fn copy_file_atomic(
+        &self,
+        source_path: &Path,
+        target_path: &Path,
+    ) -> FileManagementResult<u64> {
         let temp_target = self.create_temp_path(target_path)?;
-        
+
         // Copy to temporary file first
-        let bytes_copied = tokio::fs::copy(source_path, &temp_target).await.map_err(|e| {
-            FileManagementError::io(
-                format!("Failed to copy {} to temp file {}", source_path.display(), temp_target.display()),
-                e,
-            )
-        })?;
-        
+        let bytes_copied = tokio::fs::copy(source_path, &temp_target)
+            .await
+            .map_err(|e| {
+                FileManagementError::io(
+                    format!(
+                        "Failed to copy {} to temp file {}",
+                        source_path.display(),
+                        temp_target.display()
+                    ),
+                    e,
+                )
+            })?;
+
         // Atomically move temp file to final location
         std::fs::rename(&temp_target, target_path).map_err(|e| {
             // Clean up temp file on failure
             let _ = std::fs::remove_file(&temp_target);
             FileManagementError::io(
-                format!("Failed to move temp file to target: {} -> {}", 
-                       temp_target.display(), target_path.display()),
+                format!(
+                    "Failed to move temp file to target: {} -> {}",
+                    temp_target.display(),
+                    target_path.display()
+                ),
                 e,
             )
         })?;
-        
+
         Ok(bytes_copied)
     }
 
     /// Recursive directory copy
-    fn copy_directory_recursive<'a>(&'a self, source_path: &'a Path, target_path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<u64>> + Send + 'a>> {
+    fn copy_directory_recursive<'a>(
+        &'a self,
+        source_path: &'a Path,
+        target_path: &'a Path,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<u64>> + Send + 'a>>
+    {
         Box::pin(async move {
             let mut total_bytes = 0;
-            
+
             // Create target directory
             tokio::fs::create_dir_all(target_path).await.map_err(|e| {
                 FileManagementError::io(
-                    format!("Failed to create target directory {}", target_path.display()),
+                    format!(
+                        "Failed to create target directory {}",
+                        target_path.display()
+                    ),
                     e,
                 )
             })?;
-            
+
             // Read source directory
             let mut entries = tokio::fs::read_dir(source_path).await.map_err(|e| {
                 FileManagementError::io(
@@ -1041,105 +1164,135 @@ impl FileOperationManager {
                     e,
                 )
             })?;
-            
+
             while let Some(entry) = entries.next_entry().await.map_err(|e| {
                 FileManagementError::io(
-                    format!("Failed to read directory entry in {}", source_path.display()),
+                    format!(
+                        "Failed to read directory entry in {}",
+                        source_path.display()
+                    ),
                     e,
                 )
             })? {
                 let entry_path = entry.path();
                 let entry_name = entry.file_name();
                 let target_entry = target_path.join(entry_name);
-                
+
                 if entry_path.is_dir() {
-                    total_bytes += self.copy_directory_recursive(&entry_path, &target_entry).await?;
+                    total_bytes += self
+                        .copy_directory_recursive(&entry_path, &target_entry)
+                        .await?;
                 } else {
                     total_bytes += self.copy_file_atomic(&entry_path, &target_entry).await?;
                 }
             }
-            
+
             Ok(total_bytes)
         })
     }
 
     /// Create symbolic link
-    async fn perform_symlink(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+    async fn perform_symlink(
+        &self,
+        source_path: &Path,
+        target_path: &Path,
+    ) -> FileManagementResult<u64> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
             symlink(source_path, target_path).map_err(|e| {
                 FileManagementError::io(
-                    format!("Failed to create symlink {} -> {}", target_path.display(), source_path.display()),
+                    format!(
+                        "Failed to create symlink {} -> {}",
+                        target_path.display(),
+                        source_path.display()
+                    ),
                     e,
                 )
             })?;
         }
-        
+
         #[cfg(windows)]
         {
             use std::os::windows::fs::{symlink_dir, symlink_file};
             if source_path.is_dir() {
                 symlink_dir(source_path, target_path).map_err(|e| {
                     FileManagementError::io(
-                        format!("Failed to create directory symlink {} -> {}", target_path.display(), source_path.display()),
+                        format!(
+                            "Failed to create directory symlink {} -> {}",
+                            target_path.display(),
+                            source_path.display()
+                        ),
                         e,
                     )
                 })?;
             } else {
                 symlink_file(source_path, target_path).map_err(|e| {
                     FileManagementError::io(
-                        format!("Failed to create file symlink {} -> {}", target_path.display(), source_path.display()),
+                        format!(
+                            "Failed to create file symlink {} -> {}",
+                            target_path.display(),
+                            source_path.display()
+                        ),
                         e,
                     )
                 })?;
             }
         }
-        
+
         #[cfg(not(any(unix, windows)))]
         {
             return Err(FileManagementError::unsupported_operation(
-                "Symbolic links not supported on this platform"
+                "Symbolic links not supported on this platform",
             ));
         }
-        
+
         Ok(0) // Symlinks don't consume additional space
     }
 
     /// Create hard link
-    async fn perform_hardlink(&self, source_path: &Path, target_path: &Path) -> FileManagementResult<u64> {
+    async fn perform_hardlink(
+        &self,
+        source_path: &Path,
+        target_path: &Path,
+    ) -> FileManagementResult<u64> {
         if source_path.is_dir() {
             return Err(FileManagementError::unsupported_operation(
-                "Hard links to directories are not supported"
+                "Hard links to directories are not supported",
             ));
         }
-        
+
         std::fs::hard_link(source_path, target_path).map_err(|e| {
             FileManagementError::io(
-                format!("Failed to create hard link {} -> {}", target_path.display(), source_path.display()),
+                format!(
+                    "Failed to create hard link {} -> {}",
+                    target_path.display(),
+                    source_path.display()
+                ),
                 e,
             )
         })?;
-        
+
         Ok(0) // Hard links don't consume additional space
     }
 
     /// Create a temporary path for atomic operations
     fn create_temp_path(&self, target_path: &Path) -> FileManagementResult<PathBuf> {
         let temp_name = format!(
-            ".tmp_{}_{}", 
-            target_path.file_name()
+            ".tmp_{}_{}",
+            target_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("file"),
             uuid::Uuid::new_v4().simple()
         );
-        
+
         let temp_path = if let Some(parent) = target_path.parent() {
             parent.join(temp_name)
         } else {
             self.temp_directory.join(temp_name)
         };
-        
+
         Ok(temp_path)
     }
 
@@ -1149,12 +1302,12 @@ impl FileOperationManager {
         operations: Vec<(P1, P2, FileOperationType)>,
     ) -> Vec<FileManagementResult<FileOperationResult>> {
         let mut results = Vec::new();
-        
+
         for (source, target, op_type) in operations {
             let result = self.execute_operation(source, target, op_type).await;
             results.push(result);
         }
-        
+
         results
     }
 }
@@ -1162,11 +1315,11 @@ impl FileOperationManager {
 /// Pinyin conversion styles
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PinyinStyle {
-    Normal,        // ni3 hao3
-    WithTone,      // nǐ hǎo
-    WithoutTone,   // ni hao
-    FirstLetter,   // n h
-    Numeric,       // ni3 hao3
+    Normal,      // ni3 hao3
+    WithTone,    // nǐ hǎo
+    WithoutTone, // ni hao
+    FirstLetter, // n h
+    Numeric,     // ni3 hao3
 }
 
 /// Pinyin conversion result
@@ -1232,7 +1385,7 @@ pub struct TextProcessor {
 impl TextProcessor {
     /// Create a new text processor
     pub fn new(enable_chinese: bool) -> Self {
-        Self { 
+        Self {
             enable_chinese,
             normalization_config: TextNormalizationConfig::default(),
         }
@@ -1272,9 +1425,7 @@ impl TextProcessor {
     /// Remove punctuation characters
     pub fn remove_punctuation(&self, text: &str) -> String {
         if self.normalization_config.remove_punctuation {
-            text.chars()
-                .filter(|c| !c.is_ascii_punctuation())
-                .collect()
+            text.chars().filter(|c| !c.is_ascii_punctuation()).collect()
         } else {
             text.to_string()
         }
@@ -1301,9 +1452,7 @@ impl TextProcessor {
     /// Filter specific characters
     pub fn filter_characters(&self, text: &str) -> String {
         if let Some(ref filter_chars) = self.normalization_config.filter_characters {
-            text.chars()
-                .filter(|c| !filter_chars.contains(c))
-                .collect()
+            text.chars().filter(|c| !filter_chars.contains(c)).collect()
         } else {
             text.to_string()
         }
@@ -1323,7 +1472,7 @@ impl TextProcessor {
     /// Comprehensive text normalization
     pub fn normalize_text(&self, text: &str) -> String {
         let mut result = text.to_string();
-        
+
         // Apply normalization steps in order
         result = self.normalize_unicode(&result);
         result = self.normalize_case(&result);
@@ -1331,7 +1480,7 @@ impl TextProcessor {
         result = self.remove_punctuation(&result);
         result = self.preserve_alphanumeric_only(&result);
         result = self.normalize_whitespace(&result);
-        
+
         result
     }
 
@@ -1342,9 +1491,7 @@ impl TextProcessor {
             self.segment_chinese_text(text)
         } else {
             // For non-Chinese text, simple whitespace splitting
-            text.split_whitespace()
-                .map(|s| s.to_string())
-                .collect()
+            text.split_whitespace().map(|s| s.to_string()).collect()
         }
     }
 
@@ -1352,7 +1499,7 @@ impl TextProcessor {
     fn segment_chinese_text(&self, text: &str) -> Vec<String> {
         let mut segments = Vec::new();
         let mut current_segment = String::new();
-        
+
         for ch in text.chars() {
             if self.is_chinese_char(ch) {
                 // For Chinese characters, each character can be a segment
@@ -1370,11 +1517,11 @@ impl TextProcessor {
                 current_segment.push(ch);
             }
         }
-        
+
         if !current_segment.is_empty() {
             segments.push(current_segment);
         }
-        
+
         segments
     }
 
@@ -1415,11 +1562,11 @@ impl TextProcessor {
         if !self.enable_chinese {
             return text.to_string();
         }
-        
+
         // Enhanced traditional to simplified conversion
         // This is still a basic implementation - in production you'd use a proper library
         let mut result = text.to_string();
-        
+
         // Common traditional to simplified mappings
         let mappings = [
             ("繁體", "繁体"),
@@ -1453,11 +1600,11 @@ impl TextProcessor {
             ("多型", "多态"),
             ("抽象", "抽象"),
         ];
-        
+
         for (traditional, simplified) in &mappings {
             result = result.replace(traditional, simplified);
         }
-        
+
         debug!("Converted traditional Chinese: {} -> {}", text, result);
         result
     }
@@ -1475,7 +1622,7 @@ impl TextProcessor {
         for ch in text.chars() {
             if self.is_chinese_char(ch) {
                 total_chinese_chars += 1;
-                
+
                 // Check if character is likely traditional or simplified
                 if self.is_likely_traditional_char(ch) {
                     traditional_count += 1;
@@ -1506,22 +1653,94 @@ impl TextProcessor {
     /// Check if character is likely traditional Chinese
     fn is_likely_traditional_char(&self, c: char) -> bool {
         // Common traditional Chinese characters that have simplified variants
-        matches!(c, 
-            '繁' | '體' | '國' | '學' | '電' | '網' | '資' | '檔' | '軟' | '開' |
-            '測' | '設' | '應' | '統' | '處' | '執' | '運' | '環' | '變' | '數' |
-            '類' | '別' | '物' | '件' | '屬' | '性' | '實' | '作' | '繼' | '承' |
-            '封' | '裝' | '態' | '象' | '議' | '題' | '問' | '題' | '決' | '議'
+        matches!(
+            c,
+            '繁' | '體'
+                | '國'
+                | '學'
+                | '電'
+                | '網'
+                | '資'
+                | '檔'
+                | '軟'
+                | '開'
+                | '測'
+                | '設'
+                | '應'
+                | '統'
+                | '處'
+                | '執'
+                | '運'
+                | '環'
+                | '變'
+                | '數'
+                | '類'
+                | '別'
+                | '物'
+                | '件'
+                | '屬'
+                | '性'
+                | '實'
+                | '作'
+                | '繼'
+                | '承'
+                | '封'
+                | '裝'
+                | '態'
+                | '象'
+                | '議'
+                | '題'
+                | '問'
+                | '題'
+                | '決'
+                | '議'
         )
     }
 
     /// Check if character is likely simplified Chinese
     fn is_likely_simplified_char(&self, c: char) -> bool {
         // Common simplified Chinese characters
-        matches!(c,
-            '简' | '体' | '国' | '学' | '电' | '网' | '资' | '档' | '软' | '开' |
-            '测' | '设' | '应' | '统' | '处' | '执' | '运' | '环' | '变' | '量' |
-            '类' | '别' | '对' | '象' | '属' | '性' | '实' | '现' | '继' | '承' |
-            '封' | '装' | '态' | '象' | '议' | '题' | '问' | '题' | '决' | '议'
+        matches!(
+            c,
+            '简' | '体'
+                | '国'
+                | '学'
+                | '电'
+                | '网'
+                | '资'
+                | '档'
+                | '软'
+                | '开'
+                | '测'
+                | '设'
+                | '应'
+                | '统'
+                | '处'
+                | '执'
+                | '运'
+                | '环'
+                | '变'
+                | '量'
+                | '类'
+                | '别'
+                | '对'
+                | '象'
+                | '属'
+                | '性'
+                | '实'
+                | '现'
+                | '继'
+                | '承'
+                | '封'
+                | '装'
+                | '态'
+                | '象'
+                | '议'
+                | '题'
+                | '问'
+                | '题'
+                | '决'
+                | '议'
         )
     }
 
@@ -1531,16 +1750,12 @@ impl TextProcessor {
             return String::new();
         }
 
-        text.chars()
-            .filter(|&c| self.is_chinese_char(c))
-            .collect()
+        text.chars().filter(|&c| self.is_chinese_char(c)).collect()
     }
 
     /// Extract non-Chinese characters from mixed text
     pub fn extract_non_chinese_chars(&self, text: &str) -> String {
-        text.chars()
-            .filter(|&c| !self.is_chinese_char(c))
-            .collect()
+        text.chars().filter(|&c| !self.is_chinese_char(c)).collect()
     }
 
     /// Process mixed Chinese and English text
@@ -1548,7 +1763,7 @@ impl TextProcessor {
         let chinese_chars = self.extract_chinese_chars(text);
         let non_chinese_chars = self.extract_non_chinese_chars(text);
         let chinese_type = self.detect_chinese_type(text);
-        
+
         let simplified_chinese = if chinese_type == ChineseTextType::Traditional {
             self.convert_traditional(&chinese_chars)
         } else {
@@ -1581,14 +1796,14 @@ impl TextProcessor {
         }
 
         let mut variants = Vec::new();
-        
+
         // Basic pinyin mapping for common Chinese characters
         // In a real implementation, you would use a comprehensive pinyin dictionary
         let pinyin_map = self.get_basic_pinyin_map();
-        
+
         let mut current_variant = String::new();
         let mut has_chinese = false;
-        
+
         for ch in text.chars() {
             if self.is_chinese_char(ch) {
                 has_chinese = true;
@@ -1605,27 +1820,29 @@ impl TextProcessor {
                 current_variant.push(ch);
             }
         }
-        
+
         if has_chinese {
             variants.push(current_variant);
-            
+
             // Generate additional variants for different styles
             match style {
                 PinyinStyle::Normal => {
-                    variants.extend(self.generate_pinyin_with_style(text, &PinyinStyle::WithoutTone));
-                    variants.extend(self.generate_pinyin_with_style(text, &PinyinStyle::FirstLetter));
+                    variants
+                        .extend(self.generate_pinyin_with_style(text, &PinyinStyle::WithoutTone));
+                    variants
+                        .extend(self.generate_pinyin_with_style(text, &PinyinStyle::FirstLetter));
                 }
                 _ => {}
             }
         } else {
             variants.push(text.to_string());
         }
-        
+
         // Remove duplicates and empty strings
         variants.sort();
         variants.dedup();
         variants.retain(|s| !s.trim().is_empty());
-        
+
         debug!("Generated pinyin variants for '{}': {:?}", text, variants);
         variants
     }
@@ -1636,9 +1853,7 @@ impl TextProcessor {
             PinyinStyle::Normal | PinyinStyle::Numeric => pinyin.to_string(),
             PinyinStyle::WithTone => self.convert_numeric_tone_to_diacritic(pinyin),
             PinyinStyle::WithoutTone => self.remove_tone_marks(pinyin),
-            PinyinStyle::FirstLetter => {
-                pinyin.chars().next().unwrap_or(' ').to_string()
-            }
+            PinyinStyle::FirstLetter => pinyin.chars().next().unwrap_or(' ').to_string(),
         }
     }
 
@@ -1646,19 +1861,37 @@ impl TextProcessor {
     fn convert_numeric_tone_to_diacritic(&self, pinyin: &str) -> String {
         // Basic tone mark conversion
         let tone_map = [
-            ("a1", "ā"), ("a2", "á"), ("a3", "ǎ"), ("a4", "à"),
-            ("e1", "ē"), ("e2", "é"), ("e3", "ě"), ("e4", "è"),
-            ("i1", "ī"), ("i2", "í"), ("i3", "ǐ"), ("i4", "ì"),
-            ("o1", "ō"), ("o2", "ó"), ("o3", "ǒ"), ("o4", "ò"),
-            ("u1", "ū"), ("u2", "ú"), ("u3", "ǔ"), ("u4", "ù"),
-            ("v1", "ǖ"), ("v2", "ǘ"), ("v3", "ǚ"), ("v4", "ǜ"),
+            ("a1", "ā"),
+            ("a2", "á"),
+            ("a3", "ǎ"),
+            ("a4", "à"),
+            ("e1", "ē"),
+            ("e2", "é"),
+            ("e3", "ě"),
+            ("e4", "è"),
+            ("i1", "ī"),
+            ("i2", "í"),
+            ("i3", "ǐ"),
+            ("i4", "ì"),
+            ("o1", "ō"),
+            ("o2", "ó"),
+            ("o3", "ǒ"),
+            ("o4", "ò"),
+            ("u1", "ū"),
+            ("u2", "ú"),
+            ("u3", "ǔ"),
+            ("u4", "ù"),
+            ("v1", "ǖ"),
+            ("v2", "ǘ"),
+            ("v3", "ǚ"),
+            ("v4", "ǜ"),
         ];
-        
+
         let mut result = pinyin.to_string();
         for (numeric, diacritic) in &tone_map {
             result = result.replace(numeric, diacritic);
         }
-        
+
         // Remove remaining numbers
         result = result.chars().filter(|c| !c.is_ascii_digit()).collect();
         result
@@ -1667,19 +1900,37 @@ impl TextProcessor {
     /// Remove tone marks from pinyin
     fn remove_tone_marks(&self, pinyin: &str) -> String {
         let tone_map = [
-            ("ā", "a"), ("á", "a"), ("ǎ", "a"), ("à", "a"),
-            ("ē", "e"), ("é", "e"), ("ě", "e"), ("è", "e"),
-            ("ī", "i"), ("í", "i"), ("ǐ", "i"), ("ì", "i"),
-            ("ō", "o"), ("ó", "o"), ("ǒ", "o"), ("ò", "o"),
-            ("ū", "u"), ("ú", "u"), ("ǔ", "u"), ("ù", "u"),
-            ("ǖ", "v"), ("ǘ", "v"), ("ǚ", "v"), ("ǜ", "v"),
+            ("ā", "a"),
+            ("á", "a"),
+            ("ǎ", "a"),
+            ("à", "a"),
+            ("ē", "e"),
+            ("é", "e"),
+            ("ě", "e"),
+            ("è", "e"),
+            ("ī", "i"),
+            ("í", "i"),
+            ("ǐ", "i"),
+            ("ì", "i"),
+            ("ō", "o"),
+            ("ó", "o"),
+            ("ǒ", "o"),
+            ("ò", "o"),
+            ("ū", "u"),
+            ("ú", "u"),
+            ("ǔ", "u"),
+            ("ù", "u"),
+            ("ǖ", "v"),
+            ("ǘ", "v"),
+            ("ǚ", "v"),
+            ("ǜ", "v"),
         ];
-        
+
         let mut result = pinyin.to_string();
         for (diacritic, base) in &tone_map {
             result = result.replace(diacritic, base);
         }
-        
+
         // Remove numbers
         result = result.chars().filter(|c| !c.is_ascii_digit()).collect();
         result
@@ -1688,7 +1939,7 @@ impl TextProcessor {
     /// Get basic pinyin mapping for common characters
     fn get_basic_pinyin_map(&self) -> HashMap<char, Vec<String>> {
         let mut map = HashMap::new();
-        
+
         // Common Chinese characters with their pinyin
         // This is a very basic set - a real implementation would have thousands
         map.insert('中', vec!["zhong1".to_string()]);
@@ -1720,7 +1971,7 @@ impl TextProcessor {
         map.insert('系', vec!["xi4".to_string()]);
         map.insert('统', vec!["tong3".to_string()]);
         map.insert('統', vec!["tong3".to_string()]);
-        
+
         map
     }
 
@@ -1728,7 +1979,7 @@ impl TextProcessor {
     pub fn generate_comprehensive_pinyin(&self, text: &str, style: PinyinStyle) -> PinyinResult {
         let pinyin_variants = self.generate_pinyin_with_style(text, &style);
         let combinations = self.create_combinations(text, &pinyin_variants);
-        
+
         PinyinResult {
             original: text.to_string(),
             pinyin_variants,
@@ -1740,22 +1991,22 @@ impl TextProcessor {
     /// Create keyword combinations
     pub fn create_combinations(&self, original: &str, variants: &[String]) -> Vec<Vec<String>> {
         let mut combinations = Vec::new();
-        
+
         // Add original
         combinations.push(vec![original.to_string()]);
-        
+
         // Add variants
         for variant in variants {
             combinations.push(vec![variant.clone()]);
         }
-        
+
         // Add combinations of original + variants
         for variant in variants {
             if variant != original {
                 combinations.push(vec![original.to_string(), variant.clone()]);
             }
         }
-        
+
         combinations
     }
 }
@@ -1785,10 +2036,7 @@ impl PathUtils {
         }
 
         let entries = std::fs::read_dir(path).map_err(|e| {
-            FileManagementError::io(
-                format!("Failed to read directory {}", path.display()),
-                e,
-            )
+            FileManagementError::io(format!("Failed to read directory {}", path.display()), e)
         })?;
 
         for entry in entries {
@@ -1798,7 +2046,7 @@ impl PathUtils {
                     e,
                 )
             })?;
-            
+
             let entry_path = entry.path();
             if entry_path.is_dir() {
                 total_size += Self::get_directory_size(&entry_path)?;
@@ -1821,7 +2069,7 @@ impl PathUtils {
     /// Generate a unique filename if the target already exists
     pub fn generate_unique_name<P: AsRef<Path>>(target_path: P) -> PathBuf {
         let path = target_path.as_ref();
-        
+
         if !path.exists() {
             return path.to_path_buf();
         }
@@ -1836,7 +2084,7 @@ impl PathUtils {
             } else {
                 format!("{}_{}", stem, i)
             };
-            
+
             let new_path = parent.join(new_name);
             if !new_path.exists() {
                 return new_path;
@@ -1851,7 +2099,7 @@ impl PathUtils {
         } else {
             format!("{}_{}", stem, timestamp)
         };
-        
+
         parent.join(new_name)
     }
 }
@@ -1899,9 +2147,9 @@ impl ValidationUtils {
     /// Validate that a directory exists and is writable
     pub fn validate_writable_directory<P: AsRef<Path>>(path: P) -> FileManagementResult<()> {
         let path = path.as_ref();
-        
+
         Self::validate_path_exists(path)?;
-        
+
         if !path.is_dir() {
             return Err(FileManagementError::invalid_path(
                 path,
@@ -1963,10 +2211,7 @@ pub struct ExperimentalOperation {
 }
 
 impl ExperimentalOperation {
-    pub fn new<S: Into<String>>(
-        operation_type: S,
-        description: S,
-    ) -> Self {
+    pub fn new<S: Into<String>>(operation_type: S, description: S) -> Self {
         Self {
             operation_type: operation_type.into(),
             source_path: None,
@@ -2131,9 +2376,15 @@ impl FolderMerger {
     }
 
     /// Compare folders across multiple source directories to identify merge candidates
-    pub fn compare_folders<P: AsRef<Path>>(&self, source_directories: &[P]) -> FileManagementResult<FolderComparisonResult> {
-        debug!("Comparing folders across {} source directories", source_directories.len());
-        
+    pub fn compare_folders<P: AsRef<Path>>(
+        &self,
+        source_directories: &[P],
+    ) -> FileManagementResult<FolderComparisonResult> {
+        debug!(
+            "Comparing folders across {} source directories",
+            source_directories.len()
+        );
+
         let mut folder_map: HashMap<String, Vec<FolderLocationInfo>> = HashMap::new();
         let mut total_folders_analyzed = 0;
         let mut total_size_bytes = 0;
@@ -2141,7 +2392,7 @@ impl FolderMerger {
         // Scan all source directories
         for source_dir in source_directories {
             let source_path = source_dir.as_ref();
-            
+
             if !source_path.exists() {
                 warn!("Source directory does not exist: {}", source_path.display());
                 continue;
@@ -2163,7 +2414,10 @@ impl FolderMerger {
             for entry in entries {
                 let entry = entry.map_err(|e| {
                     FileManagementError::io(
-                        format!("Failed to read directory entry in {}", source_path.display()),
+                        format!(
+                            "Failed to read directory entry in {}",
+                            source_path.display()
+                        ),
                         e,
                     )
                 })?;
@@ -2180,7 +2434,10 @@ impl FolderMerger {
                     total_size_bytes += location_info.size_bytes;
                     total_folders_analyzed += 1;
 
-                    folder_map.entry(folder_name).or_insert_with(Vec::new).push(location_info);
+                    folder_map
+                        .entry(folder_name)
+                        .or_insert_with(Vec::new)
+                        .push(location_info);
                 }
             }
         }
@@ -2223,9 +2480,12 @@ impl FolderMerger {
     }
 
     /// Analyze a single folder location to gather metadata
-    fn analyze_folder_location(&self, folder_path: &Path) -> FileManagementResult<FolderLocationInfo> {
+    fn analyze_folder_location(
+        &self,
+        folder_path: &Path,
+    ) -> FileManagementResult<FolderLocationInfo> {
         let size_bytes = PathUtils::get_directory_size(folder_path)?;
-        
+
         let metadata = std::fs::metadata(folder_path).map_err(|e| {
             FileManagementError::io(
                 format!("Failed to get metadata for {}", folder_path.display()),
@@ -2233,16 +2493,14 @@ impl FolderMerger {
             )
         })?;
 
-        let last_modified = metadata.modified()
-            .ok()
-            .and_then(|time| {
-                time.duration_since(std::time::UNIX_EPOCH)
-                    .ok()
-                    .map(|duration| {
-                        chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
-                            .unwrap_or_else(chrono::Utc::now)
-                    })
-            });
+        let last_modified = metadata.modified().ok().and_then(|time| {
+            time.duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|duration| {
+                    chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+                        .unwrap_or_else(chrono::Utc::now)
+                })
+        });
 
         // Count files and subdirectories
         let (file_count, subdirectory_count) = self.count_folder_contents(folder_path)?;
@@ -2304,14 +2562,19 @@ impl FolderMerger {
     }
 
     /// Analyze a common folder found in multiple locations
-    fn analyze_common_folder(&self, folder_name: &str, locations: Vec<FolderLocationInfo>) -> FileManagementResult<CommonFolderInfo> {
+    fn analyze_common_folder(
+        &self,
+        folder_name: &str,
+        locations: Vec<FolderLocationInfo>,
+    ) -> FileManagementResult<CommonFolderInfo> {
         let total_size_all_locations: u64 = locations.iter().map(|loc| loc.size_bytes).sum();
-        
+
         // Determine recommended merge direction
         let recommended_merge_direction = self.determine_merge_direction(&locations)?;
 
         // Analyze for duplicate files (simplified - in a real implementation this would be more thorough)
-        let (duplicate_files_count, unique_files_count) = self.estimate_duplicate_files(&locations)?;
+        let (duplicate_files_count, unique_files_count) =
+            self.estimate_duplicate_files(&locations)?;
 
         Ok(CommonFolderInfo {
             folder_name: folder_name.to_string(),
@@ -2324,7 +2587,10 @@ impl FolderMerger {
     }
 
     /// Determine the best merge direction based on configuration and folder analysis
-    fn determine_merge_direction(&self, locations: &[FolderLocationInfo]) -> FileManagementResult<MergeDirection> {
+    fn determine_merge_direction(
+        &self,
+        locations: &[FolderLocationInfo],
+    ) -> FileManagementResult<MergeDirection> {
         match self.config.merge_strategy {
             MergeStrategy::SizeBased => {
                 if self.config.enable_size_based_decisions {
@@ -2364,7 +2630,10 @@ impl FolderMerger {
     }
 
     /// Intelligent merge direction using multiple factors
-    fn intelligent_merge_direction(&self, locations: &[FolderLocationInfo]) -> FileManagementResult<MergeDirection> {
+    fn intelligent_merge_direction(
+        &self,
+        locations: &[FolderLocationInfo],
+    ) -> FileManagementResult<MergeDirection> {
         let mut scores: Vec<(usize, f64)> = Vec::new();
 
         for (index, location) in locations.iter().enumerate() {
@@ -2372,7 +2641,11 @@ impl FolderMerger {
 
             // Size factor (normalized)
             if self.config.enable_size_based_decisions {
-                let max_size = locations.iter().map(|loc| loc.size_bytes).max().unwrap_or(1);
+                let max_size = locations
+                    .iter()
+                    .map(|loc| loc.size_bytes)
+                    .max()
+                    .unwrap_or(1);
                 let size_score = location.size_bytes as f64 / max_size as f64;
                 score += size_score * 0.4; // 40% weight for size
             }
@@ -2385,7 +2658,7 @@ impl FolderMerger {
                         .filter_map(|loc| loc.last_modified)
                         .max()
                         .unwrap_or(modified);
-                    
+
                     let oldest_time = locations
                         .iter()
                         .filter_map(|loc| loc.last_modified)
@@ -2410,7 +2683,11 @@ impl FolderMerger {
             }
 
             // File count factor (more files might indicate more active use)
-            let max_files = locations.iter().map(|loc| loc.file_count).max().unwrap_or(1);
+            let max_files = locations
+                .iter()
+                .map(|loc| loc.file_count)
+                .max()
+                .unwrap_or(1);
             let file_score = location.file_count as f64 / max_files as f64;
             score += file_score * 0.1; // 10% weight for file count
 
@@ -2420,7 +2697,11 @@ impl FolderMerger {
         // Find the highest scoring location
         let best_location = scores
             .into_iter()
-            .max_by(|(_, score_a), (_, score_b)| score_a.partial_cmp(score_b).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|(_, score_a), (_, score_b)| {
+                score_a
+                    .partial_cmp(score_b)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(index, score)| (index, score))
             .unwrap_or((0, 0.0));
 
@@ -2433,25 +2714,35 @@ impl FolderMerger {
     }
 
     /// Estimate duplicate and unique files across locations (simplified implementation)
-    fn estimate_duplicate_files(&self, locations: &[FolderLocationInfo]) -> FileManagementResult<(usize, usize)> {
+    fn estimate_duplicate_files(
+        &self,
+        locations: &[FolderLocationInfo],
+    ) -> FileManagementResult<(usize, usize)> {
         // This is a simplified estimation - a real implementation would compare file contents
         let total_files: usize = locations.iter().map(|loc| loc.file_count).sum();
-        let max_files = locations.iter().map(|loc| loc.file_count).max().unwrap_or(0);
-        
+        let max_files = locations
+            .iter()
+            .map(|loc| loc.file_count)
+            .max()
+            .unwrap_or(0);
+
         // Rough estimation: assume some overlap based on folder sizes
         let estimated_duplicates = if total_files > max_files {
             (total_files - max_files) / 2 // Conservative estimate
         } else {
             0
         };
-        
+
         let estimated_unique = total_files - estimated_duplicates;
-        
+
         Ok((estimated_duplicates, estimated_unique))
     }
 
     /// Generate merge recommendations for all common folders
-    fn generate_merge_recommendations(&self, common_folders: &[CommonFolderInfo]) -> FileManagementResult<Vec<MergeRecommendation>> {
+    fn generate_merge_recommendations(
+        &self,
+        common_folders: &[CommonFolderInfo],
+    ) -> FileManagementResult<Vec<MergeRecommendation>> {
         let mut recommendations = Vec::new();
 
         for common_folder in common_folders {
@@ -2460,19 +2751,31 @@ impl FolderMerger {
         }
 
         // Sort recommendations by confidence score (highest first)
-        recommendations.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap_or(std::cmp::Ordering::Equal));
+        recommendations.sort_by(|a, b| {
+            b.confidence_score
+                .partial_cmp(&a.confidence_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Ok(recommendations)
     }
 
     /// Generate a merge recommendation for a single common folder
-    fn generate_single_merge_recommendation(&self, common_folder: &CommonFolderInfo) -> FileManagementResult<MergeRecommendation> {
+    fn generate_single_merge_recommendation(
+        &self,
+        common_folder: &CommonFolderInfo,
+    ) -> FileManagementResult<MergeRecommendation> {
         let mut reasoning = String::new();
         let mut confidence_score = 0.5; // Base confidence
 
         // Calculate estimated space saved
         let total_size = common_folder.total_size_all_locations;
-        let largest_size = common_folder.locations.iter().map(|loc| loc.size_bytes).max().unwrap_or(0);
+        let largest_size = common_folder
+            .locations
+            .iter()
+            .map(|loc| loc.size_bytes)
+            .max()
+            .unwrap_or(0);
         let estimated_space_saved = if total_size > largest_size {
             total_size - largest_size
         } else {
@@ -2486,7 +2789,9 @@ impl FolderMerger {
                 confidence_score += 0.2;
             }
             MergeDirection::IntoNewest => {
-                reasoning.push_str("Merge into most recently modified folder to preserve recent changes");
+                reasoning.push_str(
+                    "Merge into most recently modified folder to preserve recent changes",
+                );
                 confidence_score += 0.2;
             }
             MergeDirection::IntoSpecific(index) => {
@@ -2515,7 +2820,10 @@ impl FolderMerger {
         // Adjust confidence based on potential conflicts
         let potential_conflicts = common_folder.duplicate_files_count;
         if potential_conflicts > 0 {
-            reasoning.push_str(&format!(", {} potential file conflicts detected", potential_conflicts));
+            reasoning.push_str(&format!(
+                ", {} potential file conflicts detected",
+                potential_conflicts
+            ));
             confidence_score -= (potential_conflicts as f64 * 0.05).min(0.3); // Reduce confidence for conflicts
         }
 
@@ -2538,7 +2846,10 @@ impl FolderMerger {
         comparison_result: &FolderComparisonResult,
         file_operation_manager: &FileOperationManager,
     ) -> FileManagementResult<FolderMergeResult> {
-        debug!("Executing merge operations for {} common folders", comparison_result.common_folders.len());
+        debug!(
+            "Executing merge operations for {} common folders",
+            comparison_result.common_folders.len()
+        );
 
         let mut merge_results = Vec::new();
         let mut total_operations = 0;
@@ -2548,13 +2859,15 @@ impl FolderMerger {
         let start_time = std::time::Instant::now();
 
         for common_folder in &comparison_result.common_folders {
-            let merge_result = self.execute_single_folder_merge(common_folder, file_operation_manager).await?;
-            
+            let merge_result = self
+                .execute_single_folder_merge(common_folder, file_operation_manager)
+                .await?;
+
             total_operations += merge_result.operations_performed;
             successful_operations += merge_result.successful_operations;
             failed_operations += merge_result.failed_operations;
             total_bytes_moved += merge_result.bytes_moved;
-            
+
             merge_results.push(merge_result);
         }
 
@@ -2581,36 +2894,36 @@ impl FolderMerger {
 
         // Determine target location based on merge direction
         let target_index = match &common_folder.recommended_merge_direction {
-            MergeDirection::IntoLargest => {
-                common_folder.locations
-                    .iter()
-                    .enumerate()
-                    .max_by_key(|(_, loc)| loc.size_bytes)
-                    .map(|(index, _)| index)
-                    .unwrap_or(0)
-            }
-            MergeDirection::IntoNewest => {
-                common_folder.locations
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, loc)| loc.last_modified.map(|date| (index, date)))
-                    .max_by_key(|(_, date)| *date)
-                    .map(|(index, _)| index)
-                    .unwrap_or(0)
-            }
+            MergeDirection::IntoLargest => common_folder
+                .locations
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, loc)| loc.size_bytes)
+                .map(|(index, _)| index)
+                .unwrap_or(0),
+            MergeDirection::IntoNewest => common_folder
+                .locations
+                .iter()
+                .enumerate()
+                .filter_map(|(index, loc)| loc.last_modified.map(|date| (index, date)))
+                .max_by_key(|(_, date)| *date)
+                .map(|(index, _)| index)
+                .unwrap_or(0),
             MergeDirection::IntoFirst => 0,
             MergeDirection::IntoSpecific(index) => *index,
             MergeDirection::Manual => {
                 return Err(FileManagementError::unsupported_operation(
-                    "Manual merge direction requires human decision"
+                    "Manual merge direction requires human decision",
                 ));
             }
         };
 
-        let target_location = common_folder.locations.get(target_index)
-            .ok_or_else(|| FileManagementError::validation(
-                format!("Invalid target index {} for folder {}", target_index, common_folder.folder_name)
-            ))?;
+        let target_location = common_folder.locations.get(target_index).ok_or_else(|| {
+            FileManagementError::validation(format!(
+                "Invalid target index {} for folder {}",
+                target_index, common_folder.folder_name
+            ))
+        })?;
 
         let mut operations_performed = 0;
         let mut successful_operations = 0;
@@ -2624,13 +2937,20 @@ impl FolderMerger {
                 continue; // Skip the target location
             }
 
-            debug!("Merging {} into {}", source_location.path.display(), target_location.path.display());
+            debug!(
+                "Merging {} into {}",
+                source_location.path.display(),
+                target_location.path.display()
+            );
 
-            match self.merge_single_location(
-                &source_location.path,
-                &target_location.path,
-                file_operation_manager,
-            ).await {
+            match self
+                .merge_single_location(
+                    &source_location.path,
+                    &target_location.path,
+                    file_operation_manager,
+                )
+                .await
+            {
                 Ok(merge_stats) => {
                     operations_performed += merge_stats.operations_performed;
                     successful_operations += merge_stats.successful_operations;
@@ -2645,10 +2965,12 @@ impl FolderMerger {
                         error_message: e.to_string(),
                         error_category: e.category().to_string(),
                     });
-                    warn!("Failed to merge {} into {}: {}", 
-                          source_location.path.display(), 
-                          target_location.path.display(), 
-                          e);
+                    warn!(
+                        "Failed to merge {} into {}: {}",
+                        source_location.path.display(),
+                        target_location.path.display(),
+                        e
+                    );
                 }
             }
         }
@@ -2656,7 +2978,9 @@ impl FolderMerger {
         Ok(SingleFolderMergeResult {
             folder_name: common_folder.folder_name.clone(),
             target_location: target_location.path.clone(),
-            source_locations: common_folder.locations.iter()
+            source_locations: common_folder
+                .locations
+                .iter()
                 .enumerate()
                 .filter(|(index, _)| *index != target_index)
                 .map(|(_, loc)| loc.path.clone())
@@ -2675,7 +2999,11 @@ impl FolderMerger {
         source_path: &'a Path,
         target_path: &'a Path,
         file_operation_manager: &'a FileOperationManager,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<MergeOperationStats>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = FileManagementResult<MergeOperationStats>> + Send + 'a,
+        >,
+    > {
         Box::pin(async move {
             let mut stats = MergeOperationStats {
                 operations_performed: 0,
@@ -2695,7 +3023,10 @@ impl FolderMerger {
             for entry in entries {
                 let entry = entry.map_err(|e| {
                     FileManagementError::io(
-                        format!("Failed to read directory entry in {}", source_path.display()),
+                        format!(
+                            "Failed to read directory entry in {}",
+                            source_path.display()
+                        ),
                         e,
                     )
                 })?;
@@ -2708,7 +3039,10 @@ impl FolderMerger {
 
                 if entry_path.is_dir() {
                     // Handle directory merge
-                    match self.merge_directory(&entry_path, &target_entry_path, file_operation_manager).await {
+                    match self
+                        .merge_directory(&entry_path, &target_entry_path, file_operation_manager)
+                        .await
+                    {
                         Ok(dir_stats) => {
                             stats.successful_operations += 1;
                             stats.bytes_moved += dir_stats.bytes_moved;
@@ -2718,21 +3052,32 @@ impl FolderMerger {
                         }
                         Err(e) => {
                             stats.failed_operations += 1;
-                            warn!("Failed to merge directory {} to {}: {}", 
-                                  entry_path.display(), target_entry_path.display(), e);
+                            warn!(
+                                "Failed to merge directory {} to {}: {}",
+                                entry_path.display(),
+                                target_entry_path.display(),
+                                e
+                            );
                         }
                     }
                 } else {
                     // Handle file merge
-                    match self.merge_file(&entry_path, &target_entry_path, file_operation_manager).await {
+                    match self
+                        .merge_file(&entry_path, &target_entry_path, file_operation_manager)
+                        .await
+                    {
                         Ok(bytes) => {
                             stats.successful_operations += 1;
                             stats.bytes_moved += bytes;
                         }
                         Err(e) => {
                             stats.failed_operations += 1;
-                            warn!("Failed to merge file {} to {}: {}", 
-                                  entry_path.display(), target_entry_path.display(), e);
+                            warn!(
+                                "Failed to merge file {} to {}: {}",
+                                entry_path.display(),
+                                target_entry_path.display(),
+                                e
+                            );
                         }
                     }
                 }
@@ -2741,9 +3086,16 @@ impl FolderMerger {
             // Remove source directory if all operations were successful and it's empty
             if stats.failed_operations == 0 && !self.config.dry_run {
                 if let Err(e) = std::fs::remove_dir(source_path) {
-                    warn!("Failed to remove source directory after merge {}: {}", source_path.display(), e);
+                    warn!(
+                        "Failed to remove source directory after merge {}: {}",
+                        source_path.display(),
+                        e
+                    );
                 } else {
-                    debug!("Successfully removed source directory: {}", source_path.display());
+                    debug!(
+                        "Successfully removed source directory: {}",
+                        source_path.display()
+                    );
                 }
             }
 
@@ -2757,14 +3109,21 @@ impl FolderMerger {
         source_dir: &'a Path,
         target_dir: &'a Path,
         file_operation_manager: &'a FileOperationManager,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = FileManagementResult<MergeOperationStats>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = FileManagementResult<MergeOperationStats>> + Send + 'a,
+        >,
+    > {
         Box::pin(async move {
             if target_dir.exists() && target_dir.is_dir() {
                 // Target directory exists - merge contents recursively
-                self.merge_single_location(source_dir, target_dir, file_operation_manager).await
+                self.merge_single_location(source_dir, target_dir, file_operation_manager)
+                    .await
             } else {
                 // Target directory doesn't exist - move the entire directory
-                let result = file_operation_manager.move_file(source_dir, target_dir).await?;
+                let result = file_operation_manager
+                    .move_file(source_dir, target_dir)
+                    .await?;
                 Ok(MergeOperationStats {
                     operations_performed: 1,
                     successful_operations: 1,
@@ -2791,12 +3150,16 @@ impl FolderMerger {
                 }
                 DuplicateHandling::Rename => {
                     let unique_target = PathUtils::generate_unique_name(target_file);
-                    let result = file_operation_manager.move_file(source_file, &unique_target).await?;
+                    let result = file_operation_manager
+                        .move_file(source_file, &unique_target)
+                        .await?;
                     return Ok(result.bytes_moved);
                 }
                 DuplicateHandling::KeepNewer => {
                     if self.is_source_newer(source_file, target_file)? {
-                        let result = file_operation_manager.move_file(source_file, target_file).await?;
+                        let result = file_operation_manager
+                            .move_file(source_file, target_file)
+                            .await?;
                         return Ok(result.bytes_moved);
                     } else {
                         debug!("Target file is newer, skipping: {}", target_file.display());
@@ -2805,7 +3168,9 @@ impl FolderMerger {
                 }
                 DuplicateHandling::KeepLarger => {
                     if self.is_source_larger(source_file, target_file)? {
-                        let result = file_operation_manager.move_file(source_file, target_file).await?;
+                        let result = file_operation_manager
+                            .move_file(source_file, target_file)
+                            .await?;
                         return Ok(result.bytes_moved);
                     } else {
                         debug!("Target file is larger, skipping: {}", target_file.display());
@@ -2815,43 +3180,63 @@ impl FolderMerger {
                 DuplicateHandling::Merge => {
                     // For now, treat merge as rename - actual content merging would be file-type specific
                     let unique_target = PathUtils::generate_unique_name(target_file);
-                    let result = file_operation_manager.move_file(source_file, &unique_target).await?;
+                    let result = file_operation_manager
+                        .move_file(source_file, &unique_target)
+                        .await?;
                     return Ok(result.bytes_moved);
                 }
             }
         } else {
             // No conflict - move file directly
-            let result = file_operation_manager.move_file(source_file, target_file).await?;
+            let result = file_operation_manager
+                .move_file(source_file, target_file)
+                .await?;
             Ok(result.bytes_moved)
         }
     }
 
     /// Check if source file is newer than target file
-    fn is_source_newer(&self, source_file: &Path, target_file: &Path) -> FileManagementResult<bool> {
+    fn is_source_newer(
+        &self,
+        source_file: &Path,
+        target_file: &Path,
+    ) -> FileManagementResult<bool> {
         let source_metadata = std::fs::metadata(source_file).map_err(|e| {
             FileManagementError::io(
-                format!("Failed to get metadata for source file {}", source_file.display()),
+                format!(
+                    "Failed to get metadata for source file {}",
+                    source_file.display()
+                ),
                 e,
             )
         })?;
 
         let target_metadata = std::fs::metadata(target_file).map_err(|e| {
             FileManagementError::io(
-                format!("Failed to get metadata for target file {}", target_file.display()),
+                format!(
+                    "Failed to get metadata for target file {}",
+                    target_file.display()
+                ),
                 e,
             )
         })?;
 
         let source_modified = source_metadata.modified().map_err(|e| {
             FileManagementError::io(
-                format!("Failed to get modification time for source file {}", source_file.display()),
+                format!(
+                    "Failed to get modification time for source file {}",
+                    source_file.display()
+                ),
                 e,
             )
         })?;
 
         let target_modified = target_metadata.modified().map_err(|e| {
             FileManagementError::io(
-                format!("Failed to get modification time for target file {}", target_file.display()),
+                format!(
+                    "Failed to get modification time for target file {}",
+                    target_file.display()
+                ),
                 e,
             )
         })?;
@@ -2860,7 +3245,11 @@ impl FolderMerger {
     }
 
     /// Check if source file is larger than target file
-    fn is_source_larger(&self, source_file: &Path, target_file: &Path) -> FileManagementResult<bool> {
+    fn is_source_larger(
+        &self,
+        source_file: &Path,
+        target_file: &Path,
+    ) -> FileManagementResult<bool> {
         let source_size = PathUtils::get_file_size(source_file)?;
         let target_size = PathUtils::get_file_size(target_file)?;
         Ok(source_size > target_size)
@@ -2992,7 +3381,7 @@ mod tests {
     fn test_file_operation_manager() {
         let temp_dir = TempDir::new().unwrap();
         let manager = FileOperationManager::new(temp_dir.path().to_path_buf(), false);
-        
+
         assert!(!manager.is_dry_run());
         assert!(manager.get_available_space(temp_dir.path()).is_ok());
     }
@@ -3000,11 +3389,14 @@ mod tests {
     #[test]
     fn test_text_processor() {
         let processor = TextProcessor::new(true);
-        
+
         assert_eq!(processor.normalize_case("Hello World"), "hello world");
-        assert_eq!(processor.normalize_whitespace("  hello   world  "), "hello world");
+        assert_eq!(
+            processor.normalize_whitespace("  hello   world  "),
+            "hello world"
+        );
         assert_eq!(processor.remove_spaces("hello world"), "helloworld");
-        
+
         // Test Chinese detection
         assert!(processor.contains_chinese("你好世界"));
         assert!(!processor.contains_chinese("hello world"));
@@ -3020,23 +3412,29 @@ mod tests {
             filter_characters: Some(vec!['@', '#']),
             preserve_alphanumeric_only: false,
         };
-        
+
         let processor = TextProcessor::with_config(true, config);
-        
+
         // Test punctuation removal
         assert_eq!(processor.remove_punctuation("Hello, World!"), "Hello World");
-        
+
         // Test character filtering
-        assert_eq!(processor.filter_characters("hello@world#test"), "helloworldtest");
-        
+        assert_eq!(
+            processor.filter_characters("hello@world#test"),
+            "helloworldtest"
+        );
+
         // Test alphanumeric preservation
         let alphanumeric_config = TextNormalizationConfig {
             preserve_alphanumeric_only: true,
             ..Default::default()
         };
         let alphanumeric_processor = TextProcessor::with_config(false, alphanumeric_config);
-        assert_eq!(alphanumeric_processor.preserve_alphanumeric_only("Hello, World! 123"), "Hello World 123");
-        
+        assert_eq!(
+            alphanumeric_processor.preserve_alphanumeric_only("Hello, World! 123"),
+            "Hello World 123"
+        );
+
         // Test comprehensive normalization
         let result = processor.normalize_text("  Hello@World!  ");
         assert_eq!(result, "helloworld");
@@ -3045,11 +3443,11 @@ mod tests {
     #[test]
     fn test_text_segmentation() {
         let processor = TextProcessor::new(true);
-        
+
         // Test English text segmentation
         let segments = processor.segment_text("hello world test");
         assert_eq!(segments, vec!["hello", "world", "test"]);
-        
+
         // Test mixed text segmentation
         let segments = processor.segment_text("hello 世界 test");
         assert_eq!(segments, vec!["hello", "世", "界", "test"]);
@@ -3058,7 +3456,7 @@ mod tests {
     #[test]
     fn test_unicode_normalization() {
         let processor = TextProcessor::new(false);
-        
+
         // Test diacritic folding
         assert_eq!(processor.normalize_unicode("café"), "cafe");
         assert_eq!(processor.normalize_unicode("naïve"), "naive");
@@ -3068,22 +3466,34 @@ mod tests {
     #[test]
     fn test_chinese_text_processing() {
         let processor = TextProcessor::new(true);
-        
+
         // Test Chinese character detection
         assert!(processor.is_chinese_char('中'));
         assert!(processor.is_chinese_char('文'));
         assert!(!processor.is_chinese_char('a'));
         assert!(!processor.is_chinese_char('1'));
-        
+
         // Test Chinese text type detection
-        assert_eq!(processor.detect_chinese_type("hello world"), ChineseTextType::None);
-        assert_eq!(processor.detect_chinese_type("简体中文"), ChineseTextType::Simplified);
-        assert_eq!(processor.detect_chinese_type("繁體中文"), ChineseTextType::Traditional);
-        
+        assert_eq!(
+            processor.detect_chinese_type("hello world"),
+            ChineseTextType::None
+        );
+        assert_eq!(
+            processor.detect_chinese_type("简体中文"),
+            ChineseTextType::Simplified
+        );
+        assert_eq!(
+            processor.detect_chinese_type("繁體中文"),
+            ChineseTextType::Traditional
+        );
+
         // Test character extraction
         assert_eq!(processor.extract_chinese_chars("hello 中文 world"), "中文");
-        assert_eq!(processor.extract_non_chinese_chars("hello 中文 world"), "hello  world");
-        
+        assert_eq!(
+            processor.extract_non_chinese_chars("hello 中文 world"),
+            "hello  world"
+        );
+
         // Test traditional to simplified conversion
         let converted = processor.convert_traditional("繁體中文");
         assert!(converted.contains("繁体")); // Should convert 繁體 to 繁体
@@ -3092,7 +3502,7 @@ mod tests {
     #[test]
     fn test_mixed_text_processing() {
         let processor = TextProcessor::new(true);
-        
+
         let result = processor.process_mixed_text("Hello 世界 World 中文");
         assert_eq!(result.chinese_chars, "世界中文");
         assert_eq!(result.non_chinese_chars, "Hello  World");
@@ -3103,23 +3513,26 @@ mod tests {
     #[test]
     fn test_pinyin_conversion() {
         let processor = TextProcessor::new(true);
-        
+
         // Test basic pinyin generation
         let variants = processor.generate_pinyin_variants("中文");
         assert!(!variants.is_empty());
-        assert!(variants.iter().any(|v| v.contains("zhong") || v.contains("wen")));
-        
+        assert!(variants
+            .iter()
+            .any(|v| v.contains("zhong") || v.contains("wen")));
+
         // Test different pinyin styles
         let normal_pinyin = processor.generate_pinyin_with_style("你好", &PinyinStyle::Normal);
         let tone_pinyin = processor.generate_pinyin_with_style("你好", &PinyinStyle::WithTone);
-        let no_tone_pinyin = processor.generate_pinyin_with_style("你好", &PinyinStyle::WithoutTone);
+        let no_tone_pinyin =
+            processor.generate_pinyin_with_style("你好", &PinyinStyle::WithoutTone);
         let first_letter = processor.generate_pinyin_with_style("你好", &PinyinStyle::FirstLetter);
-        
+
         assert!(!normal_pinyin.is_empty());
         assert!(!tone_pinyin.is_empty());
         assert!(!no_tone_pinyin.is_empty());
         assert!(!first_letter.is_empty());
-        
+
         // Test comprehensive pinyin result
         let result = processor.generate_comprehensive_pinyin("中文", PinyinStyle::Normal);
         assert_eq!(result.original, "中文");
@@ -3131,11 +3544,11 @@ mod tests {
     #[test]
     fn test_pinyin_style_conversion() {
         let processor = TextProcessor::new(true);
-        
+
         // Test tone mark conversion
         assert_eq!(processor.convert_numeric_tone_to_diacritic("ni3"), "nǐ");
         assert_eq!(processor.convert_numeric_tone_to_diacritic("hao3"), "hǎo");
-        
+
         // Test tone mark removal
         assert_eq!(processor.remove_tone_marks("nǐ"), "ni");
         assert_eq!(processor.remove_tone_marks("hǎo"), "hao");
@@ -3147,10 +3560,10 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("test.txt");
         std::fs::write(&test_file, b"hello world").unwrap();
-        
+
         let size = PathUtils::get_file_size(&test_file).unwrap();
         assert_eq!(size, 11);
-        
+
         let dir_size = PathUtils::get_directory_size(temp_dir.path()).unwrap();
         assert!(dir_size >= 11);
     }
@@ -3160,7 +3573,7 @@ mod tests {
         assert!(ValidationUtils::validate_non_empty_string("hello", "test").is_ok());
         assert!(ValidationUtils::validate_non_empty_string("", "test").is_err());
         assert!(ValidationUtils::validate_non_empty_string("   ", "test").is_err());
-        
+
         assert!(ValidationUtils::validate_range(5, 1, 10, "test").is_ok());
         assert!(ValidationUtils::validate_range(15, 1, 10, "test").is_err());
     }
@@ -3168,15 +3581,15 @@ mod tests {
     #[test]
     fn test_experimental_mode() {
         let mut exp_mode = ExperimentalMode::new(true);
-        
+
         let operation = ExperimentalOperation::new("move", "Move file from A to B")
             .with_source_path("/path/a")
             .with_target_path("/path/b")
             .with_estimated_size(1024);
-        
+
         exp_mode.log_operation(operation);
         assert_eq!(exp_mode.get_operations().len(), 1);
-        
+
         exp_mode.clear_log();
         assert_eq!(exp_mode.get_operations().len(), 0);
     }
@@ -3191,8 +3604,11 @@ mod tests {
         .add_option("option1", "Option 1", Some("First option"))
         .add_option("option2", "Option 2", None)
         .with_timeout(300)
-        .with_metadata("test_key", serde_json::Value::String("test_value".to_string()));
-        
+        .with_metadata(
+            "test_key",
+            serde_json::Value::String("test_value".to_string()),
+        );
+
         assert_eq!(context.options.len(), 2);
         assert_eq!(context.timeout_seconds, Some(300));
         assert!(context.metadata.contains_key("test_key"));

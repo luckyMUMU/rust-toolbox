@@ -1,5 +1,5 @@
 //! Cross-platform compatibility module for TUI interface
-//! 
+//!
 //! This module provides platform-specific optimizations and compatibility
 //! features for Windows, Linux, and macOS terminal environments.
 
@@ -7,9 +7,9 @@ use crate::error::Result;
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        terminal::{self, ClearType},
         event::{Event, KeyCode, KeyEvent, KeyModifiers},
         style::Color,
+        terminal::{self, ClearType},
     },
     style::Style,
 };
@@ -104,70 +104,78 @@ impl PlatformManager {
         let platform = Self::detect_platform();
         let terminal_info = Self::detect_terminal_info()?;
         let detected_capabilities = Self::detect_terminal_capabilities(&terminal_info)?;
-        
+
         let config = PlatformConfig {
             platform: platform.clone(),
             terminal_capabilities: detected_capabilities.clone(),
             optimizations: Self::default_optimizations_for_platform(&platform),
             compatibility: Self::default_compatibility_for_platform(&platform),
         };
-        
+
         Ok(Self {
             config,
             detected_capabilities,
             terminal_info,
         })
     }
-    
+
     /// Create platform manager with custom configuration
     pub fn with_config(config: PlatformConfig) -> Result<Self> {
         let terminal_info = Self::detect_terminal_info()?;
         let detected_capabilities = Self::detect_terminal_capabilities(&terminal_info)?;
-        
+
         Ok(Self {
             config,
             detected_capabilities,
             terminal_info,
         })
     }
-    
+
     /// Detect the current platform
     pub fn detect_platform() -> Platform {
         #[cfg(target_os = "windows")]
         return Platform::Windows;
-        
+
         #[cfg(target_os = "linux")]
         return Platform::Linux;
-        
+
         #[cfg(target_os = "macos")]
         return Platform::MacOS;
-        
+
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         return Platform::Unknown;
     }
-    
+
     /// Detect terminal information
     pub fn detect_terminal_info() -> Result<TerminalInfo> {
         let size = terminal::size()?;
-        
+
         let mut environment_vars = HashMap::new();
-        
+
         // Collect relevant environment variables
         let env_vars = [
-            "TERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "COLORTERM",
-            "TERMINAL_EMULATOR", "KONSOLE_VERSION", "VTE_VERSION",
-            "ITERM_SESSION_ID", "TMUX", "SSH_TTY", "WSL_DISTRO_NAME",
+            "TERM",
+            "TERM_PROGRAM",
+            "TERM_PROGRAM_VERSION",
+            "COLORTERM",
+            "TERMINAL_EMULATOR",
+            "KONSOLE_VERSION",
+            "VTE_VERSION",
+            "ITERM_SESSION_ID",
+            "TMUX",
+            "SSH_TTY",
+            "WSL_DISTRO_NAME",
         ];
-        
+
         for var in &env_vars {
             if let Ok(value) = std::env::var(var) {
                 environment_vars.insert(var.to_string(), value);
             }
         }
-        
+
         // Determine terminal name and version
         let (name, version) = Self::parse_terminal_name_version(&environment_vars);
-        
+
         Ok(TerminalInfo {
             name,
             version,
@@ -175,7 +183,7 @@ impl PlatformManager {
             environment_vars,
         })
     }
-    
+
     /// Parse terminal name and version from environment variables
     fn parse_terminal_name_version(env_vars: &HashMap<String, String>) -> (String, Option<String>) {
         // Check for specific terminal programs
@@ -183,43 +191,54 @@ impl PlatformManager {
             let version = env_vars.get("TERM_PROGRAM_VERSION").cloned();
             return (term_program.clone(), version);
         }
-        
+
         // Check for other terminal indicators
         if env_vars.contains_key("KONSOLE_VERSION") {
             let version = env_vars.get("KONSOLE_VERSION").cloned();
             return ("Konsole".to_string(), version);
         }
-        
+
         if env_vars.contains_key("VTE_VERSION") {
             let version = env_vars.get("VTE_VERSION").cloned();
             return ("VTE-based".to_string(), version);
         }
-        
+
         if env_vars.contains_key("ITERM_SESSION_ID") {
             return ("iTerm2".to_string(), None);
         }
-        
+
         if env_vars.contains_key("TMUX") {
             return ("tmux".to_string(), None);
         }
-        
+
         // Fallback to TERM variable
-        let term = env_vars.get("TERM").unwrap_or(&"unknown".to_string()).clone();
+        let term = env_vars
+            .get("TERM")
+            .unwrap_or(&"unknown".to_string())
+            .clone();
         (term, None)
     }
-    
+
     /// Detect terminal capabilities
-    pub fn detect_terminal_capabilities(terminal_info: &TerminalInfo) -> Result<TerminalCapabilities> {
+    pub fn detect_terminal_capabilities(
+        terminal_info: &TerminalInfo,
+    ) -> Result<TerminalCapabilities> {
         let color_support = Self::detect_color_support(terminal_info);
         let max_colors = Self::get_max_colors(&color_support);
-        
+
         // Unicode support detection
         let unicode_support = Self::detect_unicode_support(terminal_info);
-        
+
         // Feature support detection based on terminal type
-        let (mouse_support, resize_support, alternate_screen, cursor_shapes, 
-             bracketed_paste, focus_events) = Self::detect_feature_support(terminal_info);
-        
+        let (
+            mouse_support,
+            resize_support,
+            alternate_screen,
+            cursor_shapes,
+            bracketed_paste,
+            focus_events,
+        ) = Self::detect_feature_support(terminal_info);
+
         Ok(TerminalCapabilities {
             color_support,
             unicode_support,
@@ -233,7 +252,7 @@ impl PlatformManager {
             terminal_type: terminal_info.name.clone(),
         })
     }
-    
+
     /// Detect color support level
     fn detect_color_support(terminal_info: &TerminalInfo) -> ColorSupport {
         // Check COLORTERM environment variable
@@ -242,7 +261,7 @@ impl PlatformManager {
                 return ColorSupport::TrueColor;
             }
         }
-        
+
         // Check TERM variable for color support indicators
         if let Some(term) = terminal_info.environment_vars.get("TERM") {
             if term.contains("256color") || term.contains("256") {
@@ -252,7 +271,7 @@ impl PlatformManager {
                 return ColorSupport::Basic16;
             }
         }
-        
+
         // Terminal-specific detection
         match terminal_info.name.as_str() {
             "iTerm.app" | "iTerm2" => ColorSupport::TrueColor,
@@ -273,7 +292,7 @@ impl PlatformManager {
             }
         }
     }
-    
+
     /// Get maximum number of colors for color support level
     fn get_max_colors(color_support: &ColorSupport) -> u16 {
         match color_support {
@@ -283,7 +302,7 @@ impl PlatformManager {
             ColorSupport::TrueColor => 16777216, // 24-bit
         }
     }
-    
+
     /// Detect Unicode support
     fn detect_unicode_support(terminal_info: &TerminalInfo) -> bool {
         // Check locale settings
@@ -294,7 +313,7 @@ impl PlatformManager {
                 }
             }
         }
-        
+
         // Terminal-specific Unicode support
         match terminal_info.name.as_str() {
             "iTerm.app" | "iTerm2" | "Terminal.app" => true,
@@ -305,16 +324,18 @@ impl PlatformManager {
             _ => false, // Conservative fallback
         }
     }
-    
+
     /// Detect feature support
-    fn detect_feature_support(terminal_info: &TerminalInfo) -> (bool, bool, bool, bool, bool, bool) {
+    fn detect_feature_support(
+        terminal_info: &TerminalInfo,
+    ) -> (bool, bool, bool, bool, bool, bool) {
         let mouse_support;
         let resize_support;
         let alternate_screen;
         let cursor_shapes;
         let bracketed_paste;
         let focus_events;
-        
+
         match terminal_info.name.as_str() {
             "iTerm.app" | "iTerm2" => {
                 mouse_support = true;
@@ -390,10 +411,17 @@ impl PlatformManager {
                 focus_events = false;
             }
         }
-        
-        (mouse_support, resize_support, alternate_screen, cursor_shapes, bracketed_paste, focus_events)
+
+        (
+            mouse_support,
+            resize_support,
+            alternate_screen,
+            cursor_shapes,
+            bracketed_paste,
+            focus_events,
+        )
     }
-    
+
     /// Get default optimizations for platform
     fn default_optimizations_for_platform(platform: &Platform) -> PlatformOptimizations {
         match platform {
@@ -435,18 +463,18 @@ impl PlatformManager {
             },
         }
     }
-    
+
     /// Get default compatibility settings for platform
     fn default_compatibility_for_platform(platform: &Platform) -> CompatibilitySettings {
         let mut terminal_workarounds = HashMap::new();
-        
+
         match platform {
             Platform::Windows => {
                 // Windows-specific workarounds
                 terminal_workarounds.insert("cmd_unicode_fix".to_string(), true);
                 terminal_workarounds.insert("powershell_color_fix".to_string(), true);
                 terminal_workarounds.insert("conhost_resize_fix".to_string(), true);
-                
+
                 CompatibilitySettings {
                     force_ascii_fallback: false,
                     disable_mouse: false,
@@ -459,7 +487,7 @@ impl PlatformManager {
                 // Linux-specific workarounds
                 terminal_workarounds.insert("ssh_color_detection".to_string(), true);
                 terminal_workarounds.insert("tmux_escape_fix".to_string(), true);
-                
+
                 CompatibilitySettings {
                     force_ascii_fallback: false,
                     disable_mouse: false,
@@ -471,7 +499,7 @@ impl PlatformManager {
             Platform::MacOS => {
                 // macOS-specific workarounds
                 terminal_workarounds.insert("terminal_app_focus_fix".to_string(), true);
-                
+
                 CompatibilitySettings {
                     force_ascii_fallback: false,
                     disable_mouse: false,
@@ -480,43 +508,41 @@ impl PlatformManager {
                     terminal_workarounds,
                 }
             }
-            Platform::Unknown => {
-                CompatibilitySettings {
-                    force_ascii_fallback: true,
-                    disable_mouse: true,
-                    disable_alternate_screen: false,
-                    use_legacy_colors: true,
-                    terminal_workarounds,
-                }
-            }
+            Platform::Unknown => CompatibilitySettings {
+                force_ascii_fallback: true,
+                disable_mouse: true,
+                disable_alternate_screen: false,
+                use_legacy_colors: true,
+                terminal_workarounds,
+            },
         }
     }
-    
+
     /// Get platform configuration
     pub fn config(&self) -> &PlatformConfig {
         &self.config
     }
-    
+
     /// Get detected terminal capabilities
     pub fn capabilities(&self) -> &TerminalCapabilities {
         &self.detected_capabilities
     }
-    
+
     /// Get terminal information
     pub fn terminal_info(&self) -> &TerminalInfo {
         &self.terminal_info
     }
-    
+
     /// Update configuration
     pub fn update_config(&mut self, config: PlatformConfig) {
         self.config = config;
     }
-    
+
     /// Apply platform-specific optimizations to terminal
     pub fn apply_optimizations(&self, backend: &mut CrosstermBackend<io::Stdout>) -> Result<()> {
         // Apply buffer size optimization
         // Note: This would require backend-specific implementation
-        
+
         // Apply other optimizations based on platform
         match self.config.platform {
             Platform::Windows => {
@@ -532,74 +558,122 @@ impl PlatformManager {
                 self.apply_conservative_optimizations()?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Apply Windows-specific optimizations
     fn apply_windows_optimizations(&self) -> Result<()> {
         // Windows-specific terminal optimizations
-        if *self.config.compatibility.terminal_workarounds.get("cmd_unicode_fix").unwrap_or(&false) {
+        if *self
+            .config
+            .compatibility
+            .terminal_workarounds
+            .get("cmd_unicode_fix")
+            .unwrap_or(&false)
+        {
             // Apply CMD Unicode fixes if needed
             tracing::debug!("Applying Windows CMD Unicode fixes");
         }
-        
-        if *self.config.compatibility.terminal_workarounds.get("powershell_color_fix").unwrap_or(&false) {
+
+        if *self
+            .config
+            .compatibility
+            .terminal_workarounds
+            .get("powershell_color_fix")
+            .unwrap_or(&false)
+        {
             // Apply PowerShell color fixes if needed
             tracing::debug!("Applying Windows PowerShell color fixes");
         }
-        
+
         Ok(())
     }
-    
+
     /// Apply Linux-specific optimizations
     fn apply_linux_optimizations(&self) -> Result<()> {
         // Linux-specific terminal optimizations
-        if *self.config.compatibility.terminal_workarounds.get("ssh_color_detection").unwrap_or(&false) {
+        if *self
+            .config
+            .compatibility
+            .terminal_workarounds
+            .get("ssh_color_detection")
+            .unwrap_or(&false)
+        {
             // Apply SSH color detection fixes if needed
             tracing::debug!("Applying Linux SSH color detection fixes");
         }
-        
-        if *self.config.compatibility.terminal_workarounds.get("tmux_escape_fix").unwrap_or(&false) {
+
+        if *self
+            .config
+            .compatibility
+            .terminal_workarounds
+            .get("tmux_escape_fix")
+            .unwrap_or(&false)
+        {
             // Apply tmux escape sequence fixes if needed
             tracing::debug!("Applying Linux tmux escape fixes");
         }
-        
+
         Ok(())
     }
-    
+
     /// Apply macOS-specific optimizations
     fn apply_macos_optimizations(&self) -> Result<()> {
         // macOS-specific terminal optimizations
-        if *self.config.compatibility.terminal_workarounds.get("terminal_app_focus_fix").unwrap_or(&false) {
+        if *self
+            .config
+            .compatibility
+            .terminal_workarounds
+            .get("terminal_app_focus_fix")
+            .unwrap_or(&false)
+        {
             // Apply Terminal.app focus fixes if needed
             tracing::debug!("Applying macOS Terminal.app focus fixes");
         }
-        
+
         Ok(())
     }
-    
+
     /// Apply conservative optimizations for unknown platforms
     fn apply_conservative_optimizations(&self) -> Result<()> {
         tracing::debug!("Applying conservative optimizations for unknown platform");
         Ok(())
     }
-    
+
     /// Check if a specific feature is supported
     pub fn is_feature_supported(&self, feature: &str) -> bool {
         match feature {
-            "mouse" => self.detected_capabilities.mouse_support && !self.config.compatibility.disable_mouse,
-            "unicode" => self.detected_capabilities.unicode_support && !self.config.compatibility.force_ascii_fallback,
-            "truecolor" => matches!(self.detected_capabilities.color_support, ColorSupport::TrueColor) && !self.config.compatibility.use_legacy_colors,
-            "256color" => matches!(self.detected_capabilities.color_support, ColorSupport::Extended256 | ColorSupport::TrueColor) && !self.config.compatibility.use_legacy_colors,
-            "alternate_screen" => self.detected_capabilities.alternate_screen && !self.config.compatibility.disable_alternate_screen,
+            "mouse" => {
+                self.detected_capabilities.mouse_support && !self.config.compatibility.disable_mouse
+            }
+            "unicode" => {
+                self.detected_capabilities.unicode_support
+                    && !self.config.compatibility.force_ascii_fallback
+            }
+            "truecolor" => {
+                matches!(
+                    self.detected_capabilities.color_support,
+                    ColorSupport::TrueColor
+                ) && !self.config.compatibility.use_legacy_colors
+            }
+            "256color" => {
+                matches!(
+                    self.detected_capabilities.color_support,
+                    ColorSupport::Extended256 | ColorSupport::TrueColor
+                ) && !self.config.compatibility.use_legacy_colors
+            }
+            "alternate_screen" => {
+                self.detected_capabilities.alternate_screen
+                    && !self.config.compatibility.disable_alternate_screen
+            }
             "cursor_shapes" => self.detected_capabilities.cursor_shapes,
             "bracketed_paste" => self.detected_capabilities.bracketed_paste,
             "focus_events" => self.detected_capabilities.focus_events,
             _ => false,
         }
     }
-    
+
     /// Get optimized color for the current terminal
     pub fn optimize_color(&self, color: Color) -> Color {
         if self.config.compatibility.use_legacy_colors {
@@ -609,15 +683,25 @@ impl PlatformManager {
                     // Simple RGB to 16-color conversion
                     let brightness = (r as u16 + g as u16 + b as u16) / 3;
                     if brightness > 128 {
-                        if r > g && r > b { Color::Red }
-                        else if g > r && g > b { Color::Green }
-                        else if b > r && b > g { Color::Blue }
-                        else { Color::White }
+                        if r > g && r > b {
+                            Color::Red
+                        } else if g > r && g > b {
+                            Color::Green
+                        } else if b > r && b > g {
+                            Color::Blue
+                        } else {
+                            Color::White
+                        }
                     } else {
-                        if r > g && r > b { Color::Red }
-                        else if g > r && g > b { Color::Green }
-                        else if b > r && b > g { Color::Blue }
-                        else { Color::Black }
+                        if r > g && r > b {
+                            Color::Red
+                        } else if g > r && g > b {
+                            Color::Green
+                        } else if b > r && b > g {
+                            Color::Blue
+                        } else {
+                            Color::Black
+                        }
                     }
                 }
                 _ => color,
@@ -626,7 +710,7 @@ impl PlatformManager {
             color
         }
     }
-    
+
     /// Get platform-specific key mapping
     pub fn map_key_event(&self, event: KeyEvent) -> KeyEvent {
         match self.config.platform {
@@ -635,7 +719,7 @@ impl PlatformManager {
             _ => event,
         }
     }
-    
+
     /// Map Windows-specific key events
     fn map_windows_key(&self, event: KeyEvent) -> KeyEvent {
         // Handle Windows-specific key mappings
@@ -644,24 +728,22 @@ impl PlatformManager {
             _ => event,
         }
     }
-    
+
     /// Map macOS-specific key events
     fn map_macos_key(&self, event: KeyEvent) -> KeyEvent {
         // Handle macOS-specific key mappings
         match event.code {
             // Map Cmd key to Ctrl for consistency
-            KeyCode::Char(c) if event.modifiers.contains(KeyModifiers::SUPER) => {
-                KeyEvent {
-                    code: KeyCode::Char(c),
-                    modifiers: KeyModifiers::CONTROL,
-                    kind: event.kind,
-                    state: event.state,
-                }
-            }
+            KeyCode::Char(c) if event.modifiers.contains(KeyModifiers::SUPER) => KeyEvent {
+                code: KeyCode::Char(c),
+                modifiers: KeyModifiers::CONTROL,
+                kind: event.kind,
+                state: event.state,
+            },
             _ => event,
         }
     }
-    
+
     /// Generate platform compatibility report
     pub fn generate_compatibility_report(&self) -> PlatformCompatibilityReport {
         PlatformCompatibilityReport {
@@ -674,77 +756,119 @@ impl PlatformManager {
             warnings: self.get_compatibility_warnings(),
         }
     }
-    
+
     /// Get list of supported features
     fn get_supported_features(&self) -> Vec<String> {
         let mut features = Vec::new();
-        
-        if self.is_feature_supported("mouse") { features.push("Mouse Support".to_string()); }
-        if self.is_feature_supported("unicode") { features.push("Unicode Support".to_string()); }
-        if self.is_feature_supported("truecolor") { features.push("True Color Support".to_string()); }
-        if self.is_feature_supported("256color") { features.push("256 Color Support".to_string()); }
-        if self.is_feature_supported("alternate_screen") { features.push("Alternate Screen".to_string()); }
-        if self.is_feature_supported("cursor_shapes") { features.push("Cursor Shapes".to_string()); }
-        if self.is_feature_supported("bracketed_paste") { features.push("Bracketed Paste".to_string()); }
-        if self.is_feature_supported("focus_events") { features.push("Focus Events".to_string()); }
-        
+
+        if self.is_feature_supported("mouse") {
+            features.push("Mouse Support".to_string());
+        }
+        if self.is_feature_supported("unicode") {
+            features.push("Unicode Support".to_string());
+        }
+        if self.is_feature_supported("truecolor") {
+            features.push("True Color Support".to_string());
+        }
+        if self.is_feature_supported("256color") {
+            features.push("256 Color Support".to_string());
+        }
+        if self.is_feature_supported("alternate_screen") {
+            features.push("Alternate Screen".to_string());
+        }
+        if self.is_feature_supported("cursor_shapes") {
+            features.push("Cursor Shapes".to_string());
+        }
+        if self.is_feature_supported("bracketed_paste") {
+            features.push("Bracketed Paste".to_string());
+        }
+        if self.is_feature_supported("focus_events") {
+            features.push("Focus Events".to_string());
+        }
+
         features
     }
-    
+
     /// Get platform-specific recommendations
     fn get_platform_recommendations(&self) -> Vec<String> {
         let mut recommendations = Vec::new();
-        
+
         match self.config.platform {
             Platform::Windows => {
                 if self.terminal_info.name == "cmd" {
-                    recommendations.push("Consider using Windows Terminal or PowerShell for better Unicode support".to_string());
+                    recommendations.push(
+                        "Consider using Windows Terminal or PowerShell for better Unicode support"
+                            .to_string(),
+                    );
                 }
                 if !self.is_feature_supported("truecolor") {
-                    recommendations.push("Enable true color support in your terminal for better visual experience".to_string());
+                    recommendations.push(
+                        "Enable true color support in your terminal for better visual experience"
+                            .to_string(),
+                    );
                 }
             }
             Platform::Linux => {
                 if self.terminal_info.environment_vars.contains_key("SSH_TTY") {
-                    recommendations.push("SSH detected: some features may be limited over remote connections".to_string());
+                    recommendations.push(
+                        "SSH detected: some features may be limited over remote connections"
+                            .to_string(),
+                    );
                 }
-                if self.terminal_info.name.contains("xterm") && !self.is_feature_supported("truecolor") {
-                    recommendations.push("Consider upgrading to a modern terminal emulator for better color support".to_string());
+                if self.terminal_info.name.contains("xterm")
+                    && !self.is_feature_supported("truecolor")
+                {
+                    recommendations.push(
+                        "Consider upgrading to a modern terminal emulator for better color support"
+                            .to_string(),
+                    );
                 }
             }
             Platform::MacOS => {
                 if self.terminal_info.name == "Terminal.app" {
-                    recommendations.push("Consider using iTerm2 for enhanced terminal features".to_string());
+                    recommendations
+                        .push("Consider using iTerm2 for enhanced terminal features".to_string());
                 }
             }
             Platform::Unknown => {
-                recommendations.push("Platform not recognized: some features may not work optimally".to_string());
+                recommendations.push(
+                    "Platform not recognized: some features may not work optimally".to_string(),
+                );
             }
         }
-        
+
         recommendations
     }
-    
+
     /// Get compatibility warnings
     fn get_compatibility_warnings(&self) -> Vec<String> {
         let mut warnings = Vec::new();
-        
+
         if !self.is_feature_supported("unicode") {
-            warnings.push("Unicode support not detected: some characters may not display correctly".to_string());
+            warnings.push(
+                "Unicode support not detected: some characters may not display correctly"
+                    .to_string(),
+            );
         }
-        
-        if matches!(self.detected_capabilities.color_support, ColorSupport::None | ColorSupport::Basic16) {
-            warnings.push("Limited color support detected: interface may appear less visually appealing".to_string());
+
+        if matches!(
+            self.detected_capabilities.color_support,
+            ColorSupport::None | ColorSupport::Basic16
+        ) {
+            warnings.push(
+                "Limited color support detected: interface may appear less visually appealing"
+                    .to_string(),
+            );
         }
-        
+
         if !self.is_feature_supported("mouse") {
             warnings.push("Mouse support disabled: use keyboard navigation only".to_string());
         }
-        
+
         if self.terminal_info.size.0 < 80 || self.terminal_info.size.1 < 24 {
             warnings.push("Terminal size is small: interface may be cramped".to_string());
         }
-        
+
         warnings
     }
 }
@@ -771,14 +895,14 @@ impl PlatformCompatibilityReport {
             println!("Version: {}", version);
         }
         println!();
-        
+
         println!("Capabilities:");
         println!("  Color Support: {:?}", self.capabilities.color_support);
         println!("  Unicode Support: {}", self.capabilities.unicode_support);
         println!("  Mouse Support: {}", self.capabilities.mouse_support);
         println!("  Max Colors: {}", self.capabilities.max_colors);
         println!();
-        
+
         if !self.supported_features.is_empty() {
             println!("Supported Features:");
             for feature in &self.supported_features {
@@ -786,7 +910,7 @@ impl PlatformCompatibilityReport {
             }
             println!();
         }
-        
+
         if !self.recommendations.is_empty() {
             println!("Recommendations:");
             for recommendation in &self.recommendations {
@@ -794,7 +918,7 @@ impl PlatformCompatibilityReport {
             }
             println!();
         }
-        
+
         if !self.warnings.is_empty() {
             println!("Warnings:");
             for warning in &self.warnings {
@@ -840,7 +964,7 @@ impl Default for PlatformManager {
                     terminal_workarounds: HashMap::new(),
                 },
             };
-            
+
             Self {
                 config: config.clone(),
                 detected_capabilities: config.terminal_capabilities.clone(),
@@ -862,25 +986,25 @@ impl TerminalTester {
     /// Run comprehensive terminal compatibility tests
     pub async fn run_compatibility_tests() -> Result<TerminalTestResults> {
         let mut results = TerminalTestResults::new();
-        
+
         // Test color support
         results.color_test = Self::test_color_support().await?;
-        
+
         // Test Unicode support
         results.unicode_test = Self::test_unicode_support().await?;
-        
+
         // Test mouse support
         results.mouse_test = Self::test_mouse_support().await?;
-        
+
         // Test resize handling
         results.resize_test = Self::test_resize_support().await?;
-        
+
         // Test keyboard input
         results.keyboard_test = Self::test_keyboard_support().await?;
-        
+
         Ok(results)
     }
-    
+
     /// Test color support
     async fn test_color_support() -> Result<TestResult> {
         // This would involve actual terminal color testing
@@ -891,7 +1015,7 @@ impl TerminalTester {
             details: vec!["16 colors supported".to_string()],
         })
     }
-    
+
     /// Test Unicode support
     async fn test_unicode_support() -> Result<TestResult> {
         // This would involve actual Unicode character testing
@@ -901,7 +1025,7 @@ impl TerminalTester {
             details: vec!["Basic Unicode characters supported".to_string()],
         })
     }
-    
+
     /// Test mouse support
     async fn test_mouse_support() -> Result<TestResult> {
         // This would involve actual mouse event testing
@@ -911,7 +1035,7 @@ impl TerminalTester {
             details: vec!["Mouse testing requires user interaction".to_string()],
         })
     }
-    
+
     /// Test resize support
     async fn test_resize_support() -> Result<TestResult> {
         // This would involve actual resize event testing
@@ -921,7 +1045,7 @@ impl TerminalTester {
             details: vec!["Terminal resize events supported".to_string()],
         })
     }
-    
+
     /// Test keyboard support
     async fn test_keyboard_support() -> Result<TestResult> {
         // This would involve actual keyboard event testing
@@ -955,23 +1079,43 @@ impl TerminalTestResults {
     /// Create new test results
     pub fn new() -> Self {
         Self {
-            color_test: TestResult { passed: false, message: "Not tested".to_string(), details: vec![] },
-            unicode_test: TestResult { passed: false, message: "Not tested".to_string(), details: vec![] },
-            mouse_test: TestResult { passed: false, message: "Not tested".to_string(), details: vec![] },
-            resize_test: TestResult { passed: false, message: "Not tested".to_string(), details: vec![] },
-            keyboard_test: TestResult { passed: false, message: "Not tested".to_string(), details: vec![] },
+            color_test: TestResult {
+                passed: false,
+                message: "Not tested".to_string(),
+                details: vec![],
+            },
+            unicode_test: TestResult {
+                passed: false,
+                message: "Not tested".to_string(),
+                details: vec![],
+            },
+            mouse_test: TestResult {
+                passed: false,
+                message: "Not tested".to_string(),
+                details: vec![],
+            },
+            resize_test: TestResult {
+                passed: false,
+                message: "Not tested".to_string(),
+                details: vec![],
+            },
+            keyboard_test: TestResult {
+                passed: false,
+                message: "Not tested".to_string(),
+                details: vec![],
+            },
         }
     }
-    
+
     /// Check if all tests passed
     pub fn all_passed(&self) -> bool {
-        self.color_test.passed && 
-        self.unicode_test.passed && 
-        self.mouse_test.passed && 
-        self.resize_test.passed && 
-        self.keyboard_test.passed
+        self.color_test.passed
+            && self.unicode_test.passed
+            && self.mouse_test.passed
+            && self.resize_test.passed
+            && self.keyboard_test.passed
     }
-    
+
     /// Get summary of test results
     pub fn summary(&self) -> String {
         let total_tests = 5;
@@ -981,8 +1125,11 @@ impl TerminalTestResults {
             &self.mouse_test,
             &self.resize_test,
             &self.keyboard_test,
-        ].iter().filter(|test| test.passed).count();
-        
+        ]
+        .iter()
+        .filter(|test| test.passed)
+        .count();
+
         format!("{}/{} tests passed", passed_tests, total_tests)
     }
 }

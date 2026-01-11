@@ -1,18 +1,17 @@
 //! Classification Tool implementation
-//! 
+//!
 //! This module provides intelligent folder classification using AC automaton
 //! and text processing with scoring algorithms and decision making.
 
+use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
+use super::error::{FileManagementError, FileManagementResult};
+use super::human_decision_tool::HumanDecisionResult;
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::tools::ToolNode;
-use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
-use super::error::{FileManagementError, FileManagementResult};
-use super::human_decision_tool::{HumanDecisionResult};
 // use super::rule_config::RuleConfigLoader;
 use super::utils::{
-    TextProcessor, TextNormalizationConfig, 
-    HumanDecisionContext, HumanDecisionType,
+    HumanDecisionContext, HumanDecisionType, TextNormalizationConfig, TextProcessor,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -108,9 +107,7 @@ impl ClassificationCandidate {
     }
 
     pub fn with_matches(mut self, matches: Vec<PatternMatch>) -> Self {
-        self.matched_keywords = matches.iter()
-            .map(|m| m.pattern.clone())
-            .collect();
+        self.matched_keywords = matches.iter().map(|m| m.pattern.clone()).collect();
         self.match_details = matches;
         self
     }
@@ -127,8 +124,9 @@ impl ClassificationEngine {
     /// Create a new classification engine
     pub fn new(enable_chinese: bool) -> Self {
         let normalization_config = TextNormalizationConfig::default();
-        let text_processor = TextProcessor::with_config(enable_chinese, normalization_config.clone());
-        
+        let text_processor =
+            TextProcessor::with_config(enable_chinese, normalization_config.clone());
+
         Self {
             text_processor,
             normalization_config,
@@ -139,7 +137,7 @@ impl ClassificationEngine {
     /// Create a new classification engine with custom config
     pub fn with_config(enable_chinese: bool, config: TextNormalizationConfig) -> Self {
         let text_processor = TextProcessor::with_config(enable_chinese, config.clone());
-        
+
         Self {
             text_processor,
             normalization_config: config,
@@ -148,7 +146,10 @@ impl ClassificationEngine {
     }
 
     /// Build AC automaton from classification rules
-    pub fn build_automaton(&self, rules: &ClassificationRules) -> FileManagementResult<AhoCorasickMatcher> {
+    pub fn build_automaton(
+        &self,
+        rules: &ClassificationRules,
+    ) -> FileManagementResult<AhoCorasickMatcher> {
         let config = AutomatonConfig {
             case_sensitive: false, // We'll handle case sensitivity in preprocessing
             find_overlapping: true,
@@ -163,10 +164,14 @@ impl ClassificationEngine {
             // Add original keywords
             for keyword in &rule.keywords {
                 let processed_keyword = self.preprocess_keyword(keyword, rule);
-                automaton.add_pattern(&processed_keyword, &rule.category, rule.score_weight)
-                    .map_err(|e| FileManagementError::classification(
-                        format!("Failed to add pattern '{}': {}", processed_keyword, e)
-                    ))?;
+                automaton
+                    .add_pattern(&processed_keyword, &rule.category, rule.score_weight)
+                    .map_err(|e| {
+                        FileManagementError::classification(format!(
+                            "Failed to add pattern '{}': {}",
+                            processed_keyword, e
+                        ))
+                    })?;
                 _pattern_id += 1;
             }
 
@@ -177,9 +182,16 @@ impl ClassificationEngine {
                     for variant in pinyin_variants {
                         if variant != *keyword {
                             let processed_variant = self.preprocess_keyword(&variant, rule);
-                            if let Err(e) = automaton.add_pattern(&processed_variant, &rule.category, rule.score_weight * 0.8) {
+                            if let Err(e) = automaton.add_pattern(
+                                &processed_variant,
+                                &rule.category,
+                                rule.score_weight * 0.8,
+                            ) {
                                 // Pinyin variants get slightly lower weight
-                                debug!("Failed to add pinyin variant '{}': {}", processed_variant, e);
+                                debug!(
+                                    "Failed to add pinyin variant '{}': {}",
+                                    processed_variant, e
+                                );
                                 // Continue with other variants even if one fails
                             } else {
                                 _pattern_id += 1;
@@ -190,12 +202,14 @@ impl ClassificationEngine {
             }
         }
 
-        automaton.build()
-            .map_err(|e| FileManagementError::classification(
-                format!("Failed to build automaton: {}", e)
-            ))?;
+        automaton.build().map_err(|e| {
+            FileManagementError::classification(format!("Failed to build automaton: {}", e))
+        })?;
 
-        debug!("Built classification automaton with {} patterns", automaton.pattern_count());
+        debug!(
+            "Built classification automaton with {} patterns",
+            automaton.pattern_count()
+        );
         Ok(automaton)
     }
 
@@ -222,18 +236,23 @@ impl ClassificationEngine {
         // Handle Chinese text if enabled
         if self.enable_chinese && self.text_processor.contains_chinese(&processed) {
             let mixed_result = self.text_processor.process_mixed_text(&processed);
-            
+
             // Create a combined text with both original and processed Chinese
             let mut combined = processed.clone();
-            if !mixed_result.simplified_chinese.is_empty() && mixed_result.simplified_chinese != mixed_result.chinese_chars {
+            if !mixed_result.simplified_chinese.is_empty()
+                && mixed_result.simplified_chinese != mixed_result.chinese_chars
+            {
                 combined.push(' ');
                 combined.push_str(&mixed_result.simplified_chinese);
             }
-            
+
             processed = combined;
         }
 
-        debug!("Preprocessed folder name: '{}' -> '{}'", folder_name, processed);
+        debug!(
+            "Preprocessed folder name: '{}' -> '{}'",
+            folder_name, processed
+        );
         processed
     }
 
@@ -245,19 +264,18 @@ impl ClassificationEngine {
         rules: &ClassificationRules,
     ) -> FileManagementResult<ClassificationResult> {
         let start_time = std::time::Instant::now();
-        
+
         // Preprocess the folder name
         let processed_name = self.preprocess_folder_name(folder_name);
-        
+
         // Find all matches
-        let matches = automaton.find_matches(&processed_name)
-            .map_err(|e| FileManagementError::classification(
-                format!("Pattern matching failed: {}", e)
-            ))?;
+        let matches = automaton.find_matches(&processed_name).map_err(|e| {
+            FileManagementError::classification(format!("Pattern matching failed: {}", e))
+        })?;
 
         // Calculate scores by category
         let candidates = self.calculate_category_scores(&matches, rules)?;
-        
+
         // Determine classification result
         let result = self.determine_classification_result(
             folder_name,
@@ -266,9 +284,11 @@ impl ClassificationEngine {
             start_time.elapsed().as_millis() as u64,
         )?;
 
-        debug!("Classified '{}' as {:?} in {}ms", 
-               folder_name, result.status, result.processing_time_ms);
-        
+        debug!(
+            "Classified '{}' as {:?} in {}ms",
+            folder_name, result.status, result.processing_time_ms
+        );
+
         Ok(result)
     }
 
@@ -279,12 +299,13 @@ impl ClassificationEngine {
         rules: &ClassificationRules,
     ) -> FileManagementResult<Vec<ClassificationCandidate>> {
         let mut category_scores: HashMap<String, (f64, Vec<PatternMatch>)> = HashMap::new();
-        
+
         // Group matches by category and calculate scores
         for pattern_match in matches {
-            let entry = category_scores.entry(pattern_match.category.clone())
+            let entry = category_scores
+                .entry(pattern_match.category.clone())
                 .or_insert((0.0, Vec::new()));
-            
+
             entry.0 += pattern_match.score;
             entry.1.push(pattern_match.clone());
         }
@@ -292,29 +313,41 @@ impl ClassificationEngine {
         // Convert to candidates and calculate confidence
         let mut candidates = Vec::new();
         let total_score: f64 = category_scores.values().map(|(score, _)| *score).sum();
-        
+
         for (category, (score, matches)) in category_scores {
-            let confidence = if total_score > 0.0 { score / total_score } else { 0.0 };
-            
+            let confidence = if total_score > 0.0 {
+                score / total_score
+            } else {
+                0.0
+            };
+
             // Check if required matches are met
             if let Some(rule) = rules.rules.iter().find(|r| r.category == category) {
                 if let Some(required) = rule.required_matches {
                     if matches.len() < required {
-                        debug!("Category '{}' doesn't meet required matches: {} < {}", 
-                               category, matches.len(), required);
+                        debug!(
+                            "Category '{}' doesn't meet required matches: {} < {}",
+                            category,
+                            matches.len(),
+                            required
+                        );
                         continue;
                     }
                 }
             }
-            
-            let candidate = ClassificationCandidate::new(category, score, confidence)
-                .with_matches(matches);
+
+            let candidate =
+                ClassificationCandidate::new(category, score, confidence).with_matches(matches);
             candidates.push(candidate);
         }
 
         // Sort by score (descending)
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-        
+        candidates.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         Ok(candidates)
     }
 
@@ -339,7 +372,7 @@ impl ClassificationEngine {
             // Check for ambiguity
             let top_score = candidates[0].score;
             let second_score = candidates[1].score;
-            
+
             if second_score / top_score >= rules.ambiguity_threshold {
                 ClassificationStatus::Ambiguous
             } else if candidates[0].confidence >= rules.min_confidence_threshold {
@@ -353,16 +386,12 @@ impl ClassificationEngine {
             ClassificationStatus::Classified => {
                 (Some(candidates[0].category.clone()), candidates[0].score)
             }
-            ClassificationStatus::Unclassified => {
-                (rules.default_category.clone(), 0.0)
-            }
+            ClassificationStatus::Unclassified => (rules.default_category.clone(), 0.0),
             ClassificationStatus::Ambiguous => {
                 // Keep top candidate but mark as ambiguous
                 (Some(candidates[0].category.clone()), candidates[0].score)
             }
-            ClassificationStatus::Error => {
-                (None, 0.0)
-            }
+            ClassificationStatus::Error => (None, 0.0),
             ClassificationStatus::Pending => {
                 (Some(candidates[0].category.clone()), candidates[0].score)
             }
@@ -384,8 +413,9 @@ impl ClassificationEngine {
 
     /// Check if classification result needs human decision
     pub fn needs_human_decision(&self, result: &ClassificationResult) -> bool {
-        matches!(result.status, ClassificationStatus::Ambiguous) ||
-        (matches!(result.status, ClassificationStatus::Unclassified) && result.candidates.len() > 1)
+        matches!(result.status, ClassificationStatus::Ambiguous)
+            || (matches!(result.status, ClassificationStatus::Unclassified)
+                && result.candidates.len() > 1)
     }
 
     /// Create human decision context for ambiguous classification
@@ -402,15 +432,15 @@ impl ClassificationEngine {
                 format!("No clear category found for folder '{}'. Please select a category or create a new one.", result.folder_name)
             }
             _ => {
-                format!("Please confirm the classification for folder '{}'.", result.folder_name)
+                format!(
+                    "Please confirm the classification for folder '{}'.",
+                    result.folder_name
+                )
             }
         };
 
-        let mut context = HumanDecisionContext::new(
-            HumanDecisionType::Classification,
-            title,
-            description,
-        );
+        let mut context =
+            HumanDecisionContext::new(HumanDecisionType::Classification, title, description);
 
         // Add options for each candidate
         for (_i, candidate) in result.candidates.iter().enumerate() {
@@ -420,7 +450,7 @@ impl ClassificationEngine {
                 candidate.confidence * 100.0,
                 candidate.matched_keywords.join(", ")
             );
-            
+
             context = context.add_option(
                 &candidate.category,
                 &candidate.category,
@@ -481,9 +511,9 @@ pub struct ClassificationParams {
 /// Output format options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClassificationOutputFormat {
-    Simple,      // Just category and confidence
-    Detailed,    // Include candidates and metadata
-    Full,        // Complete result with all details
+    Simple,   // Just category and confidence
+    Detailed, // Include candidates and metadata
+    Full,     // Complete result with all details
 }
 
 impl Default for ClassificationOutputFormat {
@@ -502,7 +532,7 @@ impl ClassificationTool {
     /// Create a new classification tool
     pub fn new(enable_chinese: bool) -> Self {
         let engine = ClassificationEngine::new(enable_chinese);
-        
+
         Self {
             engine,
             plugin_info: None,
@@ -512,7 +542,7 @@ impl ClassificationTool {
     /// Create a new classification tool with plugin info
     pub fn with_plugin_info(enable_chinese: bool, plugin_info: PluginInfo) -> Self {
         let engine = ClassificationEngine::new(enable_chinese);
-        
+
         Self {
             engine,
             plugin_info: Some(plugin_info),
@@ -520,24 +550,24 @@ impl ClassificationTool {
     }
 
     /// Load classification rules from JSON value or file path
-    fn load_classification_rules(&self, rules_value: &Value) -> FileManagementResult<ClassificationRules> {
+    fn load_classification_rules(
+        &self,
+        rules_value: &Value,
+    ) -> FileManagementResult<ClassificationRules> {
         if let Some(file_path) = rules_value.as_str() {
             // Load from file
-            let content = std::fs::read_to_string(file_path)
-                .map_err(|e| FileManagementError::io(
-                    format!("Failed to read rules file: {}", file_path), e
-                ))?;
-            
-            serde_json::from_str(&content)
-                .map_err(|e| FileManagementError::validation(
-                    format!("Invalid JSON in rules file: {}", e)
-                ))
+            let content = std::fs::read_to_string(file_path).map_err(|e| {
+                FileManagementError::io(format!("Failed to read rules file: {}", file_path), e)
+            })?;
+
+            serde_json::from_str(&content).map_err(|e| {
+                FileManagementError::validation(format!("Invalid JSON in rules file: {}", e))
+            })
         } else {
             // Parse as JSON object
-            serde_json::from_value(rules_value.clone())
-                .map_err(|e| FileManagementError::validation(
-                    format!("Invalid classification rules: {}", e)
-                ))
+            serde_json::from_value(rules_value.clone()).map_err(|e| {
+                FileManagementError::validation(format!("Invalid classification rules: {}", e))
+            })
         }
     }
 
@@ -549,7 +579,9 @@ impl ClassificationTool {
     ) -> Result<Value> {
         // For now, use the fallback implementation since we don't have direct access to the tool registry
         // In a full implementation, this would use the workflow engine to invoke the human decision tool
-        warn!("Using fallback human decision implementation - full tool registry integration needed");
+        warn!(
+            "Using fallback human decision implementation - full tool registry integration needed"
+        );
         self.fallback_human_decision(decision_params).await
     }
 
@@ -570,12 +602,19 @@ impl ClassificationTool {
 
             let selected_option = options
                 .iter()
-                .find(|opt| opt.get("recommended").and_then(|v| v.as_bool()).unwrap_or(false))
+                .find(|opt| {
+                    opt.get("recommended")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                })
                 .or_else(|| options.first())
                 .and_then(|opt| opt.get("id").and_then(|v| v.as_str()))
                 .ok_or_else(|| WorkflowError::tool("No valid option found"))?;
 
-            info!("Experimental mode: auto-selected option '{}'", selected_option);
+            info!(
+                "Experimental mode: auto-selected option '{}'",
+                selected_option
+            );
 
             return Ok(json!({
                 "selected_option": selected_option,
@@ -588,7 +627,7 @@ impl ClassificationTool {
 
         // In non-experimental mode, we can't make a decision without user interaction
         Err(WorkflowError::tool(
-            "Human decision tool not available and not in experimental mode"
+            "Human decision tool not available and not in experimental mode",
         ))
     }
 
@@ -606,7 +645,10 @@ impl ClassificationTool {
                 updated_result.status = ClassificationStatus::Unclassified;
                 updated_result.category = None;
                 updated_result.score = 0.0;
-                info!("User chose to skip classification for '{}'", updated_result.folder_name);
+                info!(
+                    "User chose to skip classification for '{}'",
+                    updated_result.folder_name
+                );
             }
             "other" => {
                 // User chose "other" - this would typically require additional input
@@ -614,25 +656,35 @@ impl ClassificationTool {
                 updated_result.status = ClassificationStatus::Unclassified;
                 updated_result.category = Some("other".to_string());
                 updated_result.score = 0.0;
-                info!("User chose 'other' category for '{}'", updated_result.folder_name);
+                info!(
+                    "User chose 'other' category for '{}'",
+                    updated_result.folder_name
+                );
             }
             selected_category => {
                 // User selected a specific category
-                if let Some(candidate) = updated_result.candidates.iter()
-                    .find(|c| c.category == selected_category) {
+                if let Some(candidate) = updated_result
+                    .candidates
+                    .iter()
+                    .find(|c| c.category == selected_category)
+                {
                     // Update with the selected candidate
                     updated_result.status = ClassificationStatus::Classified;
                     updated_result.category = Some(candidate.category.clone());
                     updated_result.score = candidate.score;
-                    info!("User selected category '{}' for '{}'", 
-                          selected_category, updated_result.folder_name);
+                    info!(
+                        "User selected category '{}' for '{}'",
+                        selected_category, updated_result.folder_name
+                    );
                 } else {
                     // User selected a category not in the candidates (custom category)
                     updated_result.status = ClassificationStatus::Classified;
                     updated_result.category = Some(selected_category.to_string());
                     updated_result.score = 1.0; // Give it a default score
-                    info!("User selected custom category '{}' for '{}'", 
-                          selected_category, updated_result.folder_name);
+                    info!(
+                        "User selected custom category '{}' for '{}'",
+                        selected_category, updated_result.folder_name
+                    );
                 }
             }
         }
@@ -641,7 +693,11 @@ impl ClassificationTool {
     }
 
     /// Format result based on output format
-    fn format_result(&self, result: ClassificationResult, format: &ClassificationOutputFormat) -> Value {
+    fn format_result(
+        &self,
+        result: ClassificationResult,
+        format: &ClassificationOutputFormat,
+    ) -> Value {
         match format {
             ClassificationOutputFormat::Simple => {
                 json!({
@@ -687,40 +743,49 @@ impl ToolNode for ClassificationTool {
         // Validate folder path
         let folder_path = Path::new(&params.folder_path);
         if !folder_path.exists() {
-            return Err(WorkflowError::ValidationError(
-                format!("Folder path does not exist: {}", params.folder_path)
-            ));
+            return Err(WorkflowError::ValidationError(format!(
+                "Folder path does not exist: {}",
+                params.folder_path
+            )));
         }
 
-        let folder_name = folder_path.file_name()
+        let folder_name = folder_path
+            .file_name()
             .ok_or_else(|| WorkflowError::ValidationError("Invalid folder path".to_string()))?
             .to_string_lossy()
             .to_string();
 
         // Load classification rules
-        let rules = self.load_classification_rules(&params.classification_rules)
+        let rules = self
+            .load_classification_rules(&params.classification_rules)
             .map_err(|e| WorkflowError::tool(format!("Failed to load rules: {}", e)))?;
 
         // Build automaton
-        let automaton = self.engine.build_automaton(&rules)
+        let automaton = self
+            .engine
+            .build_automaton(&rules)
             .map_err(|e| WorkflowError::tool(format!("Failed to build automaton: {}", e)))?;
 
         // Classify folder
-        let mut result = self.engine.classify_folder(&folder_name, &automaton, &rules)
+        let mut result = self
+            .engine
+            .classify_folder(&folder_name, &automaton, &rules)
             .map_err(|e| WorkflowError::tool(format!("Classification failed: {}", e)))?;
 
         // Handle experimental mode
         if params.experimental_mode {
-            result.metadata.insert("experimental_mode".to_string(), Value::Bool(true));
+            result
+                .metadata
+                .insert("experimental_mode".to_string(), Value::Bool(true));
             info!("Classification completed in experimental mode");
         }
 
         // Handle human interaction if needed
         if params.enable_user_interaction && self.engine.needs_human_decision(&result) {
             info!("Ambiguous classification detected, invoking human decision");
-            
+
             let decision_context = self.engine.create_human_decision_context(&result);
-            
+
             // Create human decision parameters
             let human_decision_params = json!({
                 "decision_type": "Classification",
@@ -743,29 +808,44 @@ impl ToolNode for ClassificationTool {
             });
 
             // Invoke human decision tool
-            match self.invoke_human_decision(human_decision_params, &context).await {
+            match self
+                .invoke_human_decision(human_decision_params, &context)
+                .await
+            {
                 Ok(decision_result) => {
                     // Parse the human decision result
-                    if let Ok(human_result) = serde_json::from_value::<HumanDecisionResult>(decision_result) {
+                    if let Ok(human_result) =
+                        serde_json::from_value::<HumanDecisionResult>(decision_result)
+                    {
                         // Update classification result based on human decision
                         result = self.apply_human_decision(&result, &human_result)?;
-                        
-                        result.metadata.insert("human_decision_made".to_string(), Value::Bool(true));
-                        result.metadata.insert("decision_time_ms".to_string(), 
-                            Value::Number(serde_json::Number::from(human_result.decision_time_ms)));
-                        result.metadata.insert("selected_option".to_string(), 
-                            Value::String(human_result.selected_option));
+
+                        result
+                            .metadata
+                            .insert("human_decision_made".to_string(), Value::Bool(true));
+                        result.metadata.insert(
+                            "decision_time_ms".to_string(),
+                            Value::Number(serde_json::Number::from(human_result.decision_time_ms)),
+                        );
+                        result.metadata.insert(
+                            "selected_option".to_string(),
+                            Value::String(human_result.selected_option),
+                        );
                     } else {
                         warn!("Failed to parse human decision result");
-                        result.metadata.insert("human_decision_error".to_string(), 
-                            Value::String("Failed to parse decision result".to_string()));
+                        result.metadata.insert(
+                            "human_decision_error".to_string(),
+                            Value::String("Failed to parse decision result".to_string()),
+                        );
                         result.status = ClassificationStatus::Error;
                     }
                 }
                 Err(e) => {
                     warn!("Human decision failed: {}", e);
-                    result.metadata.insert("human_decision_error".to_string(), 
-                        Value::String(e.to_string()));
+                    result.metadata.insert(
+                        "human_decision_error".to_string(),
+                        Value::String(e.to_string()),
+                    );
                     result.status = ClassificationStatus::Pending;
                 }
             }
@@ -780,17 +860,23 @@ impl ToolNode for ClassificationTool {
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
-        let parsed_params: ClassificationParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::ValidationError(format!("Parameter validation failed: {}", e)))?;
+        let parsed_params: ClassificationParams =
+            serde_json::from_value(params.clone()).map_err(|e| {
+                WorkflowError::ValidationError(format!("Parameter validation failed: {}", e))
+            })?;
 
         // Validate folder path
         if parsed_params.folder_path.trim().is_empty() {
-            return Err(WorkflowError::ValidationError("Folder path cannot be empty".to_string()));
+            return Err(WorkflowError::ValidationError(
+                "Folder path cannot be empty".to_string(),
+            ));
         }
 
         // Validate classification rules
         if parsed_params.classification_rules.is_null() {
-            return Err(WorkflowError::ValidationError("Classification rules are required".to_string()));
+            return Err(WorkflowError::ValidationError(
+                "Classification rules are required".to_string(),
+            ));
         }
 
         Ok(())
@@ -801,7 +887,9 @@ impl ToolNode for ClassificationTool {
         ToolInfo {
             name: self.name().to_string(),
             version: self.version().to_string(),
-            description: "Intelligent folder classification using configurable rules and AC automaton".to_string(),
+            description:
+                "Intelligent folder classification using configurable rules and AC automaton"
+                    .to_string(),
             category: Some("classification".to_string()),
             tags: vec![
                 "classification".to_string(),
@@ -944,10 +1032,10 @@ mod tests {
     #[test]
     fn test_folder_name_preprocessing() {
         let engine = ClassificationEngine::new(true);
-        
+
         let processed = engine.preprocess_folder_name("  Hello World  ");
         assert_eq!(processed, "hello world");
-        
+
         let processed_chinese = engine.preprocess_folder_name("文档 Documents");
         assert!(processed_chinese.contains("文档"));
         assert!(processed_chinese.contains("documents"));
@@ -956,7 +1044,7 @@ mod tests {
     #[test]
     fn test_automaton_building() {
         let engine = ClassificationEngine::new(true);
-        
+
         let rules = ClassificationRules {
             rules: vec![
                 ClassificationRule::new("documents", vec!["doc".to_string(), "pdf".to_string()]),
@@ -986,7 +1074,7 @@ mod tests {
         std::fs::create_dir(&test_folder).unwrap();
 
         let tool = ClassificationTool::new(true);
-        
+
         let rules = json!({
             "rules": [
                 {
@@ -1012,7 +1100,7 @@ mod tests {
 
         let context = ExecutionContext::new();
         let result = tool.execute(params, context).await.unwrap();
-        
+
         assert!(result.get("status").is_some());
         assert!(result.get("folder_name").is_some());
     }
@@ -1020,7 +1108,7 @@ mod tests {
     #[test]
     fn test_parameter_validation() {
         let tool = ClassificationTool::new(true);
-        
+
         // Valid parameters
         let valid_params = json!({
             "folder_path": "/some/path",
@@ -1035,16 +1123,16 @@ mod tests {
             "enable_user_interaction": false,
             "experimental_mode": false
         });
-        
+
         assert!(tool.validate_parameters(&valid_params).is_ok());
-        
+
         // Invalid parameters - empty folder path
         let invalid_params = json!({
             "folder_path": "",
             "classification_rules": {
                 "rules": [
                     {
-                        "category": "documents", 
+                        "category": "documents",
                         "keywords": ["doc", "pdf"]
                     }
                 ]
@@ -1053,7 +1141,7 @@ mod tests {
             "experimental_mode": false
         });
         assert!(tool.validate_parameters(&invalid_params).is_err());
-        
+
         // Invalid parameters - null rules
         let invalid_params = json!({
             "folder_path": "/some/path",
@@ -1067,7 +1155,7 @@ mod tests {
     #[test]
     fn test_human_decision_context_creation() {
         let engine = ClassificationEngine::new(true);
-        
+
         let result = ClassificationResult {
             status: ClassificationStatus::Ambiguous,
             category: Some("documents".to_string()),
@@ -1094,7 +1182,7 @@ mod tests {
         std::fs::create_dir(&test_folder).unwrap();
 
         let tool = ClassificationTool::new(true);
-        
+
         // Create rules that will result in ambiguous classification
         let rules = json!({
             "rules": [
@@ -1128,13 +1216,17 @@ mod tests {
 
         let context = ExecutionContext::new();
         let result = tool.execute(params, context).await.unwrap();
-        
+
         // In experimental mode with human decision, it should auto-select
         assert!(result.get("status").is_some());
         assert!(result.get("metadata").is_some());
-        
+
         let metadata = result.get("metadata").unwrap();
-        if metadata.get("human_decision_made").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if metadata
+            .get("human_decision_made")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             assert!(metadata.get("selected_option").is_some());
         }
     }
@@ -1142,7 +1234,7 @@ mod tests {
     #[test]
     fn test_apply_human_decision() {
         let tool = ClassificationTool::new(true);
-        
+
         let original_result = ClassificationResult {
             status: ClassificationStatus::Ambiguous,
             category: Some("documents".to_string()),
@@ -1165,7 +1257,9 @@ mod tests {
             experimental_mode: false,
         };
 
-        let updated_result = tool.apply_human_decision(&original_result, &human_decision).unwrap();
+        let updated_result = tool
+            .apply_human_decision(&original_result, &human_decision)
+            .unwrap();
         assert_eq!(updated_result.status, ClassificationStatus::Classified);
         assert_eq!(updated_result.category, Some("images".to_string()));
         assert_eq!(updated_result.score, 1.2);
@@ -1179,7 +1273,9 @@ mod tests {
             experimental_mode: false,
         };
 
-        let skipped_result = tool.apply_human_decision(&original_result, &skip_decision).unwrap();
+        let skipped_result = tool
+            .apply_human_decision(&original_result, &skip_decision)
+            .unwrap();
         assert_eq!(skipped_result.status, ClassificationStatus::Unclassified);
         assert_eq!(skipped_result.category, None);
         assert_eq!(skipped_result.score, 0.0);
@@ -1193,7 +1289,9 @@ mod tests {
             experimental_mode: false,
         };
 
-        let custom_result = tool.apply_human_decision(&original_result, &custom_decision).unwrap();
+        let custom_result = tool
+            .apply_human_decision(&original_result, &custom_decision)
+            .unwrap();
         assert_eq!(custom_result.status, ClassificationStatus::Classified);
         assert_eq!(custom_result.category, Some("custom_category".to_string()));
         assert_eq!(custom_result.score, 1.0);
@@ -1239,9 +1337,11 @@ mod tests {
         let classified_result = ClassificationResult {
             status: ClassificationStatus::Classified,
             category: Some("documents".to_string()),
-            candidates: vec![
-                ClassificationCandidate::new("documents".to_string(), 1.5, 0.8),
-            ],
+            candidates: vec![ClassificationCandidate::new(
+                "documents".to_string(),
+                1.5,
+                0.8,
+            )],
             score: 1.5,
             folder_name: "test_folder".to_string(),
             processing_time_ms: 100,
@@ -1255,7 +1355,7 @@ mod tests {
     fn test_tool_schema() {
         let tool = ClassificationTool::new(true);
         let info = tool.get_info();
-        
+
         assert_eq!(info.name, "folder-classifier");
         assert_eq!(info.version, "1.0.0");
         assert!(info.description.contains("classification"));

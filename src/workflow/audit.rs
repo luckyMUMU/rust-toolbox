@@ -23,24 +23,24 @@ pub enum AuditEventType {
     WorkflowCompleted,
     WorkflowFailed,
     WorkflowCancelled,
-    
+
     /// Node execution events
     NodeStarted,
     NodeCompleted,
     NodeFailed,
     NodeRetried,
     NodeSkipped,
-    
+
     /// System events
     CheckpointCreated,
     StateRecovered,
     ErrorOccurred,
-    
+
     /// Security events
     AccessGranted,
     AccessDenied,
     AuthenticationFailed,
-    
+
     /// Configuration events
     ConfigurationChanged,
     PluginLoaded,
@@ -199,7 +199,11 @@ impl AuditLogger {
         }
 
         // Store audit event for compliance and querying
-        let key = format!("audit:event:{}:{}", event.timestamp.format("%Y%m%d"), event.event_id);
+        let key = format!(
+            "audit:event:{}:{}",
+            event.timestamp.format("%Y%m%d"),
+            event.event_id
+        );
         let value = serde_json::to_vec(&event)?;
         self.state_manager.storage.save(&key, &value).await?;
 
@@ -269,9 +273,7 @@ impl AuditLogger {
         // Store execution log entry
         let key = format!(
             "execution:log:{}:{}:{}",
-            entry.workflow_id,
-            entry.execution_id,
-            entry.log_id
+            entry.workflow_id, entry.execution_id, entry.log_id
         );
         let value = serde_json::to_vec(&entry)?;
         self.state_manager.storage.save(&key, &value).await?;
@@ -288,19 +290,28 @@ impl AuditLogger {
         context: &ExecutionContext,
         description: Option<String>,
     ) -> AuditEvent {
-        let description = description.unwrap_or_else(|| {
-            format!("Workflow '{}' {:?}", workflow_name, event_type)
-        });
+        let description =
+            description.unwrap_or_else(|| format!("Workflow '{}' {:?}", workflow_name, event_type));
 
         let severity = match event_type {
-            AuditEventType::WorkflowFailed | AuditEventType::WorkflowCancelled => AuditSeverity::Error,
-            AuditEventType::WorkflowStarted | AuditEventType::WorkflowCompleted => AuditSeverity::Info,
+            AuditEventType::WorkflowFailed | AuditEventType::WorkflowCancelled => {
+                AuditSeverity::Error
+            }
+            AuditEventType::WorkflowStarted | AuditEventType::WorkflowCompleted => {
+                AuditSeverity::Info
+            }
             _ => AuditSeverity::Debug,
         };
 
         let mut metadata = HashMap::new();
-        metadata.insert("workflow_name".to_string(), Value::String(workflow_name.to_string()));
-        metadata.insert("execution_id".to_string(), Value::String(context.execution_id.clone()));
+        metadata.insert(
+            "workflow_name".to_string(),
+            Value::String(workflow_name.to_string()),
+        );
+        metadata.insert(
+            "execution_id".to_string(),
+            Value::String(context.execution_id.clone()),
+        );
 
         AuditEvent {
             event_id: Uuid::new_v4().to_string(),
@@ -339,11 +350,15 @@ impl AuditLogger {
         };
 
         let mut metadata = HashMap::new();
-        metadata.insert("execution_id".to_string(), Value::String(context.execution_id.clone()));
+        metadata.insert(
+            "execution_id".to_string(),
+            Value::String(context.execution_id.clone()),
+        );
         if let Some(duration) = duration {
-            metadata.insert("duration_ms".to_string(), Value::Number(
-                serde_json::Number::from(duration.num_milliseconds())
-            ));
+            metadata.insert(
+                "duration_ms".to_string(),
+                Value::Number(serde_json::Number::from(duration.num_milliseconds())),
+            );
         }
 
         AuditEvent {
@@ -392,7 +407,7 @@ impl AuditLogger {
         criteria: AuditQueryCriteria,
     ) -> Result<Vec<AuditEvent>> {
         let mut events = Vec::new();
-        
+
         // Build key prefix based on criteria
         let prefix = if let Some(date) = criteria.date {
             format!("audit:event:{}", date.format("%Y%m%d"))
@@ -433,7 +448,7 @@ impl AuditLogger {
         limit: Option<usize>,
     ) -> Result<Vec<ExecutionLogEntry>> {
         let mut logs = Vec::new();
-        
+
         let prefix = if let Some(exec_id) = execution_id {
             format!("execution:log:{}:{}", workflow_id, exec_id)
         } else {
@@ -485,7 +500,7 @@ impl AuditLogger {
         };
 
         let events = self.query_audit_events(criteria).await?;
-        
+
         let mut report = AuditReport {
             report_id: Uuid::new_v4().to_string(),
             generated_at: Utc::now(),
@@ -502,11 +517,17 @@ impl AuditLogger {
         // Analyze events
         for event in &events {
             // Count by type
-            *report.events_by_type.entry(event.event_type.clone()).or_insert(0) += 1;
-            
+            *report
+                .events_by_type
+                .entry(event.event_type.clone())
+                .or_insert(0) += 1;
+
             // Count by severity
-            *report.events_by_severity.entry(event.severity.clone()).or_insert(0) += 1;
-            
+            *report
+                .events_by_severity
+                .entry(event.severity.clone())
+                .or_insert(0) += 1;
+
             // Track workflows and users
             if let Some(workflow_id) = event.workflow_id {
                 report.workflows_affected.insert(workflow_id);
@@ -514,7 +535,7 @@ impl AuditLogger {
             if let Some(user_id) = &event.user_id {
                 report.users_involved.insert(user_id.clone());
             }
-            
+
             // Collect error summaries
             if event.severity >= AuditSeverity::Error {
                 if let Some(error_details) = &event.error_details {
@@ -551,7 +572,11 @@ impl AuditLogger {
         }
 
         // Clean up execution logs
-        let log_keys = self.state_manager.storage.list_keys("execution:log:").await?;
+        let log_keys = self
+            .state_manager
+            .storage
+            .list_keys("execution:log:")
+            .await?;
         for key in log_keys {
             if let Some(value) = self.state_manager.storage.load(&key).await? {
                 if let Ok(log_entry) = serde_json::from_slice::<ExecutionLogEntry>(&value) {
@@ -576,17 +601,20 @@ impl AuditLogger {
             event.timestamp.format("%Y%m%d%H%M%S"),
             event.event_id
         );
-        
+
         // Create compliance record with hash for integrity
         let compliance_record = ComplianceRecord {
             event: event.clone(),
             hash: self.calculate_event_hash(event),
             stored_at: Utc::now(),
         };
-        
+
         let value = serde_json::to_vec(&compliance_record)?;
-        self.state_manager.storage.save(&compliance_key, &value).await?;
-        
+        self.state_manager
+            .storage
+            .save(&compliance_key, &value)
+            .await?;
+
         Ok(())
     }
 
@@ -595,12 +623,12 @@ impl AuditLogger {
         // Simple hash implementation - in production, use cryptographic hash
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         event.event_id.hash(&mut hasher);
         event.timestamp.hash(&mut hasher);
         event.description.hash(&mut hasher);
-        
+
         format!("{:x}", hasher.finish())
     }
 
@@ -720,7 +748,7 @@ macro_rules! audit_error {
                 error_code: None,
                 retry_count: None,
             });
-            
+
             let mut event = $logger.create_workflow_event(
                 $event_type,
                 $workflow_id,
@@ -730,7 +758,7 @@ macro_rules! audit_error {
             );
             event.severity = crate::workflow::audit::AuditSeverity::Error;
             event.error_details = error_details;
-            
+
             let _ = $logger.log_audit_event(event).await;
         }
     };

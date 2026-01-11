@@ -1,5 +1,5 @@
 //! Comprehensive Unit Tests for TUI Implementation
-//! 
+//!
 //! This module contains unit tests for all TUI components including:
 //! - Widget system
 //! - Theme management
@@ -8,12 +8,12 @@
 //! - Event handling
 //! - Error handling
 
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
 use ratatui::{
     layout::Rect,
     style::{Color, Style},
 };
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 // ============================================================================
 // Basic Theme System Tests
@@ -142,16 +142,16 @@ mod theme_tests {
         assert_eq!(parse_color("green").unwrap(), Color::Green);
         assert_eq!(parse_color("black").unwrap(), Color::Black);
         assert_eq!(parse_color("white").unwrap(), Color::White);
-        
+
         // Test case insensitive
         assert_eq!(parse_color("RED").unwrap(), Color::Red);
         assert_eq!(parse_color("Blue").unwrap(), Color::Blue);
-        
+
         // Test hex colors
         assert_eq!(parse_color("#FF0000").unwrap(), Color::Rgb(255, 0, 0));
         assert_eq!(parse_color("#00FF00").unwrap(), Color::Rgb(0, 255, 0));
         assert_eq!(parse_color("#0000FF").unwrap(), Color::Rgb(0, 0, 255));
-        
+
         // Test invalid colors
         assert!(parse_color("invalid_color").is_err());
         assert!(parse_color("#GGGGGG").is_err());
@@ -176,7 +176,7 @@ mod theme_tests {
         assert_eq!(theme.name, "Dark");
         assert_eq!(theme.colors.background, Color::Black);
         assert_eq!(theme.colors.text_primary, Color::White);
-        
+
         let light_theme = create_light_theme();
         assert_eq!(light_theme.name, "Light");
         assert_eq!(light_theme.colors.background, Color::White);
@@ -186,11 +186,11 @@ mod theme_tests {
     #[test]
     fn test_theme_status_styles() {
         let theme = create_dark_theme();
-        
+
         let running_style = get_status_style(&theme, "running");
         let failed_style = get_status_style(&theme, "failed");
         let completed_style = get_status_style(&theme, "completed");
-        
+
         // Styles should be different for different statuses
         assert_ne!(running_style.fg, failed_style.fg);
         assert_ne!(failed_style.fg, completed_style.fg);
@@ -318,7 +318,7 @@ mod action_tests {
     fn test_action_handler_registration() {
         let mut dispatcher = TestActionDispatcher::new();
         let handler = MockActionHandler::new("test_handler".to_string(), vec![TestAction::Quit]);
-        
+
         dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
         assert_eq!(dispatcher.handlers.len(), 1);
     }
@@ -327,18 +327,18 @@ mod action_tests {
     fn test_action_dispatch_and_process() {
         let mut dispatcher = TestActionDispatcher::new();
         let handler = MockActionHandler::new("test_handler".to_string(), vec![TestAction::Quit]);
-        
+
         dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
-        
+
         // Dispatch an action
         dispatcher.dispatch(TestAction::Quit);
         assert!(dispatcher.has_pending_actions());
-        
+
         // Process the action
         let result = dispatcher.process_next();
         assert!(result.is_some());
         match result.unwrap() {
-            TestActionResult::Success => {},
+            TestActionResult::Success => {}
             other => panic!("Expected Success, got {:?}", other),
         }
     }
@@ -347,23 +347,29 @@ mod action_tests {
     fn test_action_display() {
         assert_eq!(format!("{}", TestAction::Quit), "Quit");
         assert_eq!(format!("{}", TestAction::Refresh), "Refresh");
-        assert_eq!(format!("{}", TestAction::Navigate("WorkflowList".to_string())), "Navigate(WorkflowList)");
-        assert_eq!(format!("{}", TestAction::ExecuteWorkflow("test".to_string())), "ExecuteWorkflow(test)");
+        assert_eq!(
+            format!("{}", TestAction::Navigate("WorkflowList".to_string())),
+            "Navigate(WorkflowList)"
+        );
+        assert_eq!(
+            format!("{}", TestAction::ExecuteWorkflow("test".to_string())),
+            "ExecuteWorkflow(test)"
+        );
     }
 
     #[test]
     fn test_unhandled_action() {
         let mut dispatcher = TestActionDispatcher::new();
-        
+
         // Dispatch action with no handlers
         dispatcher.dispatch(TestAction::Quit);
-        
+
         let result = dispatcher.process_next();
         assert!(result.is_some());
-        
+
         // Should return error since no handler can process it
         match result.unwrap() {
-            TestActionResult::Error(_) => {}, // Expected
+            TestActionResult::Error(_) => {} // Expected
             other => panic!("Expected Error, got {:?}", other),
         }
     }
@@ -446,16 +452,24 @@ mod widget_tests {
 
         pub fn satisfies(&self, width: u16, height: u16) -> bool {
             if let Some(min_w) = self.min_width {
-                if width < min_w { return false; }
+                if width < min_w {
+                    return false;
+                }
             }
             if let Some(max_w) = self.max_width {
-                if width > max_w { return false; }
+                if width > max_w {
+                    return false;
+                }
             }
             if let Some(min_h) = self.min_height {
-                if height < min_h { return false; }
+                if height < min_h {
+                    return false;
+                }
             }
             if let Some(max_h) = self.max_height {
-                if height > max_h { return false; }
+                if height > max_h {
+                    return false;
+                }
             }
             true
         }
@@ -463,7 +477,7 @@ mod widget_tests {
         pub fn clamp(&self, width: u16, height: u16) -> (u16, u16) {
             let mut w = width;
             let mut h = height;
-            
+
             if let Some(min_w) = self.min_width {
                 w = w.max(min_w);
             }
@@ -476,7 +490,7 @@ mod widget_tests {
             if let Some(max_h) = self.max_height {
                 h = h.min(max_h);
             }
-            
+
             (w, h)
         }
     }
@@ -526,7 +540,10 @@ mod widget_tests {
         }
 
         pub fn deactivate(&mut self) {
-            if matches!(self.context.state, WidgetState::Active | WidgetState::Focused) {
+            if matches!(
+                self.context.state,
+                WidgetState::Active | WidgetState::Focused
+            ) {
                 self.context.state = WidgetState::Inactive;
                 self.context.has_focus = false;
             }
@@ -546,7 +563,7 @@ mod widget_tests {
     #[test]
     fn test_widget_context_creation() {
         let context = WidgetContext::new("test_widget".to_string());
-        
+
         assert_eq!(context.id, "test_widget");
         assert_eq!(context.state, WidgetState::Uninitialized);
         assert!(!context.has_focus);
@@ -558,16 +575,16 @@ mod widget_tests {
     #[test]
     fn test_widget_state_transitions() {
         let mut context = WidgetContext::new("test".to_string());
-        
+
         // Test state transitions
         context.state = WidgetState::Active;
         assert!(context.is_active());
         assert!(context.can_handle_events());
-        
+
         context.state = WidgetState::Focused;
         assert!(context.is_active());
         assert!(context.can_handle_events());
-        
+
         context.state = WidgetState::Disabled;
         assert!(!context.is_active());
         assert!(!context.can_handle_events());
@@ -575,17 +592,15 @@ mod widget_tests {
 
     #[test]
     fn test_size_constraints() {
-        let constraints = SizeConstraints::new()
-            .min_size(10, 5)
-            .max_size(100, 50);
-        
+        let constraints = SizeConstraints::new().min_size(10, 5).max_size(100, 50);
+
         // Test constraint satisfaction
         assert!(constraints.satisfies(50, 25));
         assert!(!constraints.satisfies(5, 25)); // Too narrow
         assert!(!constraints.satisfies(50, 3)); // Too short
         assert!(!constraints.satisfies(150, 25)); // Too wide
         assert!(!constraints.satisfies(50, 60)); // Too tall
-        
+
         // Test clamping
         assert_eq!(constraints.clamp(5, 25), (10, 25)); // Clamp width to min
         assert_eq!(constraints.clamp(50, 3), (50, 5)); // Clamp height to min
@@ -596,27 +611,27 @@ mod widget_tests {
     #[test]
     fn test_widget_lifecycle() {
         let mut widget = TestWidget::new("test_widget".to_string(), "Test Widget".to_string());
-        
+
         assert_eq!(widget.context.state, WidgetState::Uninitialized);
-        
+
         // Test initialization
         widget.initialize();
         assert_eq!(widget.context.state, WidgetState::Inactive);
-        
+
         // Test activation
         widget.activate();
         assert_eq!(widget.context.state, WidgetState::Active);
-        
+
         // Test focus
         widget.focus();
         assert_eq!(widget.context.state, WidgetState::Focused);
         assert!(widget.context.has_focus);
-        
+
         // Test blur
         widget.blur();
         assert_eq!(widget.context.state, WidgetState::Active);
         assert!(!widget.context.has_focus);
-        
+
         // Test deactivation
         widget.deactivate();
         assert_eq!(widget.context.state, WidgetState::Inactive);
@@ -626,19 +641,19 @@ mod widget_tests {
     fn test_widget_resize() {
         let mut widget = TestWidget::new("resize_test".to_string(), "Resize Test".to_string())
             .with_constraints(SizeConstraints::new().min_size(20, 10).max_size(80, 40));
-        
+
         // Test resize within constraints
         let area = Rect::new(0, 0, 50, 25);
         widget.resize(area);
         assert_eq!(widget.context.area, Some(area));
-        
+
         // Test resize with clamping
         let too_small = Rect::new(0, 0, 10, 5);
         widget.resize(too_small);
         let clamped_area = widget.context.area.unwrap();
         assert_eq!(clamped_area.width, 20); // Clamped to min width
         assert_eq!(clamped_area.height, 10); // Clamped to min height
-        
+
         let too_large = Rect::new(0, 0, 100, 60);
         widget.resize(too_large);
         let clamped_area = widget.context.area.unwrap();
@@ -721,31 +736,32 @@ mod layout_tests {
 
         pub fn calculate_layout(&self, total_area: Rect) -> HashMap<String, Rect> {
             let mut layout = HashMap::new();
-            
+
             if self.children.is_empty() {
                 return layout;
             }
 
             let total_weight: f32 = self.children.iter().map(|c| c.weight).sum();
-            
+
             match self.direction {
                 LayoutDirection::Vertical => {
                     let mut y = total_area.y;
                     for child in &self.children {
-                        let height = ((child.weight / total_weight) * total_area.height as f32) as u16;
+                        let height =
+                            ((child.weight / total_weight) * total_area.height as f32) as u16;
                         let height = if let Some(min_h) = child.min_height {
                             height.max(min_h)
                         } else {
                             height
                         };
-                        
+
                         let area = Rect {
                             x: total_area.x,
                             y,
                             width: total_area.width,
                             height,
                         };
-                        
+
                         layout.insert(child.widget_id.clone(), area);
                         y += height;
                     }
@@ -753,26 +769,27 @@ mod layout_tests {
                 LayoutDirection::Horizontal => {
                     let mut x = total_area.x;
                     for child in &self.children {
-                        let width = ((child.weight / total_weight) * total_area.width as f32) as u16;
+                        let width =
+                            ((child.weight / total_weight) * total_area.width as f32) as u16;
                         let width = if let Some(min_w) = child.min_width {
                             width.max(min_w)
                         } else {
                             width
                         };
-                        
+
                         let area = Rect {
                             x,
                             y: total_area.y,
                             width,
                             height: total_area.height,
                         };
-                        
+
                         layout.insert(child.widget_id.clone(), area);
                         x += width;
                     }
                 }
             }
-            
+
             layout
         }
     }
@@ -789,7 +806,7 @@ mod layout_tests {
         let node = LayoutNode::new("test_node".to_string())
             .with_weight(2.0)
             .with_min_size(20, 10);
-        
+
         assert_eq!(node.widget_id, "test_node");
         assert_eq!(node.weight, 2.0);
         assert_eq!(node.min_width, Some(20));
@@ -800,14 +817,14 @@ mod layout_tests {
     fn test_layout_manager_add_remove_child() {
         let mut manager = LayoutManager::new();
         let node = LayoutNode::new("child1".to_string());
-        
+
         manager.add_child(node);
         assert_eq!(manager.children.len(), 1);
-        
+
         let removed = manager.remove_child("child1");
         assert!(removed.is_some());
         assert_eq!(manager.children.len(), 0);
-        
+
         // Try to remove non-existent child
         let not_found = manager.remove_child("nonexistent");
         assert!(not_found.is_none());
@@ -816,26 +833,26 @@ mod layout_tests {
     #[test]
     fn test_vertical_layout_calculation() {
         let mut manager = LayoutManager::new();
-        
+
         // Add children with different weights
         let child1 = LayoutNode::new("child1".to_string()).with_weight(1.0);
         let child2 = LayoutNode::new("child2".to_string()).with_weight(2.0);
         let child3 = LayoutNode::new("child3".to_string()).with_weight(1.0);
-        
+
         manager.add_child(child1);
         manager.add_child(child2);
         manager.add_child(child3);
-        
+
         let total_area = Rect::new(0, 0, 100, 100);
         let layout = manager.calculate_layout(total_area);
-        
+
         assert_eq!(layout.len(), 3);
-        
+
         // With weights 1:2:1, the middle child should get twice the space
         let area1 = layout.get("child1").unwrap();
         let area2 = layout.get("child2").unwrap();
         let area3 = layout.get("child3").unwrap();
-        
+
         assert!(area2.height >= area1.height * 2 - 2); // Allow for rounding
         assert!(area2.height >= area3.height * 2 - 2);
     }
@@ -843,22 +860,22 @@ mod layout_tests {
     #[test]
     fn test_horizontal_layout_calculation() {
         let mut manager = LayoutManager::new().with_direction(LayoutDirection::Horizontal);
-        
+
         // Add children with equal weights
         let child1 = LayoutNode::new("child1".to_string()).with_weight(1.0);
         let child2 = LayoutNode::new("child2".to_string()).with_weight(1.0);
-        
+
         manager.add_child(child1);
         manager.add_child(child2);
-        
+
         let total_area = Rect::new(0, 0, 100, 50);
         let layout = manager.calculate_layout(total_area);
-        
+
         assert_eq!(layout.len(), 2);
-        
+
         let area1 = layout.get("child1").unwrap();
         let area2 = layout.get("child2").unwrap();
-        
+
         // Should split width equally
         assert_eq!(area1.width, 50);
         assert_eq!(area2.width, 50);
@@ -869,18 +886,18 @@ mod layout_tests {
     #[test]
     fn test_layout_with_constraints() {
         let mut manager = LayoutManager::new();
-        
+
         // Add child with minimum height constraint
         let child = LayoutNode::new("constrained_child".to_string())
             .with_weight(1.0)
             .with_min_size(10, 30);
-        
+
         manager.add_child(child);
-        
+
         // Calculate layout in small area
         let small_area = Rect::new(0, 0, 100, 20);
         let layout = manager.calculate_layout(small_area);
-        
+
         let child_area = layout.get("constrained_child").unwrap();
         assert!(child_area.height >= 30); // Should respect minimum constraint
     }
@@ -889,7 +906,7 @@ mod layout_tests {
     fn test_empty_layout() {
         let manager = LayoutManager::new();
         let area = Rect::new(0, 0, 100, 100);
-        
+
         let layout = manager.calculate_layout(area);
         assert!(layout.is_empty());
     }
@@ -949,7 +966,7 @@ mod error_tests {
 
         pub fn report_error(&mut self, error: TestError) {
             self.errors.push(error);
-            
+
             // Keep only the most recent errors
             if self.errors.len() > self.max_errors {
                 self.errors.remove(0);
@@ -966,7 +983,10 @@ mod error_tests {
         }
 
         pub fn get_errors_by_severity(&self, severity: TestErrorSeverity) -> Vec<&TestError> {
-            self.errors.iter().filter(|e| e.severity == severity).collect()
+            self.errors
+                .iter()
+                .filter(|e| e.severity == severity)
+                .collect()
         }
 
         pub fn clear_errors(&mut self) {
@@ -988,16 +1008,16 @@ mod error_tests {
     #[test]
     fn test_error_reporting() {
         let mut manager = ErrorManager::new();
-        
+
         let error = TestError::new(
             "Test error".to_string(),
             TestErrorSeverity::Medium,
-            "test_component".to_string()
+            "test_component".to_string(),
         );
-        
+
         manager.report_error(error);
         assert_eq!(manager.error_count(), 1);
-        
+
         let recent_errors = manager.get_recent_errors(1);
         assert_eq!(recent_errors.len(), 1);
         assert_eq!(recent_errors[0].message, "Test error");
@@ -1006,15 +1026,27 @@ mod error_tests {
     #[test]
     fn test_error_severity_filtering() {
         let mut manager = ErrorManager::new();
-        
-        manager.report_error(TestError::new("Low error".to_string(), TestErrorSeverity::Low, "comp1".to_string()));
-        manager.report_error(TestError::new("High error".to_string(), TestErrorSeverity::High, "comp2".to_string()));
-        manager.report_error(TestError::new("Critical error".to_string(), TestErrorSeverity::Critical, "comp3".to_string()));
-        
+
+        manager.report_error(TestError::new(
+            "Low error".to_string(),
+            TestErrorSeverity::Low,
+            "comp1".to_string(),
+        ));
+        manager.report_error(TestError::new(
+            "High error".to_string(),
+            TestErrorSeverity::High,
+            "comp2".to_string(),
+        ));
+        manager.report_error(TestError::new(
+            "Critical error".to_string(),
+            TestErrorSeverity::Critical,
+            "comp3".to_string(),
+        ));
+
         let high_errors = manager.get_errors_by_severity(TestErrorSeverity::High);
         assert_eq!(high_errors.len(), 1);
         assert_eq!(high_errors[0].message, "High error");
-        
+
         let critical_errors = manager.get_errors_by_severity(TestErrorSeverity::Critical);
         assert_eq!(critical_errors.len(), 1);
         assert_eq!(critical_errors[0].message, "Critical error");
@@ -1023,19 +1055,19 @@ mod error_tests {
     #[test]
     fn test_error_limit() {
         let mut manager = ErrorManager::new().with_max_errors(3);
-        
+
         // Add more errors than the limit
         for i in 0..5 {
             manager.report_error(TestError::new(
                 format!("Error {}", i),
                 TestErrorSeverity::Low,
-                "test".to_string()
+                "test".to_string(),
             ));
         }
-        
+
         // Should only keep the most recent 3 errors
         assert_eq!(manager.error_count(), 3);
-        
+
         let recent_errors = manager.get_recent_errors(3);
         assert_eq!(recent_errors[0].message, "Error 2");
         assert_eq!(recent_errors[1].message, "Error 3");
@@ -1045,12 +1077,20 @@ mod error_tests {
     #[test]
     fn test_error_clearing() {
         let mut manager = ErrorManager::new();
-        
-        manager.report_error(TestError::new("Error 1".to_string(), TestErrorSeverity::Low, "comp".to_string()));
-        manager.report_error(TestError::new("Error 2".to_string(), TestErrorSeverity::Medium, "comp".to_string()));
-        
+
+        manager.report_error(TestError::new(
+            "Error 1".to_string(),
+            TestErrorSeverity::Low,
+            "comp".to_string(),
+        ));
+        manager.report_error(TestError::new(
+            "Error 2".to_string(),
+            TestErrorSeverity::Medium,
+            "comp".to_string(),
+        ));
+
         assert_eq!(manager.error_count(), 2);
-        
+
         manager.clear_errors();
         assert_eq!(manager.error_count(), 0);
     }
@@ -1068,20 +1108,20 @@ mod integration_tests {
     fn test_theme_and_layout_integration() {
         let theme = theme_tests::create_dark_theme();
         let mut layout_manager = layout_tests::LayoutManager::new();
-        
+
         // Add some widgets to the layout
         let widget1 = layout_tests::LayoutNode::new("widget1".to_string()).with_weight(1.0);
         let widget2 = layout_tests::LayoutNode::new("widget2".to_string()).with_weight(2.0);
-        
+
         layout_manager.add_child(widget1);
         layout_manager.add_child(widget2);
-        
+
         let total_area = Rect::new(0, 0, 100, 100);
         let layout = layout_manager.calculate_layout(total_area);
-        
+
         // Verify layout calculation works
         assert_eq!(layout.len(), 2);
-        
+
         // Verify theme can be used with layout
         let status_style = theme_tests::get_status_style(&theme, "running");
         assert_eq!(status_style.fg, Some(Color::Green));
@@ -1089,27 +1129,28 @@ mod integration_tests {
 
     #[test]
     fn test_widget_and_action_integration() {
-        let mut widget = widget_tests::TestWidget::new("test_widget".to_string(), "Test Widget".to_string());
+        let mut widget =
+            widget_tests::TestWidget::new("test_widget".to_string(), "Test Widget".to_string());
         let mut action_dispatcher = action_tests::TestActionDispatcher::new();
-        
+
         // Initialize widget
         widget.initialize();
         widget.activate();
-        
+
         // Set up action handling
         let handler = action_tests::MockActionHandler::new(
             "test_handler".to_string(),
-            vec![action_tests::TestAction::Quit]
+            vec![action_tests::TestAction::Quit],
         );
         action_dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
-        
+
         // Test that widget can be in active state and actions can be processed
         assert!(widget.context.is_active());
-        
+
         action_dispatcher.dispatch(action_tests::TestAction::Quit);
         let result = action_dispatcher.process_next();
         match result {
-            Some(action_tests::TestActionResult::Success) => {},
+            Some(action_tests::TestActionResult::Success) => {}
             other => panic!("Expected Success, got {:?}", other),
         }
     }
@@ -1119,40 +1160,41 @@ mod integration_tests {
         // Create all components
         let theme = theme_tests::create_dark_theme();
         let mut layout_manager = layout_tests::LayoutManager::new();
-        let mut widget = widget_tests::TestWidget::new("main_widget".to_string(), "Main Widget".to_string());
+        let mut widget =
+            widget_tests::TestWidget::new("main_widget".to_string(), "Main Widget".to_string());
         let mut action_dispatcher = action_tests::TestActionDispatcher::new();
         let mut error_manager = error_tests::ErrorManager::new();
-        
+
         // Set up layout
         let node = layout_tests::LayoutNode::new("main_widget".to_string()).with_weight(1.0);
         layout_manager.add_child(node);
-        
+
         // Initialize widget
         widget.initialize();
         widget.activate();
-        
+
         // Set up action handling
         let handler = action_tests::MockActionHandler::new(
             "quit_handler".to_string(),
-            vec![action_tests::TestAction::Quit]
+            vec![action_tests::TestAction::Quit],
         );
         action_dispatcher.register_handler("quit_handler".to_string(), Box::new(handler));
-        
+
         // Simulate a complete workflow
-        
+
         // 1. Calculate layout
         let total_area = Rect::new(0, 0, 80, 24);
         let layout = layout_manager.calculate_layout(total_area);
         assert!(layout.contains_key("main_widget"));
-        
+
         // 2. Resize widget to fit layout
         let widget_area = layout.get("main_widget").unwrap();
         widget.resize(*widget_area);
         assert_eq!(widget.context.area, Some(*widget_area));
-        
+
         // 3. Dispatch an action
         action_dispatcher.dispatch(action_tests::TestAction::Quit);
-        
+
         // 4. Process action
         let result = action_dispatcher.process_next();
         match result {
@@ -1164,17 +1206,17 @@ mod integration_tests {
                 let error = error_tests::TestError::new(
                     msg,
                     error_tests::TestErrorSeverity::High,
-                    "quit_handler".to_string()
+                    "quit_handler".to_string(),
                 );
                 error_manager.report_error(error);
             }
             _ => {}
         }
-        
+
         // 5. Verify final state
         assert!(widget.context.is_active());
         assert_eq!(error_manager.error_count(), 0); // No errors should occur
-        
+
         // 6. Apply theme styling (conceptual - in real implementation this would affect rendering)
         let quit_style = theme_tests::get_status_style(&theme, "completed");
         assert_eq!(quit_style.fg, Some(Color::Blue));
