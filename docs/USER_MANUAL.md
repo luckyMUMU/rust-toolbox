@@ -2,7 +2,7 @@
 
 ## 概述
 
-欢迎使用工作流工具包！本手册将帮助您快速上手，学会创建和管理工作流，掌握常见使用场景，并解决可能遇到的问题。
+欢迎使用工作流工具包！本手册将帮助您快速上手，学会创建和管理工作流，掌握常见使用场景，并解决可能遇到的问题。工具包现在包含了全面的TUI界面、系统监控功能和维护工具。
 
 ## 快速开始指南
 
@@ -14,20 +14,23 @@
 - 内存: 最少2GB，推荐4GB+
 - 磁盘空间: 至少1GB可用空间
 - 网络: 用于下载插件和依赖
+- 终端: 支持256色和Unicode的现代终端
 
 #### 安装步骤
 
 ```bash
-# 1. 下载并解压工作流工具包
-wget https://github.com/example/workflow-toolkit/releases/latest/download/workflow-toolkit.tar.gz
-tar -xzf workflow-toolkit.tar.gz
+# 1. 克隆仓库
+git clone https://github.com/workflow-toolkit/workflow-toolkit.git
 cd workflow-toolkit
 
-# 2. 运行安装脚本
-./install.sh
+# 2. 构建项目
+cargo build --release
 
 # 3. 验证安装
-workflow-toolkit --version
+cargo run -- --version
+
+# 4. 运行测试
+cargo test
 ```
 
 #### 初始配置
@@ -43,11 +46,83 @@ cp config/default.toml ~/.workflow-toolkit/config.toml
 nano ~/.workflow-toolkit/config.toml
 ```
 
+### 2. TUI界面使用指南
+
+#### 启动TUI界面
+
+```bash
+# 启动交互式终端界面
+cargo run -- tui
+
+# 或者使用已安装的二进制文件
+workflow-toolkit tui
+```
+
+#### TUI界面导航
+
+- **Tab**: 在不同组件间切换
+- **↑/↓**: 在列表中导航
+- **Enter**: 选择/执行操作
+- **Esc**: 返回上级或取消
+- **q**: 退出应用程序
+- **h**: 显示帮助信息
+- **m**: 切换到维护模式
+- **Ctrl+C**: 强制退出
+
+#### TUI组件介绍
+
+##### 工作流管理器 (Workflow Manager)
+- 查看所有工作流
+- 创建新工作流
+- 执行和监控工作流
+- 查看执行历史
+
+##### 系统状态监控 (System Status)
+- 实时CPU使用率监控
+- 内存使用情况显示
+- 磁盘空间监控
+- 网络活动监控
+- 系统进程信息
+
+##### 维护模式 (Maintenance Mode)
+按 `m` 键进入维护模式，可以执行以下操作：
+- **c**: 清理警告和通知
+- **o**: 内存优化建议
+- **d**: 磁盘清理建议
+- **p**: 进程优化建议
+- **s**: 系统诊断
+- **r**: 重启建议
+
+##### 日志查看器 (Log Viewer)
+- 实时日志流
+- 日志过滤和搜索
+- 不同日志级别显示
+- 日志导出功能
+
+##### 工具管理器 (Tool Manager)
+- 浏览可用工具
+- 配置工具参数
+- 执行工具
+- 查看工具文档
+
+##### 插件管理器 (Plugin Manager)
+- 安装和卸载插件
+- 配置插件设置
+- 查看插件状态
+- 插件依赖管理
+
 ### 2. 第一个工作流
 
 让我们创建一个简单的"Hello World"工作流来熟悉基本操作。
 
-#### 创建工作流定义文件
+#### 使用TUI创建工作流
+
+1. 启动TUI界面：`cargo run -- tui`
+2. 使用Tab键导航到工作流管理器
+3. 按Enter键创建新工作流
+4. 按照向导填写工作流信息
+
+#### 使用CLI创建工作流定义文件
 
 创建文件 `hello-world.yaml`:
 
@@ -105,6 +180,8 @@ workflow-toolkit workflow status <execution-id>
 #### 基本命令结构
 
 ```bash
+cargo run -- <命令组> <子命令> [选项] [参数]
+# 或者使用已安装的二进制文件
 workflow-toolkit <命令组> <子命令> [选项] [参数]
 ```
 
@@ -112,20 +189,69 @@ workflow-toolkit <命令组> <子命令> [选项] [参数]
 
 ```bash
 # 查看帮助
-workflow-toolkit --help
-workflow-toolkit workflow --help
+cargo run -- --help
+cargo run -- workflow --help
 
 # 查看版本
-workflow-toolkit --version
+cargo run -- --version
 
 # 列出所有工作流
-workflow-toolkit workflow list
+cargo run -- workflow list
 
 # 列出所有工具
-workflow-toolkit tool list
+cargo run -- tool list
 
 # 查看配置
-workflow-toolkit config show
+cargo run -- config show
+
+# 系统监控命令
+cargo run -- system health
+cargo run -- system monitor --watch
+cargo run -- system maintenance --recommendations
+```
+
+### 4. 系统监控和维护
+
+#### 系统健康检查
+
+```bash
+# 基本健康检查
+cargo run -- system health
+
+# 详细系统信息
+cargo run -- system info
+
+# 实时监控
+cargo run -- system monitor --watch --interval 5s
+```
+
+#### 维护操作
+
+```bash
+# 获取维护建议
+cargo run -- system maintenance --recommendations
+
+# 清理系统警告
+cargo run -- system maintenance --clean-alerts
+
+# 内存优化建议
+cargo run -- system maintenance --memory-optimization
+
+# 磁盘清理建议
+cargo run -- system maintenance --disk-cleanup
+```
+
+#### 性能分析
+
+```bash
+# 性能分析报告
+cargo run -- system performance --analyze
+
+# 性能基准测试
+cargo run -- system performance --benchmark
+
+# 导出性能数据
+cargo run -- system performance --export --format json
 ```
 
 ### 4. 使用TUI界面

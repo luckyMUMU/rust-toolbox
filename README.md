@@ -1,19 +1,28 @@
 # Workflow Toolkit
 
-A comprehensive multi-interface workflow execution system built with Rust that provides flexible workflow management through CLI, TUI, and MCP server interfaces with advanced file management capabilities.
+A comprehensive multi-interface workflow execution system built with Rust that provides flexible workflow management through CLI, TUI, and MCP server interfaces with advanced file management capabilities and comprehensive system monitoring.
 
 ## Features
 
 ### Core Workflow Engine
 - **Multi-Interface Support**: CLI commands, Terminal UI (TUI), and Model Context Protocol (MCP) server
-- **DAG-based Workflow Engine**: Directed Acyclic Graph execution with conditions, loops, and parallel processing
+- **DAG-based Workflow Engine**: Directed Acyclic Graph execution with conditions, loops, and parallel processing using petgraph
 - **State Management**: Persistent workflow state with checkpoint and recovery capabilities
 - **Configuration Management**: Hierarchical configuration with environment variables, config files, and CLI parameter overrides
+
+### Advanced TUI System
+- **Enhanced Widget System**: Comprehensive widget framework with lifecycle management, themes, and layouts
+- **System Monitoring**: Real-time CPU, memory, disk, and network monitoring with visual charts
+- **Interactive Maintenance**: System diagnostics, maintenance recommendations, and automated cleanup actions
+- **Performance Optimization**: Built-in performance monitoring, memory management, and rendering optimization
+- **Responsive Design**: Adaptive layouts for different terminal sizes with virtualization support
+- **Comprehensive Testing**: Full unit and integration test coverage with performance benchmarks
 
 ### Plugin System
 - **Extensible Architecture**: Support for Native (Rust), Python, Node.js, Docker, and WebAssembly plugins
 - **Tool Registry**: Reusable tool nodes for workflows and standalone execution
 - **Plugin Manager**: Dynamic loading and lifecycle management of plugins
+- **Sandboxed Execution**: Secure plugin execution environments with resource limits
 
 ### File Management Tools
 - **Interactive Classification**: AI-powered file classification with human decision support
@@ -22,12 +31,19 @@ A comprehensive multi-interface workflow execution system built with Rust that p
 - **Result Confirmation**: Human-in-the-loop validation for critical operations
 - **Performance Monitoring**: Built-in profiling and metrics collection
 
+### System Operations & Maintenance
+- **System Diagnostics**: Comprehensive health assessment and issue detection
+- **Maintenance Recommendations**: Intelligent suggestions based on system state
+- **Automated Actions**: Memory cleanup, disk optimization, and process management
+- **Alert Management**: Configurable thresholds and notification system
+- **Resource Monitoring**: Real-time tracking of system resources with historical data
+
 ### Advanced Features
 - **Async Execution**: Full async/await support with tokio runtime
-- **Caching System**: High-performance caching with moka
+- **Caching System**: High-performance caching with moka and multi-level cache strategies
 - **Vector Storage**: Optional LanceDB integration for advanced data operations
 - **Audit Logging**: Comprehensive operation tracking and logging
-- **Error Recovery**: Robust error handling with retry mechanisms
+- **Error Recovery**: Robust error handling with retry mechanisms and graceful degradation
 
 ## Quick Start
 
@@ -89,6 +105,59 @@ workflow-toolkit tool list
 workflow-toolkit tool execute echo --params '{"message": "Hello World"}'
 ```
 
+### TUI Interface Features
+
+The Terminal User Interface provides a comprehensive interactive experience:
+
+```bash
+# Start interactive TUI
+workflow-toolkit tui
+
+# TUI Navigation
+# Tab: Switch between widgets
+# ↑/↓: Navigate items
+# Enter: Select/Execute
+# Esc: Go back/Cancel
+# q: Quit application
+# m: Maintenance mode
+# h: Help system
+```
+
+#### TUI Widgets and Features
+
+- **Workflow Management**: Create, execute, and monitor workflows with real-time status updates
+- **System Monitoring**: Live CPU, memory, disk, and network monitoring with visual charts
+- **Log Viewer**: Real-time log streaming with filtering and search capabilities
+- **Tool Manager**: Browse, configure, and execute tools interactively
+- **Plugin Manager**: Install, configure, and manage plugins
+- **System Status**: Comprehensive system health dashboard with maintenance tools
+- **Performance Monitor**: Real-time performance metrics and optimization recommendations
+- **Error Management**: Interactive error handling with recovery suggestions
+
+#### System Maintenance Features
+
+```bash
+# Access maintenance mode in TUI
+workflow-toolkit tui
+# Press 'm' for maintenance mode
+
+# Available maintenance actions:
+# c: Clear alerts and notifications
+# o: Memory optimization
+# d: Disk cleanup recommendations
+# p: Process optimization
+# s: System diagnostics
+# r: Restart recommendations
+```
+
+#### TUI Performance Features
+
+- **Virtualization**: Efficient handling of large datasets with virtual scrolling
+- **Memory Management**: Automatic memory cleanup and leak detection
+- **Rendering Optimization**: Adaptive rendering based on terminal capabilities
+- **Responsive Design**: Automatic layout adjustment for different screen sizes
+- **Theme System**: Multiple themes with customizable color schemes
+
 ### File Management Tools
 
 The toolkit includes specialized file management capabilities:
@@ -105,6 +174,24 @@ workflow-toolkit tool execute batch_processor \
 # Text processing with human review
 workflow-toolkit tool execute text_processor \
   --params '{"input_file": "document.txt", "operations": ["extract", "analyze"]}'
+```
+
+### System Monitoring and Maintenance
+
+Comprehensive system monitoring and maintenance capabilities:
+
+```bash
+# System health check
+workflow-toolkit system health
+
+# Resource monitoring
+workflow-toolkit system monitor --watch
+
+# Maintenance recommendations
+workflow-toolkit system maintenance --recommendations
+
+# Performance analysis
+workflow-toolkit system performance --analyze
 ```
 
 ## Configuration
@@ -155,6 +242,30 @@ batch_size = 100
 enable_profiling = false
 metrics_collection = true
 cache_ttl = "1h"
+
+[tui]
+theme = "dark"  # dark, light, auto
+refresh_rate = 60  # Hz
+enable_mouse = true
+enable_virtualization = true
+max_log_entries = 10000
+
+[system_monitoring]
+cpu_threshold_warning = 70.0
+cpu_threshold_critical = 90.0
+memory_threshold_warning = 80.0
+memory_threshold_critical = 95.0
+disk_threshold_warning = 85.0
+disk_threshold_critical = 95.0
+network_threshold_warning = 100.0  # MB/s
+update_interval = "5s"
+
+[maintenance]
+auto_cleanup_enabled = true
+cleanup_interval = "1h"
+max_alert_age = "24h"
+memory_cleanup_threshold = 90.0
+disk_cleanup_threshold = 90.0
 ```
 
 ### Environment Variables
@@ -172,6 +283,17 @@ export WORKFLOW_TOOLKIT_PLUGINS__PLUGIN_DIR="./plugins"
 
 # Logging configuration
 export WORKFLOW_TOOLKIT_LOGGING__LEVEL="debug"
+
+# TUI configuration
+export WORKFLOW_TOOLKIT_TUI__THEME="dark"
+export WORKFLOW_TOOLKIT_TUI__REFRESH_RATE=60
+
+# System monitoring configuration
+export WORKFLOW_TOOLKIT_SYSTEM_MONITORING__CPU_THRESHOLD_WARNING=70.0
+export WORKFLOW_TOOLKIT_SYSTEM_MONITORING__UPDATE_INTERVAL="5s"
+
+# Maintenance configuration
+export WORKFLOW_TOOLKIT_MAINTENANCE__AUTO_CLEANUP_ENABLED=true
 ```
 
 ## Architecture
@@ -226,12 +348,15 @@ The toolkit follows a modular, layered architecture designed for scalability and
 - **Language**: Rust 2021 Edition (1.70+)
 - **Async Runtime**: Tokio with full async/await support
 - **Graph Processing**: petgraph for DAG operations
-- **Storage**: LanceDB with Arrow/Parquet support
+- **Storage**: LanceDB with Arrow/Parquet support (optional)
 - **Caching**: moka for high-performance in-memory caching
-- **CLI**: clap 4.5 with derive features
-- **TUI**: ratatui with crossterm
+- **CLI**: clap 4.5 with derive features and shell completion
+- **TUI**: ratatui 0.29 with crossterm for terminal handling
+- **System Monitoring**: sysinfo for real-time system metrics
 - **Serialization**: serde with JSON/YAML/TOML support
-- **Plugin Runtime**: wasmtime, libloading, bollard (Docker)
+- **Plugin Runtime**: libloading, bollard (Docker)
+- **Error Handling**: thiserror for structured error types
+- **Concurrency**: dashmap and parking_lot for thread-safe operations
 
 ## Development
 
@@ -263,7 +388,7 @@ cargo build --example file_management_example
 
 ### Testing
 
-The project uses comprehensive testing including unit tests, integration tests, and property-based tests:
+The project uses comprehensive testing including unit tests, integration tests, property-based tests, and performance benchmarks:
 
 ```bash
 # Run all tests
@@ -275,6 +400,12 @@ cargo test -- --nocapture
 # Run specific test modules
 cargo test storage::tests
 cargo test file_management::tests
+cargo test tui::tests
+
+# Run TUI-specific tests
+cargo test tui_unit_tests --test tui_standalone_unit_tests
+cargo test tui_integration_tests --test tui_integration_tests
+cargo test tui_performance_tests --test tui_performance_benchmark_tests
 
 # Run property-based tests
 cargo test property_tests
@@ -284,6 +415,9 @@ cargo test --test integration_tests
 
 # Run with specific log level
 RUST_LOG=debug cargo test
+
+# Run performance benchmarks
+cargo test --release performance_benchmark
 ```
 
 ### Development Commands
@@ -323,12 +457,26 @@ workflow-toolkit/
 │   │   └── file_management/      # File management tools
 │   ├── storage/                  # Storage layer
 │   ├── interfaces/               # CLI, TUI, MCP interfaces
+│   │   ├── cli/                  # Command-line interface
+│   │   └── tui/                  # Terminal user interface
+│   │       ├── widgets/          # TUI widgets (WorkflowList, SystemStatus, etc.)
+│   │       ├── theme.rs          # Theme system and color schemes
+│   │       ├── layout.rs         # Layout management and constraints
+│   │       ├── event.rs          # Event handling and key bindings
+│   │       ├── performance.rs    # Performance monitoring and optimization
+│   │       ├── memory.rs         # Memory management and leak detection
+│   │       ├── monitoring.rs     # System monitoring and metrics
+│   │       └── config.rs         # TUI-specific configuration
 │   └── performance/              # Performance monitoring
 ├── examples/                     # Example workflows and usage
 │   ├── templates/                # Workflow templates
 │   └── tools/                    # Example tool implementations
 ├── docs/                         # Documentation
-├── tests/                        # Integration tests
+├── tests/                        # Integration and unit tests
+│   ├── tui_standalone_unit_tests.rs      # Comprehensive TUI unit tests
+│   ├── tui_integration_tests.rs          # TUI integration tests
+│   ├── tui_basic_integration_tests.rs    # Basic TUI integration tests
+│   └── tui_performance_benchmark_tests.rs # TUI performance benchmarks
 └── config/                       # Default configuration
 ```
 
@@ -353,6 +501,14 @@ cargo run --example async_execution_example
 
 # Performance monitoring
 cargo run --example performance_monitoring_example
+
+# TUI interface examples
+cargo run --example tui_complete_example
+cargo run --example tui_example
+
+# System monitoring examples
+cargo run --example system_recovery_example
+cargo run --example audit_logging_example
 ```
 
 ### Common Use Cases
