@@ -244,10 +244,15 @@ impl DefaultWorkflowEngine {
                 return Err(WorkflowError::ExecutionCancelled.into());
             }
             if control.should_pause() {
+                // Drop the guard immediately to avoid blocking other operations
+                drop(control);
+                
                 // Wait until resumed or stopped
                 loop {
+                    // Reacquire guard each iteration to avoid holding it during sleep
                     if let Some(updated_control) = self.control_signals.get(&workflow_id) {
-                        if !updated_control.should_pause() || updated_control.should_stop() {
+                        let should_resume = !updated_control.should_pause() || updated_control.should_stop();
+                        if should_resume {
                             break;
                         }
                     } else {
@@ -283,8 +288,8 @@ impl DefaultWorkflowEngine {
         context: ExecutionContext,
         retry_policy: Option<&crate::core::RetryPolicy>,
     ) -> Result<Value> {
-        let default_retry = crate::core::RetryPolicy::default();
-        let retry_policy = retry_policy.unwrap_or(&default_retry);
+        let retry_policy_owned = retry_policy.cloned().unwrap_or_default();
+        let retry_policy = &retry_policy_owned;
 
         let (workflow_id, workflow_name) = {
             let execution = workflow_execution.read().await;
@@ -298,7 +303,7 @@ impl DefaultWorkflowEngine {
             if let Ok(Some(cached_result)) = result_cache
                 .get_node_result(
                     &workflow_name,
-                    "1.0.0", // In a real implementation, get actual version
+                    "1.0.0", // TODO: Get actual workflow version from definition
                     node_id,
                     &context,
                     &parameters,
@@ -380,7 +385,7 @@ impl DefaultWorkflowEngine {
                         if let Err(cache_error) = result_cache
                             .cache_node_result(
                                 &workflow_name,
-                                "1.0.0", // In a real implementation, get actual version
+                                "1.0.0", // TODO: Get actual workflow version from definition
                                 node_id,
                                 &context,
                                 &parameters,
@@ -672,6 +677,12 @@ impl DefaultWorkflowEngine {
         tracing::error!("Workflow {} encountered error: {}", workflow_id, error);
 
         // Create error record
+        // Calculate duration from workflow execution if available
+        let duration = {
+            let execution = workflow_execution.read().await;
+            execution.completed_at.map(|completed| completed.signed_duration_since(execution.started_at))
+        };
+        
         let error_record = ExecutionRecord {
             workflow_id,
             execution_id: workflow_id.to_string(),
@@ -679,7 +690,7 @@ impl DefaultWorkflowEngine {
             status: ExecutionStatus::Failed,
             result: None,
             error: Some(error.to_string()),
-            duration: None,
+            duration,
         };
 
         // Save error record
@@ -1320,12 +1331,23 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                             .await?;
 
                         // Wait until resumed or stopped
-                        while control.should_pause() && !control.should_stop() {
+                        loop {
+                            // Reacquire guard each iteration to avoid holding it during sleep
+                            if let Some(current_control) = self.control_signals.get(&workflow_id) {
+                                let should_resume = !current_control.should_pause() || current_control.should_stop();
+                                if should_resume {
+                                    break;
+                                }
+                            } else {
+                                break; // Control signal removed
+                            }
                             sleep(Duration::from_millis(100)).await;
                         }
 
-                        if control.should_stop() {
-                            break;
+                        if let Some(current_control) = self.control_signals.get(&workflow_id) {
+                            if current_control.should_stop() {
+                                break;
+                            }
                         }
 
                         // Update status back to running and log resume
