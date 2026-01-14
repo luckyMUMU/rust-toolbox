@@ -79,7 +79,10 @@ impl BatchSummary {
     }
 }
 
-/// Main CLI application
+/// Main CLI application.
+///
+/// Orchestrates the execution of commands, initialization of components (workflow engine,
+/// tool registry, etc.), and handling of application state.
 pub struct CliApp {
     config_manager: Option<Arc<ConfigManager>>,
     workflow_engine: Option<Arc<dyn WorkflowEngine>>,

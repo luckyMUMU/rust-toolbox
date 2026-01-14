@@ -1,11 +1,21 @@
-//! Error handling for the workflow toolkit
+//! Error handling for the workflow toolkit.
+//!
+//! This module defines the central [`WorkflowError`] type used throughout the application.
+//! It uses `thiserror` to provide convenient error wrapping and display.
+//!
+//! # Error Categories
+//!
+//! - **Configuration**: Errors related to loading or parsing configuration.
+//! - **Validation**: Logic errors in workflow definitions.
+//! - **Execution**: Runtime errors during workflow or tool execution.
+//! - **System**: IO, networking, and resource errors.
 
 use thiserror::Error;
 
 /// Result type alias for the workflow toolkit
 pub type Result<T> = std::result::Result<T, WorkflowError>;
 
-/// Main error type for the workflow toolkit
+/// Main error type for the workflow toolkit.
 #[derive(Error, Debug)]
 pub enum WorkflowError {
     #[error("Configuration error: {0}")]

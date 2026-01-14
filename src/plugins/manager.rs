@@ -35,7 +35,10 @@ impl Default for RuntimeManager {
     }
 }
 
-/// Plugin manager for loading and managing plugins
+/// Plugin manager for loading and managing plugins.
+///
+/// Handles the lifecycle of plugins, including loading, unloading, configuration management,
+/// and tool registration.
 pub struct PluginManager {
     plugins: Arc<RwLock<HashMap<String, Box<dyn Plugin>>>>,
     plugin_configs: Arc<RwLock<HashMap<String, PluginConfig>>>,
@@ -70,7 +73,12 @@ impl PluginManager {
         info!("Tool registry set for plugin manager");
     }
 
-    /// Load a plugin with configuration
+    /// Load a plugin with configuration.
+    ///
+    /// This process involves:
+    /// 1. Validating the configuration.
+    /// 2. Initializing the plugin.
+    /// 3. Registering the plugin's tools.
     pub fn load_plugin(&self, mut plugin: Box<dyn Plugin>, config: PluginConfig) -> Result<()> {
         let plugin_name = config.name.clone();
 
@@ -119,7 +127,9 @@ impl PluginManager {
         Ok(())
     }
 
-    /// Unload a plugin
+    /// Unload a plugin by name.
+    ///
+    /// This removes the plugin from the manager, unregisters its tools, and performs cleanup.
     pub fn unload_plugin(&self, name: &str) -> Result<()> {
         info!("Unloading plugin: {}", name);
 
@@ -268,7 +278,7 @@ impl PluginManager {
             .ok_or_else(|| WorkflowError::not_found(format!("Plugin not found: {}", plugin_name)))
     }
 
-    /// Register plugin tools with the main tool registry
+    /// Register tools from a plugin into the main tool registry.
     fn register_plugin_tools(&self, plugin_name: &str, plugin: &dyn Plugin) -> Result<()> {
         if let Some(tool_registry) = &self.tool_registry {
             let tools = plugin.get_tools();

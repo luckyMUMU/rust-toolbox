@@ -1,5 +1,11 @@
-//! CLI interface implementation for the workflow toolkit
-
+//! # Command Line Interface (CLI)
+//!
+//! The CLI provides a standard way to interact with the workflow toolkit from the terminal.
+//! It supports:
+//! - Workflow execution (single or batch)
+//! - Tool management (list, inspect)
+//! - Plugin management
+//! - MCP server execution
 pub mod app;
 pub mod commands;
 pub mod error;

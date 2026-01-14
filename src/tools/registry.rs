@@ -70,7 +70,10 @@ pub trait ToolRegistry: Send + Sync {
     fn get_tool_templates(&self, tool_name: &str) -> Vec<ParameterTemplate>;
 }
 
-/// Basic implementation of ToolRegistry using DashMap for concurrent access
+/// Basic implementation of `ToolRegistry`.
+///
+/// Uses `DashMap` for thread-safe concurrent access to registered tools.
+/// Handles dependency resolution and caching of tool information.
 pub struct BasicToolRegistry {
     tools: DashMap<String, Arc<dyn ToolNode>>,
     tool_info_cache: DashMap<String, ToolInfo>,

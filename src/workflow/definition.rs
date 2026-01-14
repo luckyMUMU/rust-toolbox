@@ -1,4 +1,25 @@
-//! Workflow definition structures
+//! Workflow definition structures.
+//!
+//! This module defines the static structure of a workflow, including its nodes, edges,
+//! and configuration. It provides a builder-like API for constructing workflows programmatically.
+//!
+//! # Example
+//!
+//! ```rust
+//! use rust_tool_v2::workflow::{WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType};
+//!
+//! let mut workflow = WorkflowDefinition::new("my-workflow", "1.0.0");
+//!
+//! // Add nodes
+//! workflow.add_node(WorkflowNode::tool("step1", "echo-tool")).unwrap();
+//! workflow.add_node(WorkflowNode::tool("step2", "grep-tool")).unwrap();
+//!
+//! // Connect nodes
+//! workflow.add_edge(WorkflowEdge::new("step1", "step2")).unwrap();
+//!
+//! // Validate
+//! workflow.validate().unwrap();
+//! ```
 
 use crate::core::{RetryPolicy, WorkflowConfig, WorkflowId};
 use crate::error::{Result, WorkflowError};
@@ -8,15 +29,24 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use uuid::Uuid;
 
-/// Workflow definition structure
+/// Workflow definition structure.
+///
+/// Represents the blueprint of a workflow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowDefinition {
+    /// Unique name of the workflow
     pub name: String,
+    /// Semantic version of the workflow
     pub version: String,
+    /// Human-readable description
     pub description: Option<String>,
+    /// Arbitrary metadata
     pub metadata: HashMap<String, Value>,
+    /// List of nodes in the workflow graph
     pub nodes: Vec<WorkflowNode>,
+    /// List of directed edges connecting nodes
     pub edges: Vec<WorkflowEdge>,
+    /// Global configuration for this workflow
     pub global_config: WorkflowConfig,
 }
 

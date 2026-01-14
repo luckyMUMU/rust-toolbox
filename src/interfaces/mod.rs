@@ -1,5 +1,10 @@
-//! Interface implementations for CLI, TUI, and MCP server
-
+//! # Interface Layer
+//!
+//! This module contains the different user interfaces for the workflow toolkit:
+//!
+//! - **CLI**: Command-line interface for batch processing and automation.
+//! - **TUI**: Terminal user interface for interactive monitoring and management.
+//! - **MCP**: Model Context Protocol server for AI assistant integration.
 pub mod cli;
 pub mod mcp;
 pub mod tui;

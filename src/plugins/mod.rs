@@ -1,5 +1,21 @@
-//! Plugin system for extending functionality
-
+//! # Plugin System
+//!
+//! The plugin system allows extending the workflow engine with external functionality.
+//! It supports multiple plugin types including Native (Rust dylib), Python, Node.js, and Docker.
+//!
+//! ## Key Components
+//!
+//! - **PluginManager**: Manages the lifecycle of plugins (load, unload, reload).
+//! - **Plugin**: The core trait that all plugins must implement.
+//! - **PluginConfig**: Configuration for plugins including security policies and resource limits.
+//! - **RuntimeManager**: Manages language runtimes (e.g., Python interpreter, Node.js process).
+//!
+//! ## Plugin Types
+//!
+//! - **Native**: Compiled Rust dynamic libraries (.dll, .so, .dylib).
+//! - **Python**: Python scripts running in a managed environment.
+//! - **Node.js**: JavaScript/TypeScript modules.
+//! - **Docker**: Containerized tools.
 pub mod docker;
 pub mod file_management;
 pub mod integration;

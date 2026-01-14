@@ -10,7 +10,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Plugin trait for all plugin types
+/// Plugin trait for all plugin types.
+///
+/// This trait defines the standard interface that all plugins must implement to interact
+/// with the workflow engine.
 pub trait Plugin: Send + Sync {
     /// Get plugin information
     fn info(&self) -> &PluginInfo;

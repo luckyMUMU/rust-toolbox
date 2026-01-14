@@ -1,4 +1,12 @@
-//! Configuration management for the workflow toolkit
+//! Configuration management for the workflow toolkit.
+//!
+//! This module handles loading, validating, and managing configuration from multiple sources:
+//! 1. Default values (lowest priority)
+//! 2. Configuration files (e.g., `config/default.toml`)
+//! 3. Environment variables (prefixed with `WORKFLOW_TOOLKIT_`)
+//! 4. Command line arguments (highest priority)
+//!
+//! It also supports hot reloading of configuration files.
 
 use crate::core::{AuthConfig, RateLimitConfig};
 use crate::error::{Result, WorkflowError};
@@ -22,15 +30,24 @@ where
     Ok(Duration::from_secs(secs))
 }
 
-/// Main configuration structure
+/// Main configuration structure.
+///
+/// Holds all configuration sections for the application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    /// Server settings (ports, host)
     pub server: ServerConfig,
+    /// Storage settings (database, cache)
     pub storage: StorageConfig,
+    /// Logging settings
     pub logging: LoggingConfig,
+    /// Plugin system settings
     pub plugins: PluginConfig,
+    /// Authentication settings
     pub auth: AuthConfig,
+    /// Rate limiting settings
     pub rate_limit: RateLimitConfig,
+    /// Workflow engine settings
     pub workflow: WorkflowEngineConfig,
 }
 

@@ -155,7 +155,9 @@ impl ToolNode for BasicTool {
     }
 }
 
-/// Builder for BasicTool
+/// Builder for creating `BasicTool` instances.
+///
+/// Follows the builder pattern to construct tools with various configuration options.
 pub struct BasicToolBuilder {
     name: Option<String>,
     version: Option<String>,

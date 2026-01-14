@@ -1,4 +1,7 @@
-//! Workflow execution engine
+//! Workflow execution engine.
+//!
+//! This module contains the logic for executing workflows, managing their state,
+//! handling retries, and integrating with the tool registry and audit logging.
 
 use crate::core::{ExecutionContext, ExecutionStatus, WorkflowId};
 use crate::error::{Result, WorkflowError};
@@ -19,7 +22,7 @@ use tokio::sync::{RwLock, Semaphore};
 use tokio::time::sleep;
 use uuid::Uuid;
 
-/// Error recovery actions
+/// Error recovery actions.
 #[derive(Debug, Clone, PartialEq)]
 enum ErrorRecoveryAction {
     /// Stop the entire workflow
@@ -32,7 +35,7 @@ enum ErrorRecoveryAction {
     PauseAndRetry,
 }
 
-/// Error context for better error reporting
+/// Error context for better error reporting.
 #[derive(Debug, Clone)]
 struct ErrorContext {
     workflow_id: WorkflowId,
@@ -43,17 +46,32 @@ struct ErrorContext {
     global_context: Value,
 }
 
-/// Trait for workflow engines
+/// Trait for workflow engines.
+///
+/// Defines the core operations for a workflow execution engine.
 #[async_trait]
 pub trait WorkflowEngine: Send + Sync {
+    /// Execute a workflow definition.
     async fn execute_workflow(&self, definition: WorkflowDefinition) -> Result<WorkflowExecution>;
+    /// Pause a running workflow.
     async fn pause_workflow(&self, id: WorkflowId) -> Result<()>;
+    /// Resume a paused workflow.
     async fn resume_workflow(&self, id: WorkflowId) -> Result<()>;
+    /// Stop/Cancel a running workflow.
     async fn stop_workflow(&self, id: WorkflowId) -> Result<()>;
+    /// Get the current status of a workflow.
     async fn get_workflow_status(&self, id: WorkflowId) -> Result<ExecutionStatus>;
 }
 
-/// Default implementation of the workflow engine
+/// Default implementation of the workflow engine.
+///
+/// This engine handles:
+/// - Workflow state management
+/// - Tool execution
+/// - Concurrency control
+/// - Audit logging
+/// - Result caching
+/// - Retry logic
 pub struct DefaultWorkflowEngine {
     /// State manager for persistence
     state_manager: Arc<StateManager>,
@@ -281,7 +299,13 @@ impl DefaultWorkflowEngine {
             .execute_tool(tool_name, params, context)
             .await
     }
-    /// Execute a single node with retry logic and caching
+    /// Execute a single node with retry logic and caching.
+    ///
+    /// This method wraps `execute_node` with:
+    /// 1. Caching (read/write)
+    /// 2. Retry logic (backoff, max attempts)
+    /// 3. Audit logging (start, success, retry, failure)
+    /// 4. Error handling
     pub async fn execute_node_with_retry(
         &self,
         node_id: &str,
@@ -299,7 +323,8 @@ impl DefaultWorkflowEngine {
 
         // Check cache first if caching is enabled
         if let Some(result_cache) = &self.result_cache {
-            let parameters = Value::Null; // In a real implementation, get actual parameters
+            // TODO: In a real implementation, we must resolve parameters from the node definition and upstream results.
+            let parameters = Value::Null;
 
             if let Ok(Some(cached_result)) = result_cache
                 .get_node_result(

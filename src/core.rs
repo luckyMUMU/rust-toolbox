@@ -1,4 +1,21 @@
-//! Core types and traits for the workflow toolkit
+//! Core types and traits for the workflow toolkit.
+//!
+//! This module defines the fundamental data structures and types used throughout the system,
+//! including:
+//! - [`ExecutionContext`]: Context passed to tools and workflows during execution.
+//! - [`WorkflowConfig`]: Configuration for workflow execution behavior.
+//! - [`ExecutionStatus`]: State machine for workflow and task lifecycles.
+//! - [`SystemStatus`]: Metrics for system monitoring.
+//!
+//! # Examples
+//!
+//! Creating a new execution context:
+//! ```rust
+//! use rust_tool_v2::core::ExecutionContext;
+//!
+//! let context = ExecutionContext::new()
+//!     .with_user_id("user_123");
+//! ```
 
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
@@ -19,27 +36,37 @@ where
     Ok(Duration::from_secs(secs))
 }
 
-/// Unique identifier for workflows
+/// Unique identifier for workflows (UUID v4)
 pub type WorkflowId = Uuid;
 
-/// Unique identifier for tool nodes
+/// Unique identifier for tool nodes (String)
 pub type ToolId = String;
 
-/// Unique identifier for plugins
+/// Unique identifier for plugins (String)
 pub type PluginId = String;
 
-/// Execution context passed to tools and workflows
+/// Execution context passed to tools and workflows.
+///
+/// Contains runtime information such as the current workflow ID, execution ID,
+/// user context, and global variables accessible to all nodes in the workflow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionContext {
+    /// ID of the workflow being executed, if any
     pub workflow_id: Option<WorkflowId>,
+    /// Unique ID for this specific execution run
     pub execution_id: String,
+    /// ID of the user initiating the execution
     pub user_id: Option<String>,
+    /// Session ID for grouping executions
     pub session_id: Option<String>,
+    /// Global variables accessible to all nodes
     pub global_variables: HashMap<String, Value>,
+    /// Timestamp when execution started
     pub started_at: DateTime<Utc>,
 }
 
 impl ExecutionContext {
+    /// Create a new execution context with a generated execution ID and current timestamp.
     pub fn new() -> Self {
         Self {
             workflow_id: None,
@@ -51,20 +78,24 @@ impl ExecutionContext {
         }
     }
 
+    /// Set the workflow ID for this context.
     pub fn with_workflow_id(mut self, workflow_id: WorkflowId) -> Self {
         self.workflow_id = Some(workflow_id);
         self
     }
 
+    /// Set the user ID for this context.
     pub fn with_user_id<S: Into<String>>(mut self, user_id: S) -> Self {
         self.user_id = Some(user_id.into());
         self
     }
 
+    /// Set a global variable.
     pub fn set_variable<K: Into<String>>(&mut self, key: K, value: Value) {
         self.global_variables.insert(key.into(), value);
     }
 
+    /// Get a global variable by key.
     pub fn get_variable(&self, key: &str) -> Option<&Value> {
         self.global_variables.get(key)
     }
@@ -76,13 +107,20 @@ impl Default for ExecutionContext {
     }
 }
 
-/// Retry policy for task execution
+/// Retry policy for task execution.
+///
+/// Defines how a task should be retried in case of failure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetryPolicy {
+    /// Strategy to use for calculating delay between retries
     pub strategy: RetryStrategy,
+    /// Maximum number of retry attempts
     pub max_attempts: u32,
+    /// Base delay for the first retry
     pub base_delay: Duration,
+    /// Maximum delay allowed between retries
     pub max_delay: Option<Duration>,
+    /// Multiplier for exponential backoff (e.g., 2.0 for doubling delay)
     pub backoff_multiplier: f64,
 }
 
@@ -98,29 +136,42 @@ impl Default for RetryPolicy {
     }
 }
 
-/// Retry strategy enumeration
+/// Retry strategy enumeration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RetryStrategy {
+    /// No delay between retries
     None,
+    /// Fixed delay between retries
     FixedInterval,
+    /// Exponentially increasing delay
     ExponentialBackoff,
+    /// Linearly increasing delay
     LinearBackoff,
+    /// Custom strategy (implementation specific)
     Custom(String),
 }
 
-/// Execution status for workflows and tasks
+/// Execution status for workflows and tasks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 pub enum ExecutionStatus {
+    /// Queued for execution but not yet started
     Pending,
+    /// Currently executing
     Running,
+    /// Execution paused by user or system
     Paused,
+    /// Successfully completed
     Completed,
+    /// Execution failed with error
     Failed,
+    /// Cancelled by user
     Cancelled,
+    /// Execution timed out
     Timeout,
 }
 
 impl ExecutionStatus {
+    /// Check if the status represents a terminal state (cannot transition further).
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
@@ -128,33 +179,45 @@ impl ExecutionStatus {
         )
     }
 
+    /// Check if the execution is currently active (running).
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Running)
     }
 
+    /// Check if the execution can be paused.
     pub fn can_pause(&self) -> bool {
         matches!(self, Self::Running)
     }
 
+    /// Check if the execution can be resumed.
     pub fn can_resume(&self) -> bool {
         matches!(self, Self::Paused)
     }
 
+    /// Check if the execution can be stopped/cancelled.
     pub fn can_stop(&self) -> bool {
         matches!(self, Self::Running | Self::Paused)
     }
 }
 
-/// Configuration for workflow execution
+/// Configuration for workflow execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowConfig {
+    /// Global timeout for the entire workflow
     pub timeout: Option<Duration>,
+    /// Default retry policy for nodes that don't specify one
     pub retry_policy: RetryPolicy,
+    /// Maximum number of parallel tasks allowed
     pub parallel_limit: Option<usize>,
+    /// Interval for saving execution state checkpoints
     pub checkpoint_interval: Option<Duration>,
+    /// Whether to enable result caching
     pub enable_caching: bool,
+    /// Execution mode (Sync/Async)
     pub execution_mode: ExecutionMode,
+    /// Concurrency settings
     pub concurrency_config: ConcurrencyConfig,
+    /// Additional metadata
     pub metadata: HashMap<String, Value>,
 }
 
