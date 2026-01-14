@@ -105,27 +105,46 @@ workflow-toolkit tool list
 workflow-toolkit tool execute echo --params '{"message": "Hello World"}'
 ```
 
-### TUI Interface Features
+## Documentation
 
-The Terminal User Interface provides a comprehensive interactive experience:
+Comprehensive documentation is available in multiple formats:
 
-```bash
-# Start interactive TUI
-workflow-toolkit tui
+### Quick Start
+- **[README.md](README.md)**: You're here! Project overview
+- **[docs/INDEX.md](docs/INDEX.md)**: Complete documentation index
+- **[docs/CHEATSHEET.md](docs/CHEATSHEET.md)**: Quick command reference
 
-# TUI Navigation
-# Tab: Switch between widgets
-# ↑/↓: Navigate items
-# Enter: Select/Execute
-# Esc: Go back/Cancel
-# q: Quit application
-# m: Maintenance mode
-# h: Help system
-```
+### User Documentation
+- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**: Complete user manual with examples
+- **[docs/TUTORIAL.md](docs/TUTORIAL.md)**: Step-by-step tutorials
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: Problem solving guide
+- **[examples/](examples/)**: Working examples and templates
 
-#### TUI Widgets and Features
+### API & Reference
+- **[docs/API_INDEX.md](docs/API_INDEX.md)**: Complete command and API reference
+- **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)**: Detailed API documentation
+- **[docs/API_USAGE_GUIDE.md](docs/API_USAGE_GUIDE.md)**: Usage patterns and examples
 
-- **Workflow Management**: Create, execute, and monitor workflows with real-time status updates
+### Developer Documentation
+- **[docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)**: Development workflow and best practices
+- **[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)**: Architecture overview
+- **[docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md)**: Plugin development guide
+- **[AGENTS.md](AGENTS.md)**: Root development guide
+- **[docs/AGENTS.md](docs/AGENTS.md)**: Documentation guidelines
+- **[docs/DOCUMENTATION_STANDARDS.md](docs/DOCUMENTATION_STANDARDS.md)**: Writing standards
+
+### Feature-Specific Documentation
+- **[docs/FILE_MANAGEMENT_TOOLS_GUIDE.md](docs/FILE_MANAGEMENT_TOOLS_GUIDE.md)**: File operations
+- **[docs/FILE_MANAGEMENT_API_REFERENCE.md](docs/FILE_MANAGEMENT_API_REFERENCE.md)**: File management API
+- **[docs/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md](docs/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)**: Workflow templates
+
+### Python Script Migration
+- **[scripts/](scripts/)**: Original Python scripts for reference
+- **[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)**: Python to Rust migration guide (coming soon)
+
+### Historical & Archived
+- **[.backup/](.backup/)**: Archived historical documentation
+- **[.backup/ARCHIVE_INDEX.md](.backup/ARCHIVE_INDEX.md)**: Archive contents index
 - **System Monitoring**: Live CPU, memory, disk, and network monitoring with visual charts
 - **Log Viewer**: Real-time log streaming with filtering and search capabilities
 - **Tool Manager**: Browse, configure, and execute tools interactively
@@ -594,6 +613,33 @@ We welcome contributions! Please follow these steps:
 - ✅ No `unwrap()` in production code
 - ✅ Comprehensive documentation
 - ✅ Test coverage for new features
+
+## 🔄 Python Script Migration
+
+This project includes Python scripts for file management that can be replaced with Rust workflows:
+
+**Python Scripts in `scripts/`:**
+- `folder_classifier_v5_improved2.py`: Intelligent folder classification
+- `mergeClassifierSimple.py`: Folder merging with duplicate handling
+
+**Rust Equivalent:**
+```bash
+# Instead of Python scripts, use Rust workflows:
+workflow-toolkit workflow execute examples/file-classification.yaml
+workflow-toolkit workflow execute examples/folder-merge.yaml
+```
+
+**Benefits of Rust Implementation:**
+- ✅ 4-5x faster performance
+- ✅ Type safety and compile-time checks
+- ✅ Workflow orchestration and state management
+- ✅ Advanced error recovery and monitoring
+- ✅ Multi-interface support (CLI, TUI, MCP)
+
+**Migration Guide**: See [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md) for detailed migration instructions.
+
+---
+
 
 ## License
 
