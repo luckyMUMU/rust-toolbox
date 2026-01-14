@@ -246,12 +246,13 @@ impl DefaultWorkflowEngine {
             if control.should_pause() {
                 // Drop the guard immediately to avoid blocking other operations
                 drop(control);
-                
+
                 // Wait until resumed or stopped
                 loop {
                     // Reacquire guard each iteration to avoid holding it during sleep
                     if let Some(updated_control) = self.control_signals.get(&workflow_id) {
-                        let should_resume = !updated_control.should_pause() || updated_control.should_stop();
+                        let should_resume =
+                            !updated_control.should_pause() || updated_control.should_stop();
                         if should_resume {
                             break;
                         }
@@ -680,9 +681,11 @@ impl DefaultWorkflowEngine {
         // Calculate duration from workflow execution if available
         let duration = {
             let execution = workflow_execution.read().await;
-            execution.completed_at.map(|completed| completed.signed_duration_since(execution.started_at))
+            execution
+                .completed_at
+                .map(|completed| completed.signed_duration_since(execution.started_at))
         };
-        
+
         let error_record = ExecutionRecord {
             workflow_id,
             execution_id: workflow_id.to_string(),
@@ -1334,7 +1337,8 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                         loop {
                             // Reacquire guard each iteration to avoid holding it during sleep
                             if let Some(current_control) = self.control_signals.get(&workflow_id) {
-                                let should_resume = !current_control.should_pause() || current_control.should_stop();
+                                let should_resume = !current_control.should_pause()
+                                    || current_control.should_stop();
                                 if should_resume {
                                     break;
                                 }

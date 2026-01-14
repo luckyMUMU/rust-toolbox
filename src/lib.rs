@@ -1,5 +1,5 @@
 //! # Workflow Toolkit
-//! 
+//!
 //! # Architecture Overview
 //!
 //! ## Core Components
@@ -102,7 +102,10 @@ pub fn init_logging() -> Result<()> {
         Ok(filter) => filter,
         Err(e) => {
             // Log the parsing error in debug mode before falling back to default
-            eprintln!("Warning: Failed to parse RUST_LOG environment variable: {}", e);
+            eprintln!(
+                "Warning: Failed to parse RUST_LOG environment variable: {}",
+                e
+            );
             "workflow_toolkit=info".into()
         }
     };
