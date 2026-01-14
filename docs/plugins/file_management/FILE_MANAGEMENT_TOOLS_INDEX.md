@@ -1,5 +1,7 @@
 # File Management Tools Documentation Index
 
+> **[← Back to Main Documentation](../../INDEX.md)**
+
 This index provides a comprehensive overview of all documentation for the File Management Tools plugin, helping you find the right information for your needs.
 
 ## 📚 Documentation Overview

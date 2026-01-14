@@ -8,9 +8,9 @@
 ## 🔍 Quick Troubleshooting
 
 ### Issue Not Listed?
-1. **Check [INDEX.md](INDEX.md)** for related topics
-2. **Search [README.md](../README.md)** for keywords
-3. **Review [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** for debugging
+1. **Check [Main Index](../INDEX.md)** for related topics
+2. **Search [Project Readme](../../README.md)** for keywords
+3. **Review [Development Guide](../dev/DEVELOPMENT_GUIDE.md)** for debugging
 4. **Run `cargo check`** to identify compilation issues
 
 ---
