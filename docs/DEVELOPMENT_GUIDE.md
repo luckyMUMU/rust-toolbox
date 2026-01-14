@@ -1,637 +1,643 @@
-# 工作流工具包二次开发指南
+# Workflow Toolkit - 开发指南
 
-## 概述
+## 快速开始
 
-本指南旨在帮助开发者理解工作流工具包的架构设计，掌握代码结构和设计模式，了解系统扩展点，并快速搭建开发环境。
-
-## 系统架构
-
-### 整体架构设计
-
-工作流工具包采用分层架构模式，从底层到顶层包括：
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    接口层 (Interface Layer)                 │
-├─────────────────────────────────────────────────────────────┤
-│  CLI Interface  │  TUI Interface  │  MCP Server Interface   │
-└─────────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────────┐
-│                    服务层 (Service Layer)                   │
-├─────────────────────────────────────────────────────────────┤
-│ Workflow Service │ Tool Service │ Plugin Service │ Monitor │
-└─────────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────────┐
-│                     核心层 (Core Layer)                     │
-├─────────────────────────────────────────────────────────────┤
-│ Workflow Engine │ Tool Registry │ Plugin Manager │ State Mgr│
-└─────────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────────┐
-│                    数据层 (Data Layer)                      │
-├─────────────────────────────────────────────────────────────┤
-│   LanceDB Storage   │   Memory Cache   │   File System     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 核心模块关系
-
-- **接口层**: 提供多种用户交互方式
-  - CLI: 命令行接口，适用于脚本和自动化
-  - TUI: 终端用户界面，提供交互式体验
-  - MCP: Model Context Protocol服务器，支持API集成
-
-- **服务层**: 业务逻辑封装
-  - 工作流服务: 工作流生命周期管理
-  - 工具服务: 工具节点管理和执行
-  - 插件服务: 插件加载和管理
-  - 监控服务: 系统状态和性能监控
-
-- **核心层**: 系统核心功能
-  - 工作流引擎: DAG执行和调度
-  - 工具注册表: 工具发现和调用
-  - 插件管理器: 多语言插件支持
-  - 状态管理器: 数据持久化和缓存
-
-- **数据层**: 数据存储和访问
-  - LanceDB: 向量数据库，支持高性能查询
-  - 内存缓存: moka缓存，提供快速访问
-  - 文件系统: 配置文件和临时数据
-
-## 代码结构
-
-### 目录结构说明
-
-```
-workflow-toolkit/
-├── src/                    # 源代码目录
-│   ├── lib.rs             # 库入口点，公共API导出
-│   ├── main.rs            # CLI应用程序入口
-│   ├── config.rs          # 分层配置管理
-│   ├── core.rs            # 核心类型定义
-│   ├── error.rs           # 统一错误处理
-│   ├── interfaces/        # 接口层实现
-│   │   ├── cli/           # CLI接口
-│   │   ├── tui.rs         # TUI接口
-│   │   └── mcp.rs         # MCP服务器
-│   ├── workflow/          # 工作流引擎
-│   │   ├── definition.rs  # 工作流定义
-│   │   ├── engine.rs      # 执行引擎
-│   │   ├── scheduler.rs   # 任务调度
-│   │   └── validator.rs   # 验证逻辑
-│   ├── tools/             # 工具系统
-│   │   ├── node.rs        # 工具节点
-│   │   └── registry.rs    # 工具注册表
-│   ├── plugins/           # 插件系统
-│   │   ├── manager.rs     # 插件管理
-│   │   ├── native.rs      # 原生插件
-│   │   ├── python.rs      # Python插件
-│   │   ├── nodejs.rs      # Node.js插件
-│   │   ├── docker.rs      # Docker插件
-│   │   └── wasm.rs        # WASM插件
-│   └── storage/           # 存储层
-│       ├── backends.rs    # 存储后端
-│       └── state_manager.rs # 状态管理
-├── examples/              # 示例代码
-├── config/               # 默认配置
-├── docs/                 # 文档目录
-└── tests/                # 集成测试
-```
-
-### 模块依赖关系
-
-```mermaid
-graph TD
-    A[interfaces] --> B[workflow]
-    A --> C[tools]
-    A --> D[plugins]
-    B --> E[storage]
-    C --> E
-    D --> E
-    B --> F[core]
-    C --> F
-    D --> F
-    E --> F
-    F --> G[config]
-    F --> H[error]
-```
-
-## 设计模式
-
-### 1. Trait-based 架构
-
-系统大量使用Rust的trait系统来定义接口和抽象：
-
-```rust
-// 工作流引擎trait
-#[async_trait]
-pub trait WorkflowEngine: Send + Sync {
-    async fn execute_workflow(&self, definition: WorkflowDefinition) -> Result<WorkflowExecution>;
-    async fn pause_workflow(&self, id: WorkflowId) -> Result<()>;
-    async fn resume_workflow(&self, id: WorkflowId) -> Result<()>;
-    async fn stop_workflow(&self, id: WorkflowId) -> Result<()>;
-}
-
-// 工具节点trait
-#[async_trait]
-pub trait ToolNode: Send + Sync {
-    fn name(&self) -> &str;
-    fn version(&self) -> &str;
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value>;
-    fn validate_parameters(&self, params: &Value) -> Result<()>;
-}
-
-// 存储后端trait
-#[async_trait]
-pub trait StorageBackend: Send + Sync {
-    async fn save(&self, key: &str, value: &[u8]) -> Result<()>;
-    async fn load(&self, key: &str) -> Result<Option<Vec<u8>>>;
-    async fn delete(&self, key: &str) -> Result<()>;
-}
-```
-
-### 2. 插件架构模式
-
-支持多种插件类型的统一管理：
-
-```rust
-pub enum PluginType {
-    Native(NativePlugin),      // Rust动态库
-    Wasm(WasmPlugin),         // WebAssembly模块
-    Python(PythonPlugin),     // Python包装器
-    NodeJs(NodeJsPlugin),     // Node.js包装器
-    Docker(DockerPlugin),     // Docker容器插件
-}
-
-#[async_trait]
-pub trait Plugin: Send + Sync {
-    fn name(&self) -> &str;
-    fn version(&self) -> &str;
-    async fn initialize(&mut self, config: PluginConfig) -> Result<()>;
-    fn get_tools(&self) -> Vec<Box<dyn ToolNode>>;
-    async fn shutdown(&mut self) -> Result<()>;
-}
-```
-
-### 3. 状态管理模式
-
-采用分层缓存和持久化策略：
-
-```rust
-pub struct StateManager {
-    storage: Arc<dyn StorageBackend>,
-    cache: Arc<dyn CacheBackend>,
-}
-
-impl StateManager {
-    // 写入时同时更新存储和缓存
-    pub async fn save_state(&self, key: &str, state: &WorkflowState) -> Result<()> {
-        let data = serde_json::to_vec(state)?;
-        self.storage.save(key, &data).await?;
-        self.cache.set(key, data, Some(Duration::from_secs(3600))).await?;
-        Ok(())
-    }
-    
-    // 读取时优先从缓存获取
-    pub async fn load_state(&self, key: &str) -> Result<Option<WorkflowState>> {
-        if let Some(cached) = self.cache.get(key).await {
-            return Ok(Some(serde_json::from_slice(&cached)?));
-        }
-        
-        if let Some(stored) = self.storage.load(key).await? {
-            let state = serde_json::from_slice(&stored)?;
-            self.cache.set(key, stored, Some(Duration::from_secs(3600))).await?;
-            Ok(Some(state))
-        } else {
-            Ok(None)
-        }
-    }
-}
-```
-
-### 4. 错误处理模式
-
-使用thiserror和anyhow进行结构化错误处理：
-
-```rust
-#[derive(Debug, thiserror::Error)]
-pub enum WorkflowError {
-    #[error("工作流定义无效: {message}")]
-    InvalidDefinition { message: String },
-    
-    #[error("工作流执行失败: {workflow_id}")]
-    ExecutionFailed { workflow_id: WorkflowId },
-    
-    #[error("工具节点错误: {tool_name} - {source}")]
-    ToolError { tool_name: String, #[source] source: anyhow::Error },
-    
-    #[error("存储错误: {source}")]
-    StorageError { #[from] source: StorageError },
-}
-```
-
-## 扩展点和接口
-
-### 1. 工具节点扩展
-
-创建自定义工具节点：
-
-```rust
-pub struct CustomTool {
-    name: String,
-    version: String,
-}
-
-#[async_trait]
-impl ToolNode for CustomTool {
-    fn name(&self) -> &str { &self.name }
-    fn version(&self) -> &str { &self.version }
-    
-    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        // 实现自定义逻辑
-        Ok(json!({"result": "success"}))
-    }
-    
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // 参数验证逻辑
-        Ok(())
-    }
-}
-```
-
-### 2. 插件系统扩展
-
-实现新的插件类型：
-
-```rust
-pub struct CustomPlugin {
-    tools: Vec<Box<dyn ToolNode>>,
-}
-
-#[async_trait]
-impl Plugin for CustomPlugin {
-    fn name(&self) -> &str { "custom-plugin" }
-    fn version(&self) -> &str { "1.0.0" }
-    
-    async fn initialize(&mut self, config: PluginConfig) -> Result<()> {
-        // 插件初始化逻辑
-        Ok(())
-    }
-    
-    fn get_tools(&self) -> Vec<Box<dyn ToolNode>> {
-        self.tools.iter().map(|t| t.clone()).collect()
-    }
-    
-    async fn shutdown(&mut self) -> Result<()> {
-        // 清理资源
-        Ok(())
-    }
-}
-```
-
-### 3. 存储后端扩展
-
-实现新的存储后端：
-
-```rust
-pub struct CustomStorage {
-    // 自定义存储实现
-}
-
-#[async_trait]
-impl StorageBackend for CustomStorage {
-    async fn save(&self, key: &str, value: &[u8]) -> Result<()> {
-        // 实现保存逻辑
-        Ok(())
-    }
-    
-    async fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        // 实现加载逻辑
-        Ok(None)
-    }
-    
-    async fn delete(&self, key: &str) -> Result<()> {
-        // 实现删除逻辑
-        Ok(())
-    }
-}
-```
-
-### 4. 接口层扩展
-
-添加新的用户接口：
-
-```rust
-pub struct CustomInterface {
-    workflow_engine: Arc<dyn WorkflowEngine>,
-    tool_registry: Arc<dyn ToolRegistry>,
-}
-
-impl CustomInterface {
-    pub async fn start(&self) -> Result<()> {
-        // 启动自定义接口
-        Ok(())
-    }
-    
-    pub async fn handle_request(&self, request: CustomRequest) -> Result<CustomResponse> {
-        // 处理请求逻辑
-        Ok(CustomResponse::default())
-    }
-}
-```
-
-## 开发环境设置
-
-### 1. 系统要求
-
-- **Rust**: 1.70+ (2021 Edition)
-- **操作系统**: Linux, macOS, Windows
-- **内存**: 最少4GB，推荐8GB+
-- **磁盘**: 至少2GB可用空间
-
-### 2. 依赖安装
+### 环境要求
 
 ```bash
-# 安装Rust工具链
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
+# Rust 1.70+ (2021 Edition)
+rustc --version  # 应 >= 1.70.0
 
-# 安装必要的系统依赖
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install build-essential pkg-config libssl-dev
+# Cargo
+cargo --version
 
-# macOS
-brew install openssl pkg-config
-
-# Windows (使用chocolatey)
-choco install openssl pkgconfiglite
+# 可选：用于插件开发
+python3 --version  # >= 3.8
+node --version     # >= 16
+docker --version   # 任意版本
 ```
 
-### 3. 项目克隆和构建
+### 安装和构建
 
 ```bash
-# 克隆项目
-git clone <repository-url>
-cd workflow-toolkit
+# 1. 克隆项目
+git clone <repository>
+cd rust-tool-v2
 
-# 检查依赖
+# 2. 快速类型检查
 cargo check
 
-# 构建项目
+# 3. 调试构建
 cargo build
 
-# 运行测试
-cargo test
-
-# 构建发布版本
+# 4. 生产构建
 cargo build --release
+
+# 5. 带LanceDB支持
+cargo build --all-features
 ```
 
-### 4. 开发工具配置
-
-#### VS Code配置
-
-创建 `.vscode/settings.json`:
-
-```json
-{
-    "rust-analyzer.cargo.features": "all",
-    "rust-analyzer.checkOnSave.command": "clippy",
-    "rust-analyzer.cargo.loadOutDirsFromCheck": true,
-    "files.watcherExclude": {
-        "**/target/**": true
-    }
-}
-```
-
-#### 推荐扩展
-
-- rust-analyzer: Rust语言服务器
-- CodeLLDB: 调试支持
-- Better TOML: TOML文件支持
-- Error Lens: 内联错误显示
-
-### 5. 调试配置
-
-创建 `.vscode/launch.json`:
-
-```json
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug workflow-toolkit",
-            "cargo": {
-                "args": ["build", "--bin=workflow-toolkit"],
-                "filter": {
-                    "name": "workflow-toolkit",
-                    "kind": "bin"
-                }
-            },
-            "args": ["--help"],
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "RUST_LOG": "debug"
-            }
-        }
-    ]
-}
-```
-
-## 构建流程
-
-### 1. 开发构建
+### 运行测试
 
 ```bash
-# 快速检查语法
-cargo check
-
-# 构建调试版本
-cargo build
-
-# 运行特定示例
-cargo run --example tools_example
-
-# 运行CLI
-cargo run -- --help
-```
-
-### 2. 测试流程
-
-```bash
-# 运行所有测试
+# 所有测试
 cargo test
 
-# 运行特定模块测试
+# 特定模块测试
+cargo test workflow::validator::tests
+cargo test tools::version::tests
 cargo test storage::tests
 
-# 运行属性测试
-cargo test property_tests
-
-# 显示测试输出
+# 带输出
 cargo test -- --nocapture
 
-# 运行基准测试
-cargo bench
+# 集成测试
+cargo test --test integration_tests
+
+# 性能基准
+cargo test --release performance
 ```
 
-### 3. 代码质量检查
-
-```bash
-# 代码格式化
-cargo fmt
-
-# 代码检查
-cargo clippy
-
-# 更严格的检查
-cargo clippy -- -D warnings
-
-# 文档生成
-cargo doc --open
-
-# 依赖审计
-cargo audit
-```
-
-### 4. 发布构建
-
-```bash
-# 构建优化版本
-cargo build --release
-
-# 构建所有特性
-cargo build --release --all-features
-
-# 交叉编译 (示例)
-cargo build --release --target x86_64-pc-windows-gnu
-```
-
-## 贡献指南
+## 开发工作流
 
 ### 1. 代码风格
 
-- 遵循Rust官方代码风格指南
-- 使用 `cargo fmt` 格式化代码
-- 通过 `cargo clippy` 检查
-- 编写清晰的文档注释
-
-### 2. 提交规范
-
-```bash
-# 提交格式
-<type>(<scope>): <description>
-
-# 示例
-feat(workflow): add parallel execution support
-fix(storage): resolve cache invalidation issue
-docs(api): update tool registry documentation
-```
-
-### 3. 测试要求
-
-- 新功能必须包含单元测试
-- 复杂逻辑需要属性测试
-- 集成测试覆盖关键路径
-- 测试覆盖率不低于80%
-
-### 4. 文档要求
-
-- 公共API必须有文档注释
-- 复杂模块需要DESIGN.md文档
-- 示例代码保持最新
-- 更新相关的用户文档
-
-## 性能优化指南
-
-### 1. 编译优化
-
-在 `Cargo.toml` 中配置：
-
-```toml
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-
-[profile.dev]
-opt-level = 0
-debug = true
-```
-
-### 2. 内存管理
-
-- 使用 `Arc<T>` 共享不可变数据
-- 使用 `Rc<RefCell<T>>` 单线程可变共享
-- 避免不必要的克隆操作
-- 合理使用生命周期参数
-
-### 3. 并发优化
-
-- 使用 `tokio` 异步运行时
-- 合理配置线程池大小
-- 避免阻塞异步任务
-- 使用 `dashmap` 进行并发访问
-
-### 4. 缓存策略
-
-- 合理设置缓存TTL
-- 监控缓存命中率
-- 实现缓存预热机制
-- 避免缓存雪崩
-
-## 故障排除
-
-### 1. 常见编译错误
-
-**错误**: `cannot find crate`
-**解决**: 检查 `Cargo.toml` 依赖配置
-
-**错误**: `trait bound not satisfied`
-**解决**: 确认类型实现了所需的trait
-
-**错误**: `lifetime mismatch`
-**解决**: 调整生命周期参数或使用 `Arc<T>`
-
-### 2. 运行时问题
-
-**问题**: 工作流执行卡住
-**排查**: 检查日志，确认任务依赖关系
-
-**问题**: 内存使用过高
-**排查**: 使用 `valgrind` 或 `heaptrack` 分析
-
-**问题**: 插件加载失败
-**排查**: 检查插件路径和权限设置
-
-### 3. 调试技巧
-
+#### 导入顺序 (严格遵循)
 ```rust
-// 使用tracing进行结构化日志
-use tracing::{info, warn, error, debug};
+// 1. 标准库
+use std::sync::Arc;
+use std::time::Duration;
 
-#[tracing::instrument]
-async fn execute_workflow(definition: WorkflowDefinition) -> Result<()> {
-    info!("开始执行工作流: {}", definition.name);
-    // 执行逻辑
+// 2. 外部依赖 (字母顺序)
+use async_trait::async_trait;
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{RwLock, Semaphore};
+
+// 3. 内部模块
+use crate::core::{ExecutionContext, WorkflowId};
+use crate::error::{Result, WorkflowError};
+use crate::tools::ToolNode;
+```
+
+#### 错误处理
+```rust
+// ✅ 正确: 使用thiserror构造函数
+pub fn do_something() -> Result<()> {
+    let value = operation().map_err(|e| {
+        WorkflowError::workflow_execution(&format!("Failed: {}", e))
+    })?;
     Ok(())
 }
 
-// 使用条件编译进行调试
-#[cfg(debug_assertions)]
-println!("调试信息: {:?}", state);
+// ✅ 正确: 常见错误构造器
+return Err(WorkflowError::tool("Invalid parameters"));
+return Err(WorkflowError::plugin("Loading failed"));
+return Err(WorkflowError::storage("Connection lost"));
+
+// ❌ 禁止: 类型转换
+let x: u32 = value as any;           // 禁止
+#[ts-ignore]                         // 禁止
+let x = value as u32;                // 应使用 try_into()
+
+// ❌ 禁止: 空错误处理
+catch(e) {}                          // 禁止
+
+// ❌ 禁止: unwrap()
+let value = some_result.unwrap();    // 禁止 - 使用 ?
 ```
 
-## 下一步
+#### 异步模式
+```rust
+// ✅ 正确: 异步trait
+#[async_trait]
+pub trait WorkflowEngine: Send + Sync {
+    async fn execute(&self, def: WorkflowDefinition) -> Result<WorkflowExecution>;
+}
 
-1. 阅读 [插件开发指南](PLUGIN_DEVELOPMENT.md)
-2. 查看 [API参考文档](API_REFERENCE.md)
-3. 学习 [用户使用手册](USER_MANUAL.md)
-4. 参与社区讨论和贡献代码
+// ✅ 正确: 并发集合
+use dashmap::DashMap;              // 读密集型并发访问
+use tokio::sync::RwLock;           // 可变共享状态
+
+// ✅ 正确: 信号量控制并发
+let semaphore = Arc::new(Semaphore::new(4));
+let permit = semaphore.acquire().await?;
+```
+
+#### 测试模式
+```rust
+// ✅ 正确: 单元测试在同文件
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_something() {
+        // 测试逻辑
+    }
+    
+    #[tokio::test]
+    async fn test_async_something() {
+        // 异步测试逻辑
+    }
+}
+
+// ✅ 正确: 使用tempfile隔离
+#[tokio::test]
+async fn test_with_temp_dir() {
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    // 使用 temp_dir.path()
+}
+```
+
+### 2. 项目结构理解
+
+```
+rust-tool-v2/
+├── src/                          # 核心库
+│   ├── lib.rs                    # 模块声明
+│   ├── core.rs                   # 共享类型
+│   ├── error.rs                  # 错误处理
+│   ├── config.rs                 # 配置管理
+│   │
+│   ├── workflow/                 # DAG工作流引擎
+│   │   ├── engine.rs             # 执行引擎
+│   │   ├── scheduler.rs          # DAG调度器
+│   │   ├── validator.rs          # 验证器
+│   │   ├── execution_manager.rs  # 执行管理
+│   │   ├── audit.rs              # 审计日志
+│   │   └── result_cache.rs       # 结果缓存
+│   │
+│   ├── tools/                    # 工具系统
+│   │   ├── registry.rs           # 工具注册表
+│   │   ├── node.rs               # 工具节点
+│   │   ├── templates.rs          # 参数模板
+│   │   ├── versioning.rs         # 版本管理
+│   │   └── dependency.rs         # 依赖解析
+│   │
+│   ├── plugins/                  # 插件系统
+│   │   ├── manager.rs            # 插件管理器
+│   │   ├── native.rs             # 原生插件
+│   │   ├── python.rs             # Python插件
+│   │   ├── nodejs.rs             # Node.js插件
+│   │   ├── docker.rs             # Docker插件
+│   │   └── file_management/      # 文件管理插件
+│   │       ├── classifier.rs     # AI分类
+│   │       ├── batch_processor.rs # 批处理
+│   │       └── text_processor.rs # 文本处理
+│   │
+│   ├── interfaces/               # 用户接口
+│   │   ├── cli/                  # CLI (clap)
+│   │   │   ├── app.rs            # 主应用
+│   │   │   ├── commands.rs       # 命令定义
+│   │   │   └── output.rs         # 输出格式化
+│   │   └── tui/                  # TUI (ratatui)
+│   │       ├── app.rs            # TUI应用
+│   │       ├── event.rs          # 事件处理
+│   │       ├── widgets/          # 组件系统
+│   │       ├── theme.rs          # 主题系统
+│   │       └── performance.rs    # 性能优化
+│   │
+│   ├── storage/                  # 持久化层
+│   │   ├── state_manager.rs      # 状态管理
+│   │   ├── backends.rs           # 存储后端
+│   │   ├── cache.rs              # 缓存系统
+│   │   └── backup.rs             # 备份恢复
+│   │
+│   └── performance/              # 性能优化
+│       ├── cache.rs              # 缓存管理
+│       ├── metrics.rs            # 指标收集
+│       ├── profiler.rs           # 性能分析
+│       └── concurrency.rs        # 并发控制
+│
+├── tests/                        # 测试套件
+│   ├── integration_tests.rs      # 端到端测试
+│   ├── tui_standalone_unit_tests.rs # TUI单元测试
+│   ├── file_management_integration_tests.rs # 文件管理测试
+│   └── template_property_tests.rs # 属性测试
+│
+├── examples/                     # 示例
+│   ├── comprehensive_workflow_example.rs
+│   ├── python_plugin_example.rs
+│   ├── file_management_example.rs
+│   └── templates/                # 工作流模板
+│
+├── config/                       # 默认配置
+│   └── default.toml
+│
+├── docs/                         # 文档
+│   └── AGENTS.md                 # 模块文档
+│
+├── openspec/                     # 规范驱动开发
+│   ├── AGENTS.md                 # OpenSpec说明
+│   └── specs/                    # 能力规范
+│
+└── Cargo.toml                    # 项目配置
+```
+
+### 3. 关键组件交互
+
+#### 工作流执行流程
+```
+1. 用户输入 (CLI/TUI/MCP)
+   ↓
+2. 配置加载 (ConfigManager)
+   ↓
+3. 工作流定义 (WorkflowDefinition)
+   ↓
+4. 验证器 (WorkflowValidator)
+   - 检查DAG结构
+   - 验证工具存在
+   - 检查循环依赖
+   ↓
+5. 调度器 (DagScheduler)
+   - 拓扑排序
+   - 确定执行顺序
+   - 识别并行节点
+   ↓
+6. 执行引擎 (DefaultWorkflowEngine)
+   - 信号量控制并发
+   - 节点执行
+   - 错误处理
+   - 检查点保存
+   ↓
+7. 状态管理 (StateManager)
+   - 持久化执行状态
+   - 缓存结果
+   ↓
+8. 审计日志 (AuditLogger)
+   - 记录所有操作
+   - 错误详情
+   ↓
+9. 输出结果 (CLI/TUI/MCP)
+```
+
+#### 插件加载流程
+```
+1. 配置文件/自动发现
+   ↓
+2. PluginManager.load_plugin()
+   ↓
+3. RuntimeManager.create_runtime()
+   ↓
+4. 根据类型加载:
+   - Native: libloading加载.so/.dll
+   - Python: 启动Python进程
+   - Node.js: 启动Node进程
+   - Docker: 创建容器
+   - WASM: 加载wasm模块
+   ↓
+5. 验证符号/接口
+   ↓
+6. 注册工具到ToolRegistry
+   ↓
+7. 工作流可使用插件工具
+```
+
+### 4. 开发任务示例
+
+#### 添加新工具节点
+```rust
+// 1. 在 src/tools/node.rs 定义工具
+pub struct MyTool {
+    info: ToolInfo,
+    executor: Arc<dyn ToolExecutor>,
+}
+
+#[async_trait]
+impl ToolNode for MyTool {
+    fn name(&self) -> &str { &self.info.name }
+    fn version(&self) -> &str { &self.info.version }
+    
+    fn validate_parameters(&self, params: &Value) -> Result<()> {
+        // 验证逻辑
+        Ok(())
+    }
+    
+    async fn execute(
+        &self,
+        params: Value,
+        context: ExecutionContext,
+    ) -> Result<Value> {
+        // 执行逻辑
+        Ok(result)
+    }
+    
+    fn get_info(&self) -> &ToolInfo { &self.info }
+}
+
+// 2. 在 src/tools/registry.rs 注册
+let tool = MyTool::builder()
+    .name("my_tool")
+    .version("1.0.0")
+    .executor(executor)
+    .build()?;
+
+registry.register_tool(Arc::new(tool))?;
+
+// 3. 在工作流中使用
+// workflow.yaml
+nodes:
+  - id: my_step
+    tool: my_tool
+    params:
+      input: "data"
+```
+
+#### 添加新插件类型
+```rust
+// 1. 在 src/plugins/types.rs 定义插件类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PluginType {
+    Native,
+    Python,
+    NodeJs,
+    Docker,
+    WASM,
+    Custom(String),  // 新增自定义类型
+}
+
+// 2. 在 src/plugins/manager.rs 实现加载逻辑
+impl PluginManager {
+    pub async fn load_plugin(
+        &mut self,
+        plugin: Box<dyn Plugin>,
+        config: PluginConfig,
+    ) -> Result<()> {
+        match config.plugin_type {
+            PluginType::Custom(ref plugin_type) => {
+                // 自定义加载逻辑
+            }
+            // ... 其他类型
+        }
+    }
+}
+
+// 3. 在 src/plugins/mod.rs 导出
+pub mod custom;
+```
+
+#### 添加新接口
+```rust
+// 1. 在 src/interfaces/ 创建新接口模块
+// src/interfaces/web.rs
+pub struct WebInterface {
+    app: WebApp,
+    server: HttpServer,
+}
+
+#[async_trait]
+pub trait WebInterfaceTrait {
+    async fn start(&self) -> Result<()>;
+    async fn stop(&self) -> Result<()>;
+}
+
+// 2. 实现接口
+impl WebInterface {
+    pub fn new(config: WebConfig, components: Components) -> Self {
+        // 初始化
+    }
+}
+
+// 3. 在 src/interfaces/mod.rs 导出
+pub mod web;
+
+// 4. 在 src/main.rs 添加命令
+#[derive(Subcommand)]
+pub enum Commands {
+    // ... 现有命令
+    Web {
+        #[arg(long, default_value = "3000")]
+        port: u16,
+    },
+}
+```
+
+### 5. 调试和优化
+
+#### 启用详细日志
+```bash
+RUST_LOG=debug cargo run -- workflow execute example.yaml
+RUST_LOG=workflow_toolkit=debug cargo test
+```
+
+#### 性能分析
+```rust
+// 使用内置性能分析器
+use workflow_toolkit::performance::Profiler;
+
+let profiler = Profiler::new();
+profiler.start_session("workflow_execution");
+
+// 执行工作流...
+
+let report = profiler.generate_report();
+println!("{:?}", report.hotspots);
+```
+
+#### 内存监控
+```rust
+use workflow_toolkit::performance::MemoryManager;
+
+let memory_manager = MemoryManager::new();
+let snapshot = memory_manager.get_snapshot();
+println!("Peak usage: {} bytes", snapshot.peak_bytes);
+```
+
+### 6. 常见问题解决
+
+#### 编译错误
+```bash
+# 问题: 类型不匹配
+# 解决: 使用 try_into() 而非 as
+let count: usize = value.try_into()?;
+
+# 问题: 生命周期错误
+# 解决: 使用 Arc 共享所有权
+let shared = Arc::new(data);
+
+# 问题: 异步trait问题
+# 解决: 添加 #[async_trait] 属性
+#[async_trait]
+pub trait MyTrait { ... }
+```
+
+#### 运行时错误
+```bash
+# 问题: 工具未找到
+# 解决: 检查工具注册
+cargo run -- tool list
+
+# 问题: 工作流验证失败
+# 解决: 检查DAG结构
+cargo run -- workflow create --validate-only file.yaml
+
+# 问题: 插件加载失败
+# 解决: 检查配置和权限
+RUST_LOG=debug cargo run -- plugin list
+```
+
+#### 测试失败
+```bash
+# 问题: 并发测试不稳定
+# 解决: 使用单线程
+cargo test -- --test-threads=1
+
+# 问题: 临时文件冲突
+# 解决: 使用 tempfile::TempDir
+let temp_dir = tempfile::TempDir::new()?;
+```
+
+### 7. 最佳实践
+
+#### 1. 始终使用Result类型
+```rust
+// ✅ 好
+fn process() -> Result<Value> {
+    let data = load_data()?;
+    Ok(transform(data))
+}
+
+// ❌ 坏
+fn process() -> Value {
+    let data = load_data().unwrap();
+    transform(data)
+}
+```
+
+#### 2. 避免克隆不必要的数据
+```rust
+// ✅ 好
+let registry_clone = Arc::clone(®istry);
+
+// ❌ 坏
+let registry_clone = registry.clone();
+```
+
+#### 3. 使用并发集合
+```rust
+// ✅ 好 (读密集)
+use dashmap::DashMap;
+let map = DashMap::new();
+
+// ✅ 好 (写密集)
+use tokio::sync::RwLock;
+let state = RwLock::new(State::new());
+```
+
+#### 4. 添加测试
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_feature() {
+        // 单元测试
+    }
+    
+    #[tokio::test]
+    async fn test_async_feature() {
+        // 异步测试
+    }
+    
+    proptest! {
+        #[test]
+        fn test_property(input: Vec<String>) {
+            // 属性测试
+        }
+    }
+}
+```
+
+#### 5. 文档化代码
+```rust
+/// 执行工作流定义
+///
+/// # Arguments
+/// * `definition` - 工作流定义
+///
+/// # Returns
+/// 执行结果或错误
+///
+/// # Examples
+/// ```
+/// let result = engine.execute_workflow(definition).await?;
+/// ```
+pub async fn execute_workflow(
+    &self,
+    definition: WorkflowDefinition,
+) -> Result<WorkflowExecution> {
+    // 实现
+}
+```
+
+### 8. 性能优化检查清单
+
+- [ ] 使用 `cargo check` 快速验证
+- [ ] 运行 `cargo clippy -- -D warnings`
+- [ ] 所有测试通过
+- [ ] 无unwrap()在生产代码
+- [ ] 使用Arc::clone()而非clone()
+- [ ] 使用并发集合(DashMap/RwLock)
+- [ ] 异步I/O操作
+- [ ] 批量操作减少I/O
+- [ ] 缓存热点数据
+- [ ] 避免不必要的内存分配
+
+### 9. 提交前检查
+
+```bash
+# 1. 代码格式化
+cargo fmt
+
+# 2. Lint检查
+cargo clippy -- -D warnings
+
+# 3. 运行测试
+cargo test
+
+# 4. 类型检查
+cargo check
+
+# 5. 构建验证
+cargo build --release
+
+# 6. 文档生成
+cargo doc --open
+```
+
+### 10. 学习资源
+
+#### 核心文档
+- **AGENTS.md**: 各模块的开发指南
+- **DESIGN.md**: 架构设计文档
+- **README.md**: 项目概述
+
+#### 设计文档
+- `src/workflow/DESIGN.md` - 工作流引擎设计
+- `src/plugins/DESIGN.md` - 插件系统设计
+- `src/tools/DESIGN.md` - 工具系统设计
+- `src/storage/DESIGN.md` - 存储层设计
+- `src/interfaces/cli/DESIGN.md` - CLI设计
+
+#### 外部资源
+- [Rust异步编程](https://rust-lang.github.io/async-book/)
+- [Tokio文档](https://tokio.rs/)
+- [Clap文档](https://clap.rs/)
+- [Ratatui文档](https://ratatui.rs/)
+- [Petgraph文档](https://docs.rs/petgraph)
 
 ---
 
-*本指南持续更新，如有问题请提交Issue或Pull Request。*
+## 总结
+
+本指南提供了完整的开发流程，从环境搭建到代码编写，从测试到优化。遵循这些实践将帮助你：
+
+1. **快速上手**: 理解项目结构和核心概念
+2. **编写高质量代码**: 遵循最佳实践和代码规范
+3. **有效调试**: 使用工具和日志定位问题
+4. **性能优化**: 识别和解决性能瓶颈
+5. **团队协作**: 统一的代码风格和开发流程
+
+记住：**始终阅读AGENTS.md文件**，它们包含每个模块的具体开发指导！

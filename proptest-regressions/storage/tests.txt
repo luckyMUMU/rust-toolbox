@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 86e040c82f12abb23e1ba734e482d0dd99c3c7a9c39dc2d3bc92bf4c1afb7f6c # shrinks to workflow_count = 2, execution_counts = [1]

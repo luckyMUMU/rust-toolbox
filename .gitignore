@@ -11,7 +11,7 @@
 .idea/
 *.swp
 *.swo
-*~
+*~ 
 
 # 操作系统生成的文件
 .DS_Store
@@ -61,3 +61,33 @@ execution_logs/
 # 缓存目录
 .cache/
 cache/
+
+# ============================================
+# ADDITIONAL IGNORES (Organization Update)
+# ============================================
+
+# Backup directory (historical files, kept for reference)
+.backup/
+
+# Temporary development files
+temp.txt
+tmp/
+proptest-regressions/
+
+# Build artifacts (additional)
+*.rlib
+*.so
+*.dylib
+*.dll
+
+# Agent working files
+*.agent.md
+agent-workspace/
+
+# Large binary files
+*.bin
+*.dat
+*.iso
+*.zip
+*.tar.gz
+*.tar.bz2
