@@ -3,7 +3,7 @@
 use super::classification_tool::{ClassificationRule, ClassificationRules};
 use super::error::{FileManagementError, FileManagementResult};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info};
@@ -90,9 +90,66 @@ impl RuleConfigLoader {
         &self,
         rules_value: &Value,
     ) -> FileManagementResult<ClassificationRules> {
+        let mut processed_value = rules_value.clone();
+        
+        // Handle legacy "categories" field mapping to "rules"
+        if let Some(obj) = processed_value.as_object_mut() {
+            if obj.contains_key("categories") && !obj.contains_key("rules") {
+                if let Some(categories) = obj.remove("categories") {
+                    obj.insert("rules".to_string(), categories);
+                }
+            }
+            
+            // Transform nested keywords into combinations
+            if let Some(rules) = obj.get_mut("rules").and_then(|r| r.as_array_mut()) {
+                for rule in rules {
+                    if let Some(rule_obj) = rule.as_object_mut() {
+                        // Handle legacy "name" -> "category" mapping
+                        if rule_obj.contains_key("name") && !rule_obj.contains_key("category") {
+                            if let Some(name) = rule_obj.remove("name") {
+                                rule_obj.insert("category".to_string(), name);
+                            }
+                        }
+
+                        // Process keywords
+                        if let Some(keywords_val) = rule_obj.get_mut("keywords") {
+                            if let Some(keywords_arr) = keywords_val.as_array() {
+                                let mut simple_keywords = Vec::new();
+                                let mut combinations = Vec::new();
+                                
+                                for item in keywords_arr {
+                                    if let Some(s) = item.as_str() {
+                                        simple_keywords.push(Value::String(s.to_string()));
+                                    } else if let Some(arr) = item.as_array() {
+                                        // This is a combination (nested array)
+                                        let mut combo = Vec::new();
+                                        for sub_item in arr {
+                                            if let Some(s) = sub_item.as_str() {
+                                                combo.push(s.to_string());
+                                            }
+                                        }
+                                        if !combo.is_empty() {
+                                            combinations.push(combo);
+                                        }
+                                    }
+                                }
+                                
+                                // Update rule object
+                                *keywords_val = Value::Array(simple_keywords);
+                                
+                                if !combinations.is_empty() {
+                                    rule_obj.insert("combinations".to_string(), json!(combinations));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Parse the JSON into ClassificationRules
         let mut rules: ClassificationRules =
-            serde_json::from_value(rules_value.clone()).map_err(|e| {
+            serde_json::from_value(processed_value).map_err(|e| {
                 FileManagementError::validation(format!(
                     "Invalid classification rules format: {}",
                     e

@@ -21,14 +21,34 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info, warn};
 
+fn default_score_weight() -> f64 {
+    1.0
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_min_confidence() -> f64 {
+    0.1
+}
+
+fn default_ambiguity_threshold() -> f64 {
+    0.8
+}
+
 /// Classification rule definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClassificationRule {
     pub category: String,
     pub keywords: Vec<String>,
+    pub combinations: Option<Vec<Vec<String>>>,
+    #[serde(default = "default_score_weight")]
     pub score_weight: f64,
     pub required_matches: Option<usize>,
+    #[serde(default)]
     pub case_sensitive: bool,
+    #[serde(default = "default_true")]
     pub use_pinyin: bool,
 }
 
@@ -37,11 +57,17 @@ impl ClassificationRule {
         Self {
             category: category.into(),
             keywords,
+            combinations: None,
             score_weight: 1.0,
             required_matches: None,
             case_sensitive: false,
             use_pinyin: true,
         }
+    }
+
+    pub fn with_combinations(mut self, combinations: Vec<Vec<String>>) -> Self {
+        self.combinations = Some(combinations);
+        self
     }
 
     pub fn with_score_weight(mut self, weight: f64) -> Self {
@@ -70,7 +96,9 @@ impl ClassificationRule {
 pub struct ClassificationRules {
     pub rules: Vec<ClassificationRule>,
     pub default_category: Option<String>,
+    #[serde(default = "default_min_confidence")]
     pub min_confidence_threshold: f64,
+    #[serde(default = "default_ambiguity_threshold")]
     pub ambiguity_threshold: f64,
 }
 
@@ -153,49 +181,61 @@ impl ClassificationEngine {
         let config = AutomatonConfig {
             case_sensitive: false, // We'll handle case sensitivity in preprocessing
             find_overlapping: true,
-            max_patterns: 10_000,
+            max_patterns: 20_000,
             max_pattern_length: 1000,
         };
 
         let mut automaton = AhoCorasickMatcher::with_config(config);
-        let mut _pattern_id = 0;
+        let mut seen_keywords = std::collections::HashSet::new();
 
-        for rule in &rules.rules {
-            // Add original keywords
-            for keyword in &rule.keywords {
-                let processed_keyword = self.preprocess_keyword(keyword, rule);
+        // Helper to add a keyword to the automaton
+        let mut add_keyword_to_automaton = |keyword: &str, rule: &ClassificationRule, weight_multiplier: f64| -> FileManagementResult<()> {
+            let processed_keyword = self.preprocess_keyword(keyword, rule);
+            
+            if !seen_keywords.contains(&processed_keyword) {
+                // Use "keyword" as generic category since we map back to rules later
                 automaton
-                    .add_pattern(&processed_keyword, &rule.category, rule.score_weight)
+                    .add_pattern(&processed_keyword, "keyword", 1.0)
                     .map_err(|e| {
                         FileManagementError::classification(format!(
                             "Failed to add pattern '{}': {}",
                             processed_keyword, e
                         ))
                     })?;
-                _pattern_id += 1;
+                seen_keywords.insert(processed_keyword);
+            }
+            Ok(())
+        };
+
+        for rule in &rules.rules {
+            // Add original keywords
+            for keyword in &rule.keywords {
+                add_keyword_to_automaton(keyword, rule, 1.0)?;
+            }
+
+            // Add combination keywords
+            if let Some(combinations) = &rule.combinations {
+                for combo in combinations {
+                    for keyword in combo {
+                        add_keyword_to_automaton(keyword, rule, 1.0)?;
+                    }
+                }
             }
 
             // Add pinyin variants if enabled
             if rule.use_pinyin && self.enable_chinese {
-                for keyword in &rule.keywords {
-                    let pinyin_variants = self.text_processor.generate_pinyin_variants(keyword);
+                let mut keywords_to_process = rule.keywords.clone();
+                if let Some(combinations) = &rule.combinations {
+                    for combo in combinations {
+                        keywords_to_process.extend(combo.clone());
+                    }
+                }
+
+                for keyword in keywords_to_process {
+                    let pinyin_variants = self.text_processor.generate_pinyin_variants(&keyword);
                     for variant in pinyin_variants {
-                        if variant != *keyword {
-                            let processed_variant = self.preprocess_keyword(&variant, rule);
-                            if let Err(e) = automaton.add_pattern(
-                                &processed_variant,
-                                &rule.category,
-                                rule.score_weight * 0.8,
-                            ) {
-                                // Pinyin variants get slightly lower weight
-                                debug!(
-                                    "Failed to add pinyin variant '{}': {}",
-                                    processed_variant, e
-                                );
-                                // Continue with other variants even if one fails
-                            } else {
-                                _pattern_id += 1;
-                            }
+                        if variant != keyword {
+                            add_keyword_to_automaton(&variant, rule, 0.8)?;
                         }
                     }
                 }
@@ -298,47 +338,112 @@ impl ClassificationEngine {
         matches: &[PatternMatch],
         rules: &ClassificationRules,
     ) -> FileManagementResult<Vec<ClassificationCandidate>> {
-        let mut category_scores: HashMap<String, (f64, Vec<PatternMatch>)> = HashMap::new();
-
-        // Group matches by category and calculate scores
-        for pattern_match in matches {
-            let entry = category_scores
-                .entry(pattern_match.category.clone())
-                .or_insert((0.0, Vec::new()));
-
-            entry.0 += pattern_match.score;
-            entry.1.push(pattern_match.clone());
+        // Create a map of matched strings to their details for fast lookup
+        let mut matches_by_keyword: std::collections::HashMap<String, Vec<PatternMatch>> = std::collections::HashMap::new();
+        for m in matches {
+            matches_by_keyword.entry(m.pattern.clone())
+                .or_default()
+                .push(m.clone());
         }
-
-        // Convert to candidates and calculate confidence
+            
         let mut candidates = Vec::new();
-        let total_score: f64 = category_scores.values().map(|(score, _)| *score).sum();
+        let mut total_score = 0.0;
 
-        for (category, (score, matches)) in category_scores {
-            let confidence = if total_score > 0.0 {
-                score / total_score
-            } else {
-                0.0
-            };
-
-            // Check if required matches are met
-            if let Some(rule) = rules.rules.iter().find(|r| r.category == category) {
-                if let Some(required) = rule.required_matches {
-                    if matches.len() < required {
-                        debug!(
-                            "Category '{}' doesn't meet required matches: {} < {}",
-                            category,
-                            matches.len(),
-                            required
-                        );
-                        continue;
+        for rule in &rules.rules {
+            let mut rule_score = 0.0;
+            let mut rule_matched_keywords = Vec::new();
+            let mut rule_match_details = Vec::new();
+            
+            // Check simple keywords
+            for keyword in &rule.keywords {
+                let processed = self.preprocess_keyword(keyword, rule);
+                if let Some(details) = matches_by_keyword.get(&processed) {
+                    rule_score += rule.score_weight;
+                    rule_matched_keywords.push(keyword.clone());
+                    rule_match_details.extend(details.clone());
+                } else if rule.use_pinyin && self.enable_chinese {
+                     // Check pinyin variants
+                     let pinyin_variants = self.text_processor.generate_pinyin_variants(keyword);
+                     for variant in pinyin_variants {
+                         let processed_variant = self.preprocess_keyword(&variant, rule);
+                         if let Some(details) = matches_by_keyword.get(&processed_variant) {
+                             rule_score += rule.score_weight; 
+                             rule_matched_keywords.push(format!("{} (pinyin)", keyword));
+                             rule_match_details.extend(details.clone());
+                             break; 
+                         }
+                     }
+                }
+            }
+            
+            // Check combinations
+            if let Some(combinations) = &rule.combinations {
+                for combo in combinations {
+                    let mut all_match = true;
+                    let mut combo_matches = Vec::new();
+                    let mut combo_details = Vec::new();
+                    
+                    for k in combo {
+                        let processed = self.preprocess_keyword(k, rule);
+                        let mut k_matched = false;
+                        
+                        if let Some(details) = matches_by_keyword.get(&processed) {
+                            k_matched = true;
+                            combo_details.extend(details.clone());
+                        } else if rule.use_pinyin && self.enable_chinese {
+                             let pinyin_variants = self.text_processor.generate_pinyin_variants(k);
+                             for variant in pinyin_variants {
+                                 let processed_variant = self.preprocess_keyword(&variant, rule);
+                                 if let Some(details) = matches_by_keyword.get(&processed_variant) {
+                                     k_matched = true;
+                                     combo_details.extend(details.clone());
+                                     break;
+                                 }
+                             }
+                        }
+                        
+                        if k_matched {
+                            combo_matches.push(k.clone());
+                        } else {
+                            all_match = false;
+                            break; 
+                        }
+                    }
+                    
+                    if all_match {
+                        rule_score += rule.score_weight;
+                        rule_matched_keywords.extend(combo_matches);
+                        rule_match_details.extend(combo_details);
                     }
                 }
             }
-
-            let candidate =
-                ClassificationCandidate::new(category, score, confidence).with_matches(matches);
-            candidates.push(candidate);
+            
+            if rule_score > 0.0 {
+                // Check required matches
+                if let Some(required) = rule.required_matches {
+                    if rule_matched_keywords.len() < required {
+                        continue;
+                    }
+                }
+                
+                total_score += rule_score;
+                
+                let mut candidate = ClassificationCandidate::new(
+                    rule.category.clone(),
+                    rule_score,
+                    0.0
+                );
+                candidate.matched_keywords = rule_matched_keywords;
+                candidate.match_details = rule_match_details;
+                candidates.push(candidate);
+            }
+        }
+        
+        // Calculate confidence
+        for candidate in &mut candidates {
+            if total_score > 0.0 {
+                candidate.confidence = candidate.score / total_score;
+            }
         }
 
         // Sort by score (descending)
@@ -554,7 +659,7 @@ impl ClassificationTool {
         &self,
         rules_value: &Value,
     ) -> FileManagementResult<ClassificationRules> {
-        if let Some(file_path) = rules_value.as_str() {
+        let mut value_to_parse = if let Some(file_path) = rules_value.as_str() {
             // Load from file
             let content = std::fs::read_to_string(file_path).map_err(|e| {
                 FileManagementError::io(format!("Failed to read rules file: {}", file_path), e)
@@ -562,13 +667,69 @@ impl ClassificationTool {
 
             serde_json::from_str(&content).map_err(|e| {
                 FileManagementError::validation(format!("Invalid JSON in rules file: {}", e))
-            })
+            })?
         } else {
-            // Parse as JSON object
-            serde_json::from_value(rules_value.clone()).map_err(|e| {
-                FileManagementError::validation(format!("Invalid classification rules: {}", e))
-            })
+            rules_value.clone()
+        };
+
+        // Apply transformations (legacy fields and nested keywords)
+        if let Some(obj) = value_to_parse.as_object_mut() {
+            // Legacy "categories" -> "rules"
+            if obj.contains_key("categories") && !obj.contains_key("rules") {
+                if let Some(categories) = obj.remove("categories") {
+                    obj.insert("rules".to_string(), categories);
+                }
+            }
+
+            // Transform nested keywords into combinations
+            if let Some(rules) = obj.get_mut("rules").and_then(|r| r.as_array_mut()) {
+                for rule in rules {
+                    if let Some(rule_obj) = rule.as_object_mut() {
+                        // Legacy "name" -> "category"
+                        if rule_obj.contains_key("name") && !rule_obj.contains_key("category") {
+                            if let Some(name) = rule_obj.remove("name") {
+                                rule_obj.insert("category".to_string(), name);
+                            }
+                        }
+
+                        // Process keywords
+                        if let Some(keywords_val) = rule_obj.get_mut("keywords") {
+                            if let Some(keywords_arr) = keywords_val.as_array() {
+                                let mut simple_keywords = Vec::new();
+                                let mut combinations = Vec::new();
+                                
+                                for item in keywords_arr {
+                                    if let Some(s) = item.as_str() {
+                                        simple_keywords.push(Value::String(s.to_string()));
+                                    } else if let Some(arr) = item.as_array() {
+                                        let mut combo = Vec::new();
+                                        for sub_item in arr {
+                                            if let Some(s) = sub_item.as_str() {
+                                                combo.push(s.to_string());
+                                            }
+                                        }
+                                        if !combo.is_empty() {
+                                            combinations.push(combo);
+                                        }
+                                    }
+                                }
+                                
+                                *keywords_val = Value::Array(simple_keywords);
+                                
+                                if !combinations.is_empty() {
+                                    rule_obj.insert("combinations".to_string(), json!(combinations));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+
+        // Parse as ClassificationRules
+        serde_json::from_value(value_to_parse).map_err(|e| {
+            FileManagementError::validation(format!("Invalid classification rules: {}", e))
+        })
     }
 
     /// Invoke human decision tool for ambiguous classification
