@@ -1118,6 +1118,178 @@ mod event_tests {
 }
 
 // ============================================================================
+// Action Dispatcher Tests
+// ============================================================================
+
+#[cfg(test)]
+mod action_dispatch_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum DispatchAction {
+        None,
+        Quit,
+        Refresh,
+        Navigate(String),
+        ExecuteWorkflow(String),
+        Custom(String),
+    }
+
+    impl std::fmt::Display for DispatchAction {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                DispatchAction::None => write!(f, "None"),
+                DispatchAction::Quit => write!(f, "Quit"),
+                DispatchAction::Refresh => write!(f, "Refresh"),
+                DispatchAction::Navigate(view) => write!(f, "Navigate({})", view),
+                DispatchAction::ExecuteWorkflow(name) => write!(f, "ExecuteWorkflow({})", name),
+                DispatchAction::Custom(name) => write!(f, "Custom({})", name),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum DispatchResult {
+        Success,
+        Error(String),
+        Ignored,
+    }
+
+    pub struct ActionDispatcher {
+        actions: Vec<DispatchAction>,
+        handlers: HashMap<String, Box<dyn ActionHandler>>,
+    }
+
+    pub trait ActionHandler {
+        fn handle(&mut self, action: &DispatchAction) -> DispatchResult;
+        fn can_handle(&self, action: &DispatchAction) -> bool;
+        fn name(&self) -> &str;
+    }
+
+    impl ActionDispatcher {
+        pub fn new() -> Self {
+            Self {
+                actions: Vec::new(),
+                handlers: HashMap::new(),
+            }
+        }
+
+        pub fn register_handler(&mut self, name: String, handler: Box<dyn ActionHandler>) {
+            self.handlers.insert(name, handler);
+        }
+
+        pub fn dispatch(&mut self, action: DispatchAction) {
+            self.actions.push(action);
+        }
+
+        pub fn process_next(&mut self) -> Option<DispatchResult> {
+            if let Some(action) = self.actions.pop() {
+                for handler in self.handlers.values_mut() {
+                    if handler.can_handle(&action) {
+                        return Some(handler.handle(&action));
+                    }
+                }
+                Some(DispatchResult::Error("No handler found".to_string()))
+            } else {
+                None
+            }
+        }
+
+        pub fn has_pending_actions(&self) -> bool {
+            !self.actions.is_empty()
+        }
+    }
+
+    pub struct MockActionHandler {
+        name: String,
+        can_handle_actions: Vec<DispatchAction>,
+    }
+
+    impl MockActionHandler {
+        pub fn new(name: String, can_handle_actions: Vec<DispatchAction>) -> Self {
+            Self {
+                name,
+                can_handle_actions,
+            }
+        }
+    }
+
+    impl ActionHandler for MockActionHandler {
+        fn handle(&mut self, _action: &DispatchAction) -> DispatchResult {
+            DispatchResult::Success
+        }
+
+        fn can_handle(&self, action: &DispatchAction) -> bool {
+            self.can_handle_actions.contains(action)
+        }
+
+        fn name(&self) -> &str {
+            &self.name
+        }
+    }
+
+    #[test]
+    fn test_action_dispatcher_creation() {
+        let dispatcher = ActionDispatcher::new();
+        assert!(!dispatcher.has_pending_actions());
+        assert_eq!(dispatcher.handlers.len(), 0);
+    }
+
+    #[test]
+    fn test_action_handler_registration() {
+        let mut dispatcher = ActionDispatcher::new();
+        let handler = MockActionHandler::new("test_handler".to_string(), vec![DispatchAction::Quit]);
+
+        dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
+        assert_eq!(dispatcher.handlers.len(), 1);
+    }
+
+    #[test]
+    fn test_action_dispatch_and_process() {
+        let mut dispatcher = ActionDispatcher::new();
+        let handler = MockActionHandler::new("test_handler".to_string(), vec![DispatchAction::Quit]);
+
+        dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
+
+        // Dispatch an action
+        dispatcher.dispatch(DispatchAction::Quit);
+        assert!(dispatcher.has_pending_actions());
+
+        // Process the action
+        let result = dispatcher.process_next();
+        assert!(result.is_some());
+        match result.unwrap() {
+            DispatchResult::Success => {}
+            other => panic!("Expected Success, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_action_display() {
+        assert_eq!(format!("{}", DispatchAction::Quit), "Quit");
+        assert_eq!(format!("{}", DispatchAction::Refresh), "Refresh");
+    }
+
+    #[test]
+    fn test_unhandled_action() {
+        let mut dispatcher = ActionDispatcher::new();
+
+        // Dispatch action with no handlers
+        dispatcher.dispatch(DispatchAction::Quit);
+
+        let result = dispatcher.process_next();
+        assert!(result.is_some());
+
+        // Should return error since no handler can process it
+        match result.unwrap() {
+            DispatchResult::Error(_) => {} // Expected
+            other => panic!("Expected Error, got {:?}", other),
+        }
+    }
+}
+
+// ============================================================================
 // Error Handling Tests
 // ============================================================================
 
