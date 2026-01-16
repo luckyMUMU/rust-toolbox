@@ -94,13 +94,21 @@ impl Default for AlertThresholds {
 
 /// File management monitoring and metrics collector
 pub struct FileManagementMonitor {
+    #[allow(dead_code)]
     config: MonitoringConfig,
+    #[allow(dead_code)]
     performance_manager: Option<Arc<PerformanceManager>>,
+    #[allow(dead_code)]
     metrics_collector: Option<Arc<MetricsCollector>>,
+    #[allow(dead_code)]
     audit_trail: Arc<RwLock<Vec<AuditEntry>>>,
+    #[allow(dead_code)]
     operation_metrics: Arc<RwLock<OperationMetrics>>,
+    #[allow(dead_code)]
     error_tracker: Arc<RwLock<ErrorTracker>>,
+    #[allow(dead_code)]
     resource_monitor: Arc<RwLock<ResourceMonitor>>,
+    #[allow(dead_code)]
     alert_manager: Arc<RwLock<AlertManager>>,
 }
 
@@ -493,7 +501,7 @@ impl FileManagementMonitor {
     /// Start metrics collection background task
     async fn start_metrics_collection(&self) -> FileManagementResult<()> {
         let interval_duration = Duration::from_secs(self.config.collection_interval_seconds);
-        let mut interval = interval(interval_duration);
+        let mut _interval = interval(interval_duration);
 
         // This would typically spawn a background task
         // For now, we'll just log that it would start

@@ -614,7 +614,9 @@ impl LoadBalancer {
 /// Adaptive concurrency controller
 pub struct AdaptiveConcurrencyController {
     config: AdaptiveConcurrencyConfig,
+    #[allow(dead_code)]
     workflow_semaphore: Arc<Semaphore>,
+    #[allow(dead_code)]
     tool_semaphore: Arc<Semaphore>,
     recent_latencies: Arc<Mutex<Vec<Duration>>>,
     last_adjustment: Arc<Mutex<Instant>>,

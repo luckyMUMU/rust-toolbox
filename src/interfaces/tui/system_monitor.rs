@@ -17,6 +17,7 @@ pub struct SystemMonitor {
     networks: Arc<RwLock<Networks>>,
     last_update: Arc<RwLock<Option<Instant>>>,
     update_interval: Duration,
+    #[allow(dead_code)]
     boot_time: DateTime<Utc>,
 }
 

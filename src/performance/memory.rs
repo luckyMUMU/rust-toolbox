@@ -507,6 +507,7 @@ impl MemoryPressureDetector {
 
 /// Cleanup scheduler for automatic memory management
 pub struct CleanupScheduler {
+    #[allow(dead_code)]
     config: Arc<RwLock<MemoryConfig>>,
     usage_history: Arc<DashMap<String, Vec<MemoryUsage>>>,
 }

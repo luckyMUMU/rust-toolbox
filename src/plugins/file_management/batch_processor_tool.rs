@@ -408,6 +408,7 @@ impl BatchProcessorTool {
 
 /// Executor for the Batch Processor Tool
 pub struct BatchProcessorExecutor {
+    #[allow(dead_code)]
     config: FileManagementConfig,
     concurrency_manager: Option<Arc<ConcurrencyManager>>,
 }
@@ -716,7 +717,7 @@ impl ToolExecutor for BatchProcessorExecutor {
 
         // Create progress tracker
         let progress_tracker = ProgressTracker::new(progress_config);
-        let mut progress_receiver = if batch_params.enable_progress_tracking.unwrap_or(true) {
+        let progress_receiver = if batch_params.enable_progress_tracking.unwrap_or(true) {
             Some(progress_tracker.subscribe())
         } else {
             None

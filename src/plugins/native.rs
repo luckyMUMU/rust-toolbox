@@ -26,6 +26,7 @@ pub struct NativePlugin {
 }
 
 // Native plugin API function signatures
+#[allow(dead_code)]
 type PluginInfoFn = unsafe extern "C" fn() -> *const c_char;
 type PluginInitFn = unsafe extern "C" fn(*const c_char) -> *mut c_void;
 type PluginGetToolsFn = unsafe extern "C" fn(*mut c_void) -> *const ToolDescriptor;

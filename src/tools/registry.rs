@@ -77,6 +77,7 @@ pub trait ToolRegistry: Send + Sync {
 pub struct BasicToolRegistry {
     tools: DashMap<String, Arc<dyn ToolNode>>,
     tool_info_cache: DashMap<String, ToolInfo>,
+    #[allow(dead_code)]
     dependency_resolver: DependencyResolver,
 }
 

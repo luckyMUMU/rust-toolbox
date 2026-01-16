@@ -802,12 +802,16 @@ pub struct VirtualizationMetrics {
 
 /// Virtual table widget for tabular data
 pub struct VirtualTableWidget<T> {
+    #[allow(dead_code)]
     config: VirtualizationConfig,
+    #[allow(dead_code)]
     data_provider: Arc<dyn VirtualDataProvider<T>>,
-
+    
     // Table state
     table_state: TableState,
+    #[allow(dead_code)]
     column_widths: Vec<u16>,
+    #[allow(dead_code)]
     column_headers: Vec<String>,
 
     // Virtual scrolling (reuse from list)

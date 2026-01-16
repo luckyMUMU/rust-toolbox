@@ -673,6 +673,7 @@ impl DefaultWorkflowEngine {
     }
 
     /// Create error context for better error reporting
+    #[allow(dead_code)]
     fn create_error_context(
         &self,
         node_id: &str,

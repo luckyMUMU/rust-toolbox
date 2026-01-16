@@ -196,7 +196,8 @@ pub struct ProgressTracker {
 
 /// Internal state for tracking batch progress
 #[derive(Debug, Clone)]
-struct BatchProgressState {
+pub struct BatchProgressState {
+    #[allow(dead_code)]
     batch_id: String,
     tool_name: String,
     started_at: Instant,
@@ -208,8 +209,10 @@ struct BatchProgressState {
 /// Internal state for tracking individual item progress
 #[derive(Debug, Clone)]
 struct ItemProgressState {
+    #[allow(dead_code)]
     item_id: String,
     status: BatchItemStatus,
+    #[allow(dead_code)]
     started_at: Option<Instant>,
     completed_at: Option<Instant>,
     duration: Option<Duration>,

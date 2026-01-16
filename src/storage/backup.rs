@@ -94,6 +94,7 @@ pub struct BackupData {
 
 /// Backup data structure for checksum calculation (without checksum field)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct BackupDataForChecksum {
     /// Backup metadata without checksum
     pub metadata_without_checksum: BackupMetadataForChecksum,
@@ -107,6 +108,7 @@ struct BackupDataForChecksum {
 
 /// Backup metadata for checksum calculation (without checksum field)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct BackupMetadataForChecksum {
     /// Unique backup identifier
     pub backup_id: String,
@@ -673,6 +675,7 @@ impl BackupManager {
     }
 
     /// Calculate checksum for backup data
+    #[allow(dead_code)]
     fn calculate_checksum(&self, backup_data: &BackupData) -> Result<String> {
         // Create a structure without the checksum field for calculation
         let data_for_checksum = BackupDataForChecksum {

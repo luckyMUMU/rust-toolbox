@@ -580,7 +580,7 @@ impl AcMatcherExecutor {
 
 #[async_trait::async_trait]
 impl ToolExecutor for AcMatcherExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         debug!("Executing AC matcher tool with parameters: {}", params);
 
         // Check if we're in experimental mode
@@ -891,7 +891,7 @@ impl FileMoverExecutor {
 
 #[async_trait::async_trait]
 impl ToolExecutor for FileMoverExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         debug!("Executing file mover tool with parameters: {}", params);
 
         // Parse operations
@@ -976,7 +976,7 @@ impl ToolExecutor for FileMoverExecutor {
         let start_time = std::time::Instant::now();
         let mut operations_completed = 0;
         let mut operations_failed = 0;
-        let mut operations_skipped = 0;
+        let operations_skipped = 0;
         let mut total_bytes_moved = 0;
         let mut errors = Vec::new();
 
@@ -1251,7 +1251,7 @@ impl FolderMergerExecutor {
 
 #[async_trait::async_trait]
 impl ToolExecutor for FolderMergerExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         debug!("Executing folder merger tool with parameters: {}", params);
 
         // Parse source directories
@@ -1435,11 +1435,13 @@ impl ToolExecutor for FolderMergerExecutor {
 }
 
 /// Placeholder executor for tools that will be implemented in later tasks
+#[allow(dead_code)]
 struct PlaceholderExecutor {
     tool_name: String,
 }
 
 impl PlaceholderExecutor {
+    #[allow(dead_code)]
     fn new<S: Into<String>>(tool_name: S) -> Self {
         Self {
             tool_name: tool_name.into(),

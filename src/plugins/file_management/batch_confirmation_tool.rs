@@ -241,7 +241,7 @@ impl BatchConfirmationTool {
         &self,
         operations: &[ExperimentalResult],
         strategy: &ConfirmationStrategy,
-        options: &Option<BatchOptions>,
+        _options: &Option<BatchOptions>,
     ) -> FileManagementResult<Vec<OperationBatch>> {
         let mut batches = Vec::new();
 
@@ -697,7 +697,7 @@ impl BatchConfirmationTool {
     fn present_batch_for_confirmation(
         &self,
         batch: &OperationBatch,
-        context: &ExecutionContext,
+        _context: &ExecutionContext,
     ) -> FileManagementResult<BatchDecision> {
         info!("=== Batch Confirmation Required ===");
         info!("Batch ID: {}", batch.batch_id);

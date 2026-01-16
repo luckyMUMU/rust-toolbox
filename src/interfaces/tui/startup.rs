@@ -180,6 +180,7 @@ pub struct StartupPerformanceManager {
     lazy_loader: Arc<LazyComponentLoader>,
 
     // Startup cache
+    #[allow(dead_code)]
     startup_cache: Arc<RwLock<HashMap<String, CachedComponentData>>>,
 
     // Parallel initialization
@@ -188,8 +189,11 @@ pub struct StartupPerformanceManager {
 
 #[derive(Debug, Clone)]
 struct CachedComponentData {
+    #[allow(dead_code)]
     data: Vec<u8>,
+    #[allow(dead_code)]
     cached_at: Instant,
+    #[allow(dead_code)]
     component_version: String,
 }
 

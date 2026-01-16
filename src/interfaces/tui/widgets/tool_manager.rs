@@ -700,7 +700,7 @@ impl ToolManagerWidget {
     }
 
     /// Mark a tool as finished executing
-    pub fn mark_tool_finished(&mut self, tool_name: &str, success: bool, error: Option<String>) {
+    pub fn mark_tool_finished(&mut self, tool_name: &str, success: bool, _error: Option<String>) {
         self.executing_tools.remove(tool_name);
         // Update tool status
         if let Some(tool) = self.tools.iter_mut().find(|t| t.info.name == tool_name) {
@@ -1033,7 +1033,7 @@ impl ToolManagerWidget {
         &mut self,
         tool_name: &str,
         success: bool,
-        result: Option<serde_json::Value>,
+        _result: Option<serde_json::Value>,
         error: Option<String>,
     ) {
         let completion_time = Utc::now();
@@ -1424,7 +1424,7 @@ impl ToolManagerWidget {
         let items: Vec<ListItem> = visible_indices
             .iter()
             .enumerate()
-            .map(|(display_index, &tool_index)| {
+            .map(|(_display_index, &tool_index)| {
                 let tool = &self.tools[tool_index];
 
                 let status_style = Style::default().fg(tool.status.color());
@@ -1588,7 +1588,7 @@ impl ToolManagerWidget {
     }
 
     /// Render search/filter status
-    fn render_search_status(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    fn render_search_status(&self, frame: &mut Frame, area: Rect, _theme: &Theme) {
         let status_text = if self.search_mode {
             format!("搜索: {} (按 Enter 确认, Esc 取消)", self.filter)
         } else {
@@ -1612,7 +1612,7 @@ impl ToolManagerWidget {
     }
 
     /// Render pagination information
-    fn render_pagination_info(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    fn render_pagination_info(&self, frame: &mut Frame, area: Rect, _theme: &Theme) {
         let pagination_text = format!(
             "页面 {}/{} | 显示 {}-{} / {} 工具 | PgUp/PgDn 翻页",
             self.current_page + 1,
@@ -2068,6 +2068,7 @@ impl ToolManagerWidget {
     }
 
     /// Render tool dependencies and version info
+    #[allow(dead_code)]
     fn render_tool_dependencies(
         &self,
         frame: &mut Frame,

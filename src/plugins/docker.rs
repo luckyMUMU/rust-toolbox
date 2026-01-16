@@ -1000,6 +1000,7 @@ pub struct DockerPlugin {
     info: PluginInfo,
     status: PluginStatus,
     config: Option<PluginConfig>,
+    #[allow(dead_code)]
     runtime_config: DockerRuntimeConfig,
     environment: Arc<Mutex<DockerEnvironment>>,
     tools: Vec<Arc<dyn ToolNode>>,

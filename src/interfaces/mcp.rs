@@ -152,6 +152,7 @@ pub struct McpServer {
     /// Reference to plugin manager for plugin operations
     plugin_manager: Option<Arc<PluginManager>>,
     /// Server running state
+    #[allow(dead_code)]
     is_running: bool,
 }
 
