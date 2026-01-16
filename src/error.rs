@@ -179,4 +179,53 @@ impl WorkflowError {
     pub fn validation<S: Into<String>>(message: S) -> Self {
         Self::ValidationError(message.into())
     }
+
+    /// Create a slot not found error
+    pub fn slot_not_found<S: Into<String>>(slot_name: S) -> Self {
+        Self::NotFound {
+            resource: format!("slot '{}'", slot_name.into()),
+        }
+    }
+
+    /// Create a type conversion error
+    pub fn type_conversion<S: Into<String>>(message: S) -> Self {
+        Self::WorkflowExecution {
+            message: format!("Type conversion error: {}", message.into()),
+        }
+    }
+
+    /// Create a component not found error
+    pub fn component_not_found<S: Into<String>>(component_id: S) -> Self {
+        Self::NotFound {
+            resource: format!("component '{}'", component_id.into()),
+        }
+    }
+
+    /// Create a tool not found error
+    pub fn tool_not_found<S: Into<String>>(tool_name: S) -> Self {
+        Self::NotFound {
+            resource: format!("tool '{}'", tool_name.into()),
+        }
+    }
+
+    /// Create a serialization error with custom message
+    pub fn serialization<S: Into<String>>(message: S) -> Self {
+        Self::WorkflowExecution {
+            message: format!("Serialization error: {}", message.into()),
+        }
+    }
+
+    /// Create a not implemented error
+    pub fn not_implemented<S: Into<String>>(feature: S) -> Self {
+        Self::WorkflowExecution {
+            message: format!("Not implemented: {}", feature.into()),
+        }
+    }
+
+    /// Create an execution error
+    pub fn execution<S: Into<String>>(message: S) -> Self {
+        Self::WorkflowExecution {
+            message: message.into(),
+        }
+    }
 }

@@ -448,6 +448,11 @@ impl DagScheduler {
         self.execution_state.has_ready_nodes()
     }
 
+    /// Check if there are nodes currently executing
+    pub fn has_executing_nodes(&self) -> bool {
+        !self.execution_state.executing_nodes.is_empty()
+    }
+
     /// Get execution statistics
     pub fn get_execution_stats(&self) -> ExecutionStats {
         ExecutionStats {
