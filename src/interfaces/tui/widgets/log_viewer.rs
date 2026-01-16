@@ -115,6 +115,7 @@ pub struct LogViewerWidget {
     // UI state
     state: LogViewerState,
     selected_index: usize,
+    #[allow(dead_code)]
     scroll_offset: usize,
     list_state: ListState,
     scroll_state: ScrollbarState,
@@ -138,6 +139,7 @@ pub struct LogViewerWidget {
     last_export_path: Option<PathBuf>,
 
     // Performance tracking
+    #[allow(dead_code)]
     last_update: Instant,
     update_count: u64,
 
@@ -1013,6 +1015,7 @@ impl LogViewerWidget {
     }
 
     /// Format log entry for display
+    #[allow(dead_code)]
     fn format_log_entry<'a>(
         &self,
         log: &'a LogEntry,

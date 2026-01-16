@@ -617,6 +617,7 @@ impl TuiMemoryManager {
 /// Memory leak detector for TUI widgets
 pub struct MemoryLeakDetector {
     config: Arc<RwLock<TuiMemoryConfig>>,
+    #[allow(dead_code)]
     widget_usage: Arc<DashMap<String, WidgetMemoryUsage>>,
     baseline_usage: Arc<DashMap<String, usize>>,
     monitoring_task: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,

@@ -45,7 +45,9 @@ pub struct TuiApp {
     router: Router,
     shared_state: Arc<SharedAppState>,
     theme_manager: ThemeManager,
+    #[allow(dead_code)]
     event_handler: EventHandler,
+    #[allow(dead_code)]
     action_dispatcher: ActionDispatcher,
     focus_manager: FocusManager,
     help_system: HelpSystem,
@@ -67,6 +69,7 @@ pub struct Router {
 /// Application state manager for data synchronization
 pub struct AppState {
     // This will be populated with actual state management
+    #[allow(dead_code)]
     last_update: Arc<RwLock<Instant>>,
 }
 

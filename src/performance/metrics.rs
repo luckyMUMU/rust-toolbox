@@ -72,6 +72,7 @@ pub struct MetricsCollector {
     time_series: Arc<DashMap<String, TimeSeries>>,
 
     // Collection state
+    #[allow(dead_code)]
     last_collection: Arc<RwLock<Instant>>,
 }
 

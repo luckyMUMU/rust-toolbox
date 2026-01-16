@@ -58,6 +58,7 @@ pub struct HumanDecisionResult {
 
 /// Human Decision Tool executor
 pub struct HumanDecisionExecutor {
+    #[allow(dead_code)]
     config: FileManagementConfig,
 }
 
@@ -400,7 +401,7 @@ impl HumanDecisionExecutor {
 
 #[async_trait::async_trait]
 impl ToolExecutor for HumanDecisionExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         debug!("Executing human decision tool with parameters: {}", params);
 
         // Check if we're in experimental mode (check for experimental_mode parameter before parsing)

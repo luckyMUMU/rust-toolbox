@@ -99,6 +99,7 @@ pub struct TextProcessorResult {
 /// Text Processor Tool implementation
 pub struct TextProcessorTool {
     processor: TextProcessor,
+    #[allow(dead_code)]
     config: TextNormalizationConfig,
     plugin_info: Option<PluginInfo>,
 }
@@ -201,7 +202,7 @@ impl TextProcessorTool {
                     }
                 }
                 TextOperation::CreateCombinations => {
-                    if let Some(ref pinyin_result) = result.pinyin_result {
+                    if let Some(ref _pinyin_result) = result.pinyin_result {
                         // Combinations are already included in pinyin_result
                         result
                             .operations_applied

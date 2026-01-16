@@ -130,7 +130,9 @@ pub struct RenderingPerformanceManager {
     last_render_hash: Arc<RwLock<HashMap<String, u64>>>,
 
     // Render batching
+    #[allow(dead_code)]
     render_queue: Arc<RwLock<Vec<RenderOperation>>>,
+    #[allow(dead_code)]
     batch_processor: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 }
 

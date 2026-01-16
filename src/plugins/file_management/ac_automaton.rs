@@ -677,6 +677,7 @@ impl AhoCorasickMatcher {
     }
 
     /// Get a mutable node by ID
+    #[allow(dead_code)]
     fn get_node_mut(&mut self, node_id: usize) -> AutomatonResult<&mut AutomatonNode> {
         self.nodes
             .get_mut(node_id)

@@ -145,7 +145,7 @@ impl ConflictContext {
     fn suggest_resolution(
         source_metadata: &Option<ConflictFileMetadata>,
         target_metadata: &Option<ConflictFileMetadata>,
-        operation_type: &FileOperationType,
+        _operation_type: &FileOperationType,
     ) -> ConflictResolution {
         match (source_metadata, target_metadata) {
             (Some(source), Some(target)) => {
@@ -1691,9 +1691,7 @@ impl TextProcessor {
                 | '議'
                 | '題'
                 | '問'
-                | '題'
                 | '決'
-                | '議'
         )
     }
 
@@ -1734,13 +1732,10 @@ impl TextProcessor {
                 | '封'
                 | '装'
                 | '态'
-                | '象'
                 | '议'
                 | '题'
                 | '问'
-                | '题'
                 | '决'
-                | '议'
         )
     }
 
@@ -2164,7 +2159,7 @@ impl ValidationUtils {
                 let _ = std::fs::remove_file(&test_file);
                 Ok(())
             }
-            Err(e) => Err(FileManagementError::permission_denied(path)),
+            Err(_e) => Err(FileManagementError::permission_denied(path)),
         }
     }
 }

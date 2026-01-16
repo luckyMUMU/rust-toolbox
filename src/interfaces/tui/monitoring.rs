@@ -312,6 +312,7 @@ pub enum ImplementationEffort {
 /// TUI Performance Monitor
 pub struct TuiPerformanceMonitor {
     config: Arc<RwLock<MonitoringConfig>>,
+    #[allow(dead_code)]
     performance_manager: Arc<PerformanceManager>,
 
     // Metrics collection

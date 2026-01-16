@@ -573,6 +573,7 @@ impl WorkflowListWidget {
     }
 
     /// Highlight search terms in text
+    #[allow(dead_code)]
     fn highlight_text<'a>(
         &self,
         text: &'a str,

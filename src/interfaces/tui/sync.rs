@@ -899,31 +899,39 @@ impl DataSyncManager {
     pub async fn start(&mut self) -> Result<()> {
         info!("Starting data synchronization manager");
 
-        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+        let (shutdown_tx, _shutdown_rx) = mpsc::channel(1);
         self.shutdown_tx = Some(shutdown_tx);
 
         // Start periodic sync task
         let (sync_shutdown_tx, sync_shutdown_rx) = mpsc::channel(1);
         let sync_handle = self.start_periodic_sync(sync_shutdown_rx).await?;
         *self.sync_handle.lock().await = Some(sync_handle);
+        // Keep tx alive
+        let _ = sync_shutdown_tx;
 
         // Start real-time updates if enabled
         if self.config.enable_realtime_updates {
             let (realtime_shutdown_tx, realtime_shutdown_rx) = mpsc::channel(1);
             let realtime_handle = self.start_realtime_updates(realtime_shutdown_rx).await?;
             *self.realtime_handle.lock().await = Some(realtime_handle);
+            // Keep tx alive
+            let _ = realtime_shutdown_tx;
         }
 
         // Start connection health monitoring
         let (health_shutdown_tx, health_shutdown_rx) = mpsc::channel(1);
         let health_handle = self.start_health_monitoring(health_shutdown_rx).await?;
         *self.health_handle.lock().await = Some(health_handle);
+        // Keep tx alive
+        let _ = health_shutdown_tx;
 
         // Start cache cleanup task if offline caching is enabled
         if self.config.enable_offline_cache && self.offline_cache.is_some() {
             let (cleanup_shutdown_tx, cleanup_shutdown_rx) = mpsc::channel(1);
             let cleanup_handle = self.start_cache_cleanup(cleanup_shutdown_rx).await?;
             *self.cleanup_handle.lock().await = Some(cleanup_handle);
+            // Keep tx alive
+            let _ = cleanup_shutdown_tx;
         }
 
         // Perform initial sync or load from cache
@@ -1158,9 +1166,9 @@ impl DataSyncManager {
         &self,
         mut shutdown_rx: mpsc::Receiver<()>,
     ) -> Result<tokio::task::JoinHandle<()>> {
-        let state = Arc::clone(&self.state);
+        let _state = Arc::clone(&self.state);
         let event_sender = self.event_sender.clone();
-        let config = self.config.clone();
+        let _config = self.config.clone();
 
         let handle = tokio::spawn(async move {
             // This would connect to WebSocket/SSE endpoint for real-time updates
@@ -1197,7 +1205,7 @@ impl DataSyncManager {
         mut shutdown_rx: mpsc::Receiver<()>,
     ) -> Result<tokio::task::JoinHandle<()>> {
         let offline_cache = self.offline_cache.clone();
-        let config = self.config.clone();
+        let _config = self.config.clone();
         let event_sender = self.event_sender.clone();
 
         let handle = tokio::spawn(async move {
@@ -1323,7 +1331,7 @@ impl DataSyncManager {
     ) -> Result<()> {
         let start_time = Instant::now();
         let mut attempt = 0;
-        let mut last_error: Option<String> = None;
+        let mut _last_error: Option<String> = None;
 
         // Update metrics - sync started
         {
@@ -1379,7 +1387,7 @@ impl DataSyncManager {
                     return Ok(());
                 }
                 Err(e) => {
-                    last_error = Some(e.to_string());
+                    _last_error = Some(e.to_string());
 
                     if attempt >= config.max_retry_attempts {
                         // Update metrics - sync failed
@@ -1465,7 +1473,7 @@ impl DataSyncManager {
         cache: &Option<Arc<dyn CacheBackend>>,
         source: DataSource,
     ) -> Result<u32> {
-        let mut items_updated = 0;
+        let items_updated;
 
         match source {
             DataSource::Api => {

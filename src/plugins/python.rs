@@ -867,7 +867,7 @@ impl PythonPluginBuilder {
             .description
             .unwrap_or_else(|| format!("Python plugin: {}", name));
 
-        let now = Utc::now();
+        let _now = Utc::now();
         let plugin_info = PluginInfo {
             name: name.clone(),
             version,

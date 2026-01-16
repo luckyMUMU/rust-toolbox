@@ -284,6 +284,7 @@ impl DefaultExecutionManager {
     }
 
     /// Apply resource limits to task execution
+    #[allow(dead_code)]
     async fn apply_resource_limits(
         &self,
         limits: &ResourceLimits,

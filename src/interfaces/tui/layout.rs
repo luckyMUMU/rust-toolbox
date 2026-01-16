@@ -1467,7 +1467,7 @@ impl LayoutManager {
             // Try to load default template if available
             if let Some(template) = config_manager.get_template("default") {
                 let template_clone = template.clone();
-                drop(config_manager); // Release the mutable borrow
+                let _ = config_manager; // Release the mutable borrow
                 self.apply_template(&template_clone)?;
                 tracing::info!("Loaded default layout template");
             }

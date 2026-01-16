@@ -144,6 +144,7 @@ impl ClassificationCandidate {
 /// Classification engine core
 pub struct ClassificationEngine {
     text_processor: TextProcessor,
+    #[allow(dead_code)]
     normalization_config: TextNormalizationConfig,
     enable_chinese: bool,
 }
@@ -189,7 +190,7 @@ impl ClassificationEngine {
         let mut seen_keywords = std::collections::HashSet::new();
 
         // Helper to add a keyword to the automaton
-        let mut add_keyword_to_automaton = |keyword: &str, rule: &ClassificationRule, weight_multiplier: f64| -> FileManagementResult<()> {
+        let mut add_keyword_to_automaton = |keyword: &str, rule: &ClassificationRule, _weight_multiplier: f64| -> FileManagementResult<()> {
             let processed_keyword = self.preprocess_keyword(keyword, rule);
             
             if !seen_keywords.contains(&processed_keyword) {

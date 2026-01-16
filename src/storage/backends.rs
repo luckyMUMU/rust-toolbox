@@ -395,6 +395,7 @@ impl StorageBackend for LanceDbStorage {
 /// High-performance local memory cache using moka
 pub struct LocalMemoryCache {
     cache: Arc<moka::future::Cache<String, Vec<u8>>>,
+    #[allow(dead_code)]
     config: CacheConfig,
 }
 

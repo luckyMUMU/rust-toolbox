@@ -120,6 +120,7 @@ pub enum CacheOptimizationType {
 pub struct CacheManager {
     config: Arc<RwLock<CacheConfig>>,
     caches: Arc<DashMap<String, Arc<OptimizedCache>>>,
+    #[allow(dead_code)]
     global_stats: Arc<RwLock<CacheStats>>,
 }
 

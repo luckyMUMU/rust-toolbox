@@ -1101,6 +1101,7 @@ pub struct ExampleUndoableOperation {
     id: Uuid,
     description: String,
     operation_type: OperationType,
+    #[allow(dead_code)]
     data: serde_json::Value,
     undo_data: Option<serde_json::Value>,
 }

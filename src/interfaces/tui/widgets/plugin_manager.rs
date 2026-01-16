@@ -520,6 +520,7 @@ impl PluginManagerWidget {
     }
 
     /// Switch view mode
+    #[allow(dead_code)]
     fn switch_view(&mut self, view: ViewMode) {
         self.current_view = view;
         self.details_scroll = 0;
@@ -859,7 +860,7 @@ impl PluginManagerWidget {
     pub async fn install_plugin(
         &mut self,
         plugin_name: &str,
-        plugin_url: Option<String>,
+        _plugin_url: Option<String>,
     ) -> Result<(), String> {
         tracing::info!("Installing plugin: {}", plugin_name);
 
@@ -1432,7 +1433,7 @@ impl PluginManagerWidget {
     ) -> DependencyResolution {
         let mut all_plugins = std::collections::HashSet::new();
         let mut conflicts = Vec::new();
-        let mut warnings = Vec::new();
+        let warnings = Vec::new();
 
         // Collect all affected plugins
         for plugin_name in plugin_names {
@@ -3231,7 +3232,7 @@ impl PluginManagerWidget {
                 .market_plugins
                 .iter()
                 .enumerate()
-                .map(|(i, plugin)| {
+                .map(|(_i, plugin)| {
                     let is_installed = self.plugins.iter().any(|p| p.info.name == plugin.name);
                     let status_symbol = if is_installed { "✓" } else { "○" };
                     let status_style = if is_installed {
@@ -3498,7 +3499,7 @@ impl PluginManagerWidget {
     }
 
     /// Render error overlay
-    fn render_error_overlay(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    fn render_error_overlay(&self, frame: &mut Frame, area: Rect, _theme: &Theme) {
         if let Some(error) = &self.last_error {
             let popup_area = self.centered_rect(80, 5, area);
 

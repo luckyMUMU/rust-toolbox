@@ -174,8 +174,8 @@ impl PluginManager {
     }
 
     /// Get a plugin by name
-    pub fn get_plugin(&self, name: &str) -> Result<Option<Arc<dyn Plugin>>> {
-        let plugins = self
+    pub fn get_plugin(&self, _name: &str) -> Result<Option<Arc<dyn Plugin>>> {
+        let _plugins = self
             .plugins
             .read()
             .map_err(|_| WorkflowError::ConcurrentAccess {
@@ -220,7 +220,7 @@ impl PluginManager {
         info!("Reloading plugin: {}", name);
 
         // Get the current configuration
-        let config = {
+        let _config = {
             let configs =
                 self.plugin_configs
                     .read()

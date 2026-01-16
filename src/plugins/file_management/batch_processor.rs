@@ -488,7 +488,7 @@ impl BatchProcessor {
 
         let start_time = Instant::now();
         let mut retry_attempts = 0;
-        let mut last_error = None;
+        let mut _last_error = None;
 
         // Retry loop
         loop {
@@ -520,7 +520,7 @@ impl BatchProcessor {
                     break;
                 }
                 Err(e) => {
-                    last_error = Some(e);
+                    _last_error = Some(e);
                     retry_attempts += 1;
 
                     // Check if we should retry
@@ -533,7 +533,7 @@ impl BatchProcessor {
                             id: item.id.clone(),
                             status: BatchItemStatus::Failed,
                             result: None,
-                            error: Some(last_error.as_ref().unwrap().to_string()),
+                            error: Some(_last_error.as_ref().unwrap().to_string()),
                             duration: start_time.elapsed(),
                             retry_attempts,
                             metadata: item.metadata.clone(),

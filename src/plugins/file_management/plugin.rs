@@ -189,7 +189,7 @@ impl FileManagementPlugin {
 
     /// Register all tools with the workflow-toolkit tool registry
     fn register_tools_with_main_registry(&self, tools: &[Arc<dyn ToolNode>]) -> Result<()> {
-        if let Some(registry) = &self.tool_registry {
+        if let Some(_registry) = &self.tool_registry {
             info!(
                 "Registering {} file management tools with main tool registry",
                 tools.len()
@@ -212,7 +212,7 @@ impl FileManagementPlugin {
 
     /// Unregister all tools from the workflow-toolkit tool registry
     fn unregister_tools_from_main_registry(&self, tools: &[Arc<dyn ToolNode>]) -> Result<()> {
-        if let Some(registry) = &self.tool_registry {
+        if let Some(_registry) = &self.tool_registry {
             info!(
                 "Unregistering {} file management tools from main tool registry",
                 tools.len()
@@ -355,7 +355,7 @@ impl FileManagementPlugin {
 
     /// Initialize monitoring system with file management specific configuration
     fn initialize_monitoring_system(&mut self, config: &FileManagementConfig) -> Result<()> {
-        let monitor = if let Some(perf_manager) = &self.performance_manager {
+        let monitor = if let Some(_perf_manager) = &self.performance_manager {
             // Try to get metrics collector from performance manager
             // For now, create without metrics collector integration
             FileManagementMonitor::new(config.monitoring.clone())

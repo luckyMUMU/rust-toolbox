@@ -252,7 +252,7 @@ impl ResultConfirmationTool {
             .prepare_results_for_review(&params.experimental_operations)?;
 
         let mut phase_results = Vec::new();
-        let mut current_operations = experimental_results;
+        let current_operations = experimental_results;
         let mut final_approved = Vec::new();
         let mut final_rejected = Vec::new();
         let mut final_deferred = Vec::new();
@@ -503,7 +503,7 @@ impl ResultConfirmationTool {
     fn execute_final_confirmation_phase(
         &self,
         approved_operations: &[String],
-        context: &ExecutionContext,
+        _context: &ExecutionContext,
     ) -> FileManagementResult<ConfirmationPhase> {
         let start_time = std::time::Instant::now();
 

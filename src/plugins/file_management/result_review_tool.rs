@@ -469,7 +469,7 @@ impl ResultReviewTool {
     fn review_individual_operation(
         &self,
         result: &ExperimentalResult,
-        context: &ExecutionContext,
+        _context: &ExecutionContext,
     ) -> FileManagementResult<ConfirmationDetail> {
         let start_time = std::time::Instant::now();
 
@@ -536,7 +536,7 @@ impl ResultReviewTool {
     fn review_batch_operations(
         &self,
         batch: &[ExperimentalResult],
-        context: &ExecutionContext,
+        _context: &ExecutionContext,
     ) -> FileManagementResult<Vec<ConfirmationDetail>> {
         info!("=== Batch Review: {} operations ===", batch.len());
 

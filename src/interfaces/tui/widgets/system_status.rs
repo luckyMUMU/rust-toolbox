@@ -33,6 +33,7 @@ struct DataPoint {
     cpu_usage: f64,
     memory_usage: f64,
     disk_usage: f64,
+    #[allow(dead_code)]
     network_activity: f64,
 }
 
@@ -50,6 +51,7 @@ enum DisplayMode {
 /// Alert severity levels
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum AlertSeverity {
+    #[allow(dead_code)]
     Info,
     Warning,
     Critical,
@@ -138,6 +140,7 @@ pub struct SystemStatusWidget {
     current_status: SystemStatus,
     display_mode: DisplayMode,
     selected_index: usize,
+    #[allow(dead_code)]
     scroll_offset: usize,
 
     // Historical data for charts
@@ -741,6 +744,7 @@ impl SystemStatusWidget {
     }
 
     /// Generate health trend analysis
+    #[allow(dead_code)]
     fn analyze_health_trends(&self) -> Vec<String> {
         let mut trends = Vec::new();
 

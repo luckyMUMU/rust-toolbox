@@ -142,8 +142,8 @@ impl WidgetRegistry {
     }
 
     /// Get a widget by ID
-    pub async fn get_widget(&self, id: &WidgetId) -> Option<Box<dyn Widget>> {
-        let widgets = self.widgets.read().await;
+    pub async fn get_widget(&self, _id: &WidgetId) -> Option<Box<dyn Widget>> {
+        let _widgets = self.widgets.read().await;
         // Note: This is a simplified implementation
         // In practice, we'd need to handle borrowing differently
         None
@@ -229,6 +229,7 @@ pub struct EnhancedTuiApp {
     theme_manager: ThemeManager,
     event_handler: EventHandler,
     action_dispatcher: ActionDispatcher,
+    #[allow(dead_code)]
     should_quit: bool,
 }
 
