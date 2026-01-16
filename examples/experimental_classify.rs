@@ -1,11 +1,11 @@
-use workflow_toolkit::core::ExecutionContext;
-use workflow_toolkit::plugins::file_management::ClassificationTool;
-use workflow_toolkit::tools::ToolNode;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
+use workflow_toolkit::core::ExecutionContext;
+use workflow_toolkit::plugins::file_management::ClassificationTool;
+use workflow_toolkit::tools::ToolNode;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let source_dir = Path::new("D:\\Download\\pic");
     let rules_path = "d:\\Code\\AI\\rust-tool-v2\\scripts\\classfy copy.json";
-    
+
     info!("Starting experimental classification on {:?}", source_dir);
     info!("Using rules from: {}", rules_path);
 
@@ -30,11 +30,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Iterate over subdirectories
     let mut entries = fs::read_dir(source_dir)?;
-    
+
     while let Some(entry) = entries.next() {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             let folder_name = path.file_name().unwrap().to_string_lossy().to_string();
 
@@ -49,16 +49,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match tool.execute(params, context.clone()).await {
                 Ok(result) => {
                     if let Some(status_val) = result.get("status") {
-                         if let Some(status) = status_val.as_str() {
+                        if let Some(status) = status_val.as_str() {
                             if status == "Classified" {
-                                let category = result.get("category").and_then(|c| c.as_str()).unwrap_or("unknown");
-                                info!("[Experimental] Would move '{}' to category '{}'", folder_name, category);
+                                let category = result
+                                    .get("category")
+                                    .and_then(|c| c.as_str())
+                                    .unwrap_or("unknown");
+                                info!(
+                                    "[Experimental] Would move '{}' to category '{}'",
+                                    folder_name, category
+                                );
                             } else {
                                 info!("[Experimental] Folder '{}' status: {}", folder_name, status);
                             }
-                         }
+                        }
                     }
-                },
+                }
                 Err(e) => {
                     eprintln!("Error processing {}: {}", folder_name, e);
                 }

@@ -181,7 +181,7 @@ impl DefaultExecutionManager {
         {
             let queue = self.task_queue.read().await;
             if queue.len() >= self.concurrency_config.task_queue_size {
-                return Err(WorkflowError::ResourceExhausted.into());
+                return Err(WorkflowError::ResourceExhausted);
             }
         }
 
@@ -447,7 +447,7 @@ impl ExecutionManager for DefaultExecutionManager {
         loop {
             // Check for timeout
             if start_time.elapsed() > timeout_duration {
-                return Err(WorkflowError::ExecutionTimeout.into());
+                return Err(WorkflowError::ExecutionTimeout);
             }
 
             let status = self.get_execution_status(handle).await?;
@@ -458,7 +458,7 @@ impl ExecutionManager for DefaultExecutionManager {
                     let execution = execution_arc.read().await;
                     return Ok(execution.clone());
                 } else {
-                    return Err(WorkflowError::WorkflowNotFound(handle.workflow_id).into());
+                    return Err(WorkflowError::WorkflowNotFound(handle.workflow_id));
                 }
             }
 

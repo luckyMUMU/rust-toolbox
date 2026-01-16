@@ -91,7 +91,7 @@ impl RuleConfigLoader {
         rules_value: &Value,
     ) -> FileManagementResult<ClassificationRules> {
         let mut processed_value = rules_value.clone();
-        
+
         // Handle legacy "categories" field mapping to "rules"
         if let Some(obj) = processed_value.as_object_mut() {
             if obj.contains_key("categories") && !obj.contains_key("rules") {
@@ -99,7 +99,7 @@ impl RuleConfigLoader {
                     obj.insert("rules".to_string(), categories);
                 }
             }
-            
+
             // Transform nested keywords into combinations
             if let Some(rules) = obj.get_mut("rules").and_then(|r| r.as_array_mut()) {
                 for rule in rules {
@@ -116,7 +116,7 @@ impl RuleConfigLoader {
                             if let Some(keywords_arr) = keywords_val.as_array() {
                                 let mut simple_keywords = Vec::new();
                                 let mut combinations = Vec::new();
-                                
+
                                 for item in keywords_arr {
                                     if let Some(s) = item.as_str() {
                                         simple_keywords.push(Value::String(s.to_string()));
@@ -133,12 +133,13 @@ impl RuleConfigLoader {
                                         }
                                     }
                                 }
-                                
+
                                 // Update rule object
                                 *keywords_val = Value::Array(simple_keywords);
-                                
+
                                 if !combinations.is_empty() {
-                                    rule_obj.insert("combinations".to_string(), json!(combinations));
+                                    rule_obj
+                                        .insert("combinations".to_string(), json!(combinations));
                                 }
                             }
                         }

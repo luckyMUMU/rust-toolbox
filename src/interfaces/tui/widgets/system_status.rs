@@ -2232,7 +2232,7 @@ impl SystemStatusWidget {
 
     /// Render available maintenance actions
     fn render_maintenance_actions(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let actions = vec![
+        let actions = [
             ("清理警告", "清理旧的系统警告和通知", "c"),
             ("内存优化", "释放未使用的内存资源", "o"),
             ("磁盘清理", "清理临时文件和缓存", "d"),

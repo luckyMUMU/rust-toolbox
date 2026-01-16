@@ -135,7 +135,7 @@ impl DagScheduler {
             for dep in &node.depends_on {
                 if let Some(&dep_index) = self.node_indices.get(dep) {
                     // Only add edge if it doesn't already exist
-                    if !self.graph.find_edge(dep_index, node_index).is_some() {
+                    if self.graph.find_edge(dep_index, node_index).is_none() {
                         let dep_edge = WorkflowEdge::new(dep, &node.id);
                         self.graph.add_edge(dep_index, node_index, dep_edge);
                     }
@@ -145,7 +145,7 @@ impl DagScheduler {
 
         // Validate the graph is acyclic
         if is_cyclic_directed(&self.graph) {
-            return Err(WorkflowError::CircularDependency.into());
+            return Err(WorkflowError::CircularDependency);
         }
 
         Ok(())
@@ -415,7 +415,7 @@ impl DagScheduler {
             }
 
             if current_level.is_empty() {
-                return Err(WorkflowError::CircularDependency.into());
+                return Err(WorkflowError::CircularDependency);
             }
 
             // Remove processed nodes

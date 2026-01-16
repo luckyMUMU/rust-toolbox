@@ -259,7 +259,7 @@ impl DefaultWorkflowEngine {
         // Check if we should stop or pause
         if let Some(control) = self.control_signals.get(&workflow_id) {
             if control.should_stop() {
-                return Err(WorkflowError::ExecutionCancelled.into());
+                return Err(WorkflowError::ExecutionCancelled);
             }
             if control.should_pause() {
                 // Drop the guard immediately to avoid blocking other operations
@@ -283,7 +283,7 @@ impl DefaultWorkflowEngine {
                 // Check again if we should stop after the pause loop
                 if let Some(control) = self.control_signals.get(&workflow_id) {
                     if control.should_stop() {
-                        return Err(WorkflowError::ExecutionCancelled.into());
+                        return Err(WorkflowError::ExecutionCancelled);
                     }
                 }
             }
@@ -516,7 +516,7 @@ impl DefaultWorkflowEngine {
                         // Check if we should stop retrying due to control signals
                         if let Some(control) = self.control_signals.get(&workflow_id) {
                             if control.should_stop() {
-                                return Err(WorkflowError::ExecutionCancelled.into());
+                                return Err(WorkflowError::ExecutionCancelled);
                             }
                         }
                     }
@@ -558,7 +558,7 @@ impl DefaultWorkflowEngine {
         );
         self.audit_logger.log_execution(log_entry).await?;
 
-        Err(final_error.into())
+        Err(final_error)
     }
 
     /// Calculate retry delay based on strategy
@@ -1076,8 +1076,7 @@ impl DefaultWorkflowEngine {
             return Err(WorkflowError::InvalidStateTransition {
                 from: execution.status,
                 to: ExecutionStatus::Running,
-            }
-            .into());
+            });
         }
 
         // Update status to running
@@ -1633,7 +1632,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
     async fn pause_workflow(&self, id: WorkflowId) -> Result<()> {
         // Check if workflow is active
         if !self.active_executions.contains_key(&id) {
-            return Err(WorkflowError::WorkflowNotFound(id).into());
+            return Err(WorkflowError::WorkflowNotFound(id));
         }
 
         // Check current status and update to paused
@@ -1648,8 +1647,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                 return Err(WorkflowError::InvalidStateTransition {
                     from: execution.status,
                     to: ExecutionStatus::Paused,
-                }
-                .into());
+                });
             }
 
             execution.status = ExecutionStatus::Paused;
@@ -1659,7 +1657,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
         if let Some(mut control) = self.control_signals.get_mut(&id) {
             control.request_pause();
         } else {
-            return Err(WorkflowError::WorkflowNotFound(id).into());
+            return Err(WorkflowError::WorkflowNotFound(id));
         }
 
         Ok(())
@@ -1668,7 +1666,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
     async fn resume_workflow(&self, id: WorkflowId) -> Result<()> {
         // Check if workflow is active
         if !self.active_executions.contains_key(&id) {
-            return Err(WorkflowError::WorkflowNotFound(id).into());
+            return Err(WorkflowError::WorkflowNotFound(id));
         }
 
         // Check current status and update to running
@@ -1683,8 +1681,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                 return Err(WorkflowError::InvalidStateTransition {
                     from: execution.status,
                     to: ExecutionStatus::Running,
-                }
-                .into());
+                });
             }
 
             execution.status = ExecutionStatus::Running;
@@ -1694,7 +1691,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
         if let Some(mut control) = self.control_signals.get_mut(&id) {
             control.clear_pause();
         } else {
-            return Err(WorkflowError::WorkflowNotFound(id).into());
+            return Err(WorkflowError::WorkflowNotFound(id));
         }
 
         Ok(())
@@ -1703,7 +1700,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
     async fn stop_workflow(&self, id: WorkflowId) -> Result<()> {
         // Check if workflow is active
         if !self.active_executions.contains_key(&id) {
-            return Err(WorkflowError::WorkflowNotFound(id).into());
+            return Err(WorkflowError::WorkflowNotFound(id));
         }
 
         // Check current status
@@ -1720,15 +1717,14 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             return Err(WorkflowError::InvalidStateTransition {
                 from: current_status,
                 to: ExecutionStatus::Cancelled,
-            }
-            .into());
+            });
         }
 
         // Set stop signal
         if let Some(mut control) = self.control_signals.get_mut(&id) {
             control.request_stop();
         } else {
-            return Err(WorkflowError::WorkflowNotFound(id).into());
+            return Err(WorkflowError::WorkflowNotFound(id));
         }
 
         Ok(())
@@ -1746,7 +1742,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             return Ok(workflow_state.execution.status);
         }
 
-        Err(WorkflowError::WorkflowNotFound(id).into())
+        Err(WorkflowError::WorkflowNotFound(id))
     }
 }
 
