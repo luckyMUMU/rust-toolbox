@@ -68,7 +68,7 @@ impl WorkflowDefinition {
     pub fn add_node(&mut self, node: WorkflowNode) -> Result<()> {
         // Check for duplicate node IDs
         if self.nodes.iter().any(|n| n.id == node.id) {
-            return Err(WorkflowError::DuplicateNodeId(node.id).into());
+            return Err(WorkflowError::DuplicateNodeId(node.id));
         }
         self.nodes.push(node);
         Ok(())
@@ -79,10 +79,10 @@ impl WorkflowDefinition {
         // Validate that both nodes exist
         let node_ids: HashSet<_> = self.nodes.iter().map(|n| &n.id).collect();
         if !node_ids.contains(&edge.from) {
-            return Err(WorkflowError::NodeNotFound(edge.from).into());
+            return Err(WorkflowError::NodeNotFound(edge.from));
         }
         if !node_ids.contains(&edge.to) {
-            return Err(WorkflowError::NodeNotFound(edge.to).into());
+            return Err(WorkflowError::NodeNotFound(edge.to));
         }
         self.edges.push(edge);
         Ok(())
@@ -138,27 +138,26 @@ impl WorkflowDefinition {
     pub fn validate(&self) -> Result<()> {
         // Basic validation - more comprehensive validation will be in the validator module
         if self.name.is_empty() {
-            return Err(
-                WorkflowError::InvalidWorkflowName("Name cannot be empty".to_string()).into(),
-            );
+            return Err(WorkflowError::InvalidWorkflowName(
+                "Name cannot be empty".to_string(),
+            ));
         }
 
         if self.version.is_empty() {
             return Err(WorkflowError::InvalidWorkflowVersion(
                 "Version cannot be empty".to_string(),
-            )
-            .into());
+            ));
         }
 
         if self.nodes.is_empty() {
-            return Err(WorkflowError::EmptyWorkflow.into());
+            return Err(WorkflowError::EmptyWorkflow);
         }
 
         // Check for duplicate node IDs
         let mut node_ids = HashSet::new();
         for node in &self.nodes {
             if !node_ids.insert(&node.id) {
-                return Err(WorkflowError::DuplicateNodeId(node.id.clone()).into());
+                return Err(WorkflowError::DuplicateNodeId(node.id.clone()));
             }
         }
 
@@ -166,10 +165,10 @@ impl WorkflowDefinition {
         let node_id_set: HashSet<_> = self.nodes.iter().map(|n| &n.id).collect();
         for edge in &self.edges {
             if !node_id_set.contains(&edge.from) {
-                return Err(WorkflowError::NodeNotFound(edge.from.clone()).into());
+                return Err(WorkflowError::NodeNotFound(edge.from.clone()));
             }
             if !node_id_set.contains(&edge.to) {
-                return Err(WorkflowError::NodeNotFound(edge.to.clone()).into());
+                return Err(WorkflowError::NodeNotFound(edge.to.clone()));
             }
         }
 
@@ -259,12 +258,14 @@ impl WorkflowNode {
     /// Validate the node
     pub fn validate(&self) -> Result<()> {
         if self.id.is_empty() {
-            return Err(WorkflowError::InvalidNodeId("Node ID cannot be empty".to_string()).into());
+            return Err(WorkflowError::InvalidNodeId(
+                "Node ID cannot be empty".to_string(),
+            ));
         }
 
         // Tool nodes must have a tool name
         if self.node_type == NodeType::Tool && self.tool_name.is_none() {
-            return Err(WorkflowError::MissingToolName(self.id.clone()).into());
+            return Err(WorkflowError::MissingToolName(self.id.clone()));
         }
 
         Ok(())

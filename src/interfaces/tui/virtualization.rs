@@ -806,7 +806,7 @@ pub struct VirtualTableWidget<T> {
     config: VirtualizationConfig,
     #[allow(dead_code)]
     data_provider: Arc<dyn VirtualDataProvider<T>>,
-    
+
     // Table state
     table_state: TableState,
     #[allow(dead_code)]

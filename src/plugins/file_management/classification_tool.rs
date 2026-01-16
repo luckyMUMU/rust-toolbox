@@ -190,9 +190,12 @@ impl ClassificationEngine {
         let mut seen_keywords = std::collections::HashSet::new();
 
         // Helper to add a keyword to the automaton
-        let mut add_keyword_to_automaton = |keyword: &str, rule: &ClassificationRule, _weight_multiplier: f64| -> FileManagementResult<()> {
+        let mut add_keyword_to_automaton = |keyword: &str,
+                                            rule: &ClassificationRule,
+                                            _weight_multiplier: f64|
+         -> FileManagementResult<()> {
             let processed_keyword = self.preprocess_keyword(keyword, rule);
-            
+
             if !seen_keywords.contains(&processed_keyword) {
                 // Use "keyword" as generic category since we map back to rules later
                 automaton
@@ -340,13 +343,15 @@ impl ClassificationEngine {
         rules: &ClassificationRules,
     ) -> FileManagementResult<Vec<ClassificationCandidate>> {
         // Create a map of matched strings to their details for fast lookup
-        let mut matches_by_keyword: std::collections::HashMap<String, Vec<PatternMatch>> = std::collections::HashMap::new();
+        let mut matches_by_keyword: std::collections::HashMap<String, Vec<PatternMatch>> =
+            std::collections::HashMap::new();
         for m in matches {
-            matches_by_keyword.entry(m.pattern.clone())
+            matches_by_keyword
+                .entry(m.pattern.clone())
                 .or_default()
                 .push(m.clone());
         }
-            
+
         let mut candidates = Vec::new();
         let mut total_score = 0.0;
 
@@ -354,7 +359,7 @@ impl ClassificationEngine {
             let mut rule_score = 0.0;
             let mut rule_matched_keywords = Vec::new();
             let mut rule_match_details = Vec::new();
-            
+
             // Check simple keywords
             for keyword in &rule.keywords {
                 let processed = self.preprocess_keyword(keyword, rule);
@@ -363,54 +368,54 @@ impl ClassificationEngine {
                     rule_matched_keywords.push(keyword.clone());
                     rule_match_details.extend(details.clone());
                 } else if rule.use_pinyin && self.enable_chinese {
-                     // Check pinyin variants
-                     let pinyin_variants = self.text_processor.generate_pinyin_variants(keyword);
-                     for variant in pinyin_variants {
-                         let processed_variant = self.preprocess_keyword(&variant, rule);
-                         if let Some(details) = matches_by_keyword.get(&processed_variant) {
-                             rule_score += rule.score_weight; 
-                             rule_matched_keywords.push(format!("{} (pinyin)", keyword));
-                             rule_match_details.extend(details.clone());
-                             break; 
-                         }
-                     }
+                    // Check pinyin variants
+                    let pinyin_variants = self.text_processor.generate_pinyin_variants(keyword);
+                    for variant in pinyin_variants {
+                        let processed_variant = self.preprocess_keyword(&variant, rule);
+                        if let Some(details) = matches_by_keyword.get(&processed_variant) {
+                            rule_score += rule.score_weight;
+                            rule_matched_keywords.push(format!("{} (pinyin)", keyword));
+                            rule_match_details.extend(details.clone());
+                            break;
+                        }
+                    }
                 }
             }
-            
+
             // Check combinations
             if let Some(combinations) = &rule.combinations {
                 for combo in combinations {
                     let mut all_match = true;
                     let mut combo_matches = Vec::new();
                     let mut combo_details = Vec::new();
-                    
+
                     for k in combo {
                         let processed = self.preprocess_keyword(k, rule);
                         let mut k_matched = false;
-                        
+
                         if let Some(details) = matches_by_keyword.get(&processed) {
                             k_matched = true;
                             combo_details.extend(details.clone());
                         } else if rule.use_pinyin && self.enable_chinese {
-                             let pinyin_variants = self.text_processor.generate_pinyin_variants(k);
-                             for variant in pinyin_variants {
-                                 let processed_variant = self.preprocess_keyword(&variant, rule);
-                                 if let Some(details) = matches_by_keyword.get(&processed_variant) {
-                                     k_matched = true;
-                                     combo_details.extend(details.clone());
-                                     break;
-                                 }
-                             }
+                            let pinyin_variants = self.text_processor.generate_pinyin_variants(k);
+                            for variant in pinyin_variants {
+                                let processed_variant = self.preprocess_keyword(&variant, rule);
+                                if let Some(details) = matches_by_keyword.get(&processed_variant) {
+                                    k_matched = true;
+                                    combo_details.extend(details.clone());
+                                    break;
+                                }
+                            }
                         }
-                        
+
                         if k_matched {
                             combo_matches.push(k.clone());
                         } else {
                             all_match = false;
-                            break; 
+                            break;
                         }
                     }
-                    
+
                     if all_match {
                         rule_score += rule.score_weight;
                         rule_matched_keywords.extend(combo_matches);
@@ -418,7 +423,7 @@ impl ClassificationEngine {
                     }
                 }
             }
-            
+
             if rule_score > 0.0 {
                 // Check required matches
                 if let Some(required) = rule.required_matches {
@@ -426,20 +431,17 @@ impl ClassificationEngine {
                         continue;
                     }
                 }
-                
+
                 total_score += rule_score;
-                
-                let mut candidate = ClassificationCandidate::new(
-                    rule.category.clone(),
-                    rule_score,
-                    0.0
-                );
+
+                let mut candidate =
+                    ClassificationCandidate::new(rule.category.clone(), rule_score, 0.0);
                 candidate.matched_keywords = rule_matched_keywords;
                 candidate.match_details = rule_match_details;
                 candidates.push(candidate);
             }
         }
-        
+
         // Calculate confidence
         for candidate in &mut candidates {
             if total_score > 0.0 {
@@ -698,7 +700,7 @@ impl ClassificationTool {
                             if let Some(keywords_arr) = keywords_val.as_array() {
                                 let mut simple_keywords = Vec::new();
                                 let mut combinations = Vec::new();
-                                
+
                                 for item in keywords_arr {
                                     if let Some(s) = item.as_str() {
                                         simple_keywords.push(Value::String(s.to_string()));
@@ -714,11 +716,12 @@ impl ClassificationTool {
                                         }
                                     }
                                 }
-                                
+
                                 *keywords_val = Value::Array(simple_keywords);
-                                
+
                                 if !combinations.is_empty() {
-                                    rule_obj.insert("combinations".to_string(), json!(combinations));
+                                    rule_obj
+                                        .insert("combinations".to_string(), json!(combinations));
                                 }
                             }
                         }

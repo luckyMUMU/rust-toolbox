@@ -44,16 +44,19 @@ impl CacheKey {
             node_id: Some(node_id.to_string()),
         }
     }
+}
 
-    /// Convert to string representation for storage
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for CacheKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(node_id) = &self.node_id {
-            format!(
+            write!(
+                f,
                 "cache:{}:{}:{}:{}",
                 self.workflow_name, self.workflow_version, self.input_hash, node_id
             )
         } else {
-            format!(
+            write!(
+                f,
                 "cache:{}:{}:{}",
                 self.workflow_name, self.workflow_version, self.input_hash
             )
@@ -272,6 +275,7 @@ impl ResultCache {
     }
 
     /// Cache node execution result
+    #[allow(clippy::too_many_arguments)]
     pub async fn cache_node_result(
         &self,
         workflow_name: &str,

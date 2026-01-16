@@ -114,7 +114,9 @@ impl WorkflowValidator {
     fn validate_node(&self, node: &WorkflowNode) -> Result<()> {
         // Check node ID
         if node.id.is_empty() {
-            return Err(WorkflowError::InvalidNodeId("Node ID cannot be empty".to_string()).into());
+            return Err(WorkflowError::InvalidNodeId(
+                "Node ID cannot be empty".to_string(),
+            ));
         }
 
         // Check node ID format (alphanumeric, hyphens, underscores only)
@@ -125,14 +127,14 @@ impl WorkflowValidator {
         {
             return Err(WorkflowError::InvalidNodeId(
                 format!("Node ID '{}' contains invalid characters. Only alphanumeric, hyphens, and underscores are allowed", node.id)
-            ).into());
+            ));
         }
 
         // Validate based on node type
         match node.node_type {
             NodeType::Tool => {
                 if node.tool_name.is_none() {
-                    return Err(WorkflowError::MissingToolName(node.id.clone()).into());
+                    return Err(WorkflowError::MissingToolName(node.id.clone()));
                 }
             }
             NodeType::Condition => {
