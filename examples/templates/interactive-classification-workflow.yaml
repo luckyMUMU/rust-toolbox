@@ -1,3 +1,6 @@
+# 交互式文件夹分类工作流 (Interactive Folder Classification Workflow)
+# 该工作流用于自动化整理文件夹，支持人工决策介入以及实验模式（模拟运行）
+
 name: "interactive-folder-classification"
 version: "1.0.0"
 description: "Interactive folder classification with human decision support and experimental mode"
@@ -8,50 +11,72 @@ metadata:
   created: "2024-01-01"
   tags: ["classification", "interactive", "experimental"]
 
-# Template parameters that users can customize
+# 工作流可自定义参数
 parameters:
+  # 待分类文件夹的来源目录
   source_directory:
     type: "string"
     description: "Directory containing folders to classify"
     required: true
   
+  # 分类后的目标根目录
   output_directory:
     type: "string"
     description: "Root directory for organized folders"
     required: true
   
+  # 分类规则配置（JSON 对象或文件路径）
   classification_rules:
     type: "object"
     description: "Classification rules configuration (JSON object or file path)"
     required: true
   
+  # 实验模式：默认为开启（true），仅模拟操作而不实际执行文件移动
   experimental_mode:
     type: "boolean"
     description: "Run in experimental mode (simulate operations without executing)"
     default: true
   
+  # 启用人工交互：处理分类模糊的情况
   enable_user_interaction:
     type: "boolean"
     description: "Enable human decision-making for ambiguous classifications"
     default: true
   
+  # 人工决策的超时时间（秒）
   decision_timeout:
     type: "integer"
     description: "Timeout for human decisions in seconds"
     default: 300
   
+  # 每批次处理的文件夹数量
   batch_size:
     type: "integer"
     description: "Number of folders to process in each batch"
     default: 10
   
+  # 自动分类的最低置信度阈值
   confidence_threshold:
     type: "number"
     description: "Minimum confidence score for automatic classification"
     default: 0.8
 
+# 工作流执行节点
 nodes:
-  # Step 1: Scan source directory for folders
+
+  # 步骤 1: 验证分类规则的合法性
+  - id: "validate_rules"
+    node_type: "Tool"
+    tool_name: "rule-validator"
+    parameters:
+      rules: "${classification_rules}"
+      validate_patterns: true
+      check_categories: true
+    timeout: "30s"
+    metadata:
+      description: "在开始处理前验证分类规则"
+
+  # 步骤 2: 扫描源目录中的文件夹
   - id: "scan_folders"
     node_type: "Tool"
     tool_name: "directory-scanner"
@@ -62,21 +87,9 @@ nodes:
       include_hidden: false
     timeout: "60s"
     metadata:
-      description: "Scan source directory for folders to classify"
+      description: "扫描源目录以获取待分类的文件夹"
 
-  # Step 2: Validate classification rules
-  - id: "validate_rules"
-    node_type: "Tool"
-    tool_name: "rule-validator"
-    parameters:
-      rules: "${classification_rules}"
-      validate_patterns: true
-      check_categories: true
-    timeout: "30s"
-    metadata:
-      description: "Validate classification rules before processing"
-
-  # Step 3: Process folders in batches with classification
+  # 步骤 3: 分批次进行文件夹分类
   - id: "classify_batch"
     node_type: "Tool"
     tool_name: "batch-processor"
@@ -92,11 +105,11 @@ nodes:
         confidence_threshold: "${confidence_threshold}"
       parallel_execution: true
       max_concurrent: 3
-    timeout: "1800s"  # 30 minutes for large batches
+    timeout: "1800s"  # 大批量处理时给予 30 分钟超时
     metadata:
-      description: "Classify folders in parallel batches"
+      description: "并行分批分类文件夹"
 
-  # Step 4: Review classification results (always shown)
+  # 步骤 4: 评审分类结果（展示统计信息）
   - id: "review_results"
     node_type: "Tool"
     tool_name: "result-reviewer"
@@ -108,55 +121,55 @@ nodes:
       show_ambiguous: true
     timeout: "120s"
     metadata:
-      description: "Review classification results and statistics"
+      description: "查看分类结果统计及未分类/模糊项"
 
-  # Step 5: Conditional experimental mode confirmation
+  # 步骤 5: 条件节点：判断是否处于实验模式
   - id: "experimental_confirmation"
     node_type: "Condition"
     parameters:
       condition: "${experimental_mode} == true"
     metadata:
-      description: "Check if running in experimental mode"
+      description: "检查是否处于实验模拟模式"
 
-  # Step 6: Human confirmation for experimental mode
+  # 步骤 6: 实验模式下的用户确认
   - id: "confirm_execution"
     node_type: "Tool"
     tool_name: "human-decision"
     parameters:
       decision_type: "Custom"
       context:
-        title: "Confirm File Operations"
-        description: "Review experimental results and confirm execution of file operations"
+        title: "确认文件操作"
+        description: "请查看实验模式结果并确认是否执行实际的文件移动"
         metadata:
           total_folders: "${scan_folders.folder_count}"
           classified_folders: "${classify_batch.classified_count}"
           unclassified_folders: "${classify_batch.unclassified_count}"
       options:
         - id: "execute"
-          label: "Execute file operations"
-          description: "Proceed with moving folders to classified locations"
+          label: "执行文件操作"
+          description: "将文件夹移动到分类后的位置"
           recommended: true
         - id: "modify"
-          label: "Modify classification rules"
-          description: "Go back and adjust classification rules"
+          label: "修改分类规则"
+          description: "返回并调整分类规则"
         - id: "cancel"
-          label: "Cancel operations"
-          description: "Cancel all file operations"
+          label: "取消操作"
+          description: "放弃所有文件操作"
       timeout_seconds: "${decision_timeout}"
       default_choice: 0
     timeout: "600s"
     metadata:
-      description: "Get user confirmation for file operations"
+      description: "获取用户对文件执行操作的确认"
 
-  # Step 7: Conditional execution based on confirmation
+  # 步骤 7: 执行决策：根据实验模式和用户选择决定是否继续
   - id: "execution_decision"
     node_type: "Condition"
     parameters:
       condition: "!${experimental_mode} || ${confirm_execution.selected_option} == 'execute'"
     metadata:
-      description: "Decide whether to execute file operations"
+      description: "决定是否执行实际的文件移动操作"
 
-  # Step 8: Execute file operations
+  # 步骤 8: 执行实际的文件移动
   - id: "execute_moves"
     node_type: "Tool"
     tool_name: "file-mover"
@@ -165,13 +178,13 @@ nodes:
       conflict_resolution: "Rename"
       check_disk_space: true
       create_directories: true
-      experimental_mode: false  # Always execute for real at this point
+      experimental_mode: false  # 此处强制执行实际操作
       progress_reporting: true
-    timeout: "3600s"  # 1 hour for large operations
+    timeout: "3600s"  # 大规模移动给予 1 小时超时
     metadata:
-      description: "Execute file move operations"
+      description: "执行文件夹移动操作"
 
-  # Step 9: Generate final report
+  # 步骤 9: 生成操作报告
   - id: "generate_report"
     node_type: "Tool"
     tool_name: "operation-reporter"
@@ -184,9 +197,9 @@ nodes:
       report_path: "${output_directory}/classification_report.json"
     timeout: "60s"
     metadata:
-      description: "Generate detailed operation report"
+      description: "生成详细的操作报告"
 
-  # Step 10: Cleanup and finalization
+  # 步骤 10: 清理源目录中的空文件夹
   - id: "cleanup"
     node_type: "Tool"
     tool_name: "cleanup-processor"
@@ -196,10 +209,11 @@ nodes:
       dry_run: false
     timeout: "120s"
     metadata:
-      description: "Clean up empty directories after classification"
+      description: "移动完成后清理空目录"
 
+# 节点间的连接关系（工作流控制流）
 edges:
-  # Linear flow with conditional branches
+  # 线性流程
   - from: "scan_folders"
     to: "validate_rules"
   
@@ -212,12 +226,12 @@ edges:
   - from: "review_results"
     to: "experimental_confirmation"
   
-  # Experimental mode branch
+  # 实验模式分支：跳转到人工确认
   - from: "experimental_confirmation"
     to: "confirm_execution"
     condition: "${experimental_mode} == true"
   
-  # Direct execution branch (non-experimental)
+  # 非实验模式分支：直接进入执行决策
   - from: "experimental_confirmation"
     to: "execution_decision"
     condition: "${experimental_mode} == false"
@@ -225,12 +239,12 @@ edges:
   - from: "confirm_execution"
     to: "execution_decision"
   
-  # Execute operations if confirmed
+  # 如果确认执行，则开始移动
   - from: "execution_decision"
     to: "execute_moves"
     condition: "!${experimental_mode} || ${confirm_execution.selected_option} == 'execute'"
   
-  # Skip to report if cancelled
+  # 如果用户取消执行，则跳过移动直接生成报告
   - from: "execution_decision"
     to: "generate_report"
     condition: "${experimental_mode} && ${confirm_execution.selected_option} != 'execute'"
@@ -241,11 +255,12 @@ edges:
   - from: "generate_report"
     to: "cleanup"
 
+# 全局配置
 global_config:
-  timeout: "7200s"  # 2 hours total
-  parallel_limit: 5
+  timeout: "7200s"  # 总限时 2 小时
+  parallel_limit: 5 # 最大并行节点数
   enable_caching: true
-  checkpoint_interval: "300s"  # 5 minutes
+  checkpoint_interval: "300s"  # 每 5 分钟保存一次检查点
   retry_policy:
     max_attempts: 3
     initial_delay: "5s"
