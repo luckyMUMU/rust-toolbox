@@ -19,7 +19,7 @@
 
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -34,6 +34,17 @@ where
 {
     let secs = u64::deserialize(deserializer)?;
     Ok(Duration::from_secs(secs))
+}
+
+// Helper function to serialize duration as seconds
+fn serialize_duration_as_secs<S>(
+    duration: &Duration,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_u64(duration.as_secs())
 }
 
 /// Unique identifier for workflows (UUID v4)
@@ -298,7 +309,10 @@ impl Default for RateLimitConfig {
 pub struct AuthConfig {
     pub enabled: bool,
     pub jwt_secret: Option<String>,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub token_expiry: Duration,
     pub allowed_origins: Vec<String>,
 }

@@ -104,7 +104,8 @@ async fn main() -> Result<()> {
         workflow_engine,
         tool_registry,
         state_manager,
-    );
+    )
+    .await;
 
     // Start configuration hot reload monitoring for the app
     app.start_config_hot_reload().await?;

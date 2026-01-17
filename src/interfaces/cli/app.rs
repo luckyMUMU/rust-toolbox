@@ -111,7 +111,7 @@ impl CliApp {
     }
 
     /// Create CLI application with all components
-    pub fn with_components(
+    pub async fn with_components(
         config_manager: Arc<ConfigManager>,
         workflow_engine: Arc<dyn WorkflowEngine>,
         tool_registry: Arc<dyn ToolRegistry>,
@@ -122,9 +122,7 @@ impl CliApp {
 
         // Create MCP server and register tools
         let mut mcp_server = McpServer::new();
-        if let Err(e) = tokio::runtime::Handle::current()
-            .block_on(mcp_server.register_tools(tool_registry.clone()))
-        {
+        if let Err(e) = mcp_server.register_tools(tool_registry.clone()).await {
             warn!("Failed to register tools with MCP server: {}", e);
         }
 

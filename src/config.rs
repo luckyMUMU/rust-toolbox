@@ -11,7 +11,7 @@
 use crate::core::{AuthConfig, RateLimitConfig};
 use crate::error::{Result, WorkflowError};
 use config::{Config as ConfigBuilder, Environment, File};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -28,6 +28,17 @@ where
 {
     let secs = u64::deserialize(deserializer)?;
     Ok(Duration::from_secs(secs))
+}
+
+// Helper function to serialize duration as seconds
+fn serialize_duration_as_secs<S>(
+    duration: &Duration,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_u64(duration.as_secs())
 }
 
 /// Main configuration structure.
@@ -59,7 +70,10 @@ pub struct ServerConfig {
     pub bind_address: String,
     pub cors_origins: Vec<String>,
     pub max_connections: usize,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub request_timeout: Duration,
 }
 
@@ -68,10 +82,16 @@ pub struct ServerConfig {
 pub struct StorageConfig {
     pub database_path: PathBuf,
     pub cache_size: u64,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub cache_ttl: Duration,
     pub backup_enabled: bool,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub backup_interval: Duration,
     pub retention_days: u32,
 }
@@ -93,7 +113,10 @@ pub struct PluginConfig {
     pub plugin_dir: PathBuf,
     pub auto_load: bool,
     pub sandbox_enabled: bool,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub timeout: Duration,
     pub memory_limit: u64,
 }
@@ -102,12 +125,21 @@ pub struct PluginConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowEngineConfig {
     pub max_concurrent_workflows: usize,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub default_timeout: Duration,
     pub checkpoint_enabled: bool,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub checkpoint_interval: Duration,
-    #[serde(deserialize_with = "deserialize_duration_from_secs")]
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub cleanup_interval: Duration,
 }
 
