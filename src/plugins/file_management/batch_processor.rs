@@ -5,17 +5,16 @@
 //! error aggregation.
 
 use super::error::{FileManagementError, FileManagementResult};
-use super::plugin::FileManagementConfig;
-use crate::core::{ExecutionContext, ToolId};
+use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
-use crate::performance::concurrency::{ConcurrencyManager, ToolPermit};
+use crate::performance::concurrency::ConcurrencyManager;
 use crate::tools::{ToolNode, ToolRegistry};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, RwLock, Semaphore};
+use tokio::sync::{RwLock, Semaphore};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 

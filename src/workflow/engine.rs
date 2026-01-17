@@ -37,6 +37,7 @@ enum ErrorRecoveryAction {
 
 /// Error context for better error reporting.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ErrorContext {
     workflow_id: WorkflowId,
     workflow_name: String,

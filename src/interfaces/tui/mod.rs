@@ -105,8 +105,6 @@ pub use widgets::{
 };
 
 use crate::error::Result;
-use async_trait::async_trait;
-use ratatui::{layout::Rect, Frame};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

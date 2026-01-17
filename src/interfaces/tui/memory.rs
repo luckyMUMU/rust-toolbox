@@ -5,7 +5,7 @@
 
 use crate::error::Result;
 use crate::performance::memory::{
-    MemoryConfig, MemoryManager, MemoryStatistics, MemoryUsage, PressureLevel,
+    MemoryManager, MemoryStatistics, MemoryUsage,
 };
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

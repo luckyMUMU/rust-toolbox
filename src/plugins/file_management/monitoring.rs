@@ -6,9 +6,9 @@ use crate::performance::{MetricsCollector, PerformanceManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::time::interval;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 /// Monitoring configuration for file management operations
 #[derive(Debug, Clone, Serialize, Deserialize)]

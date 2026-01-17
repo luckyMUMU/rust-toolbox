@@ -1,6 +1,4 @@
-use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::action::Action;
-use crate::interfaces::tui::event::TuiEvent;
 use crate::interfaces::tui::sync::{DataSyncManager, SyncMetrics, SyncStatus};
 use crate::interfaces::tui::theme::Theme;
 use crate::interfaces::tui::widget::{
@@ -97,7 +95,7 @@ impl Widget for SyncStatusWidget {
         &mut self,
         frame: &mut Frame,
         area: Rect,
-        theme: &Theme,
+        _theme: &Theme,
     ) -> std::result::Result<(), WidgetError> {
         let status_text = match &self.metrics.current_status {
             SyncStatus::Idle => "空闲",
@@ -131,7 +129,7 @@ impl Widget for SyncStatusWidget {
 
     async fn handle_event(
         &mut self,
-        event: ratatui::crossterm::event::Event,
+        _event: ratatui::crossterm::event::Event,
     ) -> std::result::Result<Option<Action>, WidgetError> {
         Ok(None)
     }

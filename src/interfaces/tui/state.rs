@@ -5,18 +5,16 @@
 
 use crate::core::{PluginInfo, ToolInfo};
 use crate::error::Result;
-use crate::interfaces::tui::action::LogLevel;
 use crate::interfaces::tui::widgets::{
     log_viewer::LogEntry,
     workflow_list::{ExecutionStatus, WorkflowInfo, WorkflowStatus},
 };
-use crate::workflow::definition::WorkflowDefinition;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::{broadcast, RwLock};
 
 /// Simple execution information for state management

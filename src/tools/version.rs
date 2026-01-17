@@ -1,13 +1,13 @@
 //! Tool version management and dependency resolution
 
 use crate::error::{Result, WorkflowError};
-use petgraph::algo::{is_cyclic_directed, toposort};
-use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::algo::is_cyclic_directed;
+use petgraph::graph::DiGraph;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::str::FromStr;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Semantic version representation
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

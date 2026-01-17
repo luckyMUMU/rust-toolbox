@@ -4,8 +4,7 @@
 //! including performance metrics collection, debugging information, and performance analysis tools.
 
 use crate::error::Result;
-use crate::performance::{PerformanceManager, PerformanceMonitor};
-use async_trait::async_trait;
+use crate::performance::PerformanceManager;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -924,7 +923,7 @@ impl TuiPerformanceMonitor {
 
     async fn generate_recommendations(
         &self,
-        summary: &PerformanceSummary,
+        _summary: &PerformanceSummary,
         trends: &PerformanceTrends,
         bottlenecks: &[PerformanceBottleneck],
     ) -> Vec<PerformanceRecommendation> {

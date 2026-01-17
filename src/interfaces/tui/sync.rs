@@ -7,12 +7,12 @@
 use crate::core::{PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::state::{
-    ConnectionStatus, ExecutionInfo, PerformanceMetrics, SharedAppState, StateChangeEvent,
+    ConnectionStatus, ExecutionInfo, SharedAppState, StateChangeEvent,
     SystemStatus,
 };
 use crate::interfaces::tui::widgets::{
     log_viewer::LogEntry,
-    workflow_list::{ExecutionStatus, WorkflowInfo, WorkflowStatus},
+    workflow_list::WorkflowInfo,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
@@ -557,7 +557,7 @@ impl OfflineCacheManager {
     /// Preload critical data for offline access
     pub async fn preload_critical_data(
         &self,
-        state: &Arc<SharedAppState>,
+        _state: &Arc<SharedAppState>,
         backend: &Arc<dyn SyncBackend>,
     ) -> Result<()> {
         info!("Preloading critical data for offline access");

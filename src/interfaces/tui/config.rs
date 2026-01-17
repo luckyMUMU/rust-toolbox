@@ -3,11 +3,11 @@
 //! This module provides configuration management specifically for the TUI interface,
 //! including user preferences, layout settings, and hot reload capabilities.
 
-use crate::config::{CliConfigOverrides, Config, ConfigManager};
+use crate::config::{Config, ConfigManager};
 use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::{
-    theme::ThemeConfig, FocusManager, LayoutManager, NavigationConfig, PlatformConfig,
-    PlatformManager, Theme, ThemeManager,
+    theme::ThemeConfig, FocusManager, LayoutManager, NavigationConfig,
+    PlatformManager, ThemeManager,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -554,10 +554,10 @@ impl TuiConfigManager {
     /// Apply configuration to components
     pub async fn apply_to_components(
         &self,
-        layout_manager: &mut LayoutManager,
-        focus_manager: &mut FocusManager,
+        _layout_manager: &mut LayoutManager,
+        _focus_manager: &mut FocusManager,
     ) -> Result<()> {
-        let config = self.get_config().await;
+        let _config = self.get_config().await;
 
         // Apply layout configuration
         // This would involve updating the layout manager with new settings

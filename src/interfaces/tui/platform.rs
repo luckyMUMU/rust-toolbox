@@ -7,11 +7,10 @@ use crate::error::Result;
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        event::{Event, KeyCode, KeyEvent, KeyModifiers},
+        event::{KeyCode, KeyEvent, KeyModifiers},
         style::Color,
-        terminal::{self, ClearType},
+        terminal::{self},
     },
-    style::Style,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -539,7 +538,7 @@ impl PlatformManager {
     }
 
     /// Apply platform-specific optimizations to terminal
-    pub fn apply_optimizations(&self, backend: &mut CrosstermBackend<io::Stdout>) -> Result<()> {
+    pub fn apply_optimizations(&self, _backend: &mut CrosstermBackend<io::Stdout>) -> Result<()> {
         // Apply buffer size optimization
         // Note: This would require backend-specific implementation
 

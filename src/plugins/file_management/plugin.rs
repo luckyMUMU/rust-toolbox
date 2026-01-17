@@ -3,7 +3,7 @@
 use super::error::{FileManagementError, FileManagementResult};
 use super::error_recovery::{ErrorRecoveryManager, RecoveryConfig};
 use super::monitoring::{FileManagementMonitor, MonitoringConfig};
-use crate::core::{ExecutionContext, PluginInfo, PluginType};
+use crate::core::{PluginInfo, PluginType};
 use crate::error::{Result, WorkflowError};
 use crate::performance::{PerformanceConfig, PerformanceManager};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, ResourceLimits, SecurityPolicy};

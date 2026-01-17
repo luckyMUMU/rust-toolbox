@@ -1,16 +1,15 @@
 //! Tool registration framework for file management plugin
 
 use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
-use super::error::{FileManagementError, FileManagementResult};
 use super::plugin::FileManagementConfig;
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
-use crate::tools::{BasicTool, BasicToolBuilder, ToolExecutor, ToolNode};
+use crate::tools::{BasicTool, ToolExecutor, ToolNode};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Registry for file management tools
 pub struct FileManagementToolRegistry {

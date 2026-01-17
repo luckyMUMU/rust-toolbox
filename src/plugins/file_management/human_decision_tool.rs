@@ -7,7 +7,7 @@ use super::plugin::FileManagementConfig;
 use super::utils::{HumanDecisionContext, HumanDecisionOption, HumanDecisionType};
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
-use crate::tools::{BasicTool, ToolExecutor, ToolNode};
+use crate::tools::{BasicTool, ToolExecutor};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;

@@ -10,9 +10,8 @@ use crate::interfaces::tui::{
 };
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 use serde::{Deserialize, Serialize};
@@ -631,7 +630,7 @@ impl HelpSystem {
         frame.render_widget(Clear, popup_area);
 
         // Apply animation effect
-        let alpha = if self.animation_state.animating {
+        let _alpha = if self.animation_state.animating {
             if self.help_visible {
                 self.animation_state.progress
             } else {

@@ -6,7 +6,7 @@ use crate::plugins::manager::PluginManager;
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
 use crate::tools::{BasicToolRegistry, ToolNode, ToolRegistry};
 use std::sync::{Arc, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::info;
 
 /// Integrated plugin and tool management system
 ///

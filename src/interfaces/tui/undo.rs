@@ -9,9 +9,9 @@ use chrono::{DateTime, Utc};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
+    text::{Line, Span},
     widgets::{
-        Block, Borders, Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
         ScrollbarState, Wrap,
     },
     Frame,
@@ -19,7 +19,7 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, fmt, sync::Arc};
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 /// Represents an undoable operation
@@ -875,7 +875,7 @@ impl UndoHistoryWidget {
         let items: Vec<ListItem> = history
             .iter()
             .enumerate()
-            .map(|(i, entry)| {
+            .map(|(_i, entry)| {
                 let age = entry.executed_at.format("%H:%M:%S").to_string();
                 let status_icon = entry.state.icon();
                 let type_icon = entry.operation.operation_type().icon();

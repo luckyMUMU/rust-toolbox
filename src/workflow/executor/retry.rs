@@ -89,7 +89,6 @@ impl Executor for RetryExecutor {
         execution_ctx: &ExecutionContext,
     ) -> Result<ComponentOutput> {
         let mut attempt = 0u32;
-        let mut last_output: Option<ComponentOutput> = None;
 
         loop {
             attempt += 1;
@@ -123,7 +122,6 @@ impl Executor for RetryExecutor {
                             delay
                         );
                         tokio::time::sleep(delay).await;
-                        last_output = Some(output);
                         continue;
                     }
 
@@ -142,7 +140,6 @@ impl Executor for RetryExecutor {
                             delay
                         );
                         tokio::time::sleep(delay).await;
-                        last_output = Some(ComponentOutput::failure(e.to_string()));
                         continue;
                     }
 

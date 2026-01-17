@@ -6,21 +6,18 @@
 use super::batch_processor::{
     BatchItem, BatchProcessor, BatchProcessorConfig, BatchResult, BatchStatus,
 };
-use super::error::{FileManagementError, FileManagementResult};
 use super::plugin::FileManagementConfig;
 use super::progress_tracker::{ProgressEvent, ProgressTracker, ProgressTrackerConfig};
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::performance::concurrency::ConcurrencyManager;
-use crate::tools::{BasicTool, BasicToolBuilder, ToolExecutor, ToolNode, ToolRegistry};
+use crate::tools::{BasicTool, ToolExecutor, ToolNode, ToolRegistry};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
+use tracing::{debug, info};
 
 /// Parameters for the Batch Processor Tool
 #[derive(Debug, Clone, Serialize, Deserialize)]

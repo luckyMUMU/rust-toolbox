@@ -617,6 +617,7 @@ pub struct PythonPlugin {
     info: PluginInfo,
     status: PluginStatus,
     config: Option<PluginConfig>,
+    #[allow(dead_code)]
     runtime_config: PythonRuntimeConfig,
     environment: Arc<Mutex<PythonEnvironment>>,
     tools: Vec<Arc<dyn ToolNode>>,

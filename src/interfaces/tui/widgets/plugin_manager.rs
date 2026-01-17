@@ -1202,7 +1202,6 @@ impl PluginManagerWidget {
     pub fn analyze_dependencies(&self) -> DependencyResolution {
         let mut conflicts = Vec::new();
         let mut warnings = Vec::new();
-        let mut install_order = Vec::new();
 
         // Build dependency graph
         let mut dependency_graph = std::collections::HashMap::new();
@@ -1251,7 +1250,7 @@ impl PluginManagerWidget {
         }
 
         // Generate topological sort for installation order
-        install_order = self.topological_sort(&dependency_graph);
+        let install_order = self.topological_sort(&dependency_graph);
 
         // Check for version conflicts (simplified)
         for plugin in &self.plugins {

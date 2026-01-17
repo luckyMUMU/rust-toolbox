@@ -271,7 +271,7 @@ impl MemoryManager {
         }
 
         let avg_usage = history.iter().map(|u| u.final_usage).sum::<usize>() / history.len();
-        let max_usage = history.iter().map(|u| u.peak_usage).max().unwrap_or(0);
+        let _max_usage = history.iter().map(|u| u.peak_usage).max().unwrap_or(0);
         let config = self.config.read().await;
 
         // Check if component is using too much memory

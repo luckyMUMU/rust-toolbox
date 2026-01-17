@@ -6,7 +6,7 @@
 use crate::error::Result;
 use crate::performance::{PerformanceManager, PerformanceMonitor};
 use dashmap::DashMap;
-use ratatui::{buffer::Buffer, layout::Rect, Frame};
+use ratatui::{buffer::Buffer, layout::Rect};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -227,7 +227,7 @@ impl RenderingPerformanceManager {
     }
 
     /// Check if content should be cached
-    pub async fn should_cache_render(&self, widget_id: &str, area: Rect) -> bool {
+    pub async fn should_cache_render(&self, _widget_id: &str, area: Rect) -> bool {
         let config = self.config.read().await;
         if !config.enable_cache {
             return false;

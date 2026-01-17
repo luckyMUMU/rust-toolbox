@@ -2335,6 +2335,7 @@ impl ToolManagerWidget {
     }
 
     /// Render filter panel overlay
+    #[allow(dead_code)]
     fn render_filter_panel(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -2381,6 +2382,7 @@ impl ToolManagerWidget {
     }
 
     /// Render active filters section
+    #[allow(dead_code)]
     fn render_active_filters(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut lines = vec![Line::from("当前活动过滤器:")];
 
@@ -2442,6 +2444,7 @@ impl ToolManagerWidget {
     }
 
     /// Render quick filters section
+    #[allow(dead_code)]
     fn render_quick_filters(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let lines = vec![
             Line::from("快速过滤器 (按数字键选择):"),
@@ -2463,6 +2466,7 @@ impl ToolManagerWidget {
     }
 
     /// Render saved filters section
+    #[allow(dead_code)]
     fn render_saved_filters(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut lines = vec![Line::from("已保存的过滤器:")];
 
@@ -2504,6 +2508,7 @@ impl ToolManagerWidget {
     }
 
     /// Render filter history section
+    #[allow(dead_code)]
     fn render_filter_history(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut lines = vec![Line::from("过滤器历史:")];
 

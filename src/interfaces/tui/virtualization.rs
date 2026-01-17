@@ -9,10 +9,8 @@ use async_trait::async_trait;
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Line, Span},
     widgets::{
-        Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
-        Table, TableState,
+        Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState, TableState,
     },
     Frame,
 };
@@ -20,7 +18,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
 
 /// Virtualization configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,12 +141,12 @@ pub trait VirtualDataProvider<T>: Send + Sync {
     async fn load_range(&self, start: usize, count: usize) -> Result<Vec<T>>;
 
     /// Get item height (for variable height items)
-    async fn item_height(&self, index: usize) -> Result<u16> {
+    async fn item_height(&self, _index: usize) -> Result<u16> {
         Ok(1) // Default height
     }
 
     /// Search items (optional)
-    async fn search(&self, query: &str, start: usize, count: usize) -> Result<Vec<(usize, T)>> {
+    async fn search(&self, _query: &str, _start: usize, _count: usize) -> Result<Vec<(usize, T)>> {
         // Default implementation: no search support
         Ok(Vec::new())
     }
@@ -157,9 +154,9 @@ pub trait VirtualDataProvider<T>: Send + Sync {
     /// Filter items (optional)
     async fn filter(
         &self,
-        predicate: Box<dyn Fn(&T) -> bool + Send + Sync>,
-        start: usize,
-        count: usize,
+        _predicate: Box<dyn Fn(&T) -> bool + Send + Sync>,
+        _start: usize,
+        _count: usize,
     ) -> Result<Vec<(usize, T)>> {
         // Default implementation: no filter support
         Ok(Vec::new())
@@ -486,7 +483,7 @@ where
 
     /// Handle key events
     pub async fn handle_key_event(&mut self, key: crossterm::event::KeyEvent) -> Result<bool> {
-        use crossterm::event::{KeyCode, KeyModifiers};
+        use crossterm::event::KeyCode;
 
         match key.code {
             KeyCode::Up => {
@@ -683,7 +680,7 @@ where
                 i
             };
 
-            let mut item = self
+            let item = self
                 .item_cache
                 .entry(item_index)
                 .or_insert_with(|| VirtualItem::new(item_index));
@@ -861,7 +858,7 @@ where
         // For now, delegate to the list widget with a custom renderer
         // In a full implementation, this would use ratatui's Table widget
         self.list_widget
-            .render(frame, area, |data, is_selected, style| {
+            .render(frame, area, |data, _is_selected, style| {
                 let row_data = row_renderer(data, 0);
                 let content = row_data.join(" | ");
                 ListItem::new(content).style(style)

@@ -61,6 +61,7 @@ impl ExecutionCheckpoint {
 
 /// Manager for creating and restoring checkpoints.
 pub struct CheckpointManager {
+    #[allow(dead_code)]
     state_manager: Arc<StateManager>,
     checkpoint_interval: std::time::Duration,
     last_checkpoint: tokio::sync::RwLock<Option<DateTime<Utc>>>,
@@ -129,7 +130,7 @@ impl CheckpointManager {
     /// Save a checkpoint to persistent storage.
     async fn save_checkpoint(&self, checkpoint: &ExecutionCheckpoint) -> Result<()> {
         let key = format!("checkpoint:{}:{}", checkpoint.workflow_id, checkpoint.id);
-        let value = serde_json::to_value(checkpoint).map_err(|e| {
+        let _value = serde_json::to_value(checkpoint).map_err(|e| {
             WorkflowError::serialization(&format!("Failed to serialize checkpoint: {}", e))
         })?;
 
@@ -164,7 +165,7 @@ impl CheckpointManager {
         &self,
         checkpoint: &ExecutionCheckpoint,
     ) -> Result<(HashMap<String, NodeExecutionState>, DataContext)> {
-        let mut context = DataContext::new();
+        let context = DataContext::new();
         context.import_global_slots(checkpoint.global_slots.clone())?;
 
         tracing::info!(

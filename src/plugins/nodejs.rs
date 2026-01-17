@@ -16,7 +16,7 @@ use std::time::Duration;
 use tokio::process::Command as AsyncCommand;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Node.js runtime configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -800,6 +800,7 @@ pub struct NodeJsPlugin {
     info: PluginInfo,
     status: PluginStatus,
     config: Option<PluginConfig>,
+    #[allow(dead_code)]
     runtime_config: NodeJsRuntimeConfig,
     environment: Arc<Mutex<NodeJsEnvironment>>,
     tools: Vec<Arc<dyn ToolNode>>,

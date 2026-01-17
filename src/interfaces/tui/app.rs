@@ -5,15 +5,14 @@
 
 use crate::error::Result;
 use crate::interfaces::tui::{
-    action::{Action, ActionResult, ViewType},
-    event::TuiEvent,
+    action::{Action, ViewType},
     state::SharedAppState,
     widgets::{
-        ExecutionMonitorWidget, LogViewerWidget, PluginManagerWidget, SystemStatusWidget,
+        LogViewerWidget, PluginManagerWidget, SystemStatusWidget,
         ToolManagerWidget, WorkflowListWidget,
     },
     ActionDispatcher, EscKeyBehavior, EventHandler, FocusCapability, FocusManager, HelpSystem,
-    NavigationStack, NavigationTrigger, PlatformConfig, PlatformManager, Theme, ThemeManager,
+    NavigationStack, NavigationTrigger, PlatformManager, Theme, ThemeManager,
     TuiConfig, TuiConfigManager, Widget, WidgetId,
 };
 use async_trait::async_trait;
@@ -28,8 +27,6 @@ use ratatui::{
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     },
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
@@ -84,7 +81,7 @@ impl TuiApp {
         base_config_manager: Option<Arc<crate::config::ConfigManager>>,
     ) -> Result<Self> {
         // Initialize platform manager first
-        let mut platform_manager = PlatformManager::new()?;
+        let platform_manager = PlatformManager::new()?;
 
         // Generate and log compatibility report
         let compatibility_report = platform_manager.generate_compatibility_report();

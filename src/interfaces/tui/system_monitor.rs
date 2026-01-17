@@ -512,7 +512,7 @@ impl SystemMonitor {
     }
 
     /// Set the number of active workflows (called by the application)
-    pub async fn set_active_workflows(&self, count: u32) {
+    pub async fn set_active_workflows(&self, _count: u32) {
         // This would be implemented by the application to update the active workflow count
         // For now, we'll store it in the SystemStatus when it's requested
     }

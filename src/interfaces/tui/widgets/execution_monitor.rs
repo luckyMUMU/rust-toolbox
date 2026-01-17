@@ -15,16 +15,14 @@ use ratatui::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols,
     text::{Line, Span},
     widgets::{
-        Block, Borders, Clear, Gauge, List, ListItem, ListState, Paragraph, Scrollbar,
+        Block, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar,
         ScrollbarOrientation, ScrollbarState, Wrap,
     },
     Frame,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 /// Execution information for display

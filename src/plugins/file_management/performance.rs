@@ -2,14 +2,14 @@
 
 use super::error::{FileManagementError, FileManagementResult};
 use super::plugin::FileManagementPerformanceConfig;
-use crate::performance::{MemoryUsage, PerformanceManager};
+use crate::performance::PerformanceManager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{RwLock, Semaphore};
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 /// Performance-optimized file operation manager
 pub struct OptimizedFileOperationManager {

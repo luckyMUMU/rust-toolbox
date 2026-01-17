@@ -7,7 +7,6 @@ use crate::interfaces::cli::{
     BatchAction, Cli, CliError, Commands, PluginAction, ToolAction, WorkflowAction,
 };
 use crate::interfaces::mcp::{McpServer, McpServerConfig, McpServerInterface};
-use crate::interfaces::tui::app::TuiInterface;
 use crate::interfaces::tui::EnhancedTuiInterface;
 use crate::plugins::manager::PluginManager;
 use crate::plugins::types::PluginConfig;
@@ -444,7 +443,7 @@ impl CliApp {
                 );
 
                 // Get workflow executions from state manager
-                if let Some(state_manager) = &self.state_manager {
+                if let Some(_state_manager) = &self.state_manager {
                     // TODO: Implement proper workflow listing from state manager
                     // For now, show empty list with proper formatting
                     let executions = Vec::new(); // Placeholder

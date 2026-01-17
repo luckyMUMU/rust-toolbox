@@ -2,7 +2,7 @@
 //!
 //! This module provides responsive layout calculation and widget size constraint handling.
 
-use crate::error::{Result, WorkflowError};
+use crate::error::WorkflowError;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -2473,7 +2473,7 @@ impl LayoutManager {
     }
 
     /// Convert layout constraint to ratatui constraint
-    fn convert_layout_constraint(&self, constraint: &LayoutConstraints, area: Rect) -> Constraint {
+    fn convert_layout_constraint(&self, constraint: &LayoutConstraints, _area: Rect) -> Constraint {
         match constraint {
             LayoutConstraints::Length(len) => Constraint::Length(*len),
             LayoutConstraints::Percentage(pct) => Constraint::Percentage(*pct),

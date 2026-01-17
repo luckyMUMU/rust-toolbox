@@ -18,27 +18,26 @@
 //!     └── DagScheduler (determines execution order)
 //! ```
 
-use crate::core::{ExecutionContext, ExecutionStatus, WorkflowId};
+use crate::core::{ExecutionContext, ExecutionStatus};
 use crate::error::{Result, WorkflowError};
 use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
-use crate::workflow::component::{Component, ComponentOutput, ComponentRegistry, ComponentStatus};
+use crate::workflow::component::{ComponentOutput, ComponentRegistry, ComponentStatus};
 use crate::workflow::context::DataContext;
 use crate::workflow::executor::{BoxedExecutor, ExecutorChainBuilder};
 use crate::workflow::scheduler::DagScheduler;
 use crate::workflow::state::{CheckpointManager, ExecutionTracker};
 use crate::workflow::{
-    AuditLogger, CacheConfig, NodeExecutionState, ResultCache, WorkflowDefinition,
+    AuditLogger, CacheConfig, ResultCache, WorkflowDefinition,
     WorkflowExecution,
 };
-use async_trait::async_trait;
 use chrono::Utc;
 use futures::future::join_all;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 /// Refactored workflow engine with component-based architecture.
@@ -62,6 +61,7 @@ pub struct RefactoredWorkflowEngine {
     result_cache: Option<Arc<ResultCache>>,
 
     /// Maximum parallel workflows
+    #[allow(dead_code)]
     max_parallel_workflows: usize,
 
     /// Workflow semaphore for controlling concurrent workflow execution
@@ -230,8 +230,6 @@ impl RefactoredWorkflowEngine {
         scheduler: &mut DagScheduler,
         checkpoint_manager: Arc<CheckpointManager>,
     ) -> Result<()> {
-        let mut last_checkpoint = Utc::now();
-
         while !scheduler.is_execution_complete() {
             // Check for stop/pause signals
             if tracker.should_stop().await {
@@ -293,7 +291,6 @@ impl RefactoredWorkflowEngine {
                         context,
                     )
                     .await;
-                last_checkpoint = Utc::now();
             }
         }
 
@@ -314,7 +311,7 @@ impl RefactoredWorkflowEngine {
     async fn execute_nodes_parallel(
         &self,
         workflow_id: Uuid,
-        execution_id: &str,
+        _execution_id: &str,
         node_ids: &[String],
         component_registry: &ComponentRegistry,
         context: &mut DataContext,
@@ -339,7 +336,6 @@ impl RefactoredWorkflowEngine {
                 let executor = Arc::clone(&self.executor);
                 let registry = component_registry;
                 let wf_id = workflow_id;
-                let exec_id = execution_id.to_string();
 
                 // Clone context for each parallel execution
                 let mut node_context = context.enter_scope(&node_id);

@@ -12,7 +12,6 @@ use bollard::container::{
 use bollard::image::{BuildImageOptions, CreateImageOptions};
 use bollard::models::{HostConfig, Mount, MountTypeEnum, PortBinding};
 use bollard::Docker;
-use chrono::Utc;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1296,7 +1295,6 @@ impl DockerPluginBuilder {
             .description
             .unwrap_or_else(|| format!("Docker plugin: {}", name));
 
-        let now = Utc::now();
         let plugin_info = PluginInfo {
             name: name.clone(),
             version,

@@ -4,16 +4,13 @@
 //! and performance monitoring for batch operations.
 
 use super::batch_processor::{
-    BatchItemResult, BatchItemStatus, BatchPerformanceMetrics, BatchProgress,
+    BatchItemResult, BatchItemStatus, BatchProgress,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, mpsc, RwLock};
-use tracing::{debug, info, warn};
-use uuid::Uuid;
+use tokio::sync::{broadcast, RwLock};
 
 /// Progress event types for real-time updates
 #[derive(Debug, Clone, Serialize, Deserialize)]

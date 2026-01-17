@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
@@ -110,8 +109,10 @@ pub struct DefaultExecutionManager {
     /// Semaphore for controlling concurrent executions
     execution_semaphore: Arc<Semaphore>,
     /// Notification for task queue changes
+    #[allow(dead_code)]
     queue_notify: Arc<Notify>,
     /// Background task handles
+    #[allow(dead_code)]
     background_tasks: DashMap<String, JoinHandle<()>>,
 }
 
@@ -327,6 +328,7 @@ impl DefaultExecutionManager {
     }
 
     /// Monitor resource usage for active executions
+    #[allow(dead_code)]
     async fn monitor_resource_usage(&self) -> Result<()> {
         // Basic resource monitoring implementation
         // In a production system, this would involve:

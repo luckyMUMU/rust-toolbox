@@ -17,12 +17,12 @@ use crate::interfaces::tui::widgets::workflow_list::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 /// Mock backend for testing and development
 pub struct MockSyncBackend {
@@ -739,7 +739,7 @@ impl CacheBackend for MemoryCacheBackend {
 
         self.evict_expired().await;
 
-        let storage = self.storage.read().await;
+        let _storage = self.storage.read().await;
         let stats = self.stats.read().await;
 
         Ok(CompactionResult {

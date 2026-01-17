@@ -1,7 +1,7 @@
 //! Error recovery utilities for file management operations
 
 use super::error::{
-    ErrorContext, ErrorSeverity, FileManagementError, FileManagementResult, RecoverySuggestion,
+    FileManagementError, FileManagementResult,
 };
 use crate::performance::PerformanceManager;
 use async_trait::async_trait;

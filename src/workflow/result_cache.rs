@@ -1,6 +1,6 @@
 //! Result caching mechanism for workflow executions
 
-use crate::core::{ExecutionContext, WorkflowId};
+use crate::core::ExecutionContext;
 use crate::error::Result;
 use crate::storage::CacheBackend;
 use chrono::{DateTime, Utc};
@@ -385,10 +385,6 @@ impl ResultCache {
             format!("cache:{}", workflow_name)
         };
 
-        // Note: This is a simplified implementation
-        // In a production system, you'd want a more efficient way to list and delete by prefix
-        let mut invalidated_count = 0;
-
         // For now, we'll just clear the entire cache if no specific implementation is available
         // A real implementation would iterate through keys with the prefix
         tracing::warn!(
@@ -397,7 +393,7 @@ impl ResultCache {
         );
 
         self.cache_backend.clear().await?;
-        invalidated_count = 1; // Approximate
+        let invalidated_count = 1; // Approximate
 
         tracing::info!(
             "Invalidated {} cache entries for workflow {}",

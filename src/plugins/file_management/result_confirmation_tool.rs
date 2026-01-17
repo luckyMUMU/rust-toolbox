@@ -3,11 +3,10 @@
 //! This module provides a comprehensive tool that combines result review and batch confirmation
 //! to provide a complete solution for reviewing experimental results before execution.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::info;
 
 use super::batch_confirmation_tool::{
     BatchConfirmationConfig, BatchConfirmationParams, BatchConfirmationResult,

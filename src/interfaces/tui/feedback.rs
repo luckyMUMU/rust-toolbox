@@ -4,11 +4,9 @@
 //! progress indicators, confirmation dialogs, notifications, and status messages.
 
 use crate::error::Result;
-use async_trait::async_trait;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    symbols,
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
     Frame,
@@ -21,7 +19,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info, warn};
+use tracing::warn;
 
 /// Progress indicator for long-running operations
 #[derive(Debug, Clone)]
@@ -873,7 +871,7 @@ impl FeedbackWidget {
 
         // Calculate layout for other elements
         let mut constraints = Vec::new();
-        let mut render_areas: Vec<Rect> = Vec::new();
+        let mut _render_areas: Vec<Rect> = Vec::new();
 
         // Status message area (top)
         if self.feedback_manager.get_status_message().await.is_some() {

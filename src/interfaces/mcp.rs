@@ -413,7 +413,7 @@ impl McpServerInterface for McpServer {
             request.plugin_source, request.plugin_type
         );
 
-        if let Some(ref plugin_manager) = self.plugin_manager {
+        if let Some(ref _plugin_manager) = self.plugin_manager {
             // In a full implementation, this would use the plugin manager to install the plugin
             println!("Plugin manager available for installation");
         } else {

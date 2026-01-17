@@ -165,6 +165,7 @@ pub struct SystemStatusWidget {
     show_help: bool,
 
     // Scrollbar state
+    #[allow(dead_code)]
     scrollbar_state: ScrollbarState,
 
     // Detailed system information
@@ -721,6 +722,7 @@ impl SystemStatusWidget {
     }
 
     /// Get health status icon
+    #[allow(dead_code)]
     fn get_health_icon(&self, health: &SystemHealth) -> &'static str {
         match health {
             SystemHealth::Healthy => "✓",
@@ -730,6 +732,7 @@ impl SystemStatusWidget {
     }
 
     /// Format health score as a visual bar
+    #[allow(dead_code)]
     fn format_health_score(&self, score: f64) -> String {
         let bar_length = 20;
         let filled = ((score / 100.0) * bar_length as f64) as usize;
