@@ -73,3 +73,12 @@ Event → EventLoop → ActionProcessor → Action → State Update → Render
 - Custom color schemes
 - Style configuration
 - Responsive design
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **[widgets/](widgets/AGENTS.md)**: Specialized widgets for the TUI interface, each handling a specific view or functionality.
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->

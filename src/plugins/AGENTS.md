@@ -46,3 +46,12 @@ manager.load_plugin(plugin, config)?;
 - WASM support temporarily disabled
 - MCP server commented out (dependency issues)
 - Plugin sandboxing in development
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **[file_management/](file_management/AGENTS.md)**: Specialized tools for file classification, batch processing, and text operations with human review.
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->

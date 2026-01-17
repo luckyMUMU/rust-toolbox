@@ -114,3 +114,18 @@
 ---
 
 **版本**: 1.2.0 | **状态**: Sisyphus 核心调度模式 | **最后更新**: 2026-01-17
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **config/**: Empty or asset-only directory.
+- **docs/**: Contains 2 files (e.g., DOCS_README.md, INDEX.md). Has 5 subdirectories.
+- **docs-zh/**: Contains 2 files (e.g., DOCS_README.md, INDEX.md). Has 4 subdirectories.
+- **[examples/](examples/AGENTS.md)**: 23 examples demonstrating all features: workflows, plugins, configurations, and patterns.
+- **scripts/**: Contains 3 files (e.g., folder_classifier_v5_improved2.py, mergeClassifierSimple.py, update_agents_md.py).
+- **[src/](src/AGENTS.md)**: Main library entry point with re-exports and module declarations.
+- **[tests/](tests/AGENTS.md)**: Integration tests, property-based tests, and comprehensive test fixtures.
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->

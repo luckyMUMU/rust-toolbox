@@ -47,3 +47,17 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **[interfaces/](interfaces/AGENTS.md)**: Multiple interface implementations: CLI, TUI, and MCP server.
+- **[performance/](performance/AGENTS.md)**: Caching, concurrency control, memory optimization, metrics, and profiling.
+- **[plugins/](plugins/AGENTS.md)**: Extensible plugin architecture supporting Native, Python, Node.js, Docker, and WASM plugins.
+- **[storage/](storage/AGENTS.md)**: Storage backends, state management, backup system, and persistence.
+- **[tools/](tools/AGENTS.md)**: Tool registry, node system, parameter templates, and version management.
+- **[workflow/](workflow/AGENTS.md)**: Core workflow execution with DAG-based scheduling, state management, and audit logging.
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->

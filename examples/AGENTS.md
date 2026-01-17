@@ -93,3 +93,16 @@ The `*_tools/` directories contain actual plugin implementations for testing:
 - **Configuration**: Hierarchical, hot reload
 - **Interfaces**: CLI, TUI, server modes
 - **Performance**: Caching, concurrency
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **docker_tools/**: Empty or asset-only directory.
+- **nodejs_tools/**: Empty or asset-only directory.
+- **python_tools/**: Contains 2 files (e.g., data_processor.py, simple_calculator.py).
+- **[templates/](templates/AGENTS.md)**: Production-ready workflow templates with comprehensive documentation and interactive examples.
+- **wasm_tools/**: Contains 1 files (e.g., README.md).
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->

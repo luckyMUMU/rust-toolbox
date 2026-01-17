@@ -77,3 +77,15 @@ Core workflow execution with DAG-based scheduling, state management, and audit l
 - **Timeout**: Configurable per workflow or globally
 - **Cancellation**: Graceful shutdown with cleanup
 - **Performance**: Uses DashMap for concurrent state access
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **component/**: Contains 4 files (e.g., mod.rs, parallel.rs, registry.rs).
+- **context/**: Contains 2 files (e.g., mod.rs, slot.rs).
+- **executor/**: Contains 5 files (e.g., audit.rs, basic.rs, cache.rs).
+- **state/**: Contains 2 files (e.g., checkpoint.rs, mod.rs).
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->

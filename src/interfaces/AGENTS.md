@@ -58,3 +58,13 @@ cargo run -- server --http-port 8080
 - **TUI**: Full-featured with widgets, themes, and monitoring
 - **CLI**: Uses clap derive for command parsing
 - All interfaces use the same backend components
+
+<!-- AUTO-GENERATED-AGENT-MAP:START -->
+## 🗺️ Agent Map & Directory Structure
+
+> **Auto-generated** on 2026-01-17 20:44:16
+
+- **[cli/](cli/AGENTS.md)**: Clap-based CLI with subcommands, output formatting, and error handling.
+- **[tui/](tui/AGENTS.md)**: Ratatui-based TUI with event-driven architecture, action system, and reactive widgets.
+
+<!-- AUTO-GENERATED-AGENT-MAP:END -->
