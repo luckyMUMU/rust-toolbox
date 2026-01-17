@@ -152,7 +152,7 @@ mod tests {
     use std::sync::Arc;
 
     fn create_test_registry() -> Arc<dyn ToolRegistry> {
-        let registry = BasicToolRegistry::new();
+        let mut registry = BasicToolRegistry::new();
 
         // Register a simple echo tool for testing
         let echo_executor = Arc::new(crate::tools::AsyncFunctionExecutor::new(

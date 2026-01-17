@@ -231,18 +231,15 @@ mod tests {
         let execution_arc = Arc::new(RwLock::new(execution));
         let context = ExecutionContext::new().with_workflow_id(workflow_id);
 
-        // Get the retry policy from the workflow node
-        let node_retry_policy = workflow
-            .get_node("test_node")
-            .and_then(|node| node.retry_policy.as_ref());
+        // Get the node definition
+        let node = workflow.get_node("test_node").unwrap();
 
         // Execute node with retry
         let result: Result<Value> = engine
             .execute_node_with_retry(
-                "test_node",
+                node,
                 execution_arc.clone(),
                 context,
-                node_retry_policy,
             )
             .await;
 
@@ -318,18 +315,15 @@ mod tests {
         let execution_arc = Arc::new(RwLock::new(execution));
         let context = ExecutionContext::new().with_workflow_id(workflow_id);
 
-        // Get the retry policy from the workflow node
-        let node_retry_policy = workflow
-            .get_node("failing_node")
-            .and_then(|node| node.retry_policy.as_ref());
+        // Get the node definition
+        let node = workflow.get_node("failing_node").unwrap();
 
         // Execute node with retry
         let result: Result<Value> = engine
             .execute_node_with_retry(
-                "failing_node",
+                node,
                 execution_arc.clone(),
                 context,
-                node_retry_policy,
             )
             .await;
 
@@ -512,18 +506,15 @@ mod tests {
             let execution_arc = Arc::new(RwLock::new(execution));
             let context = ExecutionContext::new().with_workflow_id(workflow_id);
 
-            // Get the retry policy from the workflow node
-            let node_retry_policy = workflow
-                .get_node("property_test_node")
-                .and_then(|node| node.retry_policy.as_ref());
+            // Get the node definition
+            let node = workflow.get_node("property_test_node").unwrap();
 
             // Execute node with retry
             let result: Result<Value> = engine
                 .execute_node_with_retry(
-                    "property_test_node",
+                    node,
                     execution_arc.clone(),
                     context,
-                    node_retry_policy,
                 )
                 .await;
 

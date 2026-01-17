@@ -41,7 +41,7 @@ impl Executor for BasicExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workflow::component::{ComponentStatus, ComponentType};
+    use crate::workflow::component::ComponentType;
     use uuid::Uuid;
 
     struct MockComponent {
@@ -80,13 +80,8 @@ mod tests {
             should_fail: false,
         };
         let mut context = DataContext::new();
-        let exec_ctx = ExecutionContext {
-            workflow_id: Uuid::new_v4(),
-            execution_id: "exec-1".to_string(),
-            node_id: "test".to_string(),
-            parameters: serde_json::Value::Null,
-            environment: std::collections::HashMap::new(),
-        };
+        let exec_ctx = ExecutionContext::new()
+            .with_workflow_id(Uuid::new_v4());
 
         let result = executor.execute(&component, &mut context, &exec_ctx).await;
         assert!(result.is_ok());
@@ -101,13 +96,8 @@ mod tests {
             should_fail: true,
         };
         let mut context = DataContext::new();
-        let exec_ctx = ExecutionContext {
-            workflow_id: Uuid::new_v4(),
-            execution_id: "exec-1".to_string(),
-            node_id: "test".to_string(),
-            parameters: serde_json::Value::Null,
-            environment: std::collections::HashMap::new(),
-        };
+        let exec_ctx = ExecutionContext::new()
+            .with_workflow_id(Uuid::new_v4());
 
         let result = executor.execute(&component, &mut context, &exec_ctx).await;
         assert!(result.is_ok());

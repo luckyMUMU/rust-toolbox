@@ -9,6 +9,7 @@ A comprehensive multi-interface workflow execution system built with Rust that p
 ### Core Workflow Engine
 - **Multi-Interface Support**: CLI commands, Terminal UI (TUI), and Model Context Protocol (MCP) server
 - **DAG-based Workflow Engine**: Directed Acyclic Graph execution with conditions, loops, and parallel processing using petgraph
+- **Data Flow & Parameter Passing**: Support for inter-node data passing and dynamic parameter resolution using template syntax
 - **State Management**: Persistent workflow state with checkpoint and recovery capabilities
 - **Configuration Management**: Hierarchical configuration with environment variables, config files, and CLI parameter overrides
 

@@ -837,6 +837,7 @@ pub struct TuiMemoryStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::performance::memory::MemoryConfig;
     use crate::performance::PerformanceManager;
 
     #[tokio::test]

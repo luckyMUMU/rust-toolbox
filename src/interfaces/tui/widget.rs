@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use super::action::Action;
 use super::theme::Theme;
+use crate::error::WorkflowError;
 
 /// Unique identifier for widgets
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -126,6 +127,12 @@ pub enum WidgetError {
 
     #[error("Widget configuration error: {message}")]
     ConfigError { message: String },
+}
+
+impl From<WidgetError> for WorkflowError {
+    fn from(err: WidgetError) -> Self {
+        WorkflowError::ValidationError(format!("Widget error: {}", err))
+    }
 }
 
 /// Widget size constraints

@@ -555,6 +555,7 @@ pub fn create_human_decision_tool(
 mod tests {
     use super::*;
     use crate::core::{ExecutionContext, PluginType};
+    use crate::tools::node::ToolNode;
     use tempfile::TempDir;
 
     fn create_test_config() -> FileManagementConfig {

@@ -113,6 +113,9 @@ pub enum WorkflowError {
         from: crate::core::ExecutionStatus,
         to: crate::core::ExecutionStatus,
     },
+
+    #[error("Parameter resolution error: {0}")]
+    ParameterResolutionError(String),
 }
 
 impl WorkflowError {

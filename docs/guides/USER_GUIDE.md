@@ -47,7 +47,7 @@ nodes:
   - id: process
     tool: transform
     params:
-      input: "{{greet.output}}"
+      input: "${nodes.greet.message}"
       operation: uppercase
 
 edges:
@@ -123,6 +123,36 @@ workflow-toolkit batch execute batch-list.json --parallel 4 --continue-on-failur
 
 # 查看结果
 ls output/
+```
+
+### 6. 数据流与参数引用
+
+工作流支持使用模板语法 `${...}` 引用前序节点的执行结果或全局变量。
+
+#### 引用节点结果
+使用 `${nodes.node_id.field}` 语法引用其他节点的输出。
+
+```yaml
+nodes:
+  - id: step1
+    tool: my_tool
+    # 假设输出: {"result_path": "/tmp/data.json"}
+    
+  - id: step2
+    tool: another_tool
+    params:
+      input_file: "${nodes.step1.result_path}"
+```
+
+#### 引用全局变量
+使用 `${variable_name}` 引用执行上下文中定义的全局变量。
+
+```yaml
+nodes:
+  - id: notify
+    tool: email_sender
+    params:
+      to: "${admin_email}"
 ```
 
 ## 工具管理
@@ -616,15 +646,15 @@ nodes:
     
   - id: process_item
     tool: item_processor
-    params: {item: "{{loop_counter.current}}"}
+    params: {item: "${nodes.loop_counter.current}"}
 
 edges:
   - from: loop_counter
     to: process_item
-    condition: "counter.current < counter.end"
+    condition: "${nodes.loop_counter.current} < ${nodes.loop_counter.end}"
   - from: process_item
     to: loop_counter
-    condition: "counter.next"
+    condition: "${nodes.loop_counter.next}"
 ```
 
 ## 监控和维护

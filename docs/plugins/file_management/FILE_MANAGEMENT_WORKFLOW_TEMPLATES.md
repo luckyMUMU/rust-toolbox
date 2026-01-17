@@ -653,22 +653,22 @@ steps:
   - name: "initial_classification"
     tool: "folder-classifier"
     params:
-      preprocessed_text: "{{ preprocess_text.processed }}"
+      preprocessed_text: "${nodes.preprocess_text.processed}"
       confidence_threshold: 0.9
   
   # Stage 3: Human review for ambiguous cases
   - name: "human_review"
     tool: "human-decision"
-    condition: "{{ initial_classification.ambiguous_count > 0 }}"
+    condition: "${nodes.initial_classification.ambiguous_count} > 0"
     params:
       decision_type: "Classification"
-      items: "{{ initial_classification.ambiguous_results }}"
+      items: "${nodes.initial_classification.ambiguous_results}"
   
   # Stage 4: Execute operations
   - name: "execute_operations"
     tool: "file-mover"
     params:
-      operations: "{{ human_review.final_operations }}"
+      operations: "${nodes.human_review.final_operations}"
 ```
 
 ### Pattern 2: Conditional Processing
@@ -683,12 +683,12 @@ steps:
   - name: "analyze_folders"
     tool: "folder-analyzer"
     params:
-      source_directory: "{{ input.source_directory }}"
+      source_directory: "${input.source_directory}"
   
   # Process large folders differently
   - name: "process_large_folders"
     tool: "batch-processor"
-    condition: "{{ analyze_folders.large_folder_count > 0 }}"
+    condition: "${nodes.analyze_folders.large_folder_count} > 0"
     params:
       batch_size: 5
       max_concurrent_batches: 2
@@ -696,7 +696,7 @@ steps:
   # Process small folders in larger batches
   - name: "process_small_folders"
     tool: "batch-processor"
-    condition: "{{ analyze_folders.small_folder_count > 0 }}"
+    condition: "${nodes.analyze_folders.small_folder_count} > 0"
     params:
       batch_size: 25
       max_concurrent_batches: 4
@@ -720,7 +720,7 @@ steps:
   # Handle failures with user decisions
   - name: "handle_failures"
     tool: "human-decision"
-    condition: "{{ initial_processing.failed_operations > 0 }}"
+    condition: "${nodes.initial_processing.failed_operations} > 0"
     params:
       decision_type: "Custom"
       context:
@@ -737,9 +737,9 @@ steps:
   # Retry failed operations with different settings
   - name: "retry_operations"
     tool: "batch-processor"
-    condition: "{{ handle_failures.selected_option == 'retry' }}"
+    condition: "${nodes.handle_failures.selected_option} == 'retry'"
     params:
-      operations: "{{ initial_processing.failed_operations }}"
+      operations: "${nodes.initial_processing.failed_operations}"
       batch_size: 5
       max_concurrent_batches: 1
 ```

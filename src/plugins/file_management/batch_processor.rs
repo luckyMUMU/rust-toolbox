@@ -753,6 +753,7 @@ mod tests {
     use super::*;
     use crate::core::{PluginInfo, ToolInfo};
     use crate::tools::BasicTool;
+    use serde_json::json;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     // Mock tool for testing

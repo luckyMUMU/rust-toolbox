@@ -485,7 +485,7 @@ mod tests {
         let cache = Arc::new(SimpleMemoryCache::new());
         let state_manager = Arc::new(StateManager::new(storage, cache));
 
-        let tool_registry = Arc::new(BasicToolRegistry::new());
+        let mut tool_registry = BasicToolRegistry::new();
 
         // Register a simple echo tool
         let echo_executor = Arc::new(crate::tools::AsyncFunctionExecutor::new(
@@ -501,6 +501,7 @@ mod tests {
             .unwrap();
 
         tool_registry.register_tool(Arc::new(echo_tool)).unwrap();
+        let tool_registry = Arc::new(tool_registry);
 
         let engine = RefactoredWorkflowEngine::new(state_manager, tool_registry, 4);
 

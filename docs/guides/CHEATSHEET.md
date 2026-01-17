@@ -82,7 +82,7 @@ nodes:
   - id: step2
     tool: transform
     params:
-      input: "{{step1.output}}"
+      input: "${nodes.step1.output}"
       operation: uppercase
 
 edges:
