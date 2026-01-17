@@ -37,6 +37,14 @@ The File Management Tools plugin provides a comprehensive suite of tools for int
 ✅ **Progress Tracking**: Real-time progress reporting and performance metrics  
 ✅ **Error Recovery**: Comprehensive error handling with rollback capabilities  
 
+### Architecture & Implementation
+
+The File Management Tools are implemented in Rust and registered as a plugin within the `workflow-toolkit` ecosystem. Each tool in a workflow YAML corresponds to a specific Rust executor:
+
+- **YAML Tool Mapping**: Workflow nodes use `tool_name` to look up Rust executors in the `FileManagementToolRegistry`.
+- **Safe Execution**: All operations support an `experimental_mode` for safe dry-runs.
+- **Detailed Mapping**: For a complete list of YAML-to-Rust mappings, see the [API Reference - Workflow Integration](FILE_MANAGEMENT_API_REFERENCE.md#workflow-integration--execution-mechanism).
+
 ## Quick Start
 
 ### Installation

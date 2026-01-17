@@ -49,6 +49,37 @@ pub struct FileManagementConfig {
 }
 ```
 
+## Workflow Integration & Execution Mechanism
+
+This section explains how workflow definitions (YAML) interact with the Rust implementation of the File Management plugin.
+
+### Tool Registration Mapping
+
+When a workflow specifies a `tool_name` for a `Tool` node, the engine retrieves the corresponding implementation from the `FileManagementToolRegistry`.
+
+| YAML `tool_name` | Rust Executor Implementation | Implementation File |
+| :--- | :--- | :--- |
+| `folder-classifier` | `ClassificationTool` | [classification_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_tool.rs) |
+| `file-mover` | `FileMoverExecutor` | [registry.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/registry.rs) |
+| `batch-processor` | `BatchProcessorTool` | [batch_processor_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/batch_processor_tool.rs) |
+| `human-decision` | `HumanDecisionTool` | [human_decision_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/human_decision_tool.rs) |
+| `folder-merger` | `FolderMergerExecutor` | [registry.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/registry.rs) |
+| `text-processor` | `TextProcessorTool` | [text_processor_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/text_processor_tool.rs) |
+| `ac-matcher` | `AcMatcherExecutor` | [registry.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/registry.rs) |
+| `result-reviewer` | `ResultReviewTool` | [result_review_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/result_review_tool.rs) |
+
+### Execution Flow
+
+1. **Registry Lookup**: The workflow engine uses the `tool_name` as a key to find the registered `Arc<dyn ToolNode>` in the plugin's registry.
+2. **Parameter Validation**: Before execution, the engine calls `tool.validate_parameters(&params)`. This ensures the YAML parameters match the expected schema defined in Rust.
+3. **Context Injection**: An `ExecutionContext` is created, containing workflow-wide metadata and state.
+4. **Asynchronous Execution**: The engine calls `tool.execute(params, context).await`.
+5. **Result Processing**: The JSON output from the Rust executor is returned to the workflow engine and stored in the node's state for use by subsequent nodes.
+
+### Placeholder Implementation
+
+For tools that are part of the workflow specification but not yet fully implemented in the core plugin, a `PlaceholderExecutor` is used. This allows workflow validation to pass while providing a clear "Not Implemented" response during runtime.
+
 ## Core Tools API
 
 ### 1. Folder Classifier Tool

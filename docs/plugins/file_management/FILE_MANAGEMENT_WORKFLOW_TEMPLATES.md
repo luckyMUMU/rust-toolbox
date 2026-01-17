@@ -158,6 +158,23 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 }
 ```
 
+### Node to Implementation Mapping
+
+The `interactive-classification-workflow.yaml` consists of several nodes, each mapping to a specific Rust implementation.
+
+| Node ID | `tool_name` | Rust Implementation | Role in Workflow |
+| :--- | :--- | :--- | :--- |
+| `scan_folders` | `directory-scanner` | `PlaceholderExecutor` (Mocked in tests) | Discovers source folders |
+| `validate_rules` | `rule-validator` | `PlaceholderExecutor` (Mocked in tests) | Ensures rules are correctly formatted |
+| `batch_classify` | `batch-processor` | `BatchProcessorTool` | Orchestrates batch classification |
+| `review_results` | `result-reviewer` | `ResultReviewTool` | Aggregates and displays classification stats |
+| `human_decision` | `human-decision` | `HumanDecisionTool` | Captures user approval/override |
+| `execute_moves` | `file-mover` | `FileMoverExecutor` | Performs physical file/folder movement |
+| `generate_report` | `operation-reporter`| `PlaceholderExecutor` | Creates final summary of operations |
+| `cleanup` | `folder-cleanup` | `PlaceholderExecutor` | Removes empty directories |
+
+---
+
 ## Interactive Merge Workflow
 
 **File:** `examples/templates/interactive-merge-workflow.yaml`
