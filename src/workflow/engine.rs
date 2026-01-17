@@ -268,6 +268,39 @@ impl DefaultWorkflowEngine {
         Ok(engine)
     }
 
+    /// Evaluate a condition string against the execution context
+    fn evaluate_condition(
+        &self,
+        condition: &str,
+        execution: &WorkflowExecution,
+        context: &ExecutionContext,
+    ) -> Result<bool> {
+        // Create template context similar to resolve_parameters
+        let mut template_context = TemplateContext::new();
+        template_context.set_variables(context.global_variables.clone());
+        if let Value::Object(global_ctx) = &execution.global_context {
+            for (k, v) in global_ctx {
+                template_context.set_variable(k.clone(), v.clone());
+            }
+        }
+        
+        // Add node results
+        let mut nodes_map = serde_json::Map::new();
+        for (node_id, state) in &execution.node_states {
+            if let Some(result) = &state.result {
+                nodes_map.insert(node_id.clone(), result.clone());
+            }
+        }
+        template_context.set_variable("nodes", Value::Object(nodes_map));
+
+        // Use template engine to render the condition
+        // We assume the condition is a template that renders to "true" or "false"
+        let rendered = self.template_engine.render(condition, &template_context)
+            .map_err(|e| WorkflowError::ParameterResolutionError(e.to_string()))?;
+            
+        Ok(rendered.trim().eq_ignore_ascii_case("true"))
+    }
+
     /// Resolve parameters for a node using the template engine
     fn resolve_parameters(
         &self,
@@ -1509,6 +1542,20 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                     // Update node state based on result
                     {
                         let mut execution = execution_arc.write().await;
+                        
+                        // Handle global context updates from tools (e.g., DataCacheTool)
+                        // We do this BEFORE getting mutable reference to node_state to avoid double borrow
+                        if let Ok(result) = &node_result {
+                            if let Some(ctx_update) = result.get("__context_update").and_then(|v| v.as_object()) {
+                                if let Value::Object(global_ctx) = &mut execution.global_context {
+                                    for (k, v) in ctx_update {
+                                        global_ctx.insert(k.clone(), v.clone());
+                                    }
+                                    tracing::debug!("Node {} updated global context with keys: {:?}", node_id, ctx_update.keys());
+                                }
+                            }
+                        }
+
                         if let Some(node_state) = execution.node_states.get_mut(&node_id) {
                             node_state.completed_at = Some(Utc::now());
 
@@ -1528,6 +1575,45 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                     // Handle the result and apply error recovery if needed
                     match node_result {
                         Ok(_) => {
+                            // Evaluate conditional edges and skip nodes if condition is false
+                            {
+                                let outgoing_edges: Vec<&WorkflowEdge> = definition.edges.iter()
+                                    .filter(|e| e.from == node_id)
+                                    .collect();
+
+                                for edge in outgoing_edges {
+                                    if let Some(condition) = &edge.condition {
+                                        let should_run = {
+                                            let execution = execution_arc.read().await;
+                                            match self.evaluate_condition(condition, &execution, &context) {
+                                                Ok(should_run) => should_run,
+                                                Err(e) => {
+                                                    tracing::error!("Failed to evaluate condition '{}': {}", condition, e);
+                                                    // On error, we don't skip, effectively treating as true (or at least not forcing skip)
+                                                    true 
+                                                }
+                                            }
+                                        };
+
+                                        if !should_run {
+                                            tracing::info!("Condition '{}' for edge {} -> {} evaluated to false. Skipping target node.", condition, edge.from, edge.to);
+                                            if let Err(e) = scheduler.mark_node_skipped(&edge.to) {
+                                                tracing::warn!("Failed to skip node {}: {}", edge.to, e);
+                                            }
+                                            
+                                            // Update node state to skipped
+                                            {
+                                                let mut execution = execution_arc.write().await;
+                                                if let Some(node_state) = execution.node_states.get_mut(&edge.to) {
+                                                    node_state.status = ExecutionStatus::Skipped;
+                                                    node_state.completed_at = Some(Utc::now());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             scheduler.mark_node_completed(&node_id)?;
                         }
                         Err(error) => {

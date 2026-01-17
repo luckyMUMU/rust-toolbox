@@ -46,6 +46,10 @@ impl FileManagementToolRegistry {
             tools.push(tool);
         }
 
+        if let Ok(tool) = self.register_directory_scanner_tool() {
+            tools.push(tool);
+        }
+
         // 2. File operation tools (depend on utilities)
         if let Ok(tool) = self.register_file_mover_tool() {
             tools.push(tool);
@@ -179,16 +183,32 @@ impl FileManagementToolRegistry {
         Ok(tool_arc)
     }
 
+    /// Register the directory scanner tool
+    fn register_directory_scanner_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
+        debug!("Registering directory scanner tool");
+        let tool = super::tools::DirectoryScannerTool;
+        let tool_arc = Arc::new(tool);
+        self.registered_tools
+            .insert("directory-scanner".to_string(), tool_arc.clone());
+        Ok(tool_arc)
+    }
+
     /// Register the classification tool
     fn register_classification_tool(&mut self) -> Result<Arc<dyn ToolNode>> {
         debug!("Registering classification tool");
 
-        let tool = super::classification_tool::ClassificationTool::with_plugin_info(
+        // Use the new SRP-compliant FolderClassifierTool
+        let tool = super::tools::FolderClassifierTool::new(
             self.config.enable_chinese_processing,
-            self.plugin_info.clone(),
         );
 
         let tool_arc = Arc::new(tool);
+        // We register it as "folder-classifier" to maintain compatibility or as requested
+        // The struct name is "folder-classifier-pure", but we can register it under any key.
+        // However, the tool.name() returns "folder-classifier-pure".
+        // The engine uses tool.name() if not overridden? 
+        // No, registry uses the key in HashMap.
+        // But the workflow definition uses `tool_name` which matches the key in registry usually.
         self.registered_tools
             .insert("folder-classifier".to_string(), tool_arc.clone());
 

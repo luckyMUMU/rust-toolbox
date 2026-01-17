@@ -18,6 +18,7 @@ pub trait OutputFormatter {
     fn format_execution_result(&self, result: &ExecutionResult) -> String;
     fn format_error(&self, error: &str) -> String;
     fn format_success(&self, message: &str) -> String;
+    fn format_section(&self, title: &str) -> String;
 }
 
 /// Execution result for formatting
@@ -204,6 +205,11 @@ impl OutputFormatter for TableFormatter {
     fn format_success(&self, message: &str) -> String {
         format!("Success: {}\n", message)
     }
+
+    fn format_section(&self, title: &str) -> String {
+        let line = "=".repeat(title.len() + 4);
+        format!("\n{}\n  {}  \n{}\n", line, title, line)
+    }
 }
 
 /// JSON formatter
@@ -249,6 +255,10 @@ impl OutputFormatter for JsonFormatter {
         });
         serde_json::to_string_pretty(&json_obj).unwrap_or_else(|_| "{}".to_string())
     }
+
+    fn format_section(&self, _title: &str) -> String {
+        String::new()
+    }
 }
 
 /// YAML formatter
@@ -293,6 +303,10 @@ impl OutputFormatter for YamlFormatter {
             "success": message
         });
         serde_yaml::to_string(&yaml_obj).unwrap_or_else(|_| "---\n".to_string())
+    }
+
+    fn format_section(&self, _title: &str) -> String {
+        String::new()
     }
 }
 
@@ -340,6 +354,10 @@ impl OutputFormatter for TextFormatter {
 
     fn format_success(&self, message: &str) -> String {
         format!("SUCCESS: {}", message)
+    }
+
+    fn format_section(&self, title: &str) -> String {
+        format!("\n=== {} ===\n", title)
     }
 }
 

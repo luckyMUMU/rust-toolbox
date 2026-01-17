@@ -52,6 +52,7 @@ impl ExecutionInfo {
             ExecutionStatus::Cancelled => "已取消",
             ExecutionStatus::Paused => "已暂停",
             ExecutionStatus::Timeout => "超时",
+            ExecutionStatus::Skipped => "已跳过",
         }
     }
 
@@ -65,6 +66,7 @@ impl ExecutionInfo {
             ExecutionStatus::Cancelled => "⏹",
             ExecutionStatus::Paused => "⏸",
             ExecutionStatus::Timeout => "⏰",
+            ExecutionStatus::Skipped => "⏭",
         }
     }
 }
@@ -205,6 +207,7 @@ impl ExecutionMonitorWidget {
                     ExecutionStatus::Pending => Style::default().fg(theme.colors.warning),
                     ExecutionStatus::Paused => Style::default().fg(theme.colors.warning),
                     ExecutionStatus::Timeout => Style::default().fg(theme.colors.error),
+                    ExecutionStatus::Skipped => Style::default().fg(theme.colors.text_disabled),
                 };
 
                 let progress_bar = if execution.progress > 0.0 {
@@ -281,6 +284,7 @@ impl ExecutionMonitorWidget {
                             ExecutionStatus::Pending => Style::default().fg(theme.colors.warning),
                             ExecutionStatus::Paused => Style::default().fg(theme.colors.warning),
                             ExecutionStatus::Timeout => Style::default().fg(theme.colors.error),
+                            ExecutionStatus::Skipped => Style::default().fg(theme.colors.text_secondary),
                         },
                     ),
                 ]),

@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use workflow_toolkit::config::Config;
+use workflow_toolkit::core::PluginType;
 use workflow_toolkit::interfaces::cli::{Cli, CliApp};
+use workflow_toolkit::plugins::{FileManagementPlugin, Plugin, PluginConfig};
 use workflow_toolkit::storage::{FileStorage, SimpleMemoryCache, StateManager};
 use workflow_toolkit::tools::{BasicToolRegistry, ToolRegistry};
 use workflow_toolkit::workflow::engine::DefaultWorkflowEngine;
@@ -52,7 +54,7 @@ async fn main() -> Result<()> {
     let mut tool_registry = BasicToolRegistry::new();
 
     // Add a simple echo tool for testing
-    use workflow_toolkit::tools::{AsyncFunctionExecutor, BasicTool};
+    use workflow_toolkit::tools::{AsyncFunctionExecutor, BasicTool, DataCacheTool, DataTransformTool};
     let echo_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| async move {
         if let Some(message) = params.get("message") {
             Ok(serde_json::json!({
@@ -88,6 +90,33 @@ async fn main() -> Result<()> {
                 e
             ))
         })?;
+
+    // Register System Tools (DataCache, DataTransform)
+    tool_registry.register_tool(Arc::new(DataCacheTool)).unwrap_or_else(|e| {
+        eprintln!("Warning: Failed to register data-cache tool: {}", e);
+    });
+    tool_registry.register_tool(Arc::new(DataTransformTool)).unwrap_or_else(|e| {
+        eprintln!("Warning: Failed to register data-transform tool: {}", e);
+    });
+
+    // Register File Management Plugin Tools
+    let mut fm_plugin = FileManagementPlugin::new();
+    let fm_config = PluginConfig::new("file-management".to_string(), PluginType::Native);
+    
+    // Initialize the plugin
+    if let Err(e) = fm_plugin.initialize(fm_config) {
+        eprintln!("Warning: Failed to initialize file management plugin: {}", e);
+    } else {
+        // Register all plugin tools
+        let tools = fm_plugin.get_tools();
+        // println!("Registering {} file management tools...", tools.len());
+        
+        for tool in tools {
+            if let Err(e) = tool_registry.register_tool(tool) {
+                 eprintln!("Warning: Failed to register file management tool: {}", e);
+            }
+        }
+    }
 
     let tool_registry = Arc::new(tool_registry);
 

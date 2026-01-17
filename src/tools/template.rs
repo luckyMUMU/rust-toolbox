@@ -235,6 +235,18 @@ impl TemplateEngine {
         }
     }
 
+    /// Expand templates in a string and return the result as a String.
+    /// This is useful for rendering messages or conditions where the result must be a string.
+    pub fn render(&self, template: &str, context: &TemplateContext) -> Result<String> {
+        match self.expand_string(template, context)? {
+            Value::String(s) => Ok(s),
+            Value::Bool(b) => Ok(b.to_string()),
+            Value::Number(n) => Ok(n.to_string()),
+            Value::Null => Ok("null".to_string()),
+            v => Ok(v.to_string()),
+        }
+    }
+
     /// Evaluate a template expression (variable or function call)
     fn evaluate_expression(&self, expr: &str, context: &TemplateContext) -> Result<Value> {
         let expr = expr.trim();

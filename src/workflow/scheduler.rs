@@ -34,6 +34,8 @@ struct ExecutionState {
     completed_nodes: HashSet<NodeIndex>,
     /// Nodes that have failed
     failed_nodes: HashSet<NodeIndex>,
+    /// Nodes that have been skipped
+    skipped_nodes: HashSet<NodeIndex>,
     /// Nodes that are blocked by failed dependencies
     blocked_nodes: HashSet<NodeIndex>,
 }
@@ -45,12 +47,16 @@ impl ExecutionState {
             executing_nodes: HashSet::new(),
             completed_nodes: HashSet::new(),
             failed_nodes: HashSet::new(),
+            skipped_nodes: HashSet::new(),
             blocked_nodes: HashSet::new(),
         }
     }
 
     fn is_complete(&self, total_nodes: usize) -> bool {
-        self.completed_nodes.len() + self.failed_nodes.len() + self.blocked_nodes.len()
+        self.completed_nodes.len()
+            + self.failed_nodes.len()
+            + self.skipped_nodes.len()
+            + self.blocked_nodes.len()
             == total_nodes
     }
 
@@ -260,6 +266,27 @@ impl DagScheduler {
         Ok(())
     }
 
+    /// Mark a node as skipped
+    pub fn mark_node_skipped(&mut self, node_id: &str) -> Result<()> {
+        let node_index = self
+            .node_indices
+            .get(node_id)
+            .ok_or_else(|| WorkflowError::NodeNotFound(node_id.to_string()))?;
+
+        // Remove from executing nodes or ready nodes if present
+        self.execution_state.executing_nodes.remove(node_index);
+        self.execution_state.ready_nodes.retain(|&idx| idx != *node_index);
+
+        // Add to skipped nodes
+        self.execution_state.skipped_nodes.insert(*node_index);
+
+        // Check if dependent nodes can proceed (treating skipped as satisfied for now, 
+        // logic in engine will decide if they should also be skipped)
+        self.update_ready_nodes(*node_index)?;
+
+        Ok(())
+    }
+
     /// Update ready nodes after a node completion
     fn update_ready_nodes(&mut self, completed_node: NodeIndex) -> Result<()> {
         // Check all dependent nodes
@@ -275,6 +302,7 @@ impl DagScheduler {
                 .completed_nodes
                 .contains(&dependent_node)
                 || self.execution_state.failed_nodes.contains(&dependent_node)
+                || self.execution_state.skipped_nodes.contains(&dependent_node)
                 || self.execution_state.blocked_nodes.contains(&dependent_node)
                 || self
                     .execution_state
@@ -298,7 +326,9 @@ impl DagScheduler {
     fn are_dependencies_satisfied(&self, node_index: NodeIndex) -> bool {
         for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
             let dependency = edge.source();
-            if !self.execution_state.completed_nodes.contains(&dependency) {
+            // A dependency is satisfied if it completed OR was skipped
+            if !self.execution_state.completed_nodes.contains(&dependency) 
+                && !self.execution_state.skipped_nodes.contains(&dependency) {
                 return false;
             }
         }
@@ -461,6 +491,7 @@ impl DagScheduler {
             executing_nodes: self.execution_state.executing_nodes.len(),
             completed_nodes: self.execution_state.completed_nodes.len(),
             failed_nodes: self.execution_state.failed_nodes.len(),
+            skipped_nodes: self.execution_state.skipped_nodes.len(),
             blocked_nodes: self.execution_state.blocked_nodes.len(),
         }
     }
@@ -480,6 +511,7 @@ pub struct ExecutionStats {
     pub executing_nodes: usize,
     pub completed_nodes: usize,
     pub failed_nodes: usize,
+    pub skipped_nodes: usize,
     pub blocked_nodes: usize,
 }
 

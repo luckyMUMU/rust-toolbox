@@ -308,8 +308,13 @@ impl CliApp {
                 background,
                 wait,
                 timeout,
+                debug,
             } => {
                 info!("Executing workflow: {}", workflow_name);
+
+                if *debug {
+                    info!("Debug mode enabled - will print detailed execution report");
+                }
 
                 // Load workflow definition
                 let definition = if std::path::Path::new(workflow_name).exists() {
@@ -353,6 +358,38 @@ impl CliApp {
 
                 if let Some(_timeout_secs) = timeout {
                     debug!("Execution timeout set to {} seconds", _timeout_secs);
+                }
+
+                if *debug {
+                    println!("\n{}", formatter.format_section("DEBUG: Execution Report"));
+                    println!("Workflow ID: {}", execution.id);
+                    println!("Status: {:?}", execution.status);
+                    
+                    println!("\n{}", formatter.format_section("Node Execution Details"));
+                    // Sort nodes by completion time if available
+                    let mut nodes: Vec<_> = execution.node_states.iter().collect();
+                    nodes.sort_by(|a, b| {
+                        a.1.completed_at.cmp(&b.1.completed_at)
+                    });
+
+                    for (node_id, state) in nodes {
+                        println!("Node: {}", node_id);
+                        println!("  Status: {:?}", state.status);
+                        if let (Some(start), Some(end)) = (state.started_at, state.completed_at) {
+                             let duration = end.signed_duration_since(start);
+                             println!("  Duration: {}ms", duration.num_milliseconds());
+                        }
+                        if let Some(result) = &state.result {
+                            println!("  Result: {}", serde_json::to_string_pretty(result).unwrap_or_default());
+                        }
+                        if let Some(error) = &state.error {
+                            println!("  Error: {}", error);
+                        }
+                        println!("----------------------------------------");
+                    }
+                    
+                    println!("\n{}", formatter.format_section("Global Context"));
+                    println!("{}", serde_json::to_string_pretty(&execution.global_context).unwrap_or_default());
                 }
             }
 

@@ -93,6 +93,9 @@ tar = "0.4"
 # 压缩支持
 flate2 = "1.0"
 
+# 文件系统遍历
+walkdir = "2.3"
+
 # HTTP客户端
 reqwest = { version = "0.12", features = ["json"] }
 

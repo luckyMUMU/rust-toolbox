@@ -116,6 +116,9 @@ pub enum WorkflowError {
 
     #[error("Parameter resolution error: {0}")]
     ParameterResolutionError(String),
+
+    #[error("Invalid parameters: {0}")]
+    InvalidParameters(String),
 }
 
 impl WorkflowError {

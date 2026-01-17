@@ -200,7 +200,7 @@ impl DefaultExecutionManager {
             completed_at: None,
             current_node: None,
             node_states: std::collections::HashMap::new(),
-            global_context: serde_json::Value::Object(serde_json::Map::new()),
+            global_context: Value::Object(serde_json::Map::new()),
         };
 
         // Store initial execution state
@@ -235,10 +235,10 @@ impl DefaultExecutionManager {
                         execution.status = ExecutionStatus::Failed;
                         execution.completed_at = Some(chrono::Utc::now());
                         // Store error in global_context
-                        if let serde_json::Value::Object(ref mut map) = execution.global_context {
+                        if let Value::Object(ref mut map) = execution.global_context {
                             map.insert(
                                 "error".to_string(),
-                                serde_json::Value::String(
+                                Value::String(
                                     "Failed to acquire execution permit".to_string(),
                                 ),
                             );
@@ -268,10 +268,10 @@ impl DefaultExecutionManager {
                         execution.status = ExecutionStatus::Failed;
                         execution.completed_at = Some(chrono::Utc::now());
                         // Store error in global_context
-                        if let serde_json::Value::Object(ref mut map) = execution.global_context {
+                        if let Value::Object(ref mut map) = execution.global_context {
                             map.insert(
                                 "error".to_string(),
-                                serde_json::Value::String(error.to_string()),
+                                Value::String(error.to_string()),
                             );
                         }
                     }

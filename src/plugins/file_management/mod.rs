@@ -20,6 +20,7 @@ pub mod result_confirmation_tool;
 pub mod result_review_tool;
 pub mod rule_config;
 pub mod text_processor_tool;
+pub mod tools;
 pub mod utils;
 
 // Re-export main plugin components

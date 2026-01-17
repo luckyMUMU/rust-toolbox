@@ -179,6 +179,8 @@ pub enum ExecutionStatus {
     Cancelled,
     /// Execution timed out
     Timeout,
+    /// Execution skipped due to condition
+    Skipped,
 }
 
 impl ExecutionStatus {
@@ -186,7 +188,7 @@ impl ExecutionStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            Self::Completed | Self::Failed | Self::Cancelled | Self::Timeout
+            Self::Completed | Self::Failed | Self::Cancelled | Self::Timeout | Self::Skipped
         )
     }
 

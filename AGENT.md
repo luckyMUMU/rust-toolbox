@@ -40,6 +40,11 @@
 
 ## 🚫 3. 设计禁令 (Design Redlines)
 
+- **工具设计规范**：严格遵循 [TOOL_DESIGN_STANDARDS.md](docs/TOOL_DESIGN_STANDARDS.md)。
+    - **单一职责**：每个工具仅执行一个原子操作。
+    - **无状态**：工具应设计为纯函数，禁止内部状态依赖。
+    - **无业务逻辑**：禁止在工具内部实现复杂的分支逻辑，必须通过 Workflow 编排。
+
 - **技术栈限制**：统一使用原生 `fetch` API（禁止 Axios）；处理时间使用 `date-fns`（禁止 Moment.js）；样式使用 `Tailwind CSS`。
     
 - **类型安全**：严禁使用 `any`。所有数据结构必须有明确的 TypeScript 类型定义。
