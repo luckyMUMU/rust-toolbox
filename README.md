@@ -1,5 +1,7 @@
 # Workflow Toolkit
 
+[简体中文](./README_CN.md) | English
+
 A comprehensive multi-interface workflow execution system built with Rust that provides flexible workflow management through CLI, TUI, and MCP server interfaces with advanced file management capabilities and comprehensive system monitoring.
 
 ## Features

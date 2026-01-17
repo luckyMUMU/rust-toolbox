@@ -260,6 +260,7 @@ pub struct PluginManagerWidget {
     market_selected: usize,
 
     // Dependencies view
+    #[allow(dead_code)]
     dependency_graph: HashMap<String, Vec<String>>,
 
     // Status tracking

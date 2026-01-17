@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use workflow_toolkit::config::{Config, ConfigManager};
+use workflow_toolkit::config::Config;
 use workflow_toolkit::interfaces::cli::{Cli, CliApp};
 use workflow_toolkit::storage::{FileStorage, SimpleMemoryCache, StateManager};
 use workflow_toolkit::tools::{BasicToolRegistry, ToolRegistry};

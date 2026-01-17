@@ -129,6 +129,7 @@ pub struct TuiMemoryManager {
 
     // Widget memory tracking
     widget_usage: Arc<DashMap<String, WidgetMemoryUsage>>,
+    #[allow(dead_code)]
     usage_history: Arc<DashMap<String, Vec<MemoryUsage>>>,
 
     // Render buffer management
@@ -745,6 +746,7 @@ impl MemoryLeakDetector {
 /// TUI-specific cleanup scheduler
 pub struct TuiCleanupScheduler {
     config: Arc<RwLock<TuiMemoryConfig>>,
+    #[allow(dead_code)]
     widget_usage: Arc<DashMap<String, WidgetMemoryUsage>>,
     buffer_cache: Arc<DashMap<String, (ratatui::buffer::Buffer, Instant)>>,
     cleanup_task: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
