@@ -71,10 +71,9 @@ pub trait Plugin: Send + Sync {
 #[async_trait]
 pub trait ToolNode: Send + Sync {
     fn name(&self) -> &str;
-    fn version(&self) -> &str;
+    fn definition(&self) -> ToolInfo;
     async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value>;
     fn validate_parameters(&self, params: &Value) -> Result<()>;
-    fn get_schema(&self) -> ToolDefinition;
 }
 ```
 
@@ -1102,7 +1101,9 @@ plugins:
           method: "POST"
 ```
 
-## WASM插件开发
+## WASM插件开发 (计划中)
+
+> **注意**: WASM 插件支持目前由于依赖问题（`wasmtime` / `extism`）暂时处于禁用状态。以下文档仅供未来参考。
 
 ### 1. 创建WASM插件
 

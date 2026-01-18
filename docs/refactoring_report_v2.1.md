@@ -1,58 +1,49 @@
-# R-Flow v2.1 重构报告 (Refactoring Report)
+# R-Flow v2.1 重构报告
 
-**日期**: 2026-01-18
-**状态**: Phase 1-5 完成
-**版本**: v2.1.0-alpha
+## 1. 概述
 
-## 1. 重构概述
-本次重构旨在将 `workflow-toolkit` 升级为符合 v2.1 设计规范的 R-Flow 引擎。核心目标是实现真正的并行调度、零拷贝上下文管理和原子化工具体系。
+R-Flow v2.1 是一次重大架构升级，旨在将系统从单一的脚本执行器转型为 **工业级数字骨架 (Digital Backbone)**。本次重构引入了 LiteFlow 设计理念，实现了真正的并行调度、责任链模式执行器和细粒度的组件化架构。
 
-## 2. 变更详情
+## 2. 核心架构变更
 
-### 2.1 核心架构 (Core Architecture)
-*   **上下文 (`ExecutionContext`)**: 
-    *   从 `HashMap` 升级为 `Arc<DashMap<String, Value>>`，实现了线程安全的高并发读写。
-    *   新增 `state` 字段 (`Arc<DashMap<String, Arc<dyn Any>>>`)，支持存储运行时对象（如 AC 自动机实例、数据库连接）。
-    *   遵循 **SRP**，剥离了配置和状态管理逻辑。
-*   **工具接口 (`ToolNode`)**:
-    *   采用 `async_trait` 定义标准接口，包含 `id`, `process`, `is_access`, `rollback`。
-    *   移除了旧的 Builder 模式，遵循 **ISP**，仅暴露必要接口。
-*   **流程定义 (`FlowNode`)**:
-    *   引入递归枚举结构（Composite Pattern），支持 `Node`, `Chain`, `Parallel`, `Switch` 嵌套组合。
+### 2.1 工作流引擎 (RefactoredWorkflowEngine)
 
-### 2.2 编排引擎 (Orchestration Engine)
-*   **调度器 (`DagScheduler`)**:
-    *   **完全重写**：弃用了 `petgraph`，改用递归遍历执行。
-    *   **真并行 (`True Parallelism`)**: 在 `WHEN` (Parallel) 分支中使用 `tokio::spawn` 分发任务，实现了物理级并行。
-    *   解决了递归异步函数的 `Send` 和 `Box` 问题。
+*   **LiteFlow 架构**: 废弃了旧版 `DefaultWorkflowEngine`，采用了基于 DAG 和组件的 `RefactoredWorkflowEngine`。
+*   **Executor Chain**: 引入责任链模式，将横切关注点分离：
+    *   `AuditExecutor`: 审计
+    *   `CacheExecutor`: 缓存
+    *   `RetryExecutor`: 重试
+    *   `BasicExecutor`: 基础执行
+*   **真正并行**: 利用 `tokio::spawn` 和 `futures::join_all` 实现无锁并行执行。
 
-### 2.3 工具体系 (Tool System)
-*   **AC 自动机工具组 (New)**:
-    *   实现了 `ac-manager` (初始化), `ac-pattern-pusher` (添加模式), `ac-matcher` (匹配)。
-    *   利用 `ExecutionContext.state` 在不同工具间共享 `RwLock<AhoCorasickMatcher>`。
-*   **基础工具**:
-    *   重构了 `data-cache` 和 `data-transform` 以适配新接口。
+### 2.2 TUI 界面 (New TUI Architecture)
 
-### 2.4 目录结构 (Directory Structure)
-调整后的 5 层架构：
-```text
-src/
-├── core/           # Context, ToolNode, FlowNode, Config
-├── workflow/       # DagScheduler, WorkflowEngine
-├── tools/          # Atomic Tools
-│   ├── base/       # Data Tools
-│   ├── algo/       # AC Automaton
-│   └── fs/         # File Tools (Placeholder)
-├── plugins/        # (Temporarily Disabled)
-└── interfaces/     # (Temporarily Disabled)
-```
+*   **Widget Trait**: 重构了 TUI 组件系统，所有界面元素（如 `ToolManager`, `SystemStatus`）都实现了统一的 `Widget` trait。
+*   **EnhancedTuiApp**: 新的 TUI 应用入口，支持更灵活的布局和事件处理。
+*   **系统监控**: 增强了系统状态监控，支持 `NetworkStatus`（包括 `Degraded` 状态）和更详细的健康评估。
 
-## 3. 验证结果
-*   **集成测试 (`tests/integration_test.rs`)**: 
-    *   场景: 初始化 AC 自动机 -> 动态添加模式串 -> 文本匹配。
-    *   结果: **PASS**。验证了上下文共享、工具协同和调度器执行逻辑。
+### 2.3 核心数据结构 (Core Definitions)
 
-## 4. 后续计划 (Next Steps)
-1.  **CLI 迁移**: 重写 `src/interfaces/cli` 以适配新的 `WorkflowEngine`。
-2.  **插件适配**: 更新 `src/plugins` 下的 Python/Node.js 插件以实现新 `ToolNode` trait。
-3.  **Engine 增强**: 在 `WorkflowEngine` 中恢复 Audit Log 和 Persistence 功能。
+*   **ToolInfo**: 统一了工具元数据定义，支持 `parameters_schema` (JSON Schema)。
+*   **SystemStatus**: 优化了字段类型（`u32` -> `usize`/`f64`），提高了精度和兼容性。
+*   **AuthConfig & RateLimitConfig**: 完善了配置结构，支持更细粒度的控制。
+
+## 3. 插件系统
+
+*   **多语言支持**: 完善了 Native (Rust), Python, Node.js, Docker 插件的支持。
+*   **WASM 状态**: 由于依赖库兼容性问题，WASM 支持暂时禁用。
+*   **统一接口**: 插件通过 `Plugin` 和 `ToolNode` trait 与核心系统交互。
+
+## 4. 迁移指南
+
+### 4.1 配置文件
+
+旧版配置文件可能需要更新以匹配新的 `AuthConfig` 和 `RateLimitConfig` 结构。
+
+### 4.2 工具开发
+
+开发者在实现自定义工具时，应实现新的 `ToolNode` trait，并返回 `ToolInfo` 而非 `ToolDefinition`。
+
+## 5. 总结
+
+本次重构显著提升了系统的可维护性、扩展性和性能，为后续集成更多 AI 能力和复杂编排场景奠定了坚实基础。

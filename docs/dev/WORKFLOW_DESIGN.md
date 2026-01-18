@@ -203,9 +203,8 @@ pub trait Component: Send + Sync {
     /// 执行组件逻辑
     async fn execute(
         &self, 
-        ctx: &mut ComponentContext, 
-        params: Value
-    ) -> Result<Value>;
+        ctx: &mut DataContext, 
+    ) -> Result<ComponentOutput>;
 }
 ```
 
@@ -215,12 +214,14 @@ pub trait Component: Send + Sync {
 
 ```rust
 #[async_trait]
-pub trait WorkflowExecutor: Send + Sync {
+pub trait Executor: Send + Sync {
+    /// Execute a component through this executor.
     async fn execute(
         &self,
-        context: &mut ExecutionContext,
-        node: &WorkflowNode,
-    ) -> Result<NodeExecutionResult>;
+        component: &dyn Component,
+        context: &mut DataContext,
+        execution_ctx: &ExecutionContext,
+    ) -> Result<ComponentOutput>;
 }
 ```
 

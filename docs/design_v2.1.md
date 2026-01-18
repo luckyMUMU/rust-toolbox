@@ -44,39 +44,28 @@
 
 ### 2.2 第二层：编排引擎层 (Orchestration Engine - The Core)
 
-这是系统的“大脑”，负责解析规则并调度执行。核心借鉴 LiteFlow 的流程控制：
+这是系统的“大脑”，负责解析规则并调度执行。核心采用 **LiteFlow** 的流程控制思想，并结合 **责任链模式 (Chain of Responsibility)** 实现：
 
-* 
-**EL 解析器 (EL Parser)**：支持类似 LiteFlow 的语义 `THEN(a, WHEN(b, c), SWITCH(d))` 。
-
-
+* **RefactoredWorkflowEngine**: 新一代引擎核心，支持细粒度的组件执行控制。
+* **执行器链 (Executor Chain)**：
+    * **AuditExecutor**: 负责审计日志记录。
+    * **CacheExecutor**: 负责结果缓存与命中。
+    * **RetryExecutor**: 负责错误重试策略 (Exponential/Linear/Fixed)。
+    * **BasicExecutor**: 负责最终组件调用。
 * **真正的并行调度 (True Parallelism)**：
-* 利用 Rust 的 `tokio` 运行时，将 `WHEN` 语义下的组件映射为 `tokio::spawn` 任务 。
-
-
-* 通过 `futures::join_all` 实现无锁等待，相比 Java 线程池模型，上下文切换开销降低至微秒级 。
-
-
-
-
-* 
-**隐式子流程 (Implicit Sub-flow)**：允许在一个组件内部通过代码动态调用另一个完整的流程链，实现递归式的逻辑复用 。
-
-
+    * 利用 Rust 的 `tokio` 运行时，将 `WHEN` 语义下的组件映射为 `tokio::spawn` 任务 。
+    * 通过 `futures::future::join_all` 实现无锁等待。
+* **隐式子流程 (Implicit Sub-flow)**：允许在一个组件内部通过代码动态调用另一个完整的流程链。
 
 ### 2.3 第三层：组件与工具层 (Components & Tools)
 
-所有执行单元实现统一的 `NodeComponent` Trait。
+所有执行单元实现统一的 `Component` Trait。
 
 #### **简单工具 (Simple Tools - Atomic)**
-
 * **定义**：无状态、原子化、纯函数式操作。
 * **实现**：Rust 原生代码，极低开销。
-* **示例**：`FileReader`, `JsonParser`, `HttpRequest`, `VectorEmbed`。
-* 
-**特性**：遵循单一职责原则 (SRP) 。
-
-
+* **示例**：`EchoTool`, `FileReadTool`, `HttpTool`。
+* **特性**：遵循单一职责原则 (SRP)，通过 `ToolInfo` 定义元数据（参数 Schema、返回值 Schema）。
 
 #### **复杂工具 (Complex Tools - Composite)**
 
@@ -92,29 +81,16 @@
 
 解决 Rust 静态编译与动态业务需求的矛盾，支持 **ABI 稳定** 的插件系统 。
 
-* 
-**Native 插件**：使用 `abi_stable` crate 加载 Rust 动态库 (.so/.dll)，性能损耗近乎为零 。
-
-
-* 
-**WASM 沙箱**：集成 `wasmtime`，允许用户使用 Python/JS/Go 编写逻辑，并在受限沙箱中运行，确保主进程安全 。
-
-
-* 
-**热重载机制 (Hot Reload)**：支持在不重启主进程的情况下，动态卸载并重新加载插件或规则文件 。
-
-
+* **Native 插件**：使用 `abi_stable` crate 加载 Rust 动态库 (.so/.dll)，性能损耗近乎为零 。
+* **脚本插件**：支持 **Python** 和 **Node.js** 插件，通过 IPC 或内嵌运行时执行。
+* **Docker 插件**：支持通过 Docker 容器运行隔离的工具。
+* **WASM 沙箱 (计划中)**：集成 `wasmtime`，目前由于依赖问题暂时禁用，未来将支持完全沙箱化的插件执行。
+* **热重载机制 (Hot Reload)**：支持在不重启主进程的情况下，动态卸载并重新加载插件或规则文件 。
 
 ### 2.5 第五层：数据与状态层 (Data & Persistence)
 
-* 
-**上下文槽 (Context Slot)**：使用 `Arc<DashMap<String, Value>>` 实现线程安全的“工作台”，支持高并发读写 。
-
-
-* 
-**时间旅行 RAG (Persistence)**：集成 **LanceDB**，不仅存储向量数据，还利用其版本化特性记录每一次执行的上下文快照，实现“时间旅行”式的审计与回滚 。
-
-
+* **上下文槽 (Context Slot)**：使用 `Arc<DashMap<String, Value>>` 实现线程安全的“工作台”，支持高并发读写 。
+* **时间旅行 RAG (Persistence)**：集成 **LanceDB**，不仅存储向量数据，还利用其版本化特性记录每一次执行的上下文快照，实现“时间旅行”式的审计与回滚 。
 
 ---
 
@@ -122,24 +98,21 @@
 
 ### 3.1 定义工具 (Defining Tools)
 
-所有的工具（无论是 Rust 原生还是 WASM 插件）都必须实现以下 Trait：
+所有的工具（无论是 Rust 原生还是插件）都通过 `ToolNode` Trait 定义，并由 `ToolRegistry` 管理：
 
 ```rust
 #[async_trait]
 pub trait ToolNode: Send + Sync {
+    // 获取工具定义（元数据、Schema）
+    fn definition(&self) -> ToolInfo;
+    
     // 核心执行逻辑
-    async fn process(&self, ctx: &ExecutionContext) -> Result<ToolOutput>;
+    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value>;
     
-    // 准入判断 (对应 LiteFlow isAccess)
-    async fn is_access(&self, ctx: &ExecutionContext) -> bool { true }
-    
-    // 异常回调 (对应 LiteFlow rollback)
-    async fn rollback(&self, ctx: &ExecutionContext) -> Result<()> { Ok(()) }
+    // 参数校验
+    fn validate_parameters(&self, params: &Value) -> Result<()> { ... }
 }
-
 ```
-
-
 
 ### 3.2 编排规则 (Orchestration Rules)
 
