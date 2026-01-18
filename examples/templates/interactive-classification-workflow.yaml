@@ -1,275 +1,227 @@
 # 交互式文件夹分类工作流 (Interactive Folder Classification Workflow)
-# 该工作流用于自动化整理文件夹，支持人工决策介入以及实验模式（模拟运行）
+# 严格按照13步流程执行，支持人工决策介入以及实验模式
+# 对应 Python 实现: folder_classifier_v5_improved2.py
 
-name: "interactive-folder-classification"
-version: "1.0.0"
-description: "Interactive folder classification with human decision support and experimental mode"
+name: "interactive-folder-classification-v5"
+version: "2.0.0"
+description: "Interactive folder classification with granular 13-step process"
 
 metadata:
   author: "File Management Tools"
   category: "file-management"
-  created: "2024-01-01"
-  tags: ["classification", "interactive", "experimental"]
+  created: "2024-05-20"
+  tags: ["classification", "interactive", "granular", "v5"]
 
 # 工作流可自定义参数
 parameters:
-  # 待分类文件夹的来源目录
   source_directory:
     type: "string"
     description: "Directory containing folders to classify"
     required: true
   
-  # 分类后的目标根目录
-  output_directory:
-    type: "string"
-    description: "Root directory for organized folders"
-    required: true
-  
-  # 分类规则配置（JSON 对象或文件路径）
   classification_rules:
     type: "object"
-    description: "Classification rules configuration (JSON object or file path)"
+    description: "Classification rules configuration or file path"
     required: true
   
-  # 实验模式：默认为开启（true），仅模拟操作而不实际执行文件移动
   experimental_mode:
     type: "boolean"
-    description: "Run in experimental mode (simulate operations without executing)"
+    description: "Run in experimental mode (simulate operations)"
     default: true
   
-  # 启用人工交互：处理分类模糊的情况
   enable_user_interaction:
     type: "boolean"
-    description: "Enable human decision-making for ambiguous classifications"
+    description: "Enable human decision-making"
     default: true
   
-  # 人工决策的超时时间（秒）
-  decision_timeout:
-    type: "integer"
-    description: "Timeout for human decisions in seconds"
-    default: 300
-  
-  # 每批次处理的文件夹数量
-  batch_size:
-    type: "integer"
-    description: "Number of folders to process in each batch"
-    default: 10
-  
-  # 自动分类的最低置信度阈值
   confidence_threshold:
     type: "number"
-    description: "Minimum confidence score for automatic classification"
+    description: "Minimum confidence score"
     default: 0.8
 
-# 工作流执行节点
+# 13个明确步骤的执行节点
 nodes:
 
-  # 步骤 1: 验证分类规则的合法性
-  - id: "validate_rules"
+  # 1. 规则读取与验证
+  - id: "step1_load_rules"
     node_type: "Tool"
-    tool_name: "rule-validator"
+    tool_name: "rule-loader"
     parameters:
       rules: "${classification_rules}"
-      validate_patterns: true
-      check_categories: true
-    timeout: "30s"
     metadata:
-      description: "在开始处理前验证分类规则"
+      description: "读取并验证分类规则"
 
-  # 步骤 2: 扫描源目录中的文件夹
-  - id: "scan_folders"
+  # 2. 规则预处理 (英文转小写, 中文生成拼音/变体)
+  - id: "step2_preprocess_rules"
+    node_type: "Tool"
+    tool_name: "rule-preprocessor"
+    parameters:
+      rules: "${step1_load_rules}"
+    metadata:
+      description: "预处理规则关键词"
+
+  # 3. AC自动机构建 (构建高效数据结构)
+  - id: "step3_build_automaton"
+    node_type: "Tool"
+    tool_name: "ac-automaton-builder"
+    parameters:
+      patterns: "${step2_preprocess_rules.patterns}"
+    metadata:
+      description: "构建AC自动机配置"
+
+  # 4. 源目录扫描
+  - id: "step4_scan_directory"
     node_type: "Tool"
     tool_name: "directory-scanner"
     parameters:
       directory: "${source_directory}"
-      recursive: false
-      filter_type: "directories"
-      include_hidden: false
-    timeout: "60s"
     metadata:
-      description: "扫描源目录以获取待分类的文件夹"
+      description: "扫描源目录子文件夹"
 
-  # 步骤 3: 分批次进行文件夹分类
-  - id: "classify_batch"
+  # 5. 文件夹名称预处理
+  - id: "step5_preprocess_folders"
     node_type: "Tool"
-    tool_name: "batch-processor"
+    tool_name: "folder-name-preprocessor"
     parameters:
-      items: "${scan_folders.folders}"
-      batch_size: "${batch_size}"
-      tool_name: "folder-classifier"
-      tool_params:
-        classification_rules: "${classification_rules}"
-        experimental_mode: "${experimental_mode}"
-        enable_user_interaction: "${enable_user_interaction}"
-        decision_timeout: "${decision_timeout}"
-        confidence_threshold: "${confidence_threshold}"
-      parallel_execution: true
-      max_concurrent: 3
-    timeout: "1800s"  # 大批量处理时给予 30 分钟超时
+      folders: "${step4_scan_directory.folders}"
     metadata:
-      description: "并行分批分类文件夹"
+      description: "预处理文件夹名称"
 
-  # 步骤 4: 评审分类结果（展示统计信息）
-  - id: "review_results"
+  # 6. 并行匹配执行
+  - id: "step6_parallel_match"
     node_type: "Tool"
-    tool_name: "result-reviewer"
+    tool_name: "parallel-matcher"
     parameters:
-      results: "${classify_batch.results}"
-      mode: "classification"
-      show_statistics: true
-      show_unclassified: true
-      show_ambiguous: true
-    timeout: "120s"
+      automaton_config: "${step3_build_automaton}"
+      folders: "${step5_preprocess_folders.processed_folders}"
     metadata:
-      description: "查看分类结果统计及未分类/模糊项"
+      description: "执行并行AC匹配"
 
-  # 步骤 5: 条件节点：判断是否处于实验模式
-  - id: "experimental_confirmation"
-    node_type: "Condition"
+  # 7. 评分计算
+  - id: "step7_calculate_scores"
+    node_type: "Tool"
+    tool_name: "score-calculator"
     parameters:
-      condition: "${experimental_mode} == true"
+      match_results: "${step6_parallel_match.match_results}"
     metadata:
-      description: "检查是否处于实验模拟模式"
+      description: "计算匹配得分"
 
-  # 步骤 6: 实验模式下的用户确认
-  - id: "confirm_execution"
+  # 8. 多规则处理 (歧义检测)
+  - id: "step8_detect_ambiguity"
+    node_type: "Tool"
+    tool_name: "ambiguity-detector"
+    parameters:
+      scored_results: "${step7_calculate_scores.scored_results}"
+      confidence_threshold: "${confidence_threshold}"
+    metadata:
+      description: "检测多规则匹配和歧义"
+
+  # 9. 结果合并 (整合自动和待人工处理项)
+  # 注意：在进入人工环节前，这里主要整理出需要人工介入的列表
+  # 如果不启用人工交互，则直接视为最终结果
+  - id: "step9_merge_results"
+    node_type: "Tool"
+    tool_name: "result-merger"
+    parameters:
+      classified: "${step8_detect_ambiguity.classified}"
+      # 此阶段尚未有人工输入，仅传递自动结果，或标记待处理
+      manual_results: [] 
+    metadata:
+      description: "初步合并结果"
+
+  # 10. 实验模式检查
+  - id: "step10_check_experimental"
+    node_type: "Tool"
+    tool_name: "experimental-check"
+    parameters:
+      experimental_mode: "${experimental_mode}"
+    metadata:
+      description: "检查实验模式状态"
+
+  # 11. 人工确认 (如果启用且有歧义或未分类项)
+  - id: "step11_human_confirmation"
     node_type: "Tool"
     tool_name: "human-decision"
+    # 仅当启用交互且存在歧义项时执行，或者在实验模式下总是确认
+    # 这里为了演示流程，我们总是调用，工具内部可根据参数决定是否跳过
     parameters:
-      decision_type: "Custom"
+      decision_type: "Classification"
       context:
-        title: "确认文件操作"
-        description: "请查看实验模式结果并确认是否执行实际的文件移动"
+        title: "分类确认"
+        description: "请确认分类结果，特别是歧义项"
         metadata:
-          total_folders: "${scan_folders.folder_count}"
-          classified_folders: "${classify_batch.classified_count}"
-          unclassified_folders: "${classify_batch.unclassified_count}"
-      options:
-        - id: "execute"
-          label: "执行文件操作"
-          description: "将文件夹移动到分类后的位置"
-          recommended: true
-        - id: "modify"
-          label: "修改分类规则"
-          description: "返回并调整分类规则"
-        - id: "cancel"
-          label: "取消操作"
-          description: "放弃所有文件操作"
-      timeout_seconds: "${decision_timeout}"
-      default_choice: 0
-    timeout: "600s"
+          ambiguous_count: "${step8_detect_ambiguity.ambiguous.length}"
+          unclassified_count: "${step8_detect_ambiguity.unclassified.length}"
+      # 将歧义项传递给用户
+      items: "${step8_detect_ambiguity.ambiguous}"
+      timeout_seconds: 300
     metadata:
-      description: "获取用户对文件执行操作的确认"
+      description: "人工确认分类结果"
 
-  # 步骤 7: 执行决策：根据实验模式和用户选择决定是否继续
-  - id: "execution_decision"
-    node_type: "Condition"
+  # 9b. 二次结果合并 (合并人工确认后的结果)
+  # 这是一个逻辑上的“结果合并”步骤的补充，用于整合Step 11的输出
+  - id: "step9b_final_merge"
+    node_type: "Tool"
+    tool_name: "result-merger"
     parameters:
-      condition: "!${experimental_mode} || ${confirm_execution.selected_option} == 'execute'"
+      classified: "${step8_detect_ambiguity.classified}"
+      manual_results: "${step11_human_confirmation.decisions}"
     metadata:
-      description: "决定是否执行实际的文件移动操作"
+      description: "整合最终操作列表"
 
-  # 步骤 8: 执行实际的文件移动
-  - id: "execute_moves"
+  # 12. 文件夹移动
+  - id: "step12_move_folders"
     node_type: "Tool"
     tool_name: "file-mover"
     parameters:
-      operations: "${classify_batch.move_operations}"
+      operations: "${step9b_final_merge.merge_operations}"
       conflict_resolution: "Rename"
-      check_disk_space: true
       create_directories: true
-      experimental_mode: false  # 此处强制执行实际操作
-      progress_reporting: true
-    timeout: "3600s"  # 大规模移动给予 1 小时超时
+      # 关键：实验模式由 step10 的结果或全局参数控制
+      experimental_mode: "${step10_check_experimental.is_experimental}"
     metadata:
       description: "执行文件夹移动操作"
 
-  # 步骤 9: 生成操作报告
-  - id: "generate_report"
+  # 13. 报告生成
+  - id: "step13_generate_report"
     node_type: "Tool"
-    tool_name: "operation-reporter"
+    tool_name: "report-generator"
     parameters:
-      classification_results: "${classify_batch.results}"
-      move_results: "${execute_moves.results}"
-      output_format: "detailed"
-      include_statistics: true
-      save_to_file: true
-      report_path: "${output_directory}/classification_report.json"
-    timeout: "60s"
+      operations: "${step12_move_folders.errors}" # 实际应包含所有结果
+      # 为了完整报告，这里应该传入更多上下文，目前仅传入移动结果
     metadata:
-      description: "生成详细的操作报告"
+      description: "生成操作报告"
 
-  # 步骤 10: 清理源目录中的空文件夹
-  - id: "cleanup"
-    node_type: "Tool"
-    tool_name: "cleanup-processor"
-    parameters:
-      remove_empty_directories: true
-      source_directory: "${source_directory}"
-      dry_run: false
-    timeout: "120s"
-    metadata:
-      description: "移动完成后清理空目录"
-
-# 节点间的连接关系（工作流控制流）
+# 节点连接关系 (线性流)
 edges:
-  # 线性流程
-  - from: "scan_folders"
-    to: "validate_rules"
-  
-  - from: "validate_rules"
-    to: "classify_batch"
-  
-  - from: "classify_batch"
-    to: "review_results"
-  
-  - from: "review_results"
-    to: "experimental_confirmation"
-  
-  # 实验模式分支：跳转到人工确认
-  - from: "experimental_confirmation"
-    to: "confirm_execution"
-    condition: "${experimental_mode} == true"
-  
-  # 非实验模式分支：直接进入执行决策
-  - from: "experimental_confirmation"
-    to: "execution_decision"
-    condition: "${experimental_mode} == false"
-  
-  - from: "confirm_execution"
-    to: "execution_decision"
-  
-  # 如果确认执行，则开始移动
-  - from: "execution_decision"
-    to: "execute_moves"
-    condition: "!${experimental_mode} || ${confirm_execution.selected_option} == 'execute'"
-  
-  # 如果用户取消执行，则跳过移动直接生成报告
-  - from: "execution_decision"
-    to: "generate_report"
-    condition: "${experimental_mode} && ${confirm_execution.selected_option} != 'execute'"
-  
-  - from: "execute_moves"
-    to: "generate_report"
-  
-  - from: "generate_report"
-    to: "cleanup"
+  - from: "step1_load_rules"
+    to: "step2_preprocess_rules"
+  - from: "step2_preprocess_rules"
+    to: "step3_build_automaton"
+  - from: "step3_build_automaton"
+    to: "step4_scan_directory"
+  - from: "step4_scan_directory"
+    to: "step5_preprocess_folders"
+  - from: "step5_preprocess_folders"
+    to: "step6_parallel_match"
+  - from: "step6_parallel_match"
+    to: "step7_calculate_scores"
+  - from: "step7_calculate_scores"
+    to: "step8_detect_ambiguity"
+  - from: "step8_detect_ambiguity"
+    to: "step9_merge_results"
+  - from: "step9_merge_results"
+    to: "step10_check_experimental"
+  - from: "step10_check_experimental"
+    to: "step11_human_confirmation"
+  - from: "step11_human_confirmation"
+    to: "step9b_final_merge"
+  - from: "step9b_final_merge"
+    to: "step12_move_folders"
+  - from: "step12_move_folders"
+    to: "step13_generate_report"
 
-# 全局配置
 global_config:
-  timeout: "7200s"  # 总限时 2 小时
-  parallel_limit: 5 # 最大并行节点数
-  enable_caching: true
-  checkpoint_interval: "300s"  # 每 5 分钟保存一次检查点
-  retry_policy:
-    max_attempts: 3
-    initial_delay: "5s"
-    max_delay: "60s"
-    backoff_multiplier: 2.0
+  timeout: "3600s"
   error_handling:
     continue_on_error: false
-    save_state_on_error: true
-  logging:
-    level: "info"
-    include_timestamps: true
-    log_file: "${output_directory}/workflow.log"

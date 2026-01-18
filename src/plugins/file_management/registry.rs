@@ -60,6 +60,11 @@ impl FileManagementToolRegistry {
             tools.push(tool);
         }
 
+        // Register granular classification flow tools
+        if let Ok(mut flow_tools) = self.register_classification_flow_tools() {
+            tools.append(&mut flow_tools);
+        }
+
         if let Ok(tool) = self.register_batch_processor_tool() {
             tools.push(tool);
         }
@@ -100,6 +105,68 @@ impl FileManagementToolRegistry {
             .insert("text-processor".to_string(), tool_arc.clone());
 
         Ok(tool_arc)
+    }
+
+    /// Register all classification flow tools (granular steps)
+    fn register_classification_flow_tools(&mut self) -> Result<Vec<Arc<dyn ToolNode>>> {
+        let mut tools: Vec<Arc<dyn ToolNode>> = Vec::new();
+
+        // 1. Rule Loader
+        let tool = Arc::new(super::classification_flow::RuleLoaderTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 2. Rule Preprocessor
+        let tool = Arc::new(super::classification_flow::RulePreprocessorTool::new(self.config.enable_chinese_processing));
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 3. Automaton Builder
+        let tool = Arc::new(super::classification_flow::AutomatonBuilderTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 4. Directory Scanner
+        let tool = Arc::new(super::classification_flow::DirectoryScannerTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 5. Folder Name Preprocessor
+        let tool = Arc::new(super::classification_flow::FolderNamePreprocessorTool::new(self.config.enable_chinese_processing));
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 6. Parallel Matcher
+        let tool = Arc::new(super::classification_flow::ParallelMatcherTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 7. Score Calculator
+        let tool = Arc::new(super::classification_flow::ScoreCalculatorTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 8. Ambiguity Detector
+        let tool = Arc::new(super::classification_flow::AmbiguityDetectorTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 9. Result Merger
+        let tool = Arc::new(super::classification_flow::ResultMergerTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 10. Experimental Check
+        let tool = Arc::new(super::classification_flow::ExperimentalCheckTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        // 13. Report Generator
+        let tool = Arc::new(super::classification_flow::ReportGeneratorTool);
+        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        tools.push(tool);
+
+        Ok(tools)
     }
 
     /// Register the AC matcher tool

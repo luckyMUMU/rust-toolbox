@@ -7,6 +7,7 @@ pub mod ac_automaton;
 pub mod batch_confirmation_tool;
 pub mod batch_processor;
 pub mod batch_processor_tool;
+pub mod classification_flow;
 pub mod classification_tool;
 pub mod error;
 pub mod error_recovery;
@@ -30,6 +31,11 @@ pub use batch_processor::{
 pub use batch_processor_tool::{
     BatchItemParams, BatchProcessingMode, BatchProcessorParams, BatchProcessorResult,
     BatchProcessorTool,
+};
+pub use classification_flow::{
+    AmbiguityDetectorTool, AutomatonBuilderTool, DirectoryScannerTool, ExperimentalCheckTool,
+    FolderNamePreprocessorTool, ParallelMatcherTool, ReportGeneratorTool, ResultMergerTool,
+    RuleLoaderTool, RulePreprocessorTool, ScoreCalculatorTool,
 };
 pub use classification_tool::{
     ClassificationCandidate, ClassificationEngine, ClassificationOutputFormat,
