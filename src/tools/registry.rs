@@ -120,7 +120,7 @@ impl BasicToolRegistry {
         self.tool_info_cache
             .iter()
             .filter_map(|entry| {
-                let info = entry.value();
+                let info: &ToolInfo = entry.value();
                 if info.category.as_ref().map_or(false, |c| c == category) {
                     Some(info.clone())
                 } else {
@@ -135,7 +135,7 @@ impl BasicToolRegistry {
         self.tool_info_cache
             .iter()
             .filter_map(|entry| {
-                let info = entry.value();
+                let info: &ToolInfo = entry.value();
                 if info.tags.contains(&tag.to_string()) {
                     Some(info.clone())
                 } else {
@@ -220,7 +220,10 @@ impl ToolRegistry for BasicToolRegistry {
     fn list_tools(&self) -> Vec<ToolInfo> {
         self.tool_info_cache
             .iter()
-            .map(|entry| entry.value().clone())
+            .map(|entry| {
+                let info: &ToolInfo = entry.value();
+                info.clone()
+            })
             .collect()
     }
 
@@ -291,7 +294,7 @@ impl ToolRegistry for BasicToolRegistry {
 
         // Add all tools to the resolver
         for entry in self.tool_info_cache.iter() {
-            let info = entry.value();
+            let info: &ToolInfo = entry.value();
             let version =
                 Version::from_str(&info.version).unwrap_or_else(|_| Version::new(0, 0, 0));
             let mut tool_version = ToolVersion::new(info.name.clone(), version);
@@ -320,7 +323,10 @@ impl ToolRegistry for BasicToolRegistry {
         let tool_names: Vec<String> = self
             .tool_info_cache
             .iter()
-            .map(|entry| entry.key().clone())
+            .map(|entry| {
+                let key: &String = entry.key();
+                key.clone()
+            })
             .collect();
 
         let resolution = self.resolve_dependencies(tool_names)?;
@@ -341,7 +347,7 @@ impl ToolRegistry for BasicToolRegistry {
         self.tool_info_cache
             .iter()
             .filter_map(|entry| {
-                let info = entry.value();
+                let info: &ToolInfo = entry.value();
                 if info.dependencies.contains(&tool_name.to_string()) {
                     Some(info.clone())
                 } else {

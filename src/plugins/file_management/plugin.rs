@@ -142,6 +142,7 @@ impl FileManagementPlugin {
             plugin_type: PluginType::Native,
             description: Some("Intelligent file and folder management tools".to_string()),
             author: Some("Workflow Toolkit".to_string()),
+            homepage: None,
             metadata: {
                 let mut metadata = HashMap::new();
                 metadata.insert(

@@ -27,12 +27,14 @@
 pub mod audit;
 pub mod component;
 pub mod context;
+pub mod converter;
 pub mod definition;
 pub mod engine;
 pub mod engine_v2;
 pub mod execution;
 pub mod execution_manager;
 pub mod executor;
+pub mod flow_node;
 pub mod result_cache;
 pub mod scheduler;
 pub mod state;
@@ -75,6 +77,7 @@ pub use component::{
     ParallelComponent, ToolComponent, WaitStrategy,
 };
 pub use context::{DataContext, SlotValue};
+pub use converter::WorkflowConverter;
 pub use executor::{
     AuditExecutor, BasicExecutor, BoxedExecutor, CacheExecutor, Executor, ExecutorChainBuilder,
     RetryExecutor,
@@ -83,3 +86,4 @@ pub use state::{CheckpointManager, ControlSignals, ExecutionTracker};
 
 // Refactored engine (v2)
 pub use engine_v2::RefactoredWorkflowEngine;
+pub use flow_node::FlowNode;

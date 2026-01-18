@@ -154,8 +154,8 @@ impl SystemMonitor {
             disk_usage,
             disk_total,
             disk_used,
-            process_count,
-            thread_count,
+            process_count: process_count as usize,
+            thread_count: thread_count as usize,
             load_average,
         }
     }
@@ -203,7 +203,7 @@ impl SystemMonitor {
         let overall_score = (cpu_health_score * 0.3
             + memory_health_score * 0.3
             + disk_health_score * 0.3
-            + network_health_score * 0.1) as u8;
+            + network_health_score * 0.1);
 
         // Generate health recommendations
         let recommendations = Self::generate_health_recommendations(
@@ -215,10 +215,18 @@ impl SystemMonitor {
 
         // Assess system load and performance trends
         let load_assessment = Self::assess_system_load(status.load_average, cpu_info.core_count);
+        
+        // Generate summary message
+        let message = format!(
+            "System Health: {:?} (Score: {:.1}/100)", 
+            status.system_health, 
+            overall_score
+        );
 
         SystemHealthAssessment {
             overall_health: status.system_health,
             overall_score,
+            message,
             cpu_health_score,
             memory_health_score,
             disk_health_score,
@@ -291,6 +299,7 @@ impl SystemMonitor {
         match network_status {
             NetworkStatus::Connected => 100.0,
             NetworkStatus::Limited => 50.0,
+            NetworkStatus::Degraded => 30.0,
             NetworkStatus::Disconnected => 0.0,
         }
     }

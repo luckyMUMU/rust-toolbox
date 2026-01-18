@@ -909,6 +909,7 @@ impl SystemStatusWidget {
                     Style::default().fg(match self.current_status.network_status {
                         NetworkStatus::Connected => Color::Green,
                         NetworkStatus::Limited => Color::Yellow,
+                        NetworkStatus::Degraded => Color::Magenta,
                         NetworkStatus::Disconnected => Color::Red,
                     }),
                 ),
@@ -1682,6 +1683,7 @@ impl SystemStatusWidget {
                     Style::default().fg(match self.current_status.network_status {
                         NetworkStatus::Connected => Color::Green,
                         NetworkStatus::Limited => Color::Yellow,
+                        NetworkStatus::Degraded => Color::Magenta,
                         NetworkStatus::Disconnected => Color::Red,
                     }),
                 ),
@@ -2619,6 +2621,7 @@ impl SystemStatusWidget {
         let (status_text, status_color) = match self.current_status.network_status {
             NetworkStatus::Connected => ("已连接", Color::Green),
             NetworkStatus::Limited => ("受限连接", Color::Yellow),
+            NetworkStatus::Degraded => ("连接降级", Color::Magenta),
             NetworkStatus::Disconnected => ("未连接", Color::Red),
         };
 
@@ -2645,6 +2648,7 @@ impl SystemStatusWidget {
         let quality_score = match self.current_status.network_status {
             NetworkStatus::Connected => 100,
             NetworkStatus::Limited => 50,
+            NetworkStatus::Degraded => 30,
             NetworkStatus::Disconnected => 0,
         };
 

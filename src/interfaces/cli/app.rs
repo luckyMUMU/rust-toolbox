@@ -12,13 +12,16 @@ use crate::plugins::manager::PluginManager;
 use crate::plugins::types::PluginConfig;
 use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
-use crate::workflow::WorkflowEngine;
+use crate::workflow::{
+    RefactoredWorkflowEngine, WorkflowConverter, DataContext, ExecutionTracker,
+};
 use crate::Result;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 /// Batch configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,7 +87,7 @@ impl BatchSummary {
 /// tool registry, etc.), and handling of application state.
 pub struct CliApp {
     config_manager: Option<Arc<ConfigManager>>,
-    workflow_engine: Option<Arc<dyn WorkflowEngine>>,
+    workflow_engine: Option<Arc<RefactoredWorkflowEngine>>,
     tool_registry: Option<Arc<dyn ToolRegistry>>,
     state_manager: Option<Arc<StateManager>>,
     mcp_server: Option<Arc<dyn McpServerInterface>>,
@@ -113,7 +116,7 @@ impl CliApp {
     /// Create CLI application with all components
     pub async fn with_components(
         config_manager: Arc<ConfigManager>,
-        workflow_engine: Arc<dyn WorkflowEngine>,
+        workflow_engine: Arc<RefactoredWorkflowEngine>,
         tool_registry: Arc<dyn ToolRegistry>,
         state_manager: Arc<StateManager>,
     ) -> Self {
@@ -289,8 +292,6 @@ impl CliApp {
                     return Ok(());
                 }
 
-                // TODO: Save workflow definition to registry
-                // For now, just validate and report success
                 println!(
                     "{}",
                     formatter.format_success(&format!(
@@ -306,189 +307,77 @@ impl CliApp {
                 params,
                 params_json,
                 background,
-                wait,
-                timeout,
-                debug,
+                wait: _,
+                timeout: _,
             } => {
                 info!("Executing workflow: {}", workflow_name);
-
-                if *debug {
-                    info!("Debug mode enabled - will print detailed execution report");
-                }
 
                 // Load workflow definition
                 let definition = if std::path::Path::new(workflow_name).exists() {
                     self.load_workflow_definition(&PathBuf::from(workflow_name))
                         .await?
                 } else {
-                    // Try to load from state manager as a saved workflow
-                    // For now, return error since we don't have a workflow registry yet
                     return Err(crate::WorkflowError::NotFound {
                         resource: format!("workflow '{}'", workflow_name),
                     }
                     .into());
                 };
 
-                // Parse parameters
-                let _params = self
+                // Convert to FlowNode using WorkflowConverter
+                let flow = WorkflowConverter::convert(&definition)?;
+
+                // Prepare data context
+                let mut context = DataContext::new();
+                let workflow_params = self
                     .parse_workflow_params(params.clone(), params_json.clone())
                     .await?;
+                context.set_input_params(workflow_params)?;
 
-                // Execute workflow
-                let execution = engine.execute_workflow(definition).await?;
+                // Create execution tracker
+                let workflow_id = Uuid::new_v4();
+                let tracker = Arc::new(ExecutionTracker::new(workflow_id, &definition.name));
+                tracker.mark_running().await;
+
+                println!(
+                    "{}",
+                    formatter.format_success(&format!("Workflow started with ID: {}", workflow_id))
+                );
 
                 if *background {
-                    println!(
-                        "{}",
-                        formatter.format_success(&format!(
-                            "Workflow started in background with ID: {}",
-                            execution.id
-                        ))
-                    );
-                } else if *wait {
-                    // TODO: Implement progress monitoring
-                    println!("{}", formatter.format_workflow_status(&execution));
-                } else {
-                    println!(
-                        "{}",
-                        formatter
-                            .format_success(&format!("Workflow started with ID: {}", execution.id))
-                    );
-                }
+                    let engine = engine.clone();
+                    let flow = flow.clone();
+                    let mut context = context.clone();
+                    let tracker = tracker.clone();
 
-                if let Some(_timeout_secs) = timeout {
-                    debug!("Execution timeout set to {} seconds", _timeout_secs);
-                }
-
-                if *debug {
-                    println!("\n{}", formatter.format_section("DEBUG: Execution Report"));
-                    println!("Workflow ID: {}", execution.id);
-                    println!("Status: {:?}", execution.status);
-                    
-                    println!("\n{}", formatter.format_section("Node Execution Details"));
-                    // Sort nodes by completion time if available
-                    let mut nodes: Vec<_> = execution.node_states.iter().collect();
-                    nodes.sort_by(|a, b| {
-                        a.1.completed_at.cmp(&b.1.completed_at)
+                    tokio::spawn(async move {
+                        if let Err(e) = engine.execute_flow(&flow, &mut context, tracker.clone()).await {
+                            tracing::error!("Background execution failed: {}", e);
+                            let _ = tracker.mark_node_failed("root", &e.to_string());
+                        } else {
+                            tracker.mark_completed().await;
+                        }
                     });
-
-                    for (node_id, state) in nodes {
-                        println!("Node: {}", node_id);
-                        println!("  Status: {:?}", state.status);
-                        if let (Some(start), Some(end)) = (state.started_at, state.completed_at) {
-                             let duration = end.signed_duration_since(start);
-                             println!("  Duration: {}ms", duration.num_milliseconds());
+                } else {
+                    match engine.execute_flow(&flow, &mut context, tracker.clone()).await {
+                        Ok(_) => {
+                            tracker.mark_completed().await;
+                            println!("{}", formatter.format_success("Workflow completed successfully"));
                         }
-                        if let Some(result) = &state.result {
-                            println!("  Result: {}", serde_json::to_string_pretty(result).unwrap_or_default());
+                        Err(e) => {
+                            let _ = tracker.mark_node_failed("root", &e.to_string());
+                            println!("{}", formatter.format_error(&format!("Workflow failed: {}", e)));
                         }
-                        if let Some(error) = &state.error {
-                            println!("  Error: {}", error);
-                        }
-                        println!("----------------------------------------");
                     }
-                    
-                    println!("\n{}", formatter.format_section("Global Context"));
-                    println!("{}", serde_json::to_string_pretty(&execution.global_context).unwrap_or_default());
                 }
             }
 
-            WorkflowAction::Status {
-                workflow_id,
-                detailed,
-                follow,
-                interval,
-            } => {
-                info!("Getting status for workflow: {}", workflow_id);
-
-                let workflow_uuid = workflow_id.parse().map_err(|_| {
-                    CliError::InvalidArguments("Invalid workflow ID format".to_string())
-                })?;
-
-                if *follow {
-                    // TODO: Implement real-time status following
-                    warn!("Follow mode not yet implemented, showing current status");
-                    debug!("Would refresh every {} seconds", interval);
-                }
-
-                let status = engine.get_workflow_status(workflow_uuid).await?;
-
-                if *detailed {
-                    // TODO: Get detailed execution info
-                    println!("Status: {:?}", status);
-                } else {
-                    println!("Status: {:?}", status);
-                }
-            }
-
-            WorkflowAction::Pause { workflow_id } => {
-                info!("Pausing workflow: {}", workflow_id);
-
-                let workflow_uuid = workflow_id.parse().map_err(|_| {
-                    CliError::InvalidArguments("Invalid workflow ID format".to_string())
-                })?;
-
-                engine.pause_workflow(workflow_uuid).await?;
-                println!(
-                    "{}",
-                    formatter.format_success(&format!("Workflow {} paused", workflow_id))
-                );
-            }
-
-            WorkflowAction::Resume { workflow_id } => {
-                info!("Resuming workflow: {}", workflow_id);
-
-                let workflow_uuid = workflow_id.parse().map_err(|_| {
-                    CliError::InvalidArguments("Invalid workflow ID format".to_string())
-                })?;
-
-                engine.resume_workflow(workflow_uuid).await?;
-                println!(
-                    "{}",
-                    formatter.format_success(&format!("Workflow {} resumed", workflow_id))
-                );
-            }
-
-            WorkflowAction::Stop { workflow_id, force } => {
-                info!("Stopping workflow: {} (force: {})", workflow_id, force);
-
-                let workflow_uuid = workflow_id.parse().map_err(|_| {
-                    CliError::InvalidArguments("Invalid workflow ID format".to_string())
-                })?;
-
-                engine.stop_workflow(workflow_uuid).await?;
-                println!(
-                    "{}",
-                    formatter.format_success(&format!(
-                        "Workflow {} stopped{}",
-                        workflow_id,
-                        if *force { " (forced)" } else { "" }
-                    ))
-                );
-            }
-
-            WorkflowAction::List {
-                status,
-                recent,
-                limit,
-            } => {
-                info!(
-                    "Listing workflows (status: {:?}, recent: {}, limit: {})",
-                    status, recent, limit
-                );
-
-                // Get workflow executions from state manager
-                if let Some(_state_manager) = &self.state_manager {
-                    // TODO: Implement proper workflow listing from state manager
-                    // For now, show empty list with proper formatting
-                    let executions = Vec::new(); // Placeholder
-                    println!("{}", formatter.format_workflow_list(&executions));
-                } else {
-                    return Err(crate::WorkflowError::workflow_execution(
-                        "State manager not initialized",
-                    )
-                    .into());
-                }
+            WorkflowAction::Status { .. } | 
+            WorkflowAction::Pause { .. } | 
+            WorkflowAction::Resume { .. } | 
+            WorkflowAction::Stop { .. } | 
+            WorkflowAction::List { .. } => {
+                warn!("This command is not yet supported in the v2 engine");
+                println!("Command not supported in v2 engine yet.");
             }
         }
 
@@ -708,6 +597,7 @@ impl CliApp {
                             plugin_type: crate::core::PluginType::Native,
                             description: Some(format!("Native plugin from {}", plugin_path)),
                             author: None,
+                            homepage: None,
                             metadata: std::collections::HashMap::new(),
                         };
 
@@ -725,6 +615,7 @@ impl CliApp {
                             plugin_type: crate::core::PluginType::Python,
                             description: Some(format!("Python plugin from {}", plugin_path)),
                             author: None,
+                            homepage: None,
                             metadata: std::collections::HashMap::new(),
                         };
 
@@ -751,6 +642,7 @@ impl CliApp {
                             plugin_type: crate::core::PluginType::NodeJs,
                             description: Some(format!("Node.js plugin from {}", plugin_path)),
                             author: None,
+                            homepage: None,
                             metadata: std::collections::HashMap::new(),
                         };
 
@@ -778,6 +670,7 @@ impl CliApp {
                             plugin_type: crate::core::PluginType::Docker,
                             description: Some(format!("Docker plugin from {}", plugin_path)),
                             author: None,
+                            homepage: None,
                             metadata: std::collections::HashMap::new(),
                         };
 
@@ -1179,6 +1072,7 @@ impl CliApp {
                 ws_port,
                 auth: crate::core::AuthConfig {
                     enabled: auth,
+                    token: None,
                     jwt_secret: if auth {
                         Some("default_secret_key".to_string())
                     } else {
@@ -1191,6 +1085,8 @@ impl CliApp {
                     requests_per_minute: 60,
                     burst_size: 10,
                     enabled: true,
+                    max_requests: 1000,
+                    window_ms: 60000,
                 },
                 cors_origins: vec!["*".to_string()], // TODO: Configure properly
             };
@@ -1435,11 +1331,17 @@ impl CliApp {
 
                 let result = match definition_result {
                     Ok(definition) => {
+                        // Convert parameters to HashMap
+                        let params: std::collections::HashMap<String, serde_json::Value> = match workflow_spec.parameters.as_object() {
+                            Some(map) => map.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                            None => std::collections::HashMap::new(),
+                        };
+
                         // Execute workflow with timeout if specified
                         let execution_result = if let Some(timeout_duration) = timeout {
                             tokio::time::timeout(
                                 timeout_duration,
-                                engine.execute_workflow(definition),
+                                engine.execute(definition, params.clone()),
                             )
                             .await
                             .map_err(|_| {
@@ -1448,7 +1350,7 @@ impl CliApp {
                                 }
                             })?
                         } else {
-                            engine.execute_workflow(definition).await
+                            engine.execute(definition, params).await
                         };
 
                         match execution_result {

@@ -1301,6 +1301,7 @@ impl DockerPluginBuilder {
             plugin_type: PluginType::Docker,
             description: Some(description),
             author: None,
+            homepage: None,
             metadata: HashMap::new(),
         };
 

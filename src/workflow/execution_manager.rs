@@ -362,6 +362,9 @@ impl DefaultExecutionManager {
     /// Get detailed execution metrics
     pub async fn get_execution_metrics(&self) -> ExecutionMetrics {
         ExecutionMetrics {
+            start_time: Utc::now(),
+            end_time: None,
+            duration: None,
             active_executions: self.active_executions.len(),
             queued_executions: self.execution_handles.len(),
             total_capacity: self.concurrency_config.max_concurrent_workflows,
@@ -453,7 +456,7 @@ impl ExecutionManager for DefaultExecutionManager {
                 return Err(WorkflowError::ExecutionTimeout);
             }
 
-            let status = self.get_execution_status(handle).await?;
+            let status: ExecutionStatus = self.get_execution_status(handle).await?;
 
             if status.is_terminal() {
                 // Get final execution state

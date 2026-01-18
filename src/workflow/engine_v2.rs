@@ -26,6 +26,7 @@ use crate::workflow::component::{ComponentOutput, ComponentRegistry, ComponentSt
 use crate::workflow::context::DataContext;
 use crate::workflow::executor::{BoxedExecutor, ExecutorChainBuilder};
 use crate::workflow::scheduler::DagScheduler;
+use crate::workflow::flow_node::FlowNode;
 use crate::workflow::state::{CheckpointManager, ExecutionTracker};
 use crate::workflow::{
     AuditLogger, CacheConfig, ResultCache, WorkflowDefinition,
@@ -273,7 +274,8 @@ impl RefactoredWorkflowEngine {
             for (node_id, result) in ready_nodes.iter().zip(results.into_iter()) {
                 match result {
                     Ok(output) => {
-                        self.handle_node_success(node_id, output, tracker.clone(), scheduler)?;
+                        self.handle_node_success(node_id, output, tracker.clone(), scheduler)
+                            .await?;
                     }
                     Err(e) => {
                         self.handle_node_failure(node_id, e, tracker.clone(), scheduler)?;
@@ -365,7 +367,7 @@ impl RefactoredWorkflowEngine {
     }
 
     /// Handle successful node execution.
-    fn handle_node_success(
+    async fn handle_node_success(
         &self,
         node_id: &str,
         output: ComponentOutput,
@@ -467,6 +469,80 @@ impl RefactoredWorkflowEngine {
     pub async fn stop_workflow(&self, tracker: Arc<ExecutionTracker>) -> Result<()> {
         tracker.request_stop().await;
         Ok(())
+    }
+
+    /// Execute a FlowNode execution plan.
+    pub async fn execute_flow(
+        &self,
+        flow: &FlowNode,
+        context: &mut DataContext,
+        tracker: Arc<ExecutionTracker>,
+    ) -> Result<()> {
+        match flow {
+            FlowNode::Empty => Ok(()),
+            FlowNode::Tool { id, tool_name, params } => {
+                // Create a temporary component
+                let component = crate::workflow::component::ToolComponent::new(
+                    id,
+                    tool_name,
+                    self.tool_registry.clone(),
+                    params.clone(),
+                );
+
+                let exec_ctx = ExecutionContext::new().with_workflow_id(tracker.workflow_id());
+                
+                // Mark started
+                tracker.mark_node_started(id).await;
+                
+                // Execute
+                let result = self.executor.execute(&component, context, &exec_ctx).await;
+                
+                match result {
+                    Ok(output) => {
+                         if output.status.is_success() {
+                            tracker.mark_node_completed(id, output.result);
+                        } else if output.status.is_failure() {
+                             // Extract error message
+                             let msg = if let ComponentStatus::Failure(m) = output.status { m } else { "Unknown error".to_string() };
+                             tracker.mark_node_failed(id, &msg);
+                             return Err(WorkflowError::execution(msg));
+                        }
+                    }
+                    Err(e) => {
+                        tracker.mark_node_failed(id, &e.to_string());
+                        return Err(e);
+                    }
+                }
+                Ok(())
+            }
+            FlowNode::Chain(nodes) => {
+                for node in nodes {
+                    Box::pin(self.execute_flow(node, context, tracker.clone())).await?;
+                }
+                Ok(())
+            }
+            FlowNode::Parallel(nodes) => {
+                // Execute in parallel
+                 let futures: Vec<_> = nodes.iter().map(|node| {
+                    let tracker = tracker.clone();
+                    // Clone context for each branch
+                    let mut branch_context = context.clone();
+                    
+                    async move {
+                         Box::pin(self.execute_flow(node, &mut branch_context, tracker)).await
+                    }
+                }).collect();
+                
+                let results = join_all(futures).await;
+                // Check errors
+                for res in results {
+                    res?;
+                }
+                Ok(())
+            }
+            // TODO: Implement Switch and Loop
+            _ => Ok(()) 
+        }
     }
 }
 

@@ -161,23 +161,23 @@ impl ResultCache {
 
         // Hash execution context (excluding dynamic fields like timestamps)
         if let Some(workflow_id) = context.workflow_id {
-            workflow_id.hash(&mut hasher);
+            Hash::hash(&workflow_id, &mut hasher);
         }
         if let Some(user_id) = &context.user_id {
-            user_id.hash(&mut hasher);
+            Hash::hash(user_id, &mut hasher);
         }
 
         // Hash global variables (sorted for consistency)
         let mut sorted_vars: Vec<_> = context.global_variables.iter().collect();
         sorted_vars.sort_by_key(|(k, _)| *k);
         for (key, value) in sorted_vars {
-            key.hash(&mut hasher);
+            Hash::hash(key, &mut hasher);
             // Simple hash for JSON values (in production, use a more robust method)
-            serde_json::to_string(value)?.hash(&mut hasher);
+            Hash::hash(&serde_json::to_string(value)?, &mut hasher);
         }
 
         // Hash parameters
-        serde_json::to_string(parameters)?.hash(&mut hasher);
+        Hash::hash(&serde_json::to_string(parameters)?, &mut hasher);
 
         Ok(format!("{:x}", hasher.finish()))
     }

@@ -1076,6 +1076,7 @@ impl NodeJsPluginBuilder {
             plugin_type: PluginType::NodeJs,
             description: Some(description),
             author: None,
+            homepage: None,
             metadata: HashMap::new(),
         };
 

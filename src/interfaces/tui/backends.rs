@@ -216,6 +216,7 @@ impl SyncBackend for MockSyncBackend {
                 plugin_type: crate::core::PluginType::Native,
                 description: Some("File management operations".to_string()),
                 author: Some("Workflow Toolkit Team".to_string()),
+                homepage: None,
                 metadata: HashMap::new(),
             },
             PluginInfo {
@@ -224,6 +225,7 @@ impl SyncBackend for MockSyncBackend {
                 plugin_type: crate::core::PluginType::Python,
                 description: Some("Python-based tools and utilities".to_string()),
                 author: Some("Community".to_string()),
+                homepage: None,
                 metadata: {
                     let mut meta = HashMap::new();
                     meta.insert(

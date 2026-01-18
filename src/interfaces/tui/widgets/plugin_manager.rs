@@ -895,6 +895,7 @@ impl PluginManagerWidget {
                 version: "1.0.0".to_string(),
                 plugin_type: crate::core::PluginType::Native,
                 author: Some("System".to_string()),
+                homepage: None,
                 description: Some(format!("Newly installed plugin: {}", plugin_name)),
                 metadata: std::collections::HashMap::new(),
             },
@@ -1504,6 +1505,7 @@ impl PluginManagerWidget {
                 version: "2.1.0".to_string(),
                 plugin_type: crate::core::PluginType::Python,
                 author: Some("Community".to_string()),
+                homepage: None,
                 description: Some(
                     "Advanced text processing plugin with NLP capabilities".to_string(),
                 ),
@@ -1539,6 +1541,7 @@ impl PluginManagerWidget {
                 version: "1.5.3".to_string(),
                 plugin_type: crate::core::PluginType::NodeJs,
                 author: Some("DataCorp".to_string()),
+                homepage: None,
                 description: Some(
                     "Comprehensive data analysis and visualization plugin".to_string(),
                 ),
@@ -1570,6 +1573,7 @@ impl PluginManagerWidget {
             PluginInfo {
                 name: "security-scanner".to_string(),
                 version: "3.0.1".to_string(),
+                homepage: None,
                 plugin_type: crate::core::PluginType::Native,
                 author: Some("SecureTeam".to_string()),
                 description: Some(
@@ -1603,6 +1607,7 @@ impl PluginManagerWidget {
             PluginInfo {
                 name: "workflow-optimizer".to_string(),
                 version: "1.2.0".to_string(),
+                homepage: None,
                 plugin_type: crate::core::PluginType::Docker,
                 author: Some("OptimizeCorp".to_string()),
                 description: Some(
@@ -1636,6 +1641,7 @@ impl PluginManagerWidget {
             PluginInfo {
                 name: "api-connector".to_string(),
                 version: "2.3.1".to_string(),
+                homepage: None,
                 plugin_type: crate::core::PluginType::Python,
                 author: Some("APITeam".to_string()),
                 description: Some(

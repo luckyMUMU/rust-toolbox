@@ -94,7 +94,7 @@ pub struct DefaultWorkflowEngine {
 
 /// Control signals for workflow execution
 #[derive(Debug, Clone)]
-struct ExecutionControl {
+pub struct ExecutionControl {
     should_pause: bool,
     should_stop: bool,
     pause_requested_at: Option<DateTime<Utc>>,
@@ -102,7 +102,7 @@ struct ExecutionControl {
 }
 
 impl ExecutionControl {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             should_pause: false,
             should_stop: false,
@@ -111,26 +111,26 @@ impl ExecutionControl {
         }
     }
 
-    fn request_pause(&mut self) {
+    pub fn request_pause(&mut self) {
         self.should_pause = true;
         self.pause_requested_at = Some(Utc::now());
     }
 
-    fn request_stop(&mut self) {
+    pub fn request_stop(&mut self) {
         self.should_stop = true;
         self.stop_requested_at = Some(Utc::now());
     }
 
-    fn clear_pause(&mut self) {
+    pub fn clear_pause(&mut self) {
         self.should_pause = false;
         self.pause_requested_at = None;
     }
 
-    fn should_pause(&self) -> bool {
+    pub fn check_pause(&self) -> bool {
         self.should_pause
     }
 
-    fn should_stop(&self) -> bool {
+    pub fn check_stop(&self) -> bool {
         self.should_stop
     }
 }
@@ -317,10 +317,10 @@ impl DefaultWorkflowEngine {
 
         // Check if we should stop or pause
         if let Some(control) = self.control_signals.get(&workflow_id) {
-            if control.should_stop() {
+            if control.check_stop() {
                 return Err(WorkflowError::ExecutionCancelled);
             }
-            if control.should_pause() {
+            if control.check_pause() {
                 // Drop the guard immediately to avoid blocking other operations
                 drop(control);
 
@@ -329,7 +329,7 @@ impl DefaultWorkflowEngine {
                     // Reacquire guard each iteration to avoid holding it during sleep
                     if let Some(updated_control) = self.control_signals.get(&workflow_id) {
                         let should_resume =
-                            !updated_control.should_pause() || updated_control.should_stop();
+                            !updated_control.check_pause() || updated_control.check_stop();
                         if should_resume {
                             break;
                         }
@@ -341,7 +341,7 @@ impl DefaultWorkflowEngine {
 
                 // Check again if we should stop after the pause loop
                 if let Some(control) = self.control_signals.get(&workflow_id) {
-                    if control.should_stop() {
+                    if control.check_stop() {
                         return Err(WorkflowError::ExecutionCancelled);
                     }
                 }
@@ -583,7 +583,7 @@ impl DefaultWorkflowEngine {
 
                         // Check if we should stop retrying due to control signals
                         if let Some(control) = self.control_signals.get(&workflow_id) {
-                            if control.should_stop() {
+                            if control.check_stop() {
                                 return Err(WorkflowError::ExecutionCancelled);
                             }
                         }
@@ -1386,7 +1386,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
             while !scheduler.is_execution_complete() && scheduler.has_ready_nodes() {
                 // Check for control signals
                 if let Some(control) = self.control_signals.get(&workflow_id) {
-                    if control.should_stop() {
+                    if control.check_stop() {
                         // Log workflow stop
                         let workflow_stopped_event = self.audit_logger.create_workflow_event(
                             AuditEventType::WorkflowStopped,
@@ -1400,7 +1400,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                             .await?;
                         break;
                     }
-                    if control.should_pause() {
+                    if control.check_pause() {
                         // Update status to paused
                         {
                             let mut execution = execution_arc.write().await;
@@ -1430,8 +1430,8 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                         loop {
                             // Reacquire guard each iteration to avoid holding it during sleep
                             if let Some(current_control) = self.control_signals.get(&workflow_id) {
-                                let should_resume = !current_control.should_pause()
-                                    || current_control.should_stop();
+                                let should_resume = !current_control.check_pause()
+                                    || current_control.check_stop();
                                 if should_resume {
                                     break;
                                 }
@@ -1442,7 +1442,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                         }
 
                         if let Some(current_control) = self.control_signals.get(&workflow_id) {
-                            if current_control.should_stop() {
+                            if current_control.check_stop() {
                                 break;
                             }
                         }
@@ -1575,7 +1575,7 @@ impl WorkflowEngine for DefaultWorkflowEngine {
         let final_status = match execution_result {
             Ok(_) => {
                 if let Some(control) = self.control_signals.get(&workflow_id) {
-                    if control.should_stop() {
+                    if control.check_stop() {
                         ExecutionStatus::Cancelled
                     } else {
                         ExecutionStatus::Completed
@@ -1797,8 +1797,8 @@ impl WorkflowEngine for DefaultWorkflowEngine {
 
     async fn get_workflow_status(&self, id: WorkflowId) -> Result<ExecutionStatus> {
         // Check active executions first
-        if let Some(execution) = self.active_executions.get(&id) {
-            let execution = execution.read().await;
+        if let Some(execution_ref) = self.active_executions.get(&id) {
+            let execution = execution_ref.read().await;
             return Ok(execution.status);
         }
 

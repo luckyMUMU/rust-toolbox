@@ -3,7 +3,7 @@ use workflow_toolkit::config::Config;
 use workflow_toolkit::interfaces::cli::{Cli, CliApp};
 use workflow_toolkit::storage::{FileStorage, SimpleMemoryCache, StateManager};
 use workflow_toolkit::tools::{BasicToolRegistry, ToolRegistry};
-use workflow_toolkit::workflow::engine::DefaultWorkflowEngine;
+use workflow_toolkit::workflow::RefactoredWorkflowEngine;
 use workflow_toolkit::{init_logging, Result};
 
 #[tokio::main]
@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
 
     // Add a simple echo tool for testing
     use workflow_toolkit::tools::{AsyncFunctionExecutor, BasicTool};
-    let echo_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| async move {
+    let echo_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| Box::pin(async move {
         if let Some(message) = params.get("message") {
             Ok(serde_json::json!({
                 "output": message,
@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
                 "timestamp": chrono::Utc::now().to_rfc3339()
             }))
         }
-    }));
+    })));
 
     let echo_tool = BasicTool::builder()
         .name("echo")
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
     let tool_registry = Arc::new(tool_registry);
 
     // Create workflow engine
-    let workflow_engine = Arc::new(DefaultWorkflowEngine::new(
+    let workflow_engine = Arc::new(RefactoredWorkflowEngine::new(
         state_manager.clone(),
         tool_registry.clone(),
         4, // max parallel workflows

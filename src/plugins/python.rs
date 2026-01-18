@@ -875,6 +875,7 @@ impl PythonPluginBuilder {
             plugin_type: PluginType::Python,
             description: Some(description),
             author: None,
+            homepage: None,
             metadata: HashMap::new(),
         };
 
