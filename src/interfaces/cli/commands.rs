@@ -143,9 +143,6 @@ pub enum WorkflowAction {
         /// Timeout in seconds
         #[arg(long, help = "Execution timeout in seconds")]
         timeout: Option<u64>,
-        /// Enable debug mode
-        #[arg(long, help = "Enable debug mode with detailed execution report")]
-        debug: bool,
     },
     /// Get workflow execution status
     Status {
