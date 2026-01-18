@@ -660,32 +660,42 @@ name: "multi_stage_classification"
 description: "Multi-stage classification with preprocessing and refinement"
 
 steps:
-  # Stage 1: Preprocess folder names
+  # Stage 1: Preprocess folder names (conceptually)
   - name: "preprocess_text"
     tool: "text-processor"
     params:
+      text: "${input.folder_name}"
       operations: ["NormalizeCase", "ConvertTraditional", "GeneratePinyin"]
-  
+
   # Stage 2: Initial classification
   - name: "initial_classification"
     tool: "folder-classifier"
     params:
-      preprocessed_text: "${nodes.preprocess_text.processed}"
-      confidence_threshold: 0.9
-  
+      folder_path: "${input.folder_path}"
+      classification_rules: "${input.rules_file}"
+      enable_user_interaction: false
+      output_format: "Detailed"
+
   # Stage 3: Human review for ambiguous cases
   - name: "human_review"
     tool: "human-decision"
-    condition: "${nodes.initial_classification.ambiguous_count} > 0"
+    condition: "${nodes.initial_classification.status} == 'Ambiguous'"
     params:
       decision_type: "Classification"
-      items: "${nodes.initial_classification.ambiguous_results}"
-  
+      context:
+        title: "Ambiguous Classification"
+        description: "Please select the correct category for ${input.folder_name}"
+        metadata: "${nodes.initial_classification.metadata}"
+      options: "${nodes.initial_classification.candidates}"
+
   # Stage 4: Execute operations
   - name: "execute_operations"
     tool: "file-mover"
     params:
-      operations: "${nodes.human_review.final_operations}"
+      operations:
+        - source: "${input.folder_path}"
+          destination: "${nodes.human_review.selected_category}/${input.folder_name}"
+          operation_type: "Move"
 ```
 
 ### Pattern 2: Conditional Processing
@@ -698,25 +708,29 @@ description: "Adaptive processing based on folder characteristics"
 
 steps:
   - name: "analyze_folders"
-    tool: "folder-analyzer"
+    tool: "folder-analyzer" # Placeholder for analysis tool
     params:
       source_directory: "${input.source_directory}"
-  
+
   # Process large folders differently
   - name: "process_large_folders"
     tool: "batch-processor"
     condition: "${nodes.analyze_folders.large_folder_count} > 0"
     params:
-      batch_size: 5
-      max_concurrent_batches: 2
-  
+      tool_name: "large-folder-handler"
+      batch_items: "${nodes.analyze_folders.large_folders}"
+      max_concurrency: 2
+      processing_mode: "Sequential"
+
   # Process small folders in larger batches
   - name: "process_small_folders"
     tool: "batch-processor"
     condition: "${nodes.analyze_folders.small_folder_count} > 0"
     params:
-      batch_size: 25
-      max_concurrent_batches: 4
+      tool_name: "small-folder-handler"
+      batch_items: "${nodes.analyze_folders.small_folders}"
+      max_concurrency: 8
+      processing_mode: "Parallel"
 ```
 
 ### Pattern 3: Error Recovery and Retry
@@ -731,13 +745,15 @@ steps:
   - name: "initial_processing"
     tool: "batch-processor"
     params:
+      tool_name: "file-processor"
+      batch_items: "${input.items}"
       continue_on_error: true
-      max_consecutive_errors: 5
-  
+      retry_failed_items: false
+
   # Handle failures with user decisions
   - name: "handle_failures"
     tool: "human-decision"
-    condition: "${nodes.initial_processing.failed_operations} > 0"
+    condition: "${nodes.initial_processing.error_summary.total_errors} > 0"
     params:
       decision_type: "Custom"
       context:
@@ -750,15 +766,17 @@ steps:
           label: "Skip failed operations"
         - id: "manual"
           label: "Manual review required"
-  
+
   # Retry failed operations with different settings
   - name: "retry_operations"
     tool: "batch-processor"
     condition: "${nodes.handle_failures.selected_option} == 'retry'"
     params:
-      operations: "${nodes.initial_processing.failed_operations}"
-      batch_size: 5
-      max_concurrent_batches: 1
+      tool_name: "file-processor"
+      batch_items: "${nodes.initial_processing.error_summary.failed_items}"
+      max_concurrency: 1
+      retry_failed_items: true
+      max_retries: 3
 ```
 
 ## Troubleshooting
