@@ -592,7 +592,7 @@ impl FileManagementPlugin {
     /// Create the temporary directory if it doesn't exist
     fn ensure_temp_directory(&self, config: &FileManagementConfig) -> Result<()> {
         if !config.temp_directory.exists() {
-            std::fs::create_dir_all(&config.temp_directory).map_err(|e| WorkflowError::Io(e))?;
+            std::fs::create_dir_all(&config.temp_directory).map_err(WorkflowError::Io)?;
             info!("Created temp directory: {:?}", config.temp_directory);
         }
         Ok(())

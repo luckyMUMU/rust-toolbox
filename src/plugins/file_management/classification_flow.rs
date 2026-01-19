@@ -5,7 +5,7 @@
 
 use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig};
 use super::classification_tool::ClassificationRules;
-use super::utils::{TextProcessor, TextNormalizationConfig};
+use super::utils::{TextNormalizationConfig, TextProcessor};
 use crate::core::{ExecutionContext, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::tools::ToolNode;
@@ -41,9 +41,13 @@ pub struct RuleLoaderTool;
 
 #[async_trait]
 impl ToolNode for RuleLoaderTool {
-    fn name(&self) -> &str { "rule-loader" }
-    fn version(&self) -> &str { "1.0.0" }
-    
+    fn name(&self) -> &str {
+        "rule-loader"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
+
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("rules").is_none() {
             return Err(WorkflowError::validation("rules parameter required"));
@@ -56,13 +60,18 @@ impl ToolNode for RuleLoaderTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let rules_input = params.get("rules").ok_or_else(|| WorkflowError::validation("rules parameter required"))?;
-        
+        let rules_input = params
+            .get("rules")
+            .ok_or_else(|| WorkflowError::validation("rules parameter required"))?;
+
         // 1. Load initial Value
         let mut rules_value = if let Some(path) = rules_input.as_str() {
             info!("Attempting to read rules from path: {}", path);
-            let content = std::fs::read_to_string(path).map_err(|e| WorkflowError::tool(format!("Failed to read rules file '{}': {}", path, e)))?;
-            serde_json::from_str::<Value>(&content).map_err(|e| WorkflowError::validation(format!("Invalid rules JSON: {}", e)))?
+            let content = std::fs::read_to_string(path).map_err(|e| {
+                WorkflowError::tool(format!("Failed to read rules file '{}': {}", path, e))
+            })?;
+            serde_json::from_str::<Value>(&content)
+                .map_err(|e| WorkflowError::validation(format!("Invalid rules JSON: {}", e)))?
         } else {
             rules_input.clone()
         };
@@ -121,7 +130,8 @@ impl ToolNode for RuleLoaderTool {
                                 *keywords_val = Value::Array(simple_keywords);
 
                                 if !combinations.is_empty() {
-                                    rule_obj.insert("combinations".to_string(), json!(combinations));
+                                    rule_obj
+                                        .insert("combinations".to_string(), json!(combinations));
                                 }
                             }
                         }
@@ -131,8 +141,9 @@ impl ToolNode for RuleLoaderTool {
         }
 
         // 3. Deserialize to struct
-        let rules: ClassificationRules = serde_json::from_value(rules_value)
-            .map_err(|e| WorkflowError::validation(format!("Invalid classification rules structure: {}", e)))?;
+        let rules: ClassificationRules = serde_json::from_value(rules_value).map_err(|e| {
+            WorkflowError::validation(format!("Invalid classification rules structure: {}", e))
+        })?;
 
         // Basic validation
         if rules.rules.is_empty() {
@@ -152,34 +163,45 @@ pub struct RulePreprocessorTool {
 impl RulePreprocessorTool {
     pub fn new(enable_chinese: bool) -> Self {
         Self {
-            text_processor: TextProcessor::with_config(enable_chinese, TextNormalizationConfig::default()),
+            text_processor: TextProcessor::with_config(
+                enable_chinese,
+                TextNormalizationConfig::default(),
+            ),
         }
     }
 }
 
 #[async_trait]
 impl ToolNode for RulePreprocessorTool {
-    fn name(&self) -> &str { "rule-preprocessor" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "rule-preprocessor"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
 
     fn get_info(&self) -> ToolInfo {
-        create_tool_info("rule-preprocessor", "Preprocesses rules (pinyin, lowercase)")
+        create_tool_info(
+            "rule-preprocessor",
+            "Preprocesses rules (pinyin, lowercase)",
+        )
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let rules: ClassificationRules = serde_json::from_value(params.get("rules").unwrap_or(&json!({})).clone())
-            .map_err(|e| WorkflowError::validation(format!("Invalid rules: {}", e)))?;
+        let rules: ClassificationRules =
+            serde_json::from_value(params.get("rules").unwrap_or(&json!({})).clone())
+                .map_err(|e| WorkflowError::validation(format!("Invalid rules: {}", e)))?;
 
         let mut processed_patterns = Vec::new();
         let mut pattern_id_counter = 0;
 
         for rule in rules.rules {
             let mut keywords = rule.keywords.clone();
-            
+
             if let Some(combinations) = &rule.combinations {
                 for combo in combinations {
                     keywords.extend(combo.clone());
@@ -189,14 +211,18 @@ impl ToolNode for RulePreprocessorTool {
             for keyword in keywords {
                 // Lowercase
                 let mut variants = vec![keyword.to_lowercase()];
-                
+
                 // Chinese variants
                 if self.text_processor.contains_chinese(&keyword) {
-                    let pinyin = self.text_processor.generate_comprehensive_pinyin(&keyword, super::utils::PinyinStyle::Normal);
+                    let pinyin = self
+                        .text_processor
+                        .generate_comprehensive_pinyin(&keyword, super::utils::PinyinStyle::Normal);
                     variants.extend(pinyin.pinyin_variants);
-                    
+
                     let mixed = self.text_processor.process_mixed_text(&keyword);
-                    if mixed.simplified_chinese != keyword { variants.push(mixed.simplified_chinese); }
+                    if mixed.simplified_chinese != keyword {
+                        variants.push(mixed.simplified_chinese);
+                    }
                     // Note: Traditional Chinese conversion not supported in current TextProcessor (only to Simplified)
                 }
 
@@ -206,7 +232,7 @@ impl ToolNode for RulePreprocessorTool {
                         "category": rule.category,
                         "score": rule.score_weight,
                         "id": pattern_id_counter,
-                        "is_combination": false 
+                        "is_combination": false
                     }));
                     pattern_id_counter += 1;
                 }
@@ -223,8 +249,12 @@ pub struct AutomatonBuilderTool;
 
 #[async_trait]
 impl ToolNode for AutomatonBuilderTool {
-    fn name(&self) -> &str { "ac-automaton-builder" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "ac-automaton-builder"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("patterns").is_none() {
@@ -238,11 +268,13 @@ impl ToolNode for AutomatonBuilderTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let patterns = params.get("patterns").and_then(|p| p.as_array())
+        let patterns = params
+            .get("patterns")
+            .and_then(|p| p.as_array())
             .ok_or_else(|| WorkflowError::validation("patterns array required"))?;
 
         let config = AutomatonConfig {
-            case_sensitive: false, 
+            case_sensitive: false,
             find_overlapping: true,
             max_patterns: 20000,
             max_pattern_length: 1000,
@@ -261,8 +293,12 @@ pub struct DirectoryScannerTool;
 
 #[async_trait]
 impl ToolNode for DirectoryScannerTool {
-    fn name(&self) -> &str { "directory-scanner" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "directory-scanner"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("directory").is_none() {
@@ -276,7 +312,9 @@ impl ToolNode for DirectoryScannerTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let path_str = params.get("directory").and_then(|v| v.as_str())
+        let path_str = params
+            .get("directory")
+            .and_then(|v| v.as_str())
             .ok_or_else(|| WorkflowError::validation("directory parameter required"))?;
         let path = Path::new(path_str);
 
@@ -285,9 +323,13 @@ impl ToolNode for DirectoryScannerTool {
         }
 
         let mut folders = Vec::new();
-        for entry in std::fs::read_dir(path).map_err(|e| WorkflowError::tool(format!("IO error: {}", e)))? {
+        for entry in
+            std::fs::read_dir(path).map_err(|e| WorkflowError::tool(format!("IO error: {}", e)))?
+        {
             let entry = entry.map_err(|e| WorkflowError::tool(format!("IO error: {}", e)))?;
-            let ty = entry.file_type().map_err(|e| WorkflowError::tool(format!("IO error: {}", e)))?;
+            let ty = entry
+                .file_type()
+                .map_err(|e| WorkflowError::tool(format!("IO error: {}", e)))?;
             if ty.is_dir() {
                 folders.push(entry.path().to_string_lossy().to_string());
             }
@@ -306,15 +348,22 @@ pub struct FolderNamePreprocessorTool {
 impl FolderNamePreprocessorTool {
     pub fn new(enable_chinese: bool) -> Self {
         Self {
-            text_processor: TextProcessor::with_config(enable_chinese, TextNormalizationConfig::default()),
+            text_processor: TextProcessor::with_config(
+                enable_chinese,
+                TextNormalizationConfig::default(),
+            ),
         }
     }
 }
 
 #[async_trait]
 impl ToolNode for FolderNamePreprocessorTool {
-    fn name(&self) -> &str { "folder-name-preprocessor" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "folder-name-preprocessor"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("folders").is_none() {
@@ -328,20 +377,30 @@ impl ToolNode for FolderNamePreprocessorTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let folders = params.get("folders").and_then(|v| v.as_array())
+        let folders = params
+            .get("folders")
+            .and_then(|v| v.as_array())
             .ok_or_else(|| WorkflowError::validation("folders array required"))?;
 
-        let processed: Vec<Value> = folders.iter().filter_map(|v| v.as_str()).map(|path| {
-            let path_obj = Path::new(path);
-            let name = path_obj.file_name().unwrap_or_default().to_string_lossy().to_string();
-            let normalized = self.text_processor.normalize_text(&name); 
-            
-            json!({
-                "original_path": path,
-                "original_name": name,
-                "processed_name": normalized
+        let processed: Vec<Value> = folders
+            .iter()
+            .filter_map(|v| v.as_str())
+            .map(|path| {
+                let path_obj = Path::new(path);
+                let name = path_obj
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                let normalized = self.text_processor.normalize_text(&name);
+
+                json!({
+                    "original_path": path,
+                    "original_name": name,
+                    "processed_name": normalized
+                })
             })
-        }).collect();
+            .collect();
 
         Ok(json!({ "processed_folders": processed }))
     }
@@ -353,8 +412,12 @@ pub struct ParallelMatcherTool;
 
 #[async_trait]
 impl ToolNode for ParallelMatcherTool {
-    fn name(&self) -> &str { "parallel-matcher" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "parallel-matcher"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("automaton_config").is_none() {
@@ -371,33 +434,55 @@ impl ToolNode for ParallelMatcherTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let config_val = params.get("automaton_config").ok_or_else(|| WorkflowError::validation("automaton_config required"))?;
-        let patterns_val = config_val.get("patterns").and_then(|v| v.as_array()).ok_or_else(|| WorkflowError::validation("patterns required"))?;
-        let config_obj: AutomatonConfig = serde_json::from_value(config_val.get("config").unwrap_or(&json!({})).clone()).unwrap_or_default();
-        
-        let folders = params.get("folders").and_then(|v| v.as_array())
+        let config_val = params
+            .get("automaton_config")
+            .ok_or_else(|| WorkflowError::validation("automaton_config required"))?;
+        let patterns_val = config_val
+            .get("patterns")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| WorkflowError::validation("patterns required"))?;
+        let config_obj: AutomatonConfig =
+            serde_json::from_value(config_val.get("config").unwrap_or(&json!({})).clone())
+                .unwrap_or_default();
+
+        let folders = params
+            .get("folders")
+            .and_then(|v| v.as_array())
             .ok_or_else(|| WorkflowError::validation("folders required"))?;
 
-        // Rebuild automaton 
+        // Rebuild automaton
         let mut matcher = AhoCorasickMatcher::with_config(config_obj);
         for p in patterns_val {
             let pattern = p.get("pattern").and_then(|v| v.as_str()).unwrap_or("");
-            let category = p.get("category").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let category = p
+                .get("category")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
             let score = p.get("score").and_then(|v| v.as_f64()).unwrap_or(1.0);
             if !pattern.is_empty() {
                 let _ = matcher.add_pattern(pattern, category, score);
             }
         }
-        matcher.build().map_err(|e| WorkflowError::tool(e.to_string()))?;
+        matcher
+            .build()
+            .map_err(|e| WorkflowError::tool(e.to_string()))?;
         let matcher = Arc::new(matcher);
 
         let mut results = Vec::new();
         for folder in folders {
-            let processed_name = folder.get("processed_name").and_then(|v| v.as_str()).unwrap_or("");
-            let original_path = folder.get("original_path").and_then(|v| v.as_str()).unwrap_or("");
-            
-            let matches = matcher.find_overlapping_matches(processed_name).unwrap_or_default();
-            
+            let processed_name = folder
+                .get("processed_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let original_path = folder
+                .get("original_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+
+            let matches = matcher
+                .find_overlapping_matches(processed_name)
+                .unwrap_or_default();
+
             results.push(json!({
                 "folder_path": original_path,
                 "matches": matches
@@ -414,8 +499,12 @@ pub struct ScoreCalculatorTool;
 
 #[async_trait]
 impl ToolNode for ScoreCalculatorTool {
-    fn name(&self) -> &str { "score-calculator" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "score-calculator"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("match_results").is_none() {
@@ -429,27 +518,38 @@ impl ToolNode for ScoreCalculatorTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let match_results = params.get("match_results").and_then(|v| v.as_array()).ok_or_else(|| WorkflowError::validation("match_results required"))?;
-        
+        let match_results = params
+            .get("match_results")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| WorkflowError::validation("match_results required"))?;
+
         let mut scored_results = Vec::new();
 
         for res in match_results {
-            let folder_path = res.get("folder_path").and_then(|v| v.as_str()).unwrap_or("");
+            let folder_path = res
+                .get("folder_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let matches = res.get("matches").and_then(|v| v.as_array()).unwrap();
-            
+
             let mut category_scores: HashMap<String, f64> = HashMap::new();
-            
+
             for m in matches {
-                let category = m.get("category").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+                let category = m
+                    .get("category")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
                 let score = m.get("score").and_then(|v| v.as_f64()).unwrap_or(1.0);
-                
+
                 *category_scores.entry(category).or_insert(0.0) += score;
             }
 
-            let mut candidates: Vec<Value> = category_scores.into_iter().map(|(cat, score)| {
-                json!({ "category": cat, "score": score })
-            }).collect();
-            
+            let mut candidates: Vec<Value> = category_scores
+                .into_iter()
+                .map(|(cat, score)| json!({ "category": cat, "score": score }))
+                .collect();
+
             candidates.sort_by(|a, b| {
                 let s_a = a.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let s_b = b.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -472,8 +572,12 @@ pub struct AmbiguityDetectorTool;
 
 #[async_trait]
 impl ToolNode for AmbiguityDetectorTool {
-    fn name(&self) -> &str { "ambiguity-detector" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "ambiguity-detector"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         if params.get("scored_results").is_none() {
@@ -487,24 +591,36 @@ impl ToolNode for AmbiguityDetectorTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let scored_results = params.get("scored_results").and_then(|v| v.as_array()).ok_or_else(|| WorkflowError::validation("scored_results required"))?;
-        let threshold = params.get("confidence_threshold").and_then(|v| v.as_f64()).unwrap_or(0.8);
-        
+        let scored_results = params
+            .get("scored_results")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| WorkflowError::validation("scored_results required"))?;
+        let threshold = params
+            .get("confidence_threshold")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.8);
+
         let mut classified = Vec::new();
         let mut ambiguous = Vec::new();
         let mut unclassified = Vec::new();
 
         for item in scored_results {
             let candidates = item.get("candidates").and_then(|v| v.as_array()).unwrap();
-            
+
             let status = if candidates.is_empty() {
                 "Unclassified"
             } else if candidates.len() == 1 {
                 "Classified"
             } else {
-                let top_score = candidates[0].get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let second_score = candidates[1].get("score").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                
+                let top_score = candidates[0]
+                    .get("score")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let second_score = candidates[1]
+                    .get("score")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
                 if second_score / top_score < threshold {
                     "Classified"
                 } else {
@@ -540,8 +656,12 @@ pub struct ResultMergerTool;
 
 #[async_trait]
 impl ToolNode for ResultMergerTool {
-    fn name(&self) -> &str { "result-merger" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "result-merger"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
@@ -552,11 +672,19 @@ impl ToolNode for ResultMergerTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let classified = params.get("classified").and_then(|v| v.as_array()).unwrap_or(&vec![]).clone();
-        let manual_results = params.get("manual_results").and_then(|v| v.as_array()).unwrap_or(&vec![]).clone();
-        
+        let classified = params
+            .get("classified")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&vec![])
+            .clone();
+        let manual_results = params
+            .get("manual_results")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&vec![])
+            .clone();
+
         let mut final_operations = Vec::new();
-        
+
         // Add auto-classified
         for item in classified {
             if let Some(category) = item.get("top_category").and_then(|v| v.as_str()) {
@@ -571,7 +699,7 @@ impl ToolNode for ResultMergerTool {
 
         // Add manual results
         for item in manual_results {
-             if let Some(category) = item.get("selected_category").and_then(|v| v.as_str()) {
+            if let Some(category) = item.get("selected_category").and_then(|v| v.as_str()) {
                 final_operations.push(json!({
                     "source": item["folder_path"],
                     "destination": format!("{}/{}", category, Path::new(item["folder_path"].as_str().unwrap_or("")).file_name().unwrap_or_default().to_string_lossy()),
@@ -591,8 +719,12 @@ pub struct ExperimentalCheckTool;
 
 #[async_trait]
 impl ToolNode for ExperimentalCheckTool {
-    fn name(&self) -> &str { "experimental-check" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "experimental-check"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
@@ -603,7 +735,10 @@ impl ToolNode for ExperimentalCheckTool {
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let mode = params.get("experimental_mode").and_then(|v| v.as_bool()).unwrap_or(true);
+        let mode = params
+            .get("experimental_mode")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
         info!("Experimental Check: Mode is {}", mode);
         Ok(json!({ "is_experimental": mode }))
     }
@@ -615,8 +750,12 @@ pub struct ReportGeneratorTool;
 
 #[async_trait]
 impl ToolNode for ReportGeneratorTool {
-    fn name(&self) -> &str { "report-generator" }
-    fn version(&self) -> &str { "1.0.0" }
+    fn name(&self) -> &str {
+        "report-generator"
+    }
+    fn version(&self) -> &str {
+        "1.0.0"
+    }
 
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
@@ -628,13 +767,16 @@ impl ToolNode for ReportGeneratorTool {
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         let empty = Vec::new();
-        let operations = params.get("operations").and_then(|v| v.as_array()).unwrap_or(&empty);
+        let operations = params
+            .get("operations")
+            .and_then(|v| v.as_array())
+            .unwrap_or(&empty);
         let stats = json!({
             "total_processed": operations.len(),
             "timestamp": Utc::now().to_rfc3339(),
             "details": operations
         });
-        
+
         Ok(json!({ "report": stats }))
     }
 }

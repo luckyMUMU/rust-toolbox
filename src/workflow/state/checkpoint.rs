@@ -131,7 +131,7 @@ impl CheckpointManager {
     async fn save_checkpoint(&self, checkpoint: &ExecutionCheckpoint) -> Result<()> {
         let key = format!("checkpoint:{}:{}", checkpoint.workflow_id, checkpoint.id);
         let _value = serde_json::to_value(checkpoint).map_err(|e| {
-            WorkflowError::serialization(&format!("Failed to serialize checkpoint: {}", e))
+            WorkflowError::serialization(format!("Failed to serialize checkpoint: {}", e))
         })?;
 
         // Use the state manager's cache backend for storage

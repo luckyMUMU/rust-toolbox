@@ -356,8 +356,10 @@ impl AdvancedSizeConstraints {
 
 /// Animation state for smooth transitions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum AnimationState {
     /// No animation
+    #[default]
     None,
     /// Expanding from collapsed state
     Expanding {
@@ -375,11 +377,6 @@ pub enum AnimationState {
     FadingOut { progress: f64 },
 }
 
-impl Default for AnimationState {
-    fn default() -> Self {
-        AnimationState::None
-    }
-}
 
 /// Layout priority manager for handling widget priorities and space allocation
 #[derive(Debug, Clone)]
@@ -597,8 +594,10 @@ pub struct LayoutConfigManager {
 
 /// Configuration file format
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum ConfigFormat {
     /// JSON format
+    #[default]
     Json,
     /// YAML format
     Yaml,
@@ -606,11 +605,6 @@ pub enum ConfigFormat {
     Toml,
 }
 
-impl Default for ConfigFormat {
-    fn default() -> Self {
-        ConfigFormat::Json
-    }
-}
 
 impl ConfigFormat {
     /// Get file extension for the format
@@ -1283,7 +1277,7 @@ impl FocusManager {
     pub fn is_focusable(&self, widget_id: &WidgetId) -> bool {
         self.widget_focus_states
             .get(widget_id)
-            .map_or(true, |state| state.focusable)
+            .is_none_or(|state| state.focusable)
     }
 
     /// Set widget focusable state
@@ -2312,8 +2306,8 @@ impl LayoutManager {
                 child
                     .advanced_constraints
                     .as_ref()
-                    .map_or(false, |ac| ac.priority != 0)
-                    || child.widget_id.as_ref().map_or(false, |wid| {
+                    .is_some_and(|ac| ac.priority != 0)
+                    || child.widget_id.as_ref().is_some_and(|wid| {
                         self.layout_priority_manager.get_widget_priority(wid) != 0
                     })
             });
@@ -2880,7 +2874,7 @@ impl LayoutManager {
             let can_fullscreen = node
                 .advanced_constraints
                 .as_ref()
-                .map_or(true, |ac| !ac.hideable); // Don't allow hideable widgets to go fullscreen
+                .is_none_or(|ac| !ac.hideable); // Don't allow hideable widgets to go fullscreen
 
             if can_fullscreen {
                 widgets.push(widget_id.clone());

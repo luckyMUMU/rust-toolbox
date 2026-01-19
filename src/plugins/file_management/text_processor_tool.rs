@@ -69,17 +69,14 @@ pub struct TextProcessorParams {
 
 /// Output format options
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum TextOutputFormat {
+    #[default]
     Simple,     // Just the processed text
     Detailed,   // Include metadata and variants
     Structured, // Full structured result
 }
 
-impl Default for TextOutputFormat {
-    fn default() -> Self {
-        TextOutputFormat::Simple
-    }
-}
 
 /// Text processor tool result
 #[derive(Debug, Clone, Serialize, Deserialize)]

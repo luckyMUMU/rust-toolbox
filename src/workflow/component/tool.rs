@@ -92,16 +92,14 @@ impl ToolComponent {
 
         // Add all global slots to template context
         let global_slots = context.export_global_slots();
-        
+
         // Special handling for input_params: flatten it into the root context
-        if let Some(input_params) = global_slots.get("input_params") {
-            if let Value::Object(map) = input_params {
-                for (k, v) in map {
-                    template_context.set_variable(k.clone(), v.clone());
-                }
+        if let Some(Value::Object(map)) = global_slots.get("input_params") {
+            for (k, v) in map {
+                template_context.set_variable(k.clone(), v.clone());
             }
         }
-        
+
         // Add other global slots (overwriting input_params if name collision, or keeping them as objects)
         template_context.set_variables(global_slots);
 

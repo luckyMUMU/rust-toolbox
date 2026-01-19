@@ -313,8 +313,7 @@ impl BasicTuiInterface {
             app.run().await
         } else {
             Err(
-                crate::error::WorkflowError::ValidationError("TUI app not initialized".to_string())
-                    .into(),
+                crate::error::WorkflowError::ValidationError("TUI app not initialized".to_string()),
             )
         }
     }

@@ -714,7 +714,7 @@ impl ResultConfirmationTool {
 
         let resource_requirements = ResourceRequirements {
             estimated_disk_space_bytes: total_size_bytes * 2, // Original + backup
-            estimated_memory_mb: (total_size_bytes / 1_000_000).max(100) as u64, // At least 100MB
+            estimated_memory_mb: (total_size_bytes / 1_000_000).max(100), // At least 100MB
             estimated_cpu_cores: 2,
             network_bandwidth_required: false,
             exclusive_access_required: Vec::new(),
@@ -873,20 +873,20 @@ impl ToolNode for ResultConfirmationTool {
         context: ExecutionContext,
     ) -> Result<Value, WorkflowError> {
         let params: ResultConfirmationParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
+            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
 
         let result = self.process_confirmation(&params, &context).map_err(|e| {
-            WorkflowError::tool_execution(&format!("Result confirmation failed: {}", e))
+            WorkflowError::tool_execution(format!("Result confirmation failed: {}", e))
         })?;
 
         Ok(serde_json::to_value(result).map_err(|e| {
-            WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e))
+            WorkflowError::tool_execution(format!("Failed to serialize result: {}", e))
         })?)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
         let _: ResultConfirmationParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
+            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
         Ok(())
     }
 

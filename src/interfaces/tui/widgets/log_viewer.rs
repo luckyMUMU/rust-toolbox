@@ -292,7 +292,7 @@ impl LogViewerWidget {
                     if log
                         .source
                         .as_ref()
-                        .map_or(false, |s| s.to_lowercase().contains(source_term))
+                        .is_some_and(|s| s.to_lowercase().contains(source_term))
                     {
                         matches = true;
                     } else if !search_terms.is_empty() {
@@ -305,11 +305,11 @@ impl LogViewerWidget {
                     if log
                         .execution_id
                         .as_ref()
-                        .map_or(false, |id| id.to_lowercase().contains(exec_term))
+                        .is_some_and(|id| id.to_lowercase().contains(exec_term))
                         || log
                             .workflow_id
                             .as_ref()
-                            .map_or(false, |id| id.to_lowercase().contains(exec_term))
+                            .is_some_and(|id| id.to_lowercase().contains(exec_term))
                     {
                         matches = true;
                     } else if !search_terms.is_empty() {
@@ -318,15 +318,14 @@ impl LogViewerWidget {
                 }
 
                 // Check source in general search if no specific filters
-                if source_filter.is_none() && execution_filter.is_none() {
-                    if log
+                if source_filter.is_none() && execution_filter.is_none()
+                    && log
                         .source
                         .as_ref()
-                        .map_or(false, |s| s.to_lowercase().contains(&query))
+                        .is_some_and(|s| s.to_lowercase().contains(&query))
                     {
                         matches = true;
                     }
-                }
 
                 if matches {
                     self.search_results.push(result_index);
@@ -893,7 +892,7 @@ impl LogViewerWidget {
 
         // Create source spans with search highlighting
         let source_spans = if !search_query.is_empty()
-            && log.source.as_ref().map_or(false, |s| {
+            && log.source.as_ref().is_some_and(|s| {
                 s.to_lowercase().contains(&search_query.to_lowercase())
             }) {
             Self::highlight_search_terms(source, search_query, theme)

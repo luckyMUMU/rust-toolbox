@@ -100,7 +100,7 @@ impl ComponentRegistry {
         match node.node_type {
             NodeType::Tool => {
                 let tool_name = node.tool_name.as_ref().ok_or_else(|| {
-                    WorkflowError::validation(&format!("Tool node '{}' missing tool_name", node.id))
+                    WorkflowError::validation(format!("Tool node '{}' missing tool_name", node.id))
                 })?;
 
                 Ok(Arc::new(super::tool::ToolComponent::new(

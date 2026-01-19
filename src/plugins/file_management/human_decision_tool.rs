@@ -356,12 +356,16 @@ impl HumanDecisionExecutor {
 
         // Validate options
         if params.options.is_none() && params.items.is_none() {
-            return Err(WorkflowError::validation("Either options or items must be provided"));
+            return Err(WorkflowError::validation(
+                "Either options or items must be provided",
+            ));
         }
 
         if let Some(options) = &params.options {
             if options.is_empty() {
-                return Err(WorkflowError::validation("options cannot be empty if provided"));
+                return Err(WorkflowError::validation(
+                    "options cannot be empty if provided",
+                ));
             }
 
             for (index, option) in options.iter().enumerate() {
@@ -380,7 +384,7 @@ impl HumanDecisionExecutor {
                 }
             }
         }
-        
+
         // Validate default choice if present
         if let Some(default_choice) = params.default_choice {
             let options_len = params.options.as_ref().map(|o| o.len()).unwrap_or(0);
@@ -434,15 +438,21 @@ impl ToolExecutor for HumanDecisionExecutor {
                 let mut decisions = Vec::new();
                 for item in items {
                     // Extract candidates and convert to options
-                    let folder_path = item.get("folder_path").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let folder_path = item
+                        .get("folder_path")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
                     let candidates = item.get("candidates").and_then(|v| v.as_array());
-                    
+
                     let mut options = Vec::new();
                     if let Some(cands) = candidates {
                         for (i, cand) in cands.iter().enumerate() {
-                            let category = cand.get("category").and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let category = cand
+                                .get("category")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
                             let score = cand.get("score").and_then(|v| v.as_f64());
-                            
+
                             options.push(DecisionOption {
                                 id: category.to_string(),
                                 label: category.to_string(),
@@ -452,7 +462,7 @@ impl ToolExecutor for HumanDecisionExecutor {
                             });
                         }
                     }
-                    
+
                     // Add Skip/Other options
                     options.push(DecisionOption {
                         id: "skip".to_string(),
@@ -479,22 +489,29 @@ impl ToolExecutor for HumanDecisionExecutor {
                     let decision_context = self.create_decision_context(&decision_params)?;
 
                     let result = if experimental_mode {
-                        info!("Running human decision tool in experimental mode for {}", folder_path);
+                        info!(
+                            "Running human decision tool in experimental mode for {}",
+                            folder_path
+                        );
                         self.simulate_decision(&decision_context)?
                     } else {
                         info!("Presenting decision to user: {}", decision_context.title);
-                        self.present_decision_to_user(&decision_context, params.default_choice).await?
+                        self.present_decision_to_user(&decision_context, params.default_choice)
+                            .await?
                     };
-                    
+
                     // Add folder_path to result for merging later
                     let mut decision_val = serde_json::to_value(result)?;
                     if let Some(obj) = decision_val.as_object_mut() {
                         obj.insert("folder_path".to_string(), json!(folder_path));
-                        obj.insert("selected_category".to_string(), obj.get("selected_option").unwrap().clone());
+                        obj.insert(
+                            "selected_category".to_string(),
+                            obj.get("selected_option").unwrap().clone(),
+                        );
                     }
                     decisions.push(decision_val);
                 }
-                
+
                 return Ok(json!({ "decisions": decisions }));
             }
         }

@@ -48,7 +48,7 @@ impl From<CliError> for crate::WorkflowError {
             },
             CliError::ExecutionFailed(msg) => crate::WorkflowError::workflow_execution(&msg),
             CliError::ConfigError(msg) => crate::WorkflowError::workflow_execution(&msg),
-            _ => crate::WorkflowError::workflow_execution(&err.to_string()),
+            _ => crate::WorkflowError::workflow_execution(err.to_string()),
         }
     }
 }

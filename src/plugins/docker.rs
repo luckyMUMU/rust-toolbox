@@ -280,7 +280,7 @@ impl DockerEnvironment {
         let container_name = format!(
             "workflow-tool-{}-{}",
             context.execution_id,
-            uuid::Uuid::new_v4().to_string()[..8].to_string()
+            &uuid::Uuid::new_v4().to_string()[..8]
         );
 
         debug!("Creating Docker container: {}", container_name);

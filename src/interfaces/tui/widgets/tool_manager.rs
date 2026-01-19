@@ -1,9 +1,9 @@
 use crate::core::ToolInfo;
-use crate::tools::ToolRegistry;
+use crate::interfaces::tui::widget::{SizeConstraints, WidgetCapabilities};
 use crate::interfaces::tui::{
-    Action, Widget, WidgetId, WidgetContext, theme::Theme, widget::WidgetError,
+    theme::Theme, widget::WidgetError, Action, Widget, WidgetContext, WidgetId,
 };
-use crate::interfaces::tui::widget::{WidgetCapabilities, SizeConstraints, UpdateFrequency};
+use crate::tools::ToolRegistry;
 use async_trait::async_trait;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
@@ -14,7 +14,6 @@ use ratatui::{
     Frame,
 };
 use serde_json::Value;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 pub struct ToolManagerWidget {
@@ -22,7 +21,6 @@ pub struct ToolManagerWidget {
     state: ListState,
     tools: Vec<ToolInfo>,
     filter: String,
-    selected_category: Option<String>,
     show_details: bool,
 
     // Widget trait fields
@@ -51,7 +49,6 @@ impl ToolManagerWidget {
             state,
             tools,
             filter: String::new(),
-            selected_category: None,
             show_details: false,
 
             id: WidgetId::from("tool_manager"),
@@ -173,11 +170,9 @@ impl ToolManagerWidget {
 
     fn matches_filter(&self, tool: &ToolInfo, filter_set: &FilterSet) -> bool {
         if let Some(cat_filter) = &filter_set.category_filter {
-            if !tool
-                .category
-                .as_ref()
-                .map_or(false, |cat| cat.to_lowercase().contains(&cat_filter.to_lowercase()))
-            {
+            if !tool.category.as_ref().is_some_and(|cat| {
+                cat.to_lowercase().contains(&cat_filter.to_lowercase())
+            }) {
                 return false;
             }
         }
@@ -273,7 +268,10 @@ impl ToolManagerWidget {
                         Span::raw(&tool.version),
                     ]),
                     Line::from(vec![
-                        Span::styled("Description: ", Style::default().add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            "Description: ",
+                            Style::default().add_modifier(Modifier::BOLD),
+                        ),
                         Span::raw(&tool.description),
                     ]),
                 ];
@@ -299,34 +297,36 @@ impl ToolManagerWidget {
                 )));
 
                 // Simple parameter rendering
-                if let Some(properties) = tool
-                    .parameters_schema
-                    .get("properties")
-                    .and_then(|v: &Value| -> Option<&serde_json::Map<String, Value>> { v.as_object() })
-                {
+                if let Some(properties) = tool.parameters_schema.get("properties").and_then(
+                    |v: &Value| -> Option<&serde_json::Map<String, Value>> { v.as_object() },
+                ) {
                     let example_params: Vec<String> = properties
                         .iter()
                         .take(2) // Show first 2 parameters as example
                         .map(|(name, schema): (&String, &Value)| {
-                            let example_value = match schema.get("type").and_then(|v: &Value| v.as_str()) {
-                                Some("string") => "\"example\"".to_string(),
-                                Some("number") | Some("integer") => "42".to_string(),
-                                Some("boolean") => "true".to_string(),
-                                Some("array") => "[]".to_string(),
-                                Some("object") => "{}".to_string(),
-                                _ => "null".to_string(),
-                            };
+                            let example_value =
+                                match schema.get("type").and_then(|v: &Value| v.as_str()) {
+                                    Some("string") => "\"example\"".to_string(),
+                                    Some("number") | Some("integer") => "42".to_string(),
+                                    Some("boolean") => "true".to_string(),
+                                    Some("array") => "[]".to_string(),
+                                    Some("object") => "{}".to_string(),
+                                    _ => "null".to_string(),
+                                };
                             format!("{}: {}", name, example_value)
                         })
                         .collect();
-                    
+
                     if !example_params.is_empty() {
-                        details.push(Line::from(Span::raw(format!("  {{ {}, ... }}", example_params.join(", ")))));
+                        details.push(Line::from(Span::raw(format!(
+                            "  {{ {}, ... }}",
+                            example_params.join(", ")
+                        ))));
                     } else {
                         details.push(Line::from(Span::raw("  No parameters")));
                     }
                 } else {
-                     details.push(Line::from(Span::raw("  No parameters schema")));
+                    details.push(Line::from(Span::raw("  No parameters schema")));
                 }
 
                 let paragraph = Paragraph::new(details)
@@ -349,28 +349,33 @@ impl Widget for ToolManagerWidget {
     fn id(&self) -> &WidgetId {
         &self.id
     }
-    
+
     fn title(&self) -> &str {
         "Tool Manager"
     }
-    
+
     fn context(&self) -> &WidgetContext {
         &self.context
     }
-    
+
     fn context_mut(&mut self) -> &mut WidgetContext {
         &mut self.context
     }
-    
+
     fn capabilities(&self) -> &WidgetCapabilities {
         &self.capabilities
     }
-    
+
     fn size_constraints(&self) -> &SizeConstraints {
         &self.size_constraints
     }
 
-    async fn render(&mut self, frame: &mut Frame, area: Rect, _theme: &Theme) -> Result<(), WidgetError> {
+    async fn render(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        _theme: &Theme,
+    ) -> Result<(), WidgetError> {
         self.render(frame, area);
         Ok(())
     }

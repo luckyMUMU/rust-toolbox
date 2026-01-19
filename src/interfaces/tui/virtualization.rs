@@ -10,7 +10,8 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     widgets::{
-        Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState, TableState,
+        Block, Borders, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        TableState,
     },
     Frame,
 };

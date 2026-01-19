@@ -346,21 +346,18 @@ impl Plugin for NativePlugin {
         self.validate_security_policy(&config.security_policy)?;
 
         // Load the dynamic library
-        self.load_library().map_err(|e| {
+        self.load_library().inspect_err(|_e| {
             self.status = PluginStatus::Error;
-            e
         })?;
 
         // Initialize the native plugin
-        self.initialize_native_plugin(&config).map_err(|e| {
+        self.initialize_native_plugin(&config).inspect_err(|_e| {
             self.status = PluginStatus::Error;
-            e
         })?;
 
         // Load tools from the plugin
-        self.load_tools().map_err(|e| {
+        self.load_tools().inspect_err(|_e| {
             self.status = PluginStatus::Error;
-            e
         })?;
 
         self.config = Some(config);
@@ -387,9 +384,8 @@ impl Plugin for NativePlugin {
 
         self.status = PluginStatus::ShuttingDown;
 
-        self.shutdown_native_plugin().map_err(|e| {
+        self.shutdown_native_plugin().inspect_err(|_e| {
             self.status = PluginStatus::Error;
-            e
         })?;
 
         self.status = PluginStatus::Shutdown;

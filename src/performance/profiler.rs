@@ -111,7 +111,7 @@ impl Profiler {
             let mut component_samples = self
                 .samples
                 .entry(session.component.clone())
-                .or_insert_with(Vec::new);
+                .or_default();
             component_samples.extend(session.samples.clone());
 
             // Limit sample count
@@ -207,7 +207,7 @@ impl Profiler {
         for sample in samples.iter() {
             let stats = function_stats
                 .entry(sample.function_name.clone())
-                .or_insert_with(FunctionStats::default);
+                .or_default();
             stats.call_count += 1;
             stats.total_duration += sample.duration;
             stats.min_duration = stats.min_duration.min(sample.duration);
@@ -447,6 +447,12 @@ pub struct CallGraph {
     pub max_depth: usize,
 }
 
+impl Default for CallGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CallGraph {
     pub fn new() -> Self {
         Self {
@@ -555,6 +561,12 @@ pub struct CallGraphSummary {
 #[derive(Debug, Clone)]
 pub struct FlameGraphData {
     pub stacks: HashMap<String, Duration>,
+}
+
+impl Default for FlameGraphData {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FlameGraphData {

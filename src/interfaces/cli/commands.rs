@@ -37,8 +37,10 @@ pub struct Cli {
 
 /// Output format options
 #[derive(Debug, Clone, ValueEnum)]
+#[derive(Default)]
 pub enum OutputFormat {
     /// Human-readable table format
+    #[default]
     Table,
     /// JSON format
     Json,
@@ -48,11 +50,6 @@ pub enum OutputFormat {
     Text,
 }
 
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::Table
-    }
-}
 
 /// Top-level commands
 #[derive(Subcommand)]

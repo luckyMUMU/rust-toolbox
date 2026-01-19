@@ -236,11 +236,7 @@ mod tests {
 
         // Execute node with retry
         let result: Result<Value> = engine
-            .execute_node_with_retry(
-                node,
-                execution_arc.clone(),
-                context,
-            )
+            .execute_node_with_retry(node, execution_arc.clone(), context)
             .await;
 
         // Should succeed after retries
@@ -320,11 +316,7 @@ mod tests {
 
         // Execute node with retry
         let result: Result<Value> = engine
-            .execute_node_with_retry(
-                node,
-                execution_arc.clone(),
-                context,
-            )
+            .execute_node_with_retry(node, execution_arc.clone(), context)
             .await;
 
         // Should fail after exhausting retries
@@ -511,11 +503,7 @@ mod tests {
 
             // Execute node with retry
             let result: Result<Value> = engine
-                .execute_node_with_retry(
-                    node,
-                    execution_arc.clone(),
-                    context,
-                )
+                .execute_node_with_retry(node, execution_arc.clone(), context)
                 .await;
 
             let attempt_count = mock_registry.get_attempt_count("property_test_node");

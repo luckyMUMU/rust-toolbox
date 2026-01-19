@@ -263,7 +263,7 @@ impl ConcurrencyManager {
 
         let result = tokio::task::spawn_blocking(task)
             .await
-            .map_err(|e| crate::WorkflowError::concurrency(&format!("CPU task failed: {}", e)))?;
+            .map_err(|e| crate::WorkflowError::concurrency(format!("CPU task failed: {}", e)))?;
 
         let duration = start_time.elapsed();
         self.record_task_completion("cpu_task", duration).await;
@@ -293,7 +293,7 @@ impl ConcurrencyManager {
         let mut history = self
             .latency_history
             .entry(task_type.to_string())
-            .or_insert_with(Vec::new);
+            .or_default();
         history.push(duration);
 
         // Keep only recent history
@@ -601,7 +601,7 @@ impl LoadBalancer {
         let mut stats = self
             .worker_stats
             .entry(worker.to_string())
-            .or_insert_with(WorkerStats::default);
+            .or_default();
 
         if active {
             stats.active_connections += 1;

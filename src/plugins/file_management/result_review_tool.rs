@@ -251,7 +251,7 @@ impl ResultReviewTool {
 
         // Adjust based on file size
         if let Some(size) = operation.estimated_size {
-            impact.estimated_duration_ms += (size / 1_000_000) as u64; // 1ms per MB
+            impact.estimated_duration_ms += size / 1_000_000; // 1ms per MB
         }
 
         Ok(impact)
@@ -680,20 +680,20 @@ impl ToolNode for ResultReviewTool {
         context: ExecutionContext,
     ) -> Result<Value, WorkflowError> {
         let params: ResultReviewParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
+            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
 
         let result = self
             .process_review(&params, &context)
-            .map_err(|e| WorkflowError::tool_execution(&format!("Review failed: {}", e)))?;
+            .map_err(|e| WorkflowError::tool_execution(format!("Review failed: {}", e)))?;
 
         Ok(serde_json::to_value(result).map_err(|e| {
-            WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e))
+            WorkflowError::tool_execution(format!("Failed to serialize result: {}", e))
         })?)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
         let _: ResultReviewParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
+            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
         Ok(())
     }
 

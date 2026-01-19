@@ -165,32 +165,32 @@ impl VersionRequirement {
         }
 
         if s.starts_with(">=") {
-            let version = Version::from_str(&s[2..].trim())?;
+            let version = Version::from_str(s[2..].trim())?;
             return Ok(VersionRequirement::GreaterThanOrEqual(version));
         }
 
         if s.starts_with("<=") {
-            let version = Version::from_str(&s[2..].trim())?;
+            let version = Version::from_str(s[2..].trim())?;
             return Ok(VersionRequirement::LessThanOrEqual(version));
         }
 
         if s.starts_with('>') {
-            let version = Version::from_str(&s[1..].trim())?;
+            let version = Version::from_str(s[1..].trim())?;
             return Ok(VersionRequirement::GreaterThan(version));
         }
 
         if s.starts_with('<') {
-            let version = Version::from_str(&s[1..].trim())?;
+            let version = Version::from_str(s[1..].trim())?;
             return Ok(VersionRequirement::LessThan(version));
         }
 
         if s.starts_with('~') {
-            let version = Version::from_str(&s[1..].trim())?;
+            let version = Version::from_str(s[1..].trim())?;
             return Ok(VersionRequirement::Compatible(version));
         }
 
         if s.starts_with('=') {
-            let version = Version::from_str(&s[1..].trim())?;
+            let version = Version::from_str(s[1..].trim())?;
             return Ok(VersionRequirement::Exact(version));
         }
 
@@ -347,7 +347,7 @@ impl DependencyResolver {
         let name = tool_version.name.clone();
         self.available_versions
             .entry(name)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(tool_version);
     }
 
@@ -540,7 +540,7 @@ impl DependencyResolver {
     pub fn has_version(&self, tool_name: &str, version: &Version) -> bool {
         self.available_versions
             .get(tool_name)
-            .map_or(false, |versions| {
+            .is_some_and(|versions| {
                 versions.iter().any(|tv| tv.version == *version)
             })
     }

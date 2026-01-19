@@ -12,8 +12,10 @@ use serde_json::json;
 
 /// Strategy for waiting on parallel node completion.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default)]
 pub enum WaitStrategy {
     /// Wait for all nodes to complete
+    #[default]
     WaitAll,
     /// Wait for any single node to complete
     WaitAny,
@@ -21,11 +23,6 @@ pub enum WaitStrategy {
     WaitN(usize),
 }
 
-impl Default for WaitStrategy {
-    fn default() -> Self {
-        WaitStrategy::WaitAll
-    }
-}
 
 /// Parallel component that executes multiple nodes concurrently.
 ///
@@ -177,7 +174,7 @@ impl Component for ParallelComponent {
                 ));
             }
             if n > self.parallel_nodes.len() {
-                return Err(crate::error::WorkflowError::validation(&format!(
+                return Err(crate::error::WorkflowError::validation(format!(
                     "WaitN count ({}) cannot exceed number of parallel nodes ({})",
                     n,
                     self.parallel_nodes.len()

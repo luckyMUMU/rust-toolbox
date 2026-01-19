@@ -350,7 +350,7 @@ impl BatchProcessor {
 
         // Validate batch size
         if items.len() > self.config.max_batch_size {
-            return Err(FileManagementError::validation(&format!(
+            return Err(FileManagementError::validation(format!(
                 "Batch size {} exceeds maximum allowed size {}",
                 items.len(),
                 self.config.max_batch_size
@@ -453,7 +453,7 @@ impl BatchProcessor {
             .ok_or_else(|| FileManagementError::validation("Tool registry not configured"))?;
 
         registry.get_tool(tool_name).ok_or_else(|| {
-            FileManagementError::validation(&format!("Tool '{}' not found", tool_name))
+            FileManagementError::validation(format!("Tool '{}' not found", tool_name))
         })
     }
 

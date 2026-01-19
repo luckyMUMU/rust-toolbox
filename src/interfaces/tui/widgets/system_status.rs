@@ -518,7 +518,7 @@ impl SystemStatusWidget {
             issues,
             warnings,
             info,
-            overall_health: self.current_status.system_health.clone(),
+            overall_health: self.current_status.system_health,
             diagnostics_time: Utc::now(),
         }
     }

@@ -10,7 +10,7 @@ use crate::tools::{TemplateContext, TemplateEngine, ToolRegistry};
 use crate::workflow::{
     AuditEventType, AuditLogger, CacheConfig, Checkpoint, DagScheduler, ErrorDetails,
     ExecutionRecord, LogLevel, NodeExecutionState, ResultCache, WorkflowDefinition,
-    WorkflowEdge, WorkflowExecution, WorkflowNode, WorkflowState,
+    WorkflowExecution, WorkflowNode, WorkflowState,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -99,6 +99,12 @@ pub struct ExecutionControl {
     should_stop: bool,
     pause_requested_at: Option<DateTime<Utc>>,
     stop_requested_at: Option<DateTime<Utc>>,
+}
+
+impl Default for ExecutionControl {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExecutionControl {
@@ -377,7 +383,11 @@ impl DefaultWorkflowEngine {
 
         let (workflow_id, workflow_name, execution_snapshot) = {
             let execution = workflow_execution.read().await;
-            (execution.id, execution.workflow_name.clone(), execution.clone())
+            (
+                execution.id,
+                execution.workflow_name.clone(),
+                execution.clone(),
+            )
         };
 
         // Check cache first if caching is enabled
@@ -474,7 +484,9 @@ impl DefaultWorkflowEngine {
                         // Re-resolve parameters to ensure we have the actual values used
                         // We need a fresh snapshot because global context might have changed (though unlikely during node execution)
                         let execution = workflow_execution.read().await;
-                        let parameters = self.resolve_parameters(node, &execution, &context).unwrap_or(Value::Null);
+                        let parameters = self
+                            .resolve_parameters(node, &execution, &context)
+                            .unwrap_or(Value::Null);
 
                         if let Err(cache_error) = result_cache
                             .cache_node_result(
@@ -1430,8 +1442,8 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                         loop {
                             // Reacquire guard each iteration to avoid holding it during sleep
                             if let Some(current_control) = self.control_signals.get(&workflow_id) {
-                                let should_resume = !current_control.check_pause()
-                                    || current_control.check_stop();
+                                let should_resume =
+                                    !current_control.check_pause() || current_control.check_stop();
                                 if should_resume {
                                     break;
                                 }
@@ -1494,16 +1506,12 @@ impl WorkflowEngine for DefaultWorkflowEngine {
                     scheduler.mark_node_started(&node_id)?;
 
                     // Execute the node with retry logic
-                    let node = definition.get_node(&node_id).ok_or_else(|| {
-                        WorkflowError::NodeNotFound(node_id.clone())
-                    })?;
+                    let node = definition
+                        .get_node(&node_id)
+                        .ok_or_else(|| WorkflowError::NodeNotFound(node_id.clone()))?;
 
                     let node_result = self
-                        .execute_node_with_retry(
-                            node,
-                            execution_arc.clone(),
-                            context.clone(),
-                        )
+                        .execute_node_with_retry(node, execution_arc.clone(), context.clone())
                         .await;
 
                     // Update node state based on result
@@ -2098,8 +2106,7 @@ mod tests {
             0
         }
 
-        fn clear(&mut self) {
-        }
+        fn clear(&mut self) {}
     }
 
     #[tokio::test]
@@ -2110,12 +2117,18 @@ mod tests {
         let cache = Arc::new(SimpleMemoryCache::new());
         let state_manager = Arc::new(StateManager::new(storage, cache));
         let tool_registry = Arc::new(EchoToolRegistry);
-        let engine = Arc::new(DefaultWorkflowEngine::new_with_audit(state_manager, tool_registry, 10, false, 30));
-        
+        let engine = Arc::new(DefaultWorkflowEngine::new_with_audit(
+            state_manager,
+            tool_registry,
+            10,
+            false,
+            30,
+        ));
+
         // Create a workflow with 2 nodes
         // Node 1: Produces some data (simulated by passing params which are echoed back)
         // Node 2: Uses output from Node 1
-        
+
         let mut workflow = WorkflowDefinition::new("param_test_workflow", "1.0.0");
 
         // Node 1
@@ -2136,36 +2149,44 @@ mod tests {
         workflow.add_node(node2).unwrap();
 
         // Make node2 depend on node1
-        workflow.add_edge(WorkflowEdge::new("node1", "node2")).unwrap();
-        
+        workflow
+            .add_edge(WorkflowEdge::new("node1", "node2"))
+            .unwrap();
+
         // Add global variable to context
         let mut global_context = serde_json::Map::new();
-        global_context.insert("global_var".to_string(), Value::String("global_test".to_string()));
-        
+        global_context.insert(
+            "global_var".to_string(),
+            Value::String("global_test".to_string()),
+        );
+
         // We need to inject this global context into the execution.
         // DefaultWorkflowEngine::execute_workflow initializes global_context as empty.
         // But we can pass it via definition? No, definition has no global context.
         // Wait, execute_workflow initializes global_context as empty.
         // However, resolve_parameters uses `execution.global_context` AND `context.global_variables`.
         // We can't easily set `context.global_variables` in `execute_workflow` call.
-        
+
         // BUT, `execute_workflow` returns `WorkflowExecution` which is Running.
         // If we want to test parameter passing, we rely on the engine executing it.
         // The engine creates the execution.
-        
-        // Workaround: We can't easily inject global variables in `execute_workflow` 
+
+        // Workaround: We can't easily inject global variables in `execute_workflow`
         // unless we modify `WorkflowDefinition` to have default context or use `execute_workflow_with_context`.
         // `DefaultWorkflowEngine` doesn't have `execute_workflow_with_context`.
-        
+
         // However, `resolve_parameters` logic:
         // 1. Add global variables from execution context (which comes from caller of execute_tool, but here execute_node creates it)
         // 2. Add global context from workflow execution (initially empty)
-        
+
         // Let's rely on node-to-node passing first.
-        
-        let execution = engine.execute_workflow(workflow).await.expect("Failed to start workflow");
+
+        let execution = engine
+            .execute_workflow(workflow)
+            .await
+            .expect("Failed to start workflow");
         let workflow_id = execution.id;
-        
+
         // Wait for completion
         let mut attempts = 0;
         loop {
@@ -2179,36 +2200,40 @@ mod tests {
             attempts += 1;
             sleep(Duration::from_millis(100)).await;
         }
-        
+
         // Check final state
-        let state = engine.load_workflow_state(workflow_id).await.unwrap().unwrap();
+        let state = engine
+            .load_workflow_state(workflow_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(state.execution.status, ExecutionStatus::Completed);
-        
+
         // Verify Node 1 result
         let node1_state = state.execution.node_states.get("node1").unwrap();
         let node1_result = node1_state.result.as_ref().unwrap();
         assert_eq!(node1_result["output_key"], "output_value");
-        
+
         // Verify Node 2 result
         // It should have received the substituted values
         let node2_state = state.execution.node_states.get("node2").unwrap();
         let node2_result = node2_state.result.as_ref().unwrap();
-        
+
         // Check if substitution happened
         // "received_value": "${nodes.node1.output_key}" -> "output_value"
         assert_eq!(node2_result["received_value"], "output_value");
-        
-        // "global_value": "${global_var}" -> should be unsubstituted if not found? 
+
+        // "global_value": "${global_var}" -> should be unsubstituted if not found?
         // Or if we can't inject it, it stays as is or empty.
-        // The template engine usually leaves it or errors? 
-        // If it fails to resolve, it might error or leave it. 
+        // The template engine usually leaves it or errors?
+        // If it fails to resolve, it might error or leave it.
         // Our template engine implementation (Tera/Handlebars?) likely errors if strict.
         // But `resolve_parameters` implementation:
         // .unwrap_or(Value::Null) in some places, but in execute_node it propagates error?
         // execute_node: `let params = self.resolve_parameters(...) ?;` -> It propagates error.
-        
+
         // So if global_var is missing, it might fail!
-        // I should remove global_var dependency for this test to be safe, 
+        // I should remove global_var dependency for this test to be safe,
         // OR find a way to inject it.
         // Actually, `DefaultWorkflowEngine` doesn't expose a way to set initial global context.
         // That might be a missing feature, but for now I'll stick to node-to-node.

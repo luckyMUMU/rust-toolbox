@@ -10,11 +10,8 @@ use crate::interfaces::mcp::{McpServer, McpServerConfig, McpServerInterface};
 use crate::interfaces::tui::EnhancedTuiInterface;
 use crate::plugins::manager::PluginManager;
 use crate::plugins::types::PluginConfig;
-use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
-use crate::workflow::{
-    RefactoredWorkflowEngine, WorkflowConverter, DataContext, ExecutionTracker,
-};
+use crate::workflow::{DataContext, ExecutionTracker, RefactoredWorkflowEngine, WorkflowConverter};
 use crate::Result;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -89,7 +86,6 @@ pub struct CliApp {
     config_manager: Option<Arc<ConfigManager>>,
     workflow_engine: Option<Arc<RefactoredWorkflowEngine>>,
     tool_registry: Option<Arc<dyn ToolRegistry>>,
-    state_manager: Option<Arc<StateManager>>,
     mcp_server: Option<Arc<dyn McpServerInterface>>,
     plugin_manager: Option<Arc<PluginManager>>,
 }
@@ -101,7 +97,6 @@ impl CliApp {
             config_manager: Some(config_manager),
             workflow_engine: None,
             tool_registry: None,
-            state_manager: None,
             mcp_server: None,
             plugin_manager: None,
         }
@@ -118,7 +113,6 @@ impl CliApp {
         config_manager: Arc<ConfigManager>,
         workflow_engine: Arc<RefactoredWorkflowEngine>,
         tool_registry: Arc<dyn ToolRegistry>,
-        state_manager: Arc<StateManager>,
     ) -> Self {
         // Create plugin manager
         let plugin_manager = Arc::new(PluginManager::new());
@@ -133,7 +127,6 @@ impl CliApp {
             config_manager: Some(config_manager),
             workflow_engine: Some(workflow_engine),
             tool_registry: Some(tool_registry),
-            state_manager: Some(state_manager),
             mcp_server: Some(Arc::new(mcp_server)),
             plugin_manager: Some(plugin_manager),
         }
@@ -165,7 +158,7 @@ impl CliApp {
         };
 
         // Validate arguments
-        cli.validate().map_err(|e| crate::WorkflowError::from(e))?;
+        cli.validate().map_err(crate::WorkflowError::from)?;
 
         // Set up logging based on CLI options
         self.setup_logging(&cli)?;
@@ -319,8 +312,7 @@ impl CliApp {
                 } else {
                     return Err(crate::WorkflowError::NotFound {
                         resource: format!("workflow '{}'", workflow_name),
-                    }
-                    .into());
+                    });
                 };
 
                 // Convert to FlowNode using WorkflowConverter
@@ -350,32 +342,44 @@ impl CliApp {
                     let tracker = tracker.clone();
 
                     tokio::spawn(async move {
-                        if let Err(e) = engine.execute_flow(&flow, &mut context, tracker.clone()).await {
+                        if let Err(e) = engine
+                            .execute_flow(&flow, &mut context, tracker.clone())
+                            .await
+                        {
                             tracing::error!("Background execution failed: {}", e);
-                            let _ = tracker.mark_node_failed("root", &e.to_string());
+                            tracker.mark_node_failed("root", e.to_string());
                         } else {
                             tracker.mark_completed().await;
                         }
                     });
                 } else {
-                    match engine.execute_flow(&flow, &mut context, tracker.clone()).await {
+                    match engine
+                        .execute_flow(&flow, &mut context, tracker.clone())
+                        .await
+                    {
                         Ok(_) => {
                             tracker.mark_completed().await;
-                            println!("{}", formatter.format_success("Workflow completed successfully"));
+                            println!(
+                                "{}",
+                                formatter.format_success("Workflow completed successfully")
+                            );
                         }
                         Err(e) => {
-                            let _ = tracker.mark_node_failed("root", &e.to_string());
-                            println!("{}", formatter.format_error(&format!("Workflow failed: {}", e)));
+                            tracker.mark_node_failed("root", e.to_string());
+                            println!(
+                                "{}",
+                                formatter.format_error(&format!("Workflow failed: {}", e))
+                            );
                         }
                     }
                 }
             }
 
-            WorkflowAction::Status { .. } | 
-            WorkflowAction::Pause { .. } | 
-            WorkflowAction::Resume { .. } | 
-            WorkflowAction::Stop { .. } | 
-            WorkflowAction::List { .. } => {
+            WorkflowAction::Status { .. }
+            | WorkflowAction::Pause { .. }
+            | WorkflowAction::Resume { .. }
+            | WorkflowAction::Stop { .. }
+            | WorkflowAction::List { .. } => {
                 warn!("This command is not yet supported in the v2 engine");
                 println!("Command not supported in v2 engine yet.");
             }
@@ -422,7 +426,7 @@ impl CliApp {
 
                 // Apply filters
                 if let Some(cat) = category {
-                    tools.retain(|tool| tool.category.as_ref().map_or(false, |c| c == cat));
+                    tools.retain(|tool| tool.category.as_ref() == Some(cat));
                 }
 
                 if let Some(tag_filter) = tag {
@@ -499,8 +503,7 @@ impl CliApp {
                         } else {
                             return Err(crate::WorkflowError::NotFound {
                                 resource: format!("tool '{}'", tool_name),
-                            }
-                            .into());
+                            });
                         }
                     }
                 };
@@ -582,8 +585,7 @@ impl CliApp {
                             return Err(crate::WorkflowError::ValidationError(format!(
                                 "Plugin '{}' already exists. Use --force to reinstall.",
                                 plugin_name
-                            ))
-                            .into());
+                            )));
                         }
                     }
                 }
@@ -685,8 +687,7 @@ impl CliApp {
                         // WASM plugin support temporarily disabled
                         return Err(crate::WorkflowError::ValidationError(
                             "WASM plugin support is temporarily disabled".to_string(),
-                        )
-                        .into());
+                        ));
                         /*
                         let plugin_info = crate::core::PluginInfo {
                             name: plugin_name.clone(),
@@ -724,8 +725,7 @@ impl CliApp {
                     crate::core::PluginType::Go => {
                         return Err(crate::WorkflowError::ValidationError(
                             "Go plugin support is not yet implemented".to_string(),
-                        )
-                        .into());
+                        ));
                     }
                 }
 
@@ -817,8 +817,8 @@ impl CliApp {
                     }
                 } else {
                     println!(
-                        "{:<20} {:<10} {:<15} {}",
-                        "Name", "Version", "Type", "Description"
+                        "{:<20} {:<10} {:<15} Description",
+                        "Name", "Version", "Type"
                     );
                     println!("{}", "-".repeat(80));
                     for plugin in &filtered_plugins {
@@ -867,8 +867,7 @@ impl CliApp {
                 if !plugins.iter().any(|p| p.name == *plugin_name) {
                     return Err(crate::WorkflowError::NotFound {
                         resource: format!("plugin '{}'", plugin_name),
-                    }
-                    .into());
+                    });
                 }
 
                 // Confirm uninstallation if not forced
@@ -990,7 +989,7 @@ impl CliApp {
                         batch_config,
                         *parallel,
                         *continue_on_failure,
-                        timeout.map(|t| std::time::Duration::from_secs(t)),
+                        timeout.map(std::time::Duration::from_secs),
                     )
                     .await?;
 
@@ -1104,7 +1103,7 @@ impl CliApp {
             // Keep the server running
             info!("MCP server started successfully. Press Ctrl+C to stop.");
             tokio::signal::ctrl_c().await.map_err(|e| {
-                crate::WorkflowError::workflow_execution(&format!(
+                crate::WorkflowError::workflow_execution(format!(
                     "Failed to wait for Ctrl+C: {}",
                     e
                 ))
@@ -1163,7 +1162,7 @@ impl CliApp {
 
         let content = fs::read_to_string(path)
             .await
-            .map_err(|e| CliError::IoError(e))?;
+            .map_err(CliError::IoError)?;
 
         debug!("Loaded file content: {}", content);
 
@@ -1207,7 +1206,7 @@ impl CliApp {
 
             let content = fs::read_to_string(&file_path)
                 .await
-                .map_err(|e| CliError::IoError(e))?;
+                .map_err(CliError::IoError)?;
 
             // Try JSON first, then YAML
             if let Ok(value) = serde_json::from_str(&content) {
@@ -1233,7 +1232,7 @@ impl CliApp {
 
             let content = fs::read_to_string(&file_path)
                 .await
-                .map_err(|e| CliError::IoError(e))?;
+                .map_err(CliError::IoError)?;
 
             // Try JSON first, then YAML
             if let Ok(value) = serde_json::from_str(&content) {
@@ -1256,7 +1255,7 @@ impl CliApp {
 
         let content = fs::read_to_string(path)
             .await
-            .map_err(|e| CliError::IoError(e))?;
+            .map_err(CliError::IoError)?;
 
         // Try to parse as YAML first, then JSON
         if let Ok(config) = serde_yaml::from_str::<BatchConfig>(&content) {
@@ -1304,7 +1303,7 @@ impl CliApp {
                     // Load from file
                     use tokio::fs;
                     let content = fs::read_to_string(&workflow_spec.file).await.map_err(|e| {
-                        crate::WorkflowError::workflow_execution(&format!(
+                        crate::WorkflowError::workflow_execution(format!(
                             "Failed to read file: {}",
                             e
                         ))
@@ -1332,10 +1331,13 @@ impl CliApp {
                 let result = match definition_result {
                     Ok(definition) => {
                         // Convert parameters to HashMap
-                        let params: std::collections::HashMap<String, serde_json::Value> = match workflow_spec.parameters.as_object() {
-                            Some(map) => map.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-                            None => std::collections::HashMap::new(),
-                        };
+                        let params: std::collections::HashMap<String, serde_json::Value> =
+                            match workflow_spec.parameters.as_object() {
+                                Some(map) => {
+                                    map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                                }
+                                None => std::collections::HashMap::new(),
+                            };
 
                         // Execute workflow with timeout if specified
                         let execution_result = if let Some(timeout_duration) = timeout {
@@ -1393,7 +1395,7 @@ impl CliApp {
                 }
                 Ok(Err(e)) => {
                     if !continue_on_failure {
-                        return Err(e.into());
+                        return Err(e);
                     }
                     // Create a failed result
                     batch_results.push(BatchResult {
@@ -1405,11 +1407,10 @@ impl CliApp {
                 }
                 Err(e) => {
                     if !continue_on_failure {
-                        return Err(crate::WorkflowError::workflow_execution(&format!(
+                        return Err(crate::WorkflowError::workflow_execution(format!(
                             "Task join error: {}",
                             e
-                        ))
-                        .into());
+                        )));
                     }
                     batch_results.push(BatchResult {
                         workflow_name: "unknown".to_string(),
@@ -1435,7 +1436,7 @@ impl CliApp {
             "wasm" | "webassembly" => Ok(crate::core::PluginType::Wasm),
             _ => Err(crate::WorkflowError::ValidationError(
                 format!("Unsupported plugin type: {}. Supported types: native, python, nodejs, go, docker, wasm", plugin_type)
-            ).into()),
+            )),
         }
     }
 
@@ -1455,12 +1456,12 @@ impl CliApp {
             Ok(crate::core::PluginType::Docker)
         } else if path
             .extension()
-            .map_or(false, |ext| ext == "wasm" || ext == "wat")
+            .is_some_and(|ext| ext == "wasm" || ext == "wat")
         {
             Ok(crate::core::PluginType::Wasm)
         } else if path
             .extension()
-            .map_or(false, |ext| ext == "so" || ext == "dll" || ext == "dylib")
+            .is_some_and(|ext| ext == "so" || ext == "dll" || ext == "dylib")
         {
             Ok(crate::core::PluginType::Native)
         } else {
@@ -1502,26 +1503,26 @@ impl CliApp {
         // Create output directory if it doesn't exist
         fs::create_dir_all(output_dir)
             .await
-            .map_err(|e| CliError::IoError(e))?;
+            .map_err(CliError::IoError)?;
 
         // Save results as JSON
         let results_json =
-            serde_json::to_string_pretty(results).map_err(|e| CliError::JsonError(e))?;
+            serde_json::to_string_pretty(results).map_err(CliError::JsonError)?;
 
         let results_file = output_dir.join("batch_results.json");
         fs::write(&results_file, results_json)
             .await
-            .map_err(|e| CliError::IoError(e))?;
+            .map_err(CliError::IoError)?;
 
         // Save summary
         let summary = BatchSummary::from_results(results);
         let summary_json =
-            serde_json::to_string_pretty(&summary).map_err(|e| CliError::JsonError(e))?;
+            serde_json::to_string_pretty(&summary).map_err(CliError::JsonError)?;
 
         let summary_file = output_dir.join("batch_summary.json");
         fs::write(&summary_file, summary_json)
             .await
-            .map_err(|e| CliError::IoError(e))?;
+            .map_err(CliError::IoError)?;
 
         Ok(())
     }
@@ -1546,7 +1547,6 @@ mod tests {
 
         assert!(app.workflow_engine.is_none());
         assert!(app.tool_registry.is_none());
-        assert!(app.state_manager.is_none());
     }
 
     #[tokio::test]

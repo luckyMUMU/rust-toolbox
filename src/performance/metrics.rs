@@ -104,7 +104,7 @@ impl MetricsCollector {
         let mut metrics = self
             .execution_metrics
             .entry(component.to_string())
-            .or_insert_with(ExecutionMetrics::default);
+            .or_default();
 
         metrics.total_executions += 1;
         metrics.total_duration += duration;
@@ -353,7 +353,7 @@ impl MetricsCollector {
         let mut series = self
             .time_series
             .entry(name.to_string())
-            .or_insert_with(TimeSeries::new);
+            .or_default();
 
         series.add_point(TimeSeriesPoint {
             timestamp_millis: std::time::SystemTime::now()
@@ -441,6 +441,12 @@ pub struct CustomMetric {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeSeries {
     pub points: Vec<TimeSeriesPoint>,
+}
+
+impl Default for TimeSeries {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TimeSeries {

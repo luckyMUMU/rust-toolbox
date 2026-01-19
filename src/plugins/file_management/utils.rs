@@ -555,7 +555,7 @@ impl FileOperationManager {
             is_valid: validation_errors.is_empty()
                 && space_check
                     .as_ref()
-                    .map_or(true, |sc| sc.has_sufficient_space),
+                    .is_none_or(|sc| sc.has_sufficient_space),
         })
     }
 
@@ -1820,14 +1820,11 @@ impl TextProcessor {
             variants.push(current_variant);
 
             // Generate additional variants for different styles
-            match style {
-                PinyinStyle::Normal => {
-                    variants
-                        .extend(self.generate_pinyin_with_style(text, &PinyinStyle::WithoutTone));
-                    variants
-                        .extend(self.generate_pinyin_with_style(text, &PinyinStyle::FirstLetter));
-                }
-                _ => {}
+            if style == &PinyinStyle::Normal {
+                variants
+                    .extend(self.generate_pinyin_with_style(text, &PinyinStyle::WithoutTone));
+                variants
+                    .extend(self.generate_pinyin_with_style(text, &PinyinStyle::FirstLetter));
             }
         } else {
             variants.push(text.to_string());
@@ -2431,7 +2428,7 @@ impl FolderMerger {
 
                     folder_map
                         .entry(folder_name)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(location_info);
                 }
             }
@@ -2771,11 +2768,7 @@ impl FolderMerger {
             .map(|loc| loc.size_bytes)
             .max()
             .unwrap_or(0);
-        let estimated_space_saved = if total_size > largest_size {
-            total_size - largest_size
-        } else {
-            0
-        };
+        let estimated_space_saved = total_size.saturating_sub(largest_size);
 
         // Generate reasoning based on merge direction
         match &common_folder.recommended_merge_direction {
@@ -2823,7 +2816,7 @@ impl FolderMerger {
         }
 
         // Ensure confidence is within bounds
-        confidence_score = confidence_score.max(0.0).min(1.0);
+        confidence_score = confidence_score.clamp(0.0, 1.0);
 
         Ok(MergeRecommendation {
             folder_name: common_folder.folder_name.clone(),
@@ -3141,24 +3134,24 @@ impl FolderMerger {
             match self.config.duplicate_handling {
                 DuplicateHandling::Skip => {
                     debug!("Skipping duplicate file: {}", target_file.display());
-                    return Ok(0);
+                    Ok(0)
                 }
                 DuplicateHandling::Rename => {
                     let unique_target = PathUtils::generate_unique_name(target_file);
                     let result = file_operation_manager
                         .move_file(source_file, &unique_target)
                         .await?;
-                    return Ok(result.bytes_moved);
+                    Ok(result.bytes_moved)
                 }
                 DuplicateHandling::KeepNewer => {
                     if self.is_source_newer(source_file, target_file)? {
                         let result = file_operation_manager
                             .move_file(source_file, target_file)
                             .await?;
-                        return Ok(result.bytes_moved);
+                        Ok(result.bytes_moved)
                     } else {
                         debug!("Target file is newer, skipping: {}", target_file.display());
-                        return Ok(0);
+                        Ok(0)
                     }
                 }
                 DuplicateHandling::KeepLarger => {
@@ -3166,10 +3159,10 @@ impl FolderMerger {
                         let result = file_operation_manager
                             .move_file(source_file, target_file)
                             .await?;
-                        return Ok(result.bytes_moved);
+                        Ok(result.bytes_moved)
                     } else {
                         debug!("Target file is larger, skipping: {}", target_file.display());
-                        return Ok(0);
+                        Ok(0)
                     }
                 }
                 DuplicateHandling::Merge => {
@@ -3178,7 +3171,7 @@ impl FolderMerger {
                     let result = file_operation_manager
                         .move_file(source_file, &unique_target)
                         .await?;
-                    return Ok(result.bytes_moved);
+                    Ok(result.bytes_moved)
                 }
             }
         } else {

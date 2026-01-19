@@ -148,7 +148,7 @@ impl DataContext {
         let slot = self
             .node_slots
             .get(key)
-            .ok_or_else(|| WorkflowError::slot_not_found(&format!("node:{}", key)))?;
+            .ok_or_else(|| WorkflowError::slot_not_found(format!("node:{}", key)))?;
         slot.as_type()
     }
 

@@ -45,6 +45,7 @@ where
 ///
 /// Holds all configuration sections for the application.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct Config {
     /// Server settings (ports, host)
     pub server: ServerConfig,
@@ -160,19 +161,6 @@ pub enum LogOutput {
     Both,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            storage: StorageConfig::default(),
-            logging: LoggingConfig::default(),
-            plugins: PluginConfig::default(),
-            auth: AuthConfig::default(),
-            rate_limit: RateLimitConfig::default(),
-            workflow: WorkflowEngineConfig::default(),
-        }
-    }
-}
 
 impl Default for ServerConfig {
     fn default() -> Self {
@@ -306,7 +294,7 @@ impl ConfigManager {
         }
 
         // Merge configuration based on priority
-        *config = self.merge_configs_by_priority(&new_config, &*config, &sources)?;
+        *config = self.merge_configs_by_priority(&new_config, &config, &sources)?;
 
         // Notify watchers of configuration change
         if let Some(sender) = &self.watch_sender {
@@ -415,7 +403,7 @@ impl ConfigManager {
         let config_value =
             serde_json::to_value(&current_config).map_err(|e| WorkflowError::Generic(e.into()))?;
         builder = builder.add_source(
-            config::Config::try_from(&config_value).map_err(|e| WorkflowError::Config(e))?,
+            config::Config::try_from(&config_value).map_err(WorkflowError::Config)?,
         );
 
         // Add environment variables with prefix "WORKFLOW_TOOLKIT_"
@@ -425,11 +413,11 @@ impl ConfigManager {
                 .try_parsing(true),
         );
 
-        let merged_config = builder.build().map_err(|e| WorkflowError::Config(e))?;
+        let merged_config = builder.build().map_err(WorkflowError::Config)?;
 
         let new_config: Config = merged_config
             .try_deserialize()
-            .map_err(|e| WorkflowError::Config(e))?;
+            .map_err(WorkflowError::Config)?;
 
         let source = ConfigSource {
             priority: ConfigPriority::Environment,
@@ -673,11 +661,11 @@ impl Config {
                 .try_parsing(true),
         );
 
-        let config = builder.build().map_err(|e| WorkflowError::Config(e))?;
+        let config = builder.build().map_err(WorkflowError::Config)?;
 
         config
             .try_deserialize()
-            .map_err(|e| WorkflowError::Config(e))
+            .map_err(WorkflowError::Config)
     }
 
     /// Validate the configuration

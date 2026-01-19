@@ -101,14 +101,21 @@ impl IntegratedPluginSystem {
         params: serde_json::Value,
         context: crate::core::ExecutionContext,
     ) -> Result<serde_json::Value> {
-        let registry = self
-            .tool_registry
-            .read()
-            .map_err(|_| WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire read lock on tool registry".to_string(),
-            })?;
+        // Get tool first to avoid holding lock across await
+        let tool = {
+            let registry = self
+                .tool_registry
+                .read()
+                .map_err(|_| WorkflowError::ConcurrentAccess {
+                    message: "Failed to acquire read lock on tool registry".to_string(),
+                })?;
+            
+            registry.get_tool(name).ok_or_else(|| WorkflowError::NotFound {
+                resource: format!("tool '{}'", name),
+            })?
+        };
 
-        registry.execute_tool(name, params, context).await
+        tool.execute(params, context).await
     }
 
     /// Validate tool parameters (satisfies requirement 7.2 - standard parameter system)

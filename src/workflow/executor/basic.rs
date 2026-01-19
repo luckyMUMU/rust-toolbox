@@ -80,8 +80,7 @@ mod tests {
             should_fail: false,
         };
         let mut context = DataContext::new();
-        let exec_ctx = ExecutionContext::new()
-            .with_workflow_id(Uuid::new_v4());
+        let exec_ctx = ExecutionContext::new().with_workflow_id(Uuid::new_v4());
 
         let result = executor.execute(&component, &mut context, &exec_ctx).await;
         assert!(result.is_ok());
@@ -96,8 +95,7 @@ mod tests {
             should_fail: true,
         };
         let mut context = DataContext::new();
-        let exec_ctx = ExecutionContext::new()
-            .with_workflow_id(Uuid::new_v4());
+        let exec_ctx = ExecutionContext::new().with_workflow_id(Uuid::new_v4());
 
         let result = executor.execute(&component, &mut context, &exec_ctx).await;
         assert!(result.is_ok());

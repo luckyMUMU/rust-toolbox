@@ -12,17 +12,17 @@ use serde_json::Value;
 pub enum FlowNode {
     /// Sequential execution of multiple nodes.
     Chain(Vec<FlowNode>),
-    
+
     /// Parallel execution of multiple nodes.
     Parallel(Vec<FlowNode>),
-    
+
     /// A leaf node executing a tool.
     Tool {
         id: String,
         tool_name: String,
         params: Value,
     },
-    
+
     /// Conditional branching (Switch/Case).
     Switch {
         /// Expression to evaluate.
@@ -32,7 +32,7 @@ pub enum FlowNode {
         /// Default path if no case matches.
         default: Box<FlowNode>,
     },
-    
+
     /// Loop execution.
     Loop {
         /// Condition to continue looping.

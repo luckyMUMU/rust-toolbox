@@ -153,7 +153,7 @@ impl MemoryManager {
         let mut history = self
             .usage_history
             .entry(component.to_string())
-            .or_insert_with(Vec::new);
+            .or_default();
         history.push(usage.clone());
 
         // Keep only recent history (last 1000 entries)

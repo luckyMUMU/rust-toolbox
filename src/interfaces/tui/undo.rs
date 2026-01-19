@@ -11,8 +11,8 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Wrap,
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Wrap,
     },
     Frame,
 };
@@ -416,10 +416,10 @@ impl UndoManager {
             } else {
                 // Put it back if it can't be undone
                 undo_stack.push_back(entry);
-                Err(WorkflowError::ValidationError("Operation cannot be undone".to_string()).into())
+                Err(WorkflowError::ValidationError("Operation cannot be undone".to_string()))
             }
         } else {
-            Err(WorkflowError::ValidationError("No operations to undo".to_string()).into())
+            Err(WorkflowError::ValidationError("No operations to undo".to_string()))
         }
     }
 
@@ -450,10 +450,10 @@ impl UndoManager {
             } else {
                 // Put it back if it can't be redone
                 redo_stack.push_back(entry);
-                Err(WorkflowError::ValidationError("Operation cannot be redone".to_string()).into())
+                Err(WorkflowError::ValidationError("Operation cannot be redone".to_string()))
             }
         } else {
-            Err(WorkflowError::ValidationError("No operations to redo".to_string()).into())
+            Err(WorkflowError::ValidationError("No operations to redo".to_string()))
         }
     }
 
@@ -483,14 +483,14 @@ impl UndoManager {
     // Query methods
     pub async fn can_undo(&self) -> bool {
         let undo_stack = self.undo_stack.read().await;
-        undo_stack.back().map_or(false, |entry| {
+        undo_stack.back().is_some_and(|entry| {
             entry.operation.can_undo() && entry.state == OperationState::Executed
         })
     }
 
     pub async fn can_redo(&self) -> bool {
         let redo_stack = self.redo_stack.read().await;
-        redo_stack.back().map_or(false, |entry| {
+        redo_stack.back().is_some_and(|entry| {
             entry.operation.can_redo() && entry.state == OperationState::Undone
         })
     }
@@ -874,8 +874,7 @@ impl UndoHistoryWidget {
 
         let items: Vec<ListItem> = history
             .iter()
-            .enumerate()
-            .map(|(_i, entry)| {
+            .map(|entry| {
                 let age = entry.executed_at.format("%H:%M:%S").to_string();
                 let status_icon = entry.state.icon();
                 let type_icon = entry.operation.operation_type().icon();

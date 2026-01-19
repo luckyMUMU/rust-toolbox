@@ -6,8 +6,8 @@
 use crate::config::{Config, ConfigManager};
 use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::{
-    theme::ThemeConfig, FocusManager, LayoutManager, NavigationConfig,
-    PlatformManager, ThemeManager,
+    theme::ThemeConfig, FocusManager, LayoutManager, NavigationConfig, PlatformManager,
+    ThemeManager,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,6 +19,7 @@ use tracing::{debug, error, info, warn};
 
 /// TUI-specific configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct TuiConfig {
     pub interface: InterfaceConfig,
     pub themes: ThemeManagerConfig,
@@ -165,6 +166,7 @@ pub struct KeybindingsConfig {
 
 /// User preferences
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct UserPreferences {
     pub last_used_view: Option<String>,
     pub window_size: Option<(u16, u16)>,
@@ -185,20 +187,6 @@ pub struct NotificationSettings {
     pub priority_filter: String,
 }
 
-impl Default for TuiConfig {
-    fn default() -> Self {
-        Self {
-            interface: InterfaceConfig::default(),
-            themes: ThemeManagerConfig::default(),
-            layout: LayoutConfig::default(),
-            navigation: NavigationConfig::default(),
-            performance: PerformanceConfig::default(),
-            accessibility: AccessibilityConfig::default(),
-            keybindings: KeybindingsConfig::default(),
-            user_preferences: UserPreferences::default(),
-        }
-    }
-}
 
 impl Default for InterfaceConfig {
     fn default() -> Self {
@@ -304,19 +292,6 @@ impl Default for KeybindingsConfig {
     }
 }
 
-impl Default for UserPreferences {
-    fn default() -> Self {
-        Self {
-            last_used_view: None,
-            window_size: None,
-            recent_workflows: Vec::new(),
-            favorite_tools: Vec::new(),
-            hidden_widgets: Vec::new(),
-            custom_shortcuts: HashMap::new(),
-            notification_settings: NotificationSettings::default(),
-        }
-    }
-}
 
 impl Default for NotificationSettings {
     fn default() -> Self {

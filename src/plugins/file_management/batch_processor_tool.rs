@@ -74,8 +74,10 @@ pub struct BatchItemParams {
 
 /// Batch processing mode
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum BatchProcessingMode {
     /// Process all items in parallel (default)
+    #[default]
     Parallel,
 
     /// Process items sequentially
@@ -88,11 +90,6 @@ pub enum BatchProcessingMode {
     Adaptive,
 }
 
-impl Default for BatchProcessingMode {
-    fn default() -> Self {
-        Self::Parallel
-    }
-}
 
 /// Result of batch processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -424,7 +421,7 @@ impl BatchProcessorExecutor {
     /// Parse batch processing parameters
     fn parse_parameters(&self, params: &Value) -> Result<BatchProcessorParams> {
         serde_json::from_value(params.clone()).map_err(|e| {
-            WorkflowError::validation(&format!("Invalid batch processor parameters: {}", e))
+            WorkflowError::validation(format!("Invalid batch processor parameters: {}", e))
         })
     }
 
@@ -734,7 +731,7 @@ impl ToolExecutor for BatchProcessorExecutor {
         let batch_result = batch_processor
             .process_batch(&batch_params.tool_name, batch_items, context)
             .await
-            .map_err(|e| WorkflowError::tool(&format!("Batch processing failed: {}", e)))?;
+            .map_err(|e| WorkflowError::tool(format!("Batch processing failed: {}", e)))?;
 
         // Collect progress events if tracking was enabled
         let progress_events = if let Some(mut receiver) = progress_receiver {
@@ -777,7 +774,7 @@ impl ToolExecutor for BatchProcessorExecutor {
 
         // Convert to JSON
         serde_json::to_value(tool_result)
-            .map_err(|e| WorkflowError::tool(&format!("Failed to serialize batch result: {}", e)))
+            .map_err(|e| WorkflowError::tool(format!("Failed to serialize batch result: {}", e)))
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
@@ -803,14 +800,14 @@ impl ToolExecutor for BatchProcessorExecutor {
         // Validate each batch item
         for (index, item) in batch_params.batch_items.iter().enumerate() {
             if item.id.trim().is_empty() {
-                return Err(WorkflowError::validation(&format!(
+                return Err(WorkflowError::validation(format!(
                     "batch_items[{}].id cannot be empty",
                     index
                 )));
             }
 
             if !item.parameters.is_object() && !item.parameters.is_null() {
-                return Err(WorkflowError::validation(&format!(
+                return Err(WorkflowError::validation(format!(
                     "batch_items[{}].parameters must be an object",
                     index
                 )));
@@ -858,6 +855,12 @@ pub struct MockToolRegistry {
     tools: HashMap<String, Arc<dyn ToolNode>>,
 }
 
+impl Default for MockToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockToolRegistry {
     pub fn new() -> Self {
         let mut registry = Self {
@@ -901,14 +904,14 @@ impl ToolRegistry for MockToolRegistry {
     ) -> Result<Value> {
         let tool = self
             .get_tool(name)
-            .ok_or_else(|| WorkflowError::tool(&format!("Tool '{}' not found", name)))?;
+            .ok_or_else(|| WorkflowError::tool(format!("Tool '{}' not found", name)))?;
         tool.execute(params, context).await
     }
 
     fn validate_tool_params(&self, name: &str, params: &Value) -> Result<()> {
         let tool = self
             .get_tool(name)
-            .ok_or_else(|| WorkflowError::tool(&format!("Tool '{}' not found", name)))?;
+            .ok_or_else(|| WorkflowError::tool(format!("Tool '{}' not found", name)))?;
         tool.validate_parameters(params)
     }
 

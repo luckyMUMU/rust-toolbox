@@ -4,9 +4,7 @@
 //! specifically for the TUI interface components.
 
 use crate::error::Result;
-use crate::performance::memory::{
-    MemoryManager, MemoryStatistics, MemoryUsage,
-};
+use crate::performance::memory::{MemoryManager, MemoryStatistics, MemoryUsage};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

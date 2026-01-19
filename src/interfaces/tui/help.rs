@@ -553,13 +553,13 @@ impl HelpSystem {
             ShortcutScope::View(view) => {
                 self.view_shortcuts
                     .entry(view)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(shortcut);
             }
             ShortcutScope::Widget(widget_id) => {
                 self.widget_shortcuts
                     .entry(widget_id)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(shortcut);
             }
         }

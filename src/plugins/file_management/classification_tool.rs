@@ -551,7 +551,7 @@ impl ClassificationEngine {
             HumanDecisionContext::new(HumanDecisionType::Classification, title, description);
 
         // Add options for each candidate
-        for (_i, candidate) in result.candidates.iter().enumerate() {
+        for candidate in result.candidates.iter() {
             let option_description = format!(
                 "Score: {:.2}, Confidence: {:.1}%, Keywords: {}",
                 candidate.score,
@@ -618,17 +618,14 @@ pub struct ClassificationParams {
 
 /// Output format options
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ClassificationOutputFormat {
     Simple,   // Just category and confidence
+    #[default]
     Detailed, // Include candidates and metadata
     Full,     // Complete result with all details
 }
 
-impl Default for ClassificationOutputFormat {
-    fn default() -> Self {
-        ClassificationOutputFormat::Detailed
-    }
-}
 
 /// Classification Tool implementation
 pub struct ClassificationTool {

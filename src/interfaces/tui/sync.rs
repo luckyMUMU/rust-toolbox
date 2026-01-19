@@ -7,13 +7,9 @@
 use crate::core::{PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::interfaces::tui::state::{
-    ConnectionStatus, ExecutionInfo, SharedAppState, StateChangeEvent,
-    SystemStatus,
+    ConnectionStatus, ExecutionInfo, SharedAppState, StateChangeEvent, SystemStatus,
 };
-use crate::interfaces::tui::widgets::{
-    log_viewer::LogEntry,
-    workflow_list::WorkflowInfo,
-};
+use crate::interfaces::tui::widgets::{log_viewer::LogEntry, workflow_list::WorkflowInfo};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};

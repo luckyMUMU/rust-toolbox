@@ -18,7 +18,7 @@ pub enum FileManagementError {
     NotFound {
         path: PathBuf,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Permission denied for file operation
@@ -26,7 +26,7 @@ pub enum FileManagementError {
     PermissionDenied {
         path: PathBuf,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Insufficient disk space
@@ -35,7 +35,7 @@ pub enum FileManagementError {
         required: u64,
         available: u64,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// File operation conflict (e.g., destination already exists)
@@ -43,7 +43,7 @@ pub enum FileManagementError {
     Conflict {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Invalid file path or name
@@ -52,7 +52,7 @@ pub enum FileManagementError {
         path: PathBuf,
         reason: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Text processing error
@@ -60,7 +60,7 @@ pub enum FileManagementError {
     TextProcessing {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Classification error
@@ -68,7 +68,7 @@ pub enum FileManagementError {
     Classification {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Pattern matching error
@@ -76,7 +76,7 @@ pub enum FileManagementError {
     PatternMatching {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Human decision timeout
@@ -84,14 +84,14 @@ pub enum FileManagementError {
     HumanDecisionTimeout {
         timeout_seconds: u64,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Human decision cancelled
     #[error("Human decision was cancelled by user")]
     HumanDecisionCancelled {
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Experimental mode violation (trying to perform real operations in experimental mode)
@@ -99,7 +99,7 @@ pub enum FileManagementError {
     ExperimentalModeViolation {
         operation: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Batch processing error
@@ -108,7 +108,7 @@ pub enum FileManagementError {
         failed_count: usize,
         total_count: usize,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Configuration error
@@ -116,7 +116,7 @@ pub enum FileManagementError {
     Configuration {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Validation error
@@ -124,7 +124,7 @@ pub enum FileManagementError {
     Validation {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// I/O error wrapper
@@ -134,7 +134,7 @@ pub enum FileManagementError {
         #[serde(skip)]
         source: std::io::Error,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// JSON processing error
@@ -144,7 +144,7 @@ pub enum FileManagementError {
         #[serde(skip)]
         source: serde_json::Error,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Performance optimization error
@@ -152,7 +152,7 @@ pub enum FileManagementError {
     Performance {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Resource exhaustion error
@@ -161,7 +161,7 @@ pub enum FileManagementError {
         resource: String,
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Timeout error
@@ -170,7 +170,7 @@ pub enum FileManagementError {
         operation: String,
         duration_seconds: u64,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Concurrency error
@@ -178,7 +178,7 @@ pub enum FileManagementError {
     Concurrency {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Recovery error
@@ -187,7 +187,7 @@ pub enum FileManagementError {
         message: String,
         original_error: Box<FileManagementError>,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 
     /// Generic error for other cases
@@ -195,7 +195,7 @@ pub enum FileManagementError {
     Other {
         message: String,
         #[serde(skip)]
-        context: ErrorContext,
+        context: Box<ErrorContext>,
     },
 }
 
@@ -241,10 +241,12 @@ pub struct RecoverySuggestion {
 
 /// Error severity levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ErrorSeverity {
     /// Low severity - operation can continue
     Low,
     /// Medium severity - operation should be retried
+    #[default]
     Medium,
     /// High severity - operation should be aborted but system can continue
     High,
@@ -252,11 +254,6 @@ pub enum ErrorSeverity {
     Critical,
 }
 
-impl Default for ErrorSeverity {
-    fn default() -> Self {
-        Self::Medium
-    }
-}
 
 impl ErrorContext {
     /// Create a new error context
@@ -422,7 +419,7 @@ impl FileManagementError {
     pub fn not_found<P: Into<PathBuf>>(path: P) -> Self {
         Self::NotFound {
             path: path.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -430,7 +427,7 @@ impl FileManagementError {
     pub fn not_found_with_context<P: Into<PathBuf>>(path: P, context: ErrorContext) -> Self {
         Self::NotFound {
             path: path.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -438,7 +435,7 @@ impl FileManagementError {
     pub fn permission_denied<P: Into<PathBuf>>(path: P) -> Self {
         Self::PermissionDenied {
             path: path.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -449,7 +446,7 @@ impl FileManagementError {
     ) -> Self {
         Self::PermissionDenied {
             path: path.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -458,7 +455,7 @@ impl FileManagementError {
         Self::InsufficientSpace {
             required,
             available,
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -471,7 +468,7 @@ impl FileManagementError {
         Self::InsufficientSpace {
             required,
             available,
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -479,7 +476,7 @@ impl FileManagementError {
     pub fn conflict<P: AsRef<std::path::Path>, S: Into<String>>(path: P, message: S) -> Self {
         Self::Conflict {
             message: format!("{}: {}", path.as_ref().display(), message.into()),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -487,7 +484,7 @@ impl FileManagementError {
     pub fn conflict_simple<S: Into<String>>(message: S) -> Self {
         Self::Conflict {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -495,7 +492,7 @@ impl FileManagementError {
     pub fn conflict_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Conflict {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -503,7 +500,7 @@ impl FileManagementError {
     pub fn unsupported_operation<S: Into<String>>(message: S) -> Self {
         Self::Other {
             message: format!("Unsupported operation: {}", message.into()),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -512,7 +509,7 @@ impl FileManagementError {
         Self::InvalidPath {
             path: path.into(),
             reason: reason.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -525,7 +522,7 @@ impl FileManagementError {
         Self::InvalidPath {
             path: path.into(),
             reason: reason.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -533,7 +530,7 @@ impl FileManagementError {
     pub fn text_processing<S: Into<String>>(message: S) -> Self {
         Self::TextProcessing {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -544,7 +541,7 @@ impl FileManagementError {
     ) -> Self {
         Self::TextProcessing {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -552,7 +549,7 @@ impl FileManagementError {
     pub fn classification<S: Into<String>>(message: S) -> Self {
         Self::Classification {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -560,7 +557,7 @@ impl FileManagementError {
     pub fn classification_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Classification {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -568,7 +565,7 @@ impl FileManagementError {
     pub fn pattern_matching<S: Into<String>>(message: S) -> Self {
         Self::PatternMatching {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -579,7 +576,7 @@ impl FileManagementError {
     ) -> Self {
         Self::PatternMatching {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -587,7 +584,7 @@ impl FileManagementError {
     pub fn human_decision_timeout(timeout_seconds: u64) -> Self {
         Self::HumanDecisionTimeout {
             timeout_seconds,
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -598,27 +595,29 @@ impl FileManagementError {
     ) -> Self {
         Self::HumanDecisionTimeout {
             timeout_seconds,
-            context,
+            context: Box::new(context),
         }
     }
 
     /// Create a human decision cancelled error
     pub fn human_decision_cancelled() -> Self {
         Self::HumanDecisionCancelled {
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
     /// Create a human decision cancelled error with context
     pub fn human_decision_cancelled_with_context(context: ErrorContext) -> Self {
-        Self::HumanDecisionCancelled { context }
+        Self::HumanDecisionCancelled {
+            context: Box::new(context),
+        }
     }
 
     /// Create an experimental mode violation error
     pub fn experimental_mode_violation<S: Into<String>>(operation: S) -> Self {
         Self::ExperimentalModeViolation {
             operation: operation.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -629,7 +628,7 @@ impl FileManagementError {
     ) -> Self {
         Self::ExperimentalModeViolation {
             operation: operation.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -638,7 +637,7 @@ impl FileManagementError {
         Self::BatchProcessing {
             failed_count,
             total_count,
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -651,7 +650,7 @@ impl FileManagementError {
         Self::BatchProcessing {
             failed_count,
             total_count,
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -659,7 +658,7 @@ impl FileManagementError {
     pub fn configuration<S: Into<String>>(message: S) -> Self {
         Self::Configuration {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -667,7 +666,7 @@ impl FileManagementError {
     pub fn configuration_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Configuration {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -675,7 +674,7 @@ impl FileManagementError {
     pub fn validation<S: Into<String>>(message: S) -> Self {
         Self::Validation {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -683,7 +682,7 @@ impl FileManagementError {
     pub fn validation_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Validation {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -692,7 +691,7 @@ impl FileManagementError {
         Self::Io {
             message: message.into(),
             source,
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -705,7 +704,7 @@ impl FileManagementError {
         Self::Io {
             message: message.into(),
             source,
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -714,7 +713,7 @@ impl FileManagementError {
         Self::Json {
             message: message.into(),
             source,
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -727,7 +726,7 @@ impl FileManagementError {
         Self::Json {
             message: message.into(),
             source,
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -735,7 +734,7 @@ impl FileManagementError {
     pub fn performance<S: Into<String>>(message: S) -> Self {
         Self::Performance {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -743,7 +742,7 @@ impl FileManagementError {
     pub fn performance_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Performance {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -752,7 +751,7 @@ impl FileManagementError {
         Self::ResourceExhaustion {
             resource: resource.into(),
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -765,7 +764,7 @@ impl FileManagementError {
         Self::ResourceExhaustion {
             resource: resource.into(),
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -774,7 +773,7 @@ impl FileManagementError {
         Self::Timeout {
             operation: operation.into(),
             duration_seconds,
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -787,7 +786,7 @@ impl FileManagementError {
         Self::Timeout {
             operation: operation.into(),
             duration_seconds,
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -795,7 +794,7 @@ impl FileManagementError {
     pub fn concurrency<S: Into<String>>(message: S) -> Self {
         Self::Concurrency {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -803,7 +802,7 @@ impl FileManagementError {
     pub fn concurrency_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Concurrency {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -812,7 +811,7 @@ impl FileManagementError {
         Self::Recovery {
             message: message.into(),
             original_error: Box::new(original_error),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -825,7 +824,7 @@ impl FileManagementError {
         Self::Recovery {
             message: message.into(),
             original_error: Box::new(original_error),
-            context,
+            context: Box::new(context),
         }
     }
 
@@ -833,7 +832,7 @@ impl FileManagementError {
     pub fn other<S: Into<String>>(message: S) -> Self {
         Self::Other {
             message: message.into(),
-            context: ErrorContext::default(),
+            context: Box::new(ErrorContext::default()),
         }
     }
 
@@ -841,7 +840,7 @@ impl FileManagementError {
     pub fn other_with_context<S: Into<String>>(message: S, context: ErrorContext) -> Self {
         Self::Other {
             message: message.into(),
-            context,
+            context: Box::new(context),
         }
     }
 

@@ -691,16 +691,14 @@ impl PlatformManager {
                         } else {
                             Color::White
                         }
+                    } else if r > g && r > b {
+                        Color::Red
+                    } else if g > r && g > b {
+                        Color::Green
+                    } else if b > r && b > g {
+                        Color::Blue
                     } else {
-                        if r > g && r > b {
-                            Color::Red
-                        } else if g > r && g > b {
-                            Color::Green
-                        } else if b > r && b > g {
-                            Color::Blue
-                        } else {
-                            Color::Black
-                        }
+                        Color::Black
                     }
                 }
                 _ => color,
@@ -722,10 +720,7 @@ impl PlatformManager {
     /// Map Windows-specific key events
     fn map_windows_key(&self, event: KeyEvent) -> KeyEvent {
         // Handle Windows-specific key mappings
-        match event.code {
-            // Map Windows Terminal specific keys if needed
-            _ => event,
-        }
+        event
     }
 
     /// Map macOS-specific key events

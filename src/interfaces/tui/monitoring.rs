@@ -628,7 +628,7 @@ impl TuiPerformanceMonitor {
 
         match format {
             ExportFormat::Json => serde_json::to_string_pretty(&history)
-                .map_err(|e| crate::error::WorkflowError::ValidationError(e.to_string()).into()),
+                .map_err(|e| crate::error::WorkflowError::ValidationError(e.to_string())),
             ExportFormat::Csv => {
                 let mut csv = String::new();
                 csv.push_str("timestamp,cpu_usage,memory_usage,fps,frame_time_ms,error_count\n");

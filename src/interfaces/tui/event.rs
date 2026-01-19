@@ -646,7 +646,7 @@ impl KeyBindings {
     ) {
         self.context_shortcuts
             .entry(view)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert((key_code, modifiers), action);
     }
 
@@ -660,7 +660,7 @@ impl KeyBindings {
     ) {
         self.widget_shortcuts
             .entry(widget_id)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert((key_code, modifiers), action);
     }
 

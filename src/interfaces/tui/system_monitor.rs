@@ -200,10 +200,10 @@ impl SystemMonitor {
         let network_health_score = Self::calculate_network_health_score(&status.network_status);
 
         // Overall health score (weighted average)
-        let overall_score = (cpu_health_score * 0.3
+        let overall_score = cpu_health_score * 0.3
             + memory_health_score * 0.3
             + disk_health_score * 0.3
-            + network_health_score * 0.1);
+            + network_health_score * 0.1;
 
         // Generate health recommendations
         let recommendations = Self::generate_health_recommendations(
@@ -215,12 +215,11 @@ impl SystemMonitor {
 
         // Assess system load and performance trends
         let load_assessment = Self::assess_system_load(status.load_average, cpu_info.core_count);
-        
+
         // Generate summary message
         let message = format!(
-            "System Health: {:?} (Score: {:.1}/100)", 
-            status.system_health, 
-            overall_score
+            "System Health: {:?} (Score: {:.1}/100)",
+            status.system_health, overall_score
         );
 
         SystemHealthAssessment {

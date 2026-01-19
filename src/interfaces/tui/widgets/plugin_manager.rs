@@ -209,7 +209,9 @@ impl Default for PluginFilter {
 
 /// Plugin sort order
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum PluginSortOrder {
+    #[default]
     NameAsc,
     NameDesc,
     StatusAsc,
@@ -220,11 +222,6 @@ pub enum PluginSortOrder {
     LastUpdatedDesc,
 }
 
-impl Default for PluginSortOrder {
-    fn default() -> Self {
-        Self::NameAsc
-    }
-}
 
 /// Plugin Manager Widget implementation
 pub struct PluginManagerWidget {
@@ -423,8 +420,8 @@ impl PluginManagerWidget {
                 .info
                 .description
                 .as_ref()
-                .map_or(false, |desc| desc.to_lowercase().contains(&search_lower));
-            let matches_author = plugin.info.author.as_ref().map_or(false, |author| {
+                .is_some_and(|desc| desc.to_lowercase().contains(&search_lower));
+            let matches_author = plugin.info.author.as_ref().is_some_and(|author| {
                 author.to_lowercase().contains(&search_lower)
             });
 
@@ -443,14 +440,13 @@ impl PluginManagerWidget {
         }
 
         // Installed filter
-        if self.filter.show_installed_only {
-            if !matches!(
+        if self.filter.show_installed_only
+            && !matches!(
                 plugin.status,
                 PluginStatus::Ready | PluginStatus::Running | PluginStatus::Error
             ) {
                 return false;
             }
-        }
 
         true
     }
@@ -546,7 +542,7 @@ impl PluginManagerWidget {
     /// Check if refresh is needed
     fn needs_refresh(&self) -> bool {
         self.last_refresh
-            .map_or(true, |last| last.elapsed() >= self.refresh_interval)
+            .is_none_or(|last| last.elapsed() >= self.refresh_interval)
     }
 
     /// Check if status update is needed
@@ -556,7 +552,7 @@ impl PluginManagerWidget {
         }
 
         self.last_status_update
-            .map_or(true, |last| last.elapsed() >= self.status_update_interval)
+            .is_none_or(|last| last.elapsed() >= self.status_update_interval)
     }
 
     /// Check if health check is needed
@@ -566,7 +562,7 @@ impl PluginManagerWidget {
         }
 
         self.last_health_check
-            .map_or(true, |last| last.elapsed() >= self.health_check_interval)
+            .is_none_or(|last| last.elapsed() >= self.health_check_interval)
     }
 
     /// Update plugin status monitoring
@@ -1075,7 +1071,7 @@ impl PluginManagerWidget {
             .iter()
             .find(|p| p.info.name == plugin_name)
             .and_then(|p| p.config.as_ref())
-            .map_or(false, |c| c.enabled);
+            .is_some_and(|c| c.enabled);
 
         // Disable first if enabled
         if was_enabled {
@@ -1163,7 +1159,7 @@ impl PluginManagerWidget {
             let installed_plugins: std::collections::HashSet<String> = self
                 .plugins
                 .iter()
-                .filter(|p| p.config.as_ref().map_or(false, |c| c.enabled))
+                .filter(|p| p.config.as_ref().is_some_and(|c| c.enabled))
                 .map(|p| p.info.name.clone())
                 .collect();
 
@@ -1352,7 +1348,7 @@ impl PluginManagerWidget {
         }
 
         // Calculate in-degrees
-        for (_, neighbors) in graph {
+        for neighbors in graph.values() {
             for neighbor in neighbors {
                 *in_degree.entry(neighbor.clone()).or_insert(0) += 1;
             }
@@ -1691,11 +1687,11 @@ impl PluginManagerWidget {
                     || plugin
                         .description
                         .as_ref()
-                        .map_or(false, |desc| desc.to_lowercase().contains(&query_lower))
+                        .is_some_and(|desc| desc.to_lowercase().contains(&query_lower))
                     || plugin
                         .author
                         .as_ref()
-                        .map_or(false, |author| author.to_lowercase().contains(&query_lower))
+                        .is_some_and(|author| author.to_lowercase().contains(&query_lower))
                     || plugin.metadata.values().any(|value| match value {
                         serde_json::Value::String(s) => s.to_lowercase().contains(&query_lower),
                         _ => false,
@@ -1713,17 +1709,16 @@ impl PluginManagerWidget {
         self.market_plugins
             .iter()
             .filter(|plugin| {
-                let category_match = category.map_or(true, |cat| {
+                let category_match = category.is_none_or(|cat| {
                     plugin
                         .metadata
                         .get("category")
-                        .and_then(|v| v.as_str())
-                        .map_or(false, |plugin_cat| plugin_cat == cat)
+                        .and_then(|v| v.as_str()) == Some(cat)
                 });
 
                 let type_match = plugin_type
                     .as_ref()
-                    .map_or(true, |ptype| &plugin.plugin_type == ptype);
+                    .is_none_or(|ptype| &plugin.plugin_type == ptype);
 
                 category_match && type_match
             })
@@ -3237,8 +3232,7 @@ impl PluginManagerWidget {
             let items: Vec<ListItem> = self
                 .market_plugins
                 .iter()
-                .enumerate()
-                .map(|(_i, plugin)| {
+                .map(|plugin| {
                     let is_installed = self.plugins.iter().any(|p| p.info.name == plugin.name);
                     let status_symbol = if is_installed { "✓" } else { "○" };
                     let status_style = if is_installed {

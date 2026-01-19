@@ -1239,7 +1239,8 @@ mod action_dispatch_tests {
     #[test]
     fn test_action_handler_registration() {
         let mut dispatcher = ActionDispatcher::new();
-        let handler = MockActionHandler::new("test_handler".to_string(), vec![DispatchAction::Quit]);
+        let handler =
+            MockActionHandler::new("test_handler".to_string(), vec![DispatchAction::Quit]);
 
         dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
         assert_eq!(dispatcher.handlers.len(), 1);
@@ -1248,7 +1249,8 @@ mod action_dispatch_tests {
     #[test]
     fn test_action_dispatch_and_process() {
         let mut dispatcher = ActionDispatcher::new();
-        let handler = MockActionHandler::new("test_handler".to_string(), vec![DispatchAction::Quit]);
+        let handler =
+            MockActionHandler::new("test_handler".to_string(), vec![DispatchAction::Quit]);
 
         dispatcher.register_handler("test_handler".to_string(), Box::new(handler));
 

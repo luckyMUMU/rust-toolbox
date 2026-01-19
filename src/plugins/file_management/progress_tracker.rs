@@ -3,9 +3,7 @@
 //! This module provides real-time progress tracking, result aggregation,
 //! and performance monitoring for batch operations.
 
-use super::batch_processor::{
-    BatchItemResult, BatchItemStatus, BatchProgress,
-};
+use super::batch_processor::{BatchItemResult, BatchItemStatus, BatchProgress};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

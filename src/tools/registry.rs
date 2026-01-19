@@ -121,7 +121,7 @@ impl BasicToolRegistry {
             .iter()
             .filter_map(|entry| {
                 let info: &ToolInfo = entry.value();
-                if info.category.as_ref().map_or(false, |c| c == category) {
+                if info.category.as_ref().is_some_and(|c| c == category) {
                     Some(info.clone())
                 } else {
                     None

@@ -23,6 +23,7 @@ use tokio::sync::RwLock;
 
 /// Performance configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct PerformanceConfig {
     /// Memory optimization settings
     pub memory: MemoryConfig,
@@ -40,17 +41,6 @@ pub struct PerformanceConfig {
     pub profiling: ProfilingConfig,
 }
 
-impl Default for PerformanceConfig {
-    fn default() -> Self {
-        Self {
-            memory: MemoryConfig::default(),
-            concurrency: ConcurrencyConfig::default(),
-            cache: CacheConfig::default(),
-            metrics: MetricsConfig::default(),
-            profiling: ProfilingConfig::default(),
-        }
-    }
-}
 
 /// Performance manager for coordinating optimizations
 pub struct PerformanceManager {
@@ -313,6 +303,12 @@ pub struct OptimizationReport {
     pub concurrency_optimizations: Vec<ConcurrencyOptimization>,
     pub cache_optimizations: Vec<CacheOptimization>,
     pub timestamp_millis: u64, // Unix timestamp in milliseconds
+}
+
+impl Default for OptimizationReport {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl OptimizationReport {

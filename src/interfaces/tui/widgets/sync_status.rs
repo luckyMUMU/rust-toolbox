@@ -23,6 +23,12 @@ pub struct SyncStatusWidget {
     metrics: SyncMetrics,
 }
 
+impl Default for SyncStatusWidget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SyncStatusWidget {
     pub fn new() -> Self {
         let capabilities = WidgetCapabilities {

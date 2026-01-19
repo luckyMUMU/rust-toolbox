@@ -185,13 +185,13 @@ impl BasicToolBuilder {
     }
 
     pub fn build(self) -> Result<BasicTool> {
-        let name = self
-            .name
-            .ok_or_else(|| crate::error::WorkflowError::ValidationError("Tool name is required".to_string()))?;
+        let name = self.name.ok_or_else(|| {
+            crate::error::WorkflowError::ValidationError("Tool name is required".to_string())
+        })?;
         let version = self.version.unwrap_or_else(|| "1.0.0".to_string());
-        let executor = self
-            .executor
-            .ok_or_else(|| crate::error::WorkflowError::ValidationError("Tool executor is required".to_string()))?;
+        let executor = self.executor.ok_or_else(|| {
+            crate::error::WorkflowError::ValidationError("Tool executor is required".to_string())
+        })?;
 
         let info = ToolInfo {
             name,

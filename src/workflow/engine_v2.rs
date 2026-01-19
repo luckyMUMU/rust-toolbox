@@ -25,12 +25,11 @@ use crate::tools::ToolRegistry;
 use crate::workflow::component::{ComponentOutput, ComponentRegistry, ComponentStatus};
 use crate::workflow::context::DataContext;
 use crate::workflow::executor::{BoxedExecutor, ExecutorChainBuilder};
-use crate::workflow::scheduler::DagScheduler;
 use crate::workflow::flow_node::FlowNode;
+use crate::workflow::scheduler::DagScheduler;
 use crate::workflow::state::{CheckpointManager, ExecutionTracker};
 use crate::workflow::{
-    AuditLogger, CacheConfig, ResultCache, WorkflowDefinition,
-    WorkflowExecution,
+    AuditLogger, CacheConfig, ResultCache, WorkflowDefinition, WorkflowExecution,
 };
 use chrono::Utc;
 use futures::future::join_all;
@@ -40,6 +39,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
+
+/// Context for the workflow execution loop to reduce argument count
+struct WorkflowLoopContext<'a> {
+    workflow_id: Uuid,
+    component_registry: &'a ComponentRegistry,
+    tracker: Arc<ExecutionTracker>,
+}
 
 /// Refactored workflow engine with component-based architecture.
 ///
@@ -146,7 +152,6 @@ impl RefactoredWorkflowEngine {
             .map_err(|_| WorkflowError::execution("Failed to acquire workflow permit"))?;
 
         let workflow_id = Uuid::new_v4();
-        let execution_id = Uuid::new_v4().to_string();
 
         tracing::info!(
             workflow_id = %workflow_id,
@@ -182,13 +187,16 @@ impl RefactoredWorkflowEngine {
         ));
 
         // Execute the workflow
+        let loop_ctx = WorkflowLoopContext {
+            workflow_id,
+            component_registry: &component_registry,
+            tracker: tracker.clone(),
+        };
+
         let result = self
             .execute_workflow_loop(
-                workflow_id,
-                &execution_id,
-                &component_registry,
+                loop_ctx,
                 &mut context,
-                tracker.clone(),
                 &mut scheduler,
                 checkpoint_manager,
             )
@@ -223,19 +231,17 @@ impl RefactoredWorkflowEngine {
     /// Main workflow execution loop.
     async fn execute_workflow_loop(
         &self,
-        workflow_id: Uuid,
-        execution_id: &str,
-        component_registry: &ComponentRegistry,
+        ctx: WorkflowLoopContext<'_>,
         context: &mut DataContext,
-        tracker: Arc<ExecutionTracker>,
         scheduler: &mut DagScheduler,
         checkpoint_manager: Arc<CheckpointManager>,
     ) -> Result<()> {
+        let tracker = &ctx.tracker;
         while !scheduler.is_execution_complete() {
             // Check for stop/pause signals
             if tracker.should_stop().await {
                 tracker.mark_failed().await;
-                return Err(WorkflowError::ExecutionCancelled.into());
+                return Err(WorkflowError::ExecutionCancelled);
             }
 
             if tracker.should_pause().await {
@@ -260,12 +266,9 @@ impl RefactoredWorkflowEngine {
             // Execute nodes in parallel
             let results = self
                 .execute_nodes_parallel(
-                    workflow_id,
-                    execution_id,
+                    &ctx,
                     &ready_nodes,
-                    component_registry,
                     context,
-                    tracker.clone(),
                     scheduler,
                 )
                 .await;
@@ -287,7 +290,7 @@ impl RefactoredWorkflowEngine {
             if checkpoint_manager.should_checkpoint().await {
                 let _ = checkpoint_manager
                     .create_checkpoint(
-                        workflow_id,
+                        ctx.workflow_id,
                         tracker.workflow_name(),
                         tracker.get_all_node_states(),
                         context,
@@ -312,14 +315,15 @@ impl RefactoredWorkflowEngine {
     /// This is the core method that enables true parallel execution.
     async fn execute_nodes_parallel(
         &self,
-        workflow_id: Uuid,
-        _execution_id: &str,
+        ctx: &WorkflowLoopContext<'_>,
         node_ids: &[String],
-        component_registry: &ComponentRegistry,
         context: &mut DataContext,
-        tracker: Arc<ExecutionTracker>,
         scheduler: &mut DagScheduler,
     ) -> Vec<Result<ComponentOutput>> {
+        let tracker = &ctx.tracker;
+        let component_registry = ctx.component_registry;
+        let workflow_id = ctx.workflow_id;
+
         // Mark all nodes as executing in scheduler
         for node_id in node_ids {
             let _ = scheduler.mark_node_started(node_id);
@@ -420,7 +424,7 @@ impl RefactoredWorkflowEngine {
     async fn wait_for_resume(&self, tracker: Arc<ExecutionTracker>) -> Result<()> {
         loop {
             if tracker.should_stop().await {
-                return Err(WorkflowError::ExecutionCancelled.into());
+                return Err(WorkflowError::ExecutionCancelled);
             }
             if !tracker.should_pause().await {
                 return Ok(());
@@ -480,7 +484,11 @@ impl RefactoredWorkflowEngine {
     ) -> Result<()> {
         match flow {
             FlowNode::Empty => Ok(()),
-            FlowNode::Tool { id, tool_name, params } => {
+            FlowNode::Tool {
+                id,
+                tool_name,
+                params,
+            } => {
                 // Create a temporary component
                 let component = crate::workflow::component::ToolComponent::new(
                     id,
@@ -490,26 +498,30 @@ impl RefactoredWorkflowEngine {
                 );
 
                 let exec_ctx = ExecutionContext::new().with_workflow_id(tracker.workflow_id());
-                
+
                 // Mark started
                 tracker.mark_node_started(id).await;
-                
+
                 // Execute
                 let result = self.executor.execute(&component, context, &exec_ctx).await;
-                
+
                 match result {
                     Ok(output) => {
-                         if output.status.is_success() {
+                        if output.status.is_success() {
                             tracker.mark_node_completed(id, output.result);
                         } else if output.status.is_failure() {
-                             // Extract error message
-                             let msg = if let ComponentStatus::Failure(m) = output.status { m } else { "Unknown error".to_string() };
-                             tracker.mark_node_failed(id, &msg);
-                             return Err(WorkflowError::execution(msg));
+                            // Extract error message
+                            let msg = if let ComponentStatus::Failure(m) = output.status {
+                                m
+                            } else {
+                                "Unknown error".to_string()
+                            };
+                            tracker.mark_node_failed(id, &msg);
+                            return Err(WorkflowError::execution(msg));
                         }
                     }
                     Err(e) => {
-                        tracker.mark_node_failed(id, &e.to_string());
+                        tracker.mark_node_failed(id, e.to_string());
                         return Err(e);
                     }
                 }
@@ -523,16 +535,19 @@ impl RefactoredWorkflowEngine {
             }
             FlowNode::Parallel(nodes) => {
                 // Execute in parallel
-                 let futures: Vec<_> = nodes.iter().map(|node| {
-                    let tracker = tracker.clone();
-                    // Clone context for each branch
-                    let mut branch_context = context.clone();
-                    
-                    async move {
-                         Box::pin(self.execute_flow(node, &mut branch_context, tracker)).await
-                    }
-                }).collect();
-                
+                let futures: Vec<_> = nodes
+                    .iter()
+                    .map(|node| {
+                        let tracker = tracker.clone();
+                        // Clone context for each branch
+                        let mut branch_context = context.clone();
+
+                        async move {
+                            Box::pin(self.execute_flow(node, &mut branch_context, tracker)).await
+                        }
+                    })
+                    .collect();
+
                 let results = join_all(futures).await;
                 // Check errors
                 for res in results {
@@ -541,7 +556,7 @@ impl RefactoredWorkflowEngine {
                 Ok(())
             }
             // TODO: Implement Switch and Loop
-            _ => Ok(()) 
+            _ => Ok(()),
         }
     }
 }

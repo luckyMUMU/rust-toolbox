@@ -199,8 +199,7 @@ impl BackupManager {
                 return Err(crate::error::WorkflowError::BackupError(format!(
                     "Backup verification failed: {:?}",
                     verification.errors
-                ))
-                .into());
+                )));
             }
         }
 
@@ -218,8 +217,7 @@ impl BackupManager {
         if !self.config.enable_incremental {
             return Err(crate::error::WorkflowError::BackupError(
                 "Incremental backups are not enabled".to_string(),
-            )
-            .into());
+            ));
         }
 
         let backup_id = Uuid::new_v4().to_string();
@@ -273,8 +271,7 @@ impl BackupManager {
                 return Err(crate::error::WorkflowError::BackupError(format!(
                     "Incremental backup verification failed: {:?}",
                     verification.errors
-                ))
-                .into());
+                )));
             }
         }
 
@@ -487,11 +484,9 @@ impl BackupManager {
 
         let mut execution_records = Vec::new();
 
-        for value_opt in values {
-            if let Some(value) = value_opt {
-                if let Ok(record) = serde_json::from_slice::<ExecutionRecord>(&value) {
-                    execution_records.push(record);
-                }
+        for value in values.into_iter().flatten() {
+            if let Ok(record) = serde_json::from_slice::<ExecutionRecord>(&value) {
+                execution_records.push(record);
             }
         }
 

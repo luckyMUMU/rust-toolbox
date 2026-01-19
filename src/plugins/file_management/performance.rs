@@ -190,7 +190,7 @@ impl MemoryPool {
         if self.current_size + size <= self.max_size {
             self.buffers
                 .entry(size)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(buffer);
             self.current_size += size;
         }

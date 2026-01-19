@@ -113,57 +113,72 @@ impl FileManagementToolRegistry {
 
         // 1. Rule Loader
         let tool = Arc::new(super::classification_flow::RuleLoaderTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 2. Rule Preprocessor
-        let tool = Arc::new(super::classification_flow::RulePreprocessorTool::new(self.config.enable_chinese_processing));
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        let tool = Arc::new(super::classification_flow::RulePreprocessorTool::new(
+            self.config.enable_chinese_processing,
+        ));
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 3. Automaton Builder
         let tool = Arc::new(super::classification_flow::AutomatonBuilderTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 4. Directory Scanner
         let tool = Arc::new(super::classification_flow::DirectoryScannerTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 5. Folder Name Preprocessor
-        let tool = Arc::new(super::classification_flow::FolderNamePreprocessorTool::new(self.config.enable_chinese_processing));
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        let tool = Arc::new(super::classification_flow::FolderNamePreprocessorTool::new(
+            self.config.enable_chinese_processing,
+        ));
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 6. Parallel Matcher
         let tool = Arc::new(super::classification_flow::ParallelMatcherTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 7. Score Calculator
         let tool = Arc::new(super::classification_flow::ScoreCalculatorTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 8. Ambiguity Detector
         let tool = Arc::new(super::classification_flow::AmbiguityDetectorTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 9. Result Merger
         let tool = Arc::new(super::classification_flow::ResultMergerTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 10. Experimental Check
         let tool = Arc::new(super::classification_flow::ExperimentalCheckTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         // 13. Report Generator
         let tool = Arc::new(super::classification_flow::ReportGeneratorTool);
-        self.registered_tools.insert(tool.name().to_string(), tool.clone());
+        self.registered_tools
+            .insert(tool.name().to_string(), tool.clone());
         tools.push(tool);
 
         Ok(tools)
@@ -772,7 +787,7 @@ impl ToolExecutor for AcMatcherExecutor {
 
     fn validate_parameters(&self, params: &Value) -> Result<()> {
         // Validate text parameter
-        if !params.get("text").and_then(|v| v.as_str()).is_some() {
+        if params.get("text").and_then(|v| v.as_str()).is_none() {
             return Err(WorkflowError::validation(
                 "text parameter is required and must be a string",
             ));
@@ -801,10 +816,9 @@ impl ToolExecutor for AcMatcherExecutor {
             }
 
             // Check required fields
-            if !pattern_obj
+            if pattern_obj
                 .get("pattern")
-                .and_then(|v| v.as_str())
-                .is_some()
+                .and_then(|v| v.as_str()).is_none()
             {
                 return Err(WorkflowError::validation(format!(
                     "patterns[{}].pattern is required and must be a string",
@@ -812,10 +826,9 @@ impl ToolExecutor for AcMatcherExecutor {
                 )));
             }
 
-            if !pattern_obj
+            if pattern_obj
                 .get("category")
-                .and_then(|v| v.as_str())
-                .is_some()
+                .and_then(|v| v.as_str()).is_none()
             {
                 return Err(WorkflowError::validation(format!(
                     "patterns[{}].category is required and must be a string",
@@ -1136,14 +1149,14 @@ impl ToolExecutor for FileMoverExecutor {
             })?;
 
             // Check required fields
-            if !op_obj.get("source").and_then(|v| v.as_str()).is_some() {
+            if op_obj.get("source").and_then(|v| v.as_str()).is_none() {
                 return Err(WorkflowError::validation(format!(
                     "operations[{}].source is required and must be a string",
                     index
                 )));
             }
 
-            if !op_obj.get("destination").and_then(|v| v.as_str()).is_some() {
+            if op_obj.get("destination").and_then(|v| v.as_str()).is_none() {
                 return Err(WorkflowError::validation(format!(
                     "operations[{}].destination is required and must be a string",
                     index
@@ -1475,7 +1488,7 @@ impl ToolExecutor for FolderMergerExecutor {
 
         if let Some(threshold) = params.get("min_confidence_threshold") {
             if let Some(threshold_val) = threshold.as_f64() {
-                if threshold_val < 0.0 || threshold_val > 1.0 {
+                if !(0.0..=1.0).contains(&threshold_val) {
                     return Err(WorkflowError::validation(
                         "min_confidence_threshold must be between 0.0 and 1.0",
                     ));

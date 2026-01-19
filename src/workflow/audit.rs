@@ -418,12 +418,10 @@ impl AuditLogger {
         let keys = self.state_manager.storage.list_keys(&prefix).await?;
         let values = self.state_manager.storage.batch_load(keys).await?;
 
-        for value_opt in values {
-            if let Some(value) = value_opt {
-                if let Ok(event) = serde_json::from_slice::<AuditEvent>(&value) {
-                    if self.matches_criteria(&event, &criteria) {
-                        events.push(event);
-                    }
+        for value in values.into_iter().flatten() {
+            if let Ok(event) = serde_json::from_slice::<AuditEvent>(&value) {
+                if self.matches_criteria(&event, &criteria) {
+                    events.push(event);
                 }
             }
         }
@@ -458,16 +456,14 @@ impl AuditLogger {
         let keys = self.state_manager.storage.list_keys(&prefix).await?;
         let values = self.state_manager.storage.batch_load(keys).await?;
 
-        for value_opt in values {
-            if let Some(value) = value_opt {
-                if let Ok(log_entry) = serde_json::from_slice::<ExecutionLogEntry>(&value) {
-                    if let Some(filter_level) = &level_filter {
-                        if log_entry.level < *filter_level {
-                            continue;
-                        }
+        for value in values.into_iter().flatten() {
+            if let Ok(log_entry) = serde_json::from_slice::<ExecutionLogEntry>(&value) {
+                if let Some(filter_level) = &level_filter {
+                    if log_entry.level < *filter_level {
+                        continue;
                     }
-                    logs.push(log_entry);
                 }
+                logs.push(log_entry);
             }
         }
 
@@ -525,7 +521,7 @@ impl AuditLogger {
             // Count by severity
             *report
                 .events_by_severity
-                .entry(event.severity.clone())
+                .entry(event.severity)
                 .or_insert(0) += 1;
 
             // Track workflows and users
@@ -741,7 +737,7 @@ macro_rules! audit_info {
 macro_rules! audit_error {
     ($logger:expr, $event_type:expr, $workflow_id:expr, $context:expr, $error:expr, $($arg:tt)*) => {
         {
-            let error_details = Some(crate::workflow::audit::ErrorDetails {
+            let error_details = Some($crate::workflow::audit::ErrorDetails {
                 error_type: std::any::type_name_of_val(&$error).to_string(),
                 error_message: $error.to_string(),
                 stack_trace: None,
@@ -756,7 +752,7 @@ macro_rules! audit_error {
                 $context,
                 Some(format!($($arg)*))
             );
-            event.severity = crate::workflow::audit::AuditSeverity::Error;
+            event.severity = $crate::workflow::audit::AuditSeverity::Error;
             event.error_details = error_details;
 
             let _ = $logger.log_audit_event(event).await;

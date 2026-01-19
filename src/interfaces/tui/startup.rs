@@ -586,7 +586,7 @@ impl StartupPerformanceManager {
                         );
 
                         tracing::error!("{}", error_msg);
-                        Err(crate::error::WorkflowError::ValidationError(error_msg).into())
+                        Err(crate::error::WorkflowError::ValidationError(error_msg))
                     }
                 }
             });
@@ -715,7 +715,7 @@ impl StartupPerformanceManager {
                 );
 
                 tracing::error!("{}", error_msg);
-                Err(crate::error::WorkflowError::ValidationError(error_msg).into())
+                Err(crate::error::WorkflowError::ValidationError(error_msg))
             }
         }
     }
@@ -812,8 +812,7 @@ impl StartupPerformanceManager {
                 return Err(crate::error::WorkflowError::ValidationError(format!(
                     "Timeout waiting for component '{}'",
                     name
-                ))
-                .into());
+                )));
             }
 
             let status = self.component_status.read().await;
@@ -823,8 +822,7 @@ impl StartupPerformanceManager {
                     return Err(crate::error::WorkflowError::ValidationError(format!(
                         "Component '{}' failed: {}",
                         name, e
-                    ))
-                    .into());
+                    )));
                 }
                 _ => {
                     drop(status);
@@ -906,6 +904,12 @@ pub struct LazyComponentLoader {
     lazy_components: Arc<RwLock<HashMap<String, Arc<dyn ComponentInitializer>>>>,
 }
 
+impl Default for LazyComponentLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LazyComponentLoader {
     pub fn new() -> Self {
         Self {
@@ -938,8 +942,7 @@ impl LazyComponentLoader {
             Err(crate::error::WorkflowError::ValidationError(format!(
                 "Lazy component '{}' not found",
                 name
-            ))
-            .into())
+            )))
         }
     }
 }

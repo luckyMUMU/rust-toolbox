@@ -478,11 +478,7 @@ impl CachePartition {
             entry.last_accessed = Instant::now();
 
             // Try to downcast the value
-            let result = if let Some(value) = entry.value.downcast_ref::<V>() {
-                Some(value.clone())
-            } else {
-                None
-            };
+            let result = entry.value.downcast_ref::<V>().cloned();
 
             // Update access tracking after getting the value
             if result.is_some() {

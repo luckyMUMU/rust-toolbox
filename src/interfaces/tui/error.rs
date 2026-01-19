@@ -344,6 +344,12 @@ pub struct ErrorManager {
     max_history: usize,
 }
 
+impl Default for ErrorManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ErrorManager {
     pub fn new() -> Self {
         let (error_sender, error_receiver) = mpsc::unbounded_channel();

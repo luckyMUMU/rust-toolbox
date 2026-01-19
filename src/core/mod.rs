@@ -25,7 +25,9 @@ where
     serializer.serialize_u64(duration.as_secs())
 }
 
-pub fn deserialize_option_duration_from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+pub fn deserialize_option_duration_from_secs<'de, D>(
+    deserializer: D,
+) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -33,7 +35,10 @@ where
     Ok(secs.map(Duration::from_secs))
 }
 
-pub fn serialize_option_duration_as_secs<S>(duration: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize_option_duration_as_secs<S>(
+    duration: &Option<Duration>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -52,22 +57,22 @@ pub struct ToolInfo {
     pub name: String,
     pub version: String,
     pub description: String,
-    
+
     // Schema fields
     #[serde(rename = "parameters")]
     pub parameters_schema: Value, // Renamed to match usage parameters_schema
     pub return_schema: Value,
-    
+
     // Metadata
     pub category: Option<String>,
     pub tags: Vec<String>,
     #[serde(default)]
     pub dependencies: Vec<String>,
-    
+
     // Plugin integration
     pub plugin_name: Option<String>,
     pub version_requirements: HashMap<String, String>, // Tool dependencies with version reqs
-    
+
     // Timestamps
     #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
@@ -317,10 +322,10 @@ pub enum SystemHealth {
 pub struct SystemHealthAssessment {
     pub overall_health: SystemHealth, // Renamed from status to match usage
     pub message: String,
-    pub overall_score: f64, // Changed to f64
-    pub cpu_health_score: f64, // Changed to f64
-    pub memory_health_score: f64, // Changed to f64
-    pub disk_health_score: f64, // Changed to f64
+    pub overall_score: f64,        // Changed to f64
+    pub cpu_health_score: f64,     // Changed to f64
+    pub memory_health_score: f64,  // Changed to f64
+    pub disk_health_score: f64,    // Changed to f64
     pub network_health_score: f64, // Changed to f64
     pub recommendations: Vec<String>,
     pub load_assessment: String,

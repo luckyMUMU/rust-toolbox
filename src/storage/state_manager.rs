@@ -231,8 +231,7 @@ impl StateManager {
             Some(manager) => manager.create_full_backup().await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -245,8 +244,7 @@ impl StateManager {
             Some(manager) => manager.create_incremental_backup(previous_backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -259,8 +257,7 @@ impl StateManager {
             Some(manager) => manager.restore_from_backup(backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -273,8 +270,7 @@ impl StateManager {
             Some(manager) => manager.verify_backup(backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -284,8 +280,7 @@ impl StateManager {
             Some(manager) => manager.list_backups().await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -295,8 +290,7 @@ impl StateManager {
             Some(manager) => manager.delete_backup(backup_id).await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 
@@ -306,8 +300,7 @@ impl StateManager {
             Some(manager) => manager.get_backup_statistics().await,
             None => Err(crate::error::WorkflowError::BackupError(
                 "Backup manager not configured".to_string(),
-            )
-            .into()),
+            )),
         }
     }
 }
@@ -343,11 +336,9 @@ impl StateManager {
         let values = self.storage.batch_load(keys).await?;
 
         let mut history = Vec::new();
-        for value_opt in values {
-            if let Some(value) = value_opt {
-                if let Ok(record) = serde_json::from_slice::<ExecutionRecord>(&value) {
-                    history.push(record);
-                }
+        for value in values.into_iter().flatten() {
+            if let Ok(record) = serde_json::from_slice::<ExecutionRecord>(&value) {
+                history.push(record);
             }
         }
 
@@ -452,8 +443,10 @@ impl StateManager {
     ) -> Result<ExecutionStatistics> {
         let history = self.get_execution_history(workflow_id).await?;
 
-        let mut stats = ExecutionStatistics::default();
-        stats.total_executions = history.len();
+        let mut stats = ExecutionStatistics {
+            total_executions: history.len(),
+            ..Default::default()
+        };
 
         for record in &history {
             match record.status {
@@ -476,7 +469,7 @@ impl StateManager {
 
         if stats.total_executions > 0 {
             stats.success_rate = stats.successful_executions as f64 / stats.total_executions as f64;
-            if let Some(total_duration) = stats.total_duration.to_std().ok() {
+            if let Ok(total_duration) = stats.total_duration.to_std() {
                 stats.average_duration = Some(
                     chrono::Duration::from_std(total_duration / stats.total_executions as u32)
                         .unwrap_or_default(),
@@ -535,11 +528,9 @@ impl StateManager {
         let values = self.storage.batch_load(all_keys).await?;
 
         let mut all_records = Vec::new();
-        for value_opt in values {
-            if let Some(value) = value_opt {
-                if let Ok(record) = serde_json::from_slice::<ExecutionRecord>(&value) {
-                    all_records.push(record);
-                }
+        for value in values.into_iter().flatten() {
+            if let Ok(record) = serde_json::from_slice::<ExecutionRecord>(&value) {
+                all_records.push(record);
             }
         }
 

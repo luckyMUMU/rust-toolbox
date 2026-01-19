@@ -1,8 +1,6 @@
 //! Error recovery utilities for file management operations
 
-use super::error::{
-    FileManagementError, FileManagementResult,
-};
+use super::error::{FileManagementError, FileManagementResult};
 use crate::performance::PerformanceManager;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -393,6 +391,12 @@ impl ErrorRecoveryManager {
 /// Simple retry strategy
 pub struct RetryStrategy;
 
+impl Default for RetryStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RetryStrategy {
     pub fn new() -> Self {
         Self
@@ -426,6 +430,12 @@ impl RecoveryStrategy for RetryStrategy {
 
 /// Space cleanup strategy for insufficient space errors
 pub struct SpaceCleanupStrategy;
+
+impl Default for SpaceCleanupStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SpaceCleanupStrategy {
     pub fn new() -> Self {
@@ -487,6 +497,12 @@ impl RecoveryStrategy for SpaceCleanupStrategy {
 /// Permission fix strategy
 pub struct PermissionFixStrategy;
 
+impl Default for PermissionFixStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PermissionFixStrategy {
     pub fn new() -> Self {
         Self
@@ -537,6 +553,12 @@ impl RecoveryStrategy for PermissionFixStrategy {
 
 /// Path creation strategy
 pub struct PathCreationStrategy;
+
+impl Default for PathCreationStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl PathCreationStrategy {
     pub fn new() -> Self {
@@ -595,6 +617,12 @@ impl RecoveryStrategy for PathCreationStrategy {
 /// Timeout adjustment strategy
 pub struct TimeoutAdjustmentStrategy;
 
+impl Default for TimeoutAdjustmentStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TimeoutAdjustmentStrategy {
     pub fn new() -> Self {
         Self
@@ -648,6 +676,12 @@ impl RecoveryStrategy for TimeoutAdjustmentStrategy {
 
 /// Resource cleanup strategy
 pub struct ResourceCleanupStrategy;
+
+impl Default for ResourceCleanupStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ResourceCleanupStrategy {
     pub fn new() -> Self {

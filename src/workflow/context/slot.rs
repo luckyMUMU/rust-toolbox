@@ -25,7 +25,7 @@ impl SlotValue {
     /// Create a new slot value from any serializable type
     pub fn new<T: Serialize>(value: T) -> Result<Self> {
         let json_value = serde_json::to_value(value)
-            .map_err(|e| WorkflowError::serialization(&format!("Failed to serialize: {}", e)))?;
+            .map_err(|e| WorkflowError::serialization(format!("Failed to serialize: {}", e)))?;
         Ok(Self {
             value: json_value,
             type_name: std::any::type_name::<T>().to_string(),
@@ -53,7 +53,7 @@ impl SlotValue {
     /// Extract the value as a specific type
     pub fn as_type<T: DeserializeOwned>(&self) -> Result<T> {
         serde_json::from_value(self.value.clone()).map_err(|e| {
-            WorkflowError::type_conversion(&format!(
+            WorkflowError::type_conversion(format!(
                 "Failed to convert slot value to {}: {}",
                 std::any::type_name::<T>(),
                 e

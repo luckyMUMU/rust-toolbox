@@ -509,18 +509,17 @@ impl McpServerInterface for McpServer {
                     } else {
                         Err(crate::WorkflowError::NotFound {
                             resource: format!("plugin '{}'", plugin_name),
-                        }
-                        .into())
+                        })
                     }
                 }
                 Err(e) => {
                     println!("Failed to get plugin info: {}", e);
-                    Err(e.into())
+                    Err(e)
                 }
             }
         } else {
             println!("Plugin manager not available");
-            Err(crate::WorkflowError::workflow_execution("Plugin manager not available").into())
+            Err(crate::WorkflowError::workflow_execution("Plugin manager not available"))
         }
     }
 

@@ -8,14 +8,14 @@ use crate::interfaces::tui::{
     action::{Action, ViewType},
     state::SharedAppState,
     widgets::{
-        LogViewerWidget, PluginManagerWidget, SystemStatusWidget,
-        ToolManagerWidget, WorkflowListWidget,
+        LogViewerWidget, PluginManagerWidget, SystemStatusWidget, ToolManagerWidget,
+        WorkflowListWidget,
     },
     ActionDispatcher, EscKeyBehavior, EventHandler, FocusCapability, FocusManager, HelpSystem,
-    NavigationStack, NavigationTrigger, PlatformManager, Theme, ThemeManager,
-    TuiConfig, TuiConfigManager, Widget, WidgetId,
+    NavigationStack, NavigationTrigger, PlatformManager, Theme, ThemeManager, TuiConfig,
+    TuiConfigManager, Widget, WidgetId,
 };
-use crate::tools::{BasicToolRegistry, ToolRegistry};
+use crate::tools::BasicToolRegistry;
 use async_trait::async_trait;
 use ratatui::{
     backend::CrosstermBackend,
@@ -130,9 +130,12 @@ impl TuiApp {
         // TODO: Fix ExecutionMonitorWidget Widget trait implementation
         // router.register_widget(ViewType::ExecutionMonitor, Box::new(ExecutionMonitorWidget::new()));
         router.register_widget(ViewType::LogViewer, Box::new(LogViewerWidget::new()));
-        
+
         let tool_registry = Arc::new(BasicToolRegistry::new());
-        router.register_widget(ViewType::ToolManager, Box::new(ToolManagerWidget::new(tool_registry)));
+        router.register_widget(
+            ViewType::ToolManager,
+            Box::new(ToolManagerWidget::new(tool_registry)),
+        );
         router.register_widget(
             ViewType::PluginManager,
             Box::new(PluginManagerWidget::new()),

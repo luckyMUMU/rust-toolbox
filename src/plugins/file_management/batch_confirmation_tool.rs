@@ -306,7 +306,7 @@ impl BatchConfirmationTool {
         for operation in operations {
             risk_groups
                 .entry(operation.risk_level.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(operation.clone());
         }
 
@@ -344,7 +344,7 @@ impl BatchConfirmationTool {
         for operation in operations {
             type_groups
                 .entry(operation.operation_type.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(operation.clone());
         }
 
@@ -398,7 +398,7 @@ impl BatchConfirmationTool {
             for operation in higher_risk {
                 type_groups
                     .entry(operation.operation_type.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(operation.clone());
             }
 
@@ -820,22 +820,22 @@ impl ToolNode for BatchConfirmationTool {
         context: ExecutionContext,
     ) -> Result<Value, WorkflowError> {
         let params: BatchConfirmationParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
+            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
 
         let result = self
             .process_batch_confirmation(&params, &context)
             .map_err(|e| {
-                WorkflowError::tool_execution(&format!("Batch confirmation failed: {}", e))
+                WorkflowError::tool_execution(format!("Batch confirmation failed: {}", e))
             })?;
 
         Ok(serde_json::to_value(result).map_err(|e| {
-            WorkflowError::tool_execution(&format!("Failed to serialize result: {}", e))
+            WorkflowError::tool_execution(format!("Failed to serialize result: {}", e))
         })?)
     }
 
     fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
         let _: BatchConfirmationParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::validation(&format!("Invalid parameters: {}", e)))?;
+            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
         Ok(())
     }
 
