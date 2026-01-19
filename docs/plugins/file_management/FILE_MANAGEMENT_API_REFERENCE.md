@@ -67,6 +67,17 @@ When a workflow specifies a `tool_name` for a `Tool` node, the engine retrieves 
 | `text-processor` | `TextProcessorTool` | [text_processor_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/text_processor_tool.rs) |
 | `ac-matcher` | `AcMatcherExecutor` | [registry.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/registry.rs) |
 | `result-reviewer` | `ResultReviewTool` | [result_review_tool.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/result_review_tool.rs) |
+| `rule-loader` | `RuleLoaderTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `rule-preprocessor` | `RulePreprocessorTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `ac-builder` | `AhoCorasickBuilderTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `directory-scanner` | `DirectoryScannerTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `folder-preprocessor` | `FolderPreprocessorTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `parallel-matcher` | `ParallelMatcherTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `score-calculator` | `ScoreCalculatorTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `ambiguity-detector` | `AmbiguityDetectorTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `result-merger` | `ResultMergerTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `experimental-checker` | `ExperimentalCheckerTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
+| `report-generator` | `ReportGeneratorTool` | [classification_flow.rs](file:///d:/Code/AI/rust-tool-v2/src/plugins/file_management/classification_flow.rs) |
 
 ### Execution Flow
 
@@ -488,8 +499,8 @@ let result = classifier_tool.execute(params, context).await?;
 ### 5. Human Decision Tool
 
 **Tool Name:** `human-decision`  
-**Version:** `1.0.0`  
-**Description:** Interactive decision-making for ambiguous scenarios
+**Version:** `1.1.0`  
+**Description:** Interactive decision-making for ambiguous scenarios, supporting both single and batch decisions.
 
 #### Parameters Schema
 
@@ -526,7 +537,19 @@ let result = classifier_tool.execute(params, context).await?;
         },
         "required": ["id", "label"]
       },
-      "description": "Available decision options"
+      "description": "Available decision options (for single decision)"
+    },
+    "items": {
+      "type": "array",
+      "description": "List of items for batch decisions (mutually exclusive with 'options' in simple mode)",
+      "items": {
+        "type": "object",
+        "description": "Arbitrary item data to be presented for decision"
+      }
+    },
+    "experimental_mode": {
+      "type": "boolean",
+      "description": "Run in simulation/experimental mode (auto-selects recommended or default option)"
     },
     "timeout_seconds": {
       "type": "number",
@@ -536,8 +559,7 @@ let result = classifier_tool.execute(params, context).await?;
       "type": "number",
       "description": "Default option index if timeout occurs"
     }
-  },
-  "required": ["decision_type", "context", "options"]
+  }
 }
 ```
 
@@ -562,10 +584,78 @@ let result = classifier_tool.execute(params, context).await?;
     "user_input": {
       "type": "string",
       "description": "Additional user input"
+    },
+    "folder_path": {
+      "type": "string",
+      "description": "Path of the folder being decided on (if applicable)"
+    },
+    "selected_category": {
+      "type": "string",
+      "description": "Selected category ID (alias for selected_option)"
+    },
+    "decisions": {
+      "type": "array",
+      "description": "List of decision results if batch processing ('items') was used",
+      "items": {
+        "type": "object",
+        "description": "Individual decision result"
+      }
     }
   }
 }
 ```
+
+## Granular Classification Tools API
+
+The following tools are low-level components used to build the classification workflow.
+
+### 8. Rule Loader Tool
+
+**Tool Name:** `rule-loader`
+**Description:** Loads classification rules from a file or object, supporting legacy formats.
+
+#### Parameters
+*   `rules`: (Required) Rule object or file path.
+
+#### Returns
+*   Valid `ClassificationRules` object.
+
+### 9. Aho-Corasick Builder Tool
+
+**Tool Name:** `ac-builder`
+**Description:** Builds an Aho-Corasick automaton from a set of patterns.
+
+#### Parameters
+*   `patterns`: (Required) List of patterns to match.
+
+#### Returns
+*   `automaton_id`: Reference ID to the built automaton (or serialized representation).
+
+### 10. Parallel Matcher Tool
+
+**Tool Name:** `parallel-matcher`
+**Description:** Executes parallel keyword matching using a pre-built automaton.
+
+#### Parameters
+*   `automaton_config`: (Required) Configuration/ID of the AC automaton.
+*   `folders`: (Required) List of folders to match against.
+
+#### Returns
+*   `match_results`: Raw matching results for each folder.
+
+### 11. Ambiguity Detector Tool
+
+**Tool Name:** `ambiguity-detector`
+**Description:** Analyzes scored results to identify ambiguous or unclassified items.
+
+#### Parameters
+*   `scored_results`: (Required) List of folders with calculated scores.
+*   `confidence_threshold`: (Optional) Minimum score to be considered classified.
+
+#### Returns
+*   `classified`: List of successfully classified items.
+*   `ambiguous`: List of items requiring human review.
+*   `unclassified`: List of items with no matches.
 
 ## Utility Tools API
 

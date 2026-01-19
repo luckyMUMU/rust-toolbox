@@ -67,7 +67,7 @@ Intelligently classify and organize folders based on configurable rules with sup
 |-----------|------|-------------|
 | `source_directory` | string | Directory containing folders to classify |
 | `output_directory` | string | Root directory for organized folders |
-| `classification_rules` | object/string | Classification rules (JSON object or file path) |
+| `classification_rules` | object/string | Classification rules (JSON object or file path, supports legacy format) |
 
 #### Optional Parameters
 

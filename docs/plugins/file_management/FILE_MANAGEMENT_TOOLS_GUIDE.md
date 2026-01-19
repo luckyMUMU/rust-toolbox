@@ -123,6 +123,8 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
 
 #### 1. Folder Classifier (`folder-classifier`)
 
+*Note: In advanced workflows, the classification process is often broken down into granular steps (loading rules, building automaton, parallel matching) for better performance and control. See the [API Reference](FILE_MANAGEMENT_API_REFERENCE.md#granular-classification-tools-api) for details on these low-level tools.*
+
 Intelligently categorizes folders based on configurable rules.
 
 **Parameters:**
@@ -239,22 +241,24 @@ Process multiple items in parallel workflows.
 
 #### 5. Human Decision (`human-decision`)
 
-Interactive decision-making for ambiguous scenarios.
+Interactive decision-making for ambiguous scenarios. Supports both single-item and batch decision modes.
 
 **Parameters:**
 - `decision_type` (string): Type of decision (Classification, FileConflict, MergeStrategy, Custom)
 - `context` (object): Decision context with title, description, and metadata
-- `options` (array): Available decision options
+- `options` (array): Available decision options (for single mode)
+- `items` (array): List of items to decide on (for batch mode)
 - `timeout_seconds` (number): Decision timeout
 - `default_choice` (number): Default option if timeout occurs
 
 **Returns:**
-- `selected_option`: ID of selected option
+- `selected_option`: ID of selected option (single mode)
+- `decisions`: List of decision results (batch mode)
 - `decision_time_ms`: Time taken for decision
 - `was_timeout`: Whether decision timed out
 - `user_input`: Additional user input (if any)
 
-**Example:**
+**Example (Single):**
 ```yaml
 - name: "user_decision"
   tool: "human-decision"

@@ -355,7 +355,28 @@ preview_config:
     size_threshold: "10MB"
 ```
 
-## Batch Decision Strategies
+##### Batch Decision Strategies
+
+The `human-decision` tool supports a dedicated **Batch Mode** via the `items` parameter, allowing multiple decisions to be presented and processed in a single interaction loop. This is significantly more efficient than calling the tool repeatedly for each item.
+
+#### Using the `items` Parameter
+
+Instead of passing a single `context` and `options`, you can pass a list of `items`. Each item should contain specific details (like `folder_path` and `candidates`) which the tool will use to generate individual decision contexts.
+
+```yaml
+  - name: "batch_human_review"
+    tool: "human-decision"
+    params:
+      decision_type: "Classification"
+      context:
+        title: "Batch Classification Review"
+        description: "Review ambiguous items"
+      # Pass the list of ambiguous items directly
+      items: "${step8_detect_ambiguity.ambiguous}" 
+      timeout_seconds: 600
+```
+
+The tool will iterate through the items (or present a UI for batch selection) and return a list of decisions in the `decisions` field of the output.
 
 ### Grouping Similar Decisions
 
