@@ -41,12 +41,14 @@ pub struct WorkflowDefinition {
     /// Human-readable description
     pub description: Option<String>,
     /// Arbitrary metadata
+    #[serde(default)]
     pub metadata: HashMap<String, Value>,
     /// List of nodes in the workflow graph
     pub nodes: Vec<WorkflowNode>,
     /// List of directed edges connecting nodes
     pub edges: Vec<WorkflowEdge>,
     /// Global configuration for this workflow
+    #[serde(default)]
     pub global_config: WorkflowConfig,
 }
 
@@ -184,8 +186,15 @@ pub struct WorkflowNode {
     pub tool_name: Option<String>,
     pub parameters: Value,
     pub retry_policy: Option<RetryPolicy>,
+    #[serde(
+        deserialize_with = "crate::core::deserialize_option_duration_from_secs",
+        serialize_with = "crate::core::serialize_option_duration_as_secs",
+        default
+    )]
     pub timeout: Option<Duration>,
+    #[serde(default)]
     pub metadata: HashMap<String, Value>,
+    #[serde(default)]
     pub depends_on: Vec<String>, // Explicit dependencies beyond edges
 }
 
@@ -306,6 +315,7 @@ pub struct WorkflowEdge {
     pub to: String,
     pub condition: Option<String>,
     pub weight: Option<f64>,
+    #[serde(default)]
     pub metadata: HashMap<String, Value>,
 }
 

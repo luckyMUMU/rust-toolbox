@@ -1,0 +1,6 @@
+{
+  "source_directory": "D:\\Download\\pic",
+  "target_directory": "D:\\Download\\classify",
+  "classification_rules": "D:\\Code\\AI\\py\\classify\\backup\\classfy.json",
+  "experimental_mode": true
+}

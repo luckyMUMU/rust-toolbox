@@ -150,8 +150,7 @@ nodes:
         title: "分类确认"
         description: "请确认分类结果，特别是歧义项"
         metadata:
-          ambiguous_count: "${step8_detect_ambiguity.ambiguous.length}"
-          unclassified_count: "${step8_detect_ambiguity.unclassified.length}"
+          info: "Please review the ambiguous items below"
       # 将歧义项传递给用户
       items: "${step8_detect_ambiguity.ambiguous}"
       timeout_seconds: 300
@@ -222,6 +221,4 @@ edges:
     to: "step13_generate_report"
 
 global_config:
-  timeout: "3600s"
-  error_handling:
-    continue_on_error: false
+  default_timeout: 3600

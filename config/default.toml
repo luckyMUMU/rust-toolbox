@@ -40,6 +40,8 @@ allowed_origins = ["*"]
 requests_per_minute = 60
 burst_size = 10
 enabled = true
+max_requests = 1000
+window_ms = 60000
 
 [workflow]
 max_concurrent_workflows = 10

@@ -22,7 +22,8 @@ use tracing::{debug, info, warn};
 pub struct HumanDecisionParams {
     pub decision_type: String,
     pub context: DecisionContext,
-    pub options: Vec<DecisionOption>,
+    pub options: Option<Vec<DecisionOption>>,
+    pub items: Option<Vec<Value>>,
     pub timeout_seconds: Option<u64>,
     pub default_choice: Option<usize>,
 }
@@ -92,23 +93,25 @@ impl HumanDecisionExecutor {
         );
 
         // Add options
-        for option in &params.options {
-            let mut decision_option = HumanDecisionOption {
-                id: option.id.clone(),
-                label: option.label.clone(),
-                description: option.description.clone(),
-                recommended: option.recommended,
-                metadata: HashMap::new(),
-            };
+        if let Some(options) = &params.options {
+            for option in options {
+                let mut decision_option = HumanDecisionOption {
+                    id: option.id.clone(),
+                    label: option.label.clone(),
+                    description: option.description.clone(),
+                    recommended: option.recommended,
+                    metadata: HashMap::new(),
+                };
 
-            // Add score to metadata if present
-            if let Some(score) = option.score {
-                decision_option
-                    .metadata
-                    .insert("score".to_string(), json!(score));
+                // Add score to metadata if present
+                if let Some(score) = option.score {
+                    decision_option
+                        .metadata
+                        .insert("score".to_string(), json!(score));
+                }
+
+                context.options.push(decision_option);
             }
-
-            context.options.push(decision_option);
         }
 
         // Set timeout if specified
@@ -352,33 +355,40 @@ impl HumanDecisionExecutor {
         }
 
         // Validate options
-        if params.options.is_empty() {
-            return Err(WorkflowError::validation("options cannot be empty"));
+        if params.options.is_none() && params.items.is_none() {
+            return Err(WorkflowError::validation("Either options or items must be provided"));
         }
 
-        for (index, option) in params.options.iter().enumerate() {
-            if option.id.is_empty() {
-                return Err(WorkflowError::validation(format!(
-                    "options[{}].id cannot be empty",
-                    index
-                )));
+        if let Some(options) = &params.options {
+            if options.is_empty() {
+                return Err(WorkflowError::validation("options cannot be empty if provided"));
             }
 
-            if option.label.is_empty() {
-                return Err(WorkflowError::validation(format!(
-                    "options[{}].label cannot be empty",
-                    index
-                )));
+            for (index, option) in options.iter().enumerate() {
+                if option.id.is_empty() {
+                    return Err(WorkflowError::validation(format!(
+                        "options[{}].id cannot be empty",
+                        index
+                    )));
+                }
+
+                if option.label.is_empty() {
+                    return Err(WorkflowError::validation(format!(
+                        "options[{}].label cannot be empty",
+                        index
+                    )));
+                }
             }
         }
-
+        
         // Validate default choice if present
         if let Some(default_choice) = params.default_choice {
-            if default_choice >= params.options.len() {
+            let options_len = params.options.as_ref().map(|o| o.len()).unwrap_or(0);
+            if options_len > 0 && default_choice >= options_len {
                 return Err(WorkflowError::validation(format!(
                     "default_choice ({}) is out of range (0-{})",
                     default_choice,
-                    params.options.len() - 1
+                    options_len - 1
                 )));
             }
         }
@@ -417,10 +427,81 @@ impl ToolExecutor for HumanDecisionExecutor {
         // Validate parameters
         self.validate_params(&params)?;
 
-        // Create decision context
+        // Check if we are processing batch items
+        if let Some(items) = &params.items {
+            if !items.is_empty() {
+                // Batch mode
+                let mut decisions = Vec::new();
+                for item in items {
+                    // Extract candidates and convert to options
+                    let folder_path = item.get("folder_path").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let candidates = item.get("candidates").and_then(|v| v.as_array());
+                    
+                    let mut options = Vec::new();
+                    if let Some(cands) = candidates {
+                        for (i, cand) in cands.iter().enumerate() {
+                            let category = cand.get("category").and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let score = cand.get("score").and_then(|v| v.as_f64());
+                            
+                            options.push(DecisionOption {
+                                id: category.to_string(),
+                                label: category.to_string(),
+                                description: score.map(|s| format!("Score: {:.2}", s)),
+                                score,
+                                recommended: i == 0, // Recommend top candidate
+                            });
+                        }
+                    }
+                    
+                    // Add Skip/Other options
+                    options.push(DecisionOption {
+                        id: "skip".to_string(),
+                        label: "Skip".to_string(),
+                        description: Some("Skip this item".to_string()),
+                        score: None,
+                        recommended: false,
+                    });
+
+                    // Create context for this item
+                    let mut item_context = params.context.clone();
+                    item_context.folder_name = Some(folder_path.to_string());
+                    item_context.title = format!("{} - {}", params.context.title, folder_path);
+
+                    let decision_params = HumanDecisionParams {
+                        decision_type: params.decision_type.clone(),
+                        context: item_context,
+                        options: Some(options),
+                        items: None,
+                        timeout_seconds: params.timeout_seconds,
+                        default_choice: params.default_choice,
+                    };
+
+                    let decision_context = self.create_decision_context(&decision_params)?;
+
+                    let result = if experimental_mode {
+                        info!("Running human decision tool in experimental mode for {}", folder_path);
+                        self.simulate_decision(&decision_context)?
+                    } else {
+                        info!("Presenting decision to user: {}", decision_context.title);
+                        self.present_decision_to_user(&decision_context, params.default_choice).await?
+                    };
+                    
+                    // Add folder_path to result for merging later
+                    let mut decision_val = serde_json::to_value(result)?;
+                    if let Some(obj) = decision_val.as_object_mut() {
+                        obj.insert("folder_path".to_string(), json!(folder_path));
+                        obj.insert("selected_category".to_string(), obj.get("selected_option").unwrap().clone());
+                    }
+                    decisions.push(decision_val);
+                }
+                
+                return Ok(json!({ "decisions": decisions }));
+            }
+        }
+
+        // Single mode
         let decision_context = self.create_decision_context(&params)?;
 
-        // Check if we're in experimental mode
         let result = if experimental_mode {
             info!("Running human decision tool in experimental mode");
             self.simulate_decision(&decision_context)?
@@ -435,7 +516,6 @@ impl ToolExecutor for HumanDecisionExecutor {
             result.selected_option, result.decision_time_ms, experimental_mode
         );
 
-        // Update the result to reflect actual experimental mode status
         let mut final_result = result;
         final_result.experimental_mode = experimental_mode;
 

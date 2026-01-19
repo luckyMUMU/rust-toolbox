@@ -160,18 +160,24 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ### Node to Implementation Mapping
 
-The `interactive-classification-workflow.yaml` consists of several nodes, each mapping to a specific Rust implementation.
+The `interactive-classification-workflow.yaml` has been refactored into 13 granular steps, each performing a specific function.
 
 | Node ID | `tool_name` | Rust Implementation | Role in Workflow |
 | :--- | :--- | :--- | :--- |
-| `scan_folders` | `directory-scanner` | `PlaceholderExecutor` (Mocked in tests) | Discovers source folders |
-| `validate_rules` | `rule-validator` | `PlaceholderExecutor` (Mocked in tests) | Ensures rules are correctly formatted |
-| `batch_classify` | `batch-processor` | `BatchProcessorTool` | Orchestrates batch classification |
-| `review_results` | `result-reviewer` | `ResultReviewTool` | Aggregates and displays classification stats |
-| `human_decision` | `human-decision` | `HumanDecisionTool` | Captures user approval/override |
-| `execute_moves` | `file-mover` | `FileMoverExecutor` | Performs physical file/folder movement |
-| `generate_report` | `operation-reporter`| `PlaceholderExecutor` | Creates final summary of operations |
-| `cleanup` | `folder-cleanup` | `PlaceholderExecutor` | Removes empty directories |
+| `step1_load_rules` | `rule-loader` | `RuleLoaderTool` | Loads and validates classification rules (supports legacy JSON) |
+| `step2_preprocess_rules` | `rule-preprocessor` | `RulePreprocessorTool` | Generates variants (pinyin, traditional) for keywords |
+| `step3_build_automaton` | `ac-builder` | `AhoCorasickBuilderTool` | Builds Aho-Corasick automaton for efficient matching |
+| `step4_scan_source` | `directory-scanner` | `DirectoryScannerTool` | Scans source directory for subfolders |
+| `step5_preprocess_folders` | `folder-preprocessor` | `FolderPreprocessorTool` | Preprocesses folder names (lowercase, etc.) |
+| `step6_parallel_match` | `parallel-matcher` | `ParallelMatcherTool` | Executes parallel keyword matching using AC automaton |
+| `step7_calculate_scores` | `score-calculator` | `ScoreCalculatorTool` | Calculates scores based on matches and weights |
+| `step8_detect_ambiguity` | `ambiguity-detector` | `AmbiguityDetectorTool` | Identifies ambiguous or unclassified items |
+| `step9_merge_results` | `result-merger` | `ResultMergerTool` | Merges auto-classification results |
+| `step9b_final_merge` | `result-merger` | `ResultMergerTool` | Merges human decisions with auto-results |
+| `step10_check_experimental` | `experimental-checker` | `ExperimentalCheckerTool` | Validates experimental mode status |
+| `step11_human_confirmation` | `human-decision` | `HumanDecisionTool` | Interactive user confirmation for ambiguous items |
+| `step12_move_folders` | `file-mover` | `FileMoverExecutor` | Executes physical file/folder operations |
+| `step13_generate_report` | `report-generator` | `ReportGeneratorTool` | Generates execution report and statistics |
 
 ---
 

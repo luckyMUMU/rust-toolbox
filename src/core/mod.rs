@@ -3,11 +3,45 @@
 pub mod version;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
+
+// Helper functions for Duration serialization
+pub fn deserialize_duration_from_secs<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let secs = u64::deserialize(deserializer)?;
+    Ok(Duration::from_secs(secs))
+}
+
+pub fn serialize_duration_as_secs<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_u64(duration.as_secs())
+}
+
+pub fn deserialize_option_duration_from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let secs: Option<u64> = Option::deserialize(deserializer)?;
+    Ok(secs.map(Duration::from_secs))
+}
+
+pub fn serialize_option_duration_as_secs<S>(duration: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match duration {
+        Some(d) => serializer.serialize_some(&d.as_secs()),
+        None => serializer.serialize_none(),
+    }
+}
 
 /// Unique identifier for a workflow execution
 pub type WorkflowId = Uuid;
@@ -174,6 +208,11 @@ pub struct WorkflowConfig {
     #[serde(default = "default_max_concurrent_steps")]
     pub max_concurrent_steps: usize,
     pub default_timeout: Option<u64>, // in seconds
+    #[serde(
+        deserialize_with = "deserialize_option_duration_from_secs",
+        serialize_with = "serialize_option_duration_as_secs",
+        default
+    )]
     pub checkpoint_interval: Option<Duration>, // in seconds (Added)
     pub retry_policy: Option<RetryPolicy>,
 }
@@ -206,7 +245,16 @@ pub enum RetryStrategy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetryPolicy {
     pub max_attempts: u32,
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub base_delay: Duration, // Renamed from delay_ms (and type changed)
+    #[serde(
+        deserialize_with = "deserialize_option_duration_from_secs",
+        serialize_with = "serialize_option_duration_as_secs",
+        default
+    )]
     pub max_delay: Option<Duration>, // Added
     pub backoff_multiplier: f64, // Renamed from multiplier
     pub strategy: RetryStrategy, // Added
@@ -231,6 +279,10 @@ pub struct AuthConfig {
     pub enabled: bool,
     pub token: Option<String>,
     pub jwt_secret: Option<String>,
+    #[serde(
+        deserialize_with = "deserialize_duration_from_secs",
+        serialize_with = "serialize_duration_as_secs"
+    )]
     pub token_expiry: Duration,
     pub allowed_origins: Vec<String>,
 }

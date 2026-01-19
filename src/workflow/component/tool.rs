@@ -4,7 +4,7 @@
 
 use crate::core::ExecutionContext;
 use crate::error::Result;
-use crate::tools::ToolRegistry;
+use crate::tools::{TemplateContext, TemplateEngine, ToolRegistry};
 use crate::workflow::component::{Component, ComponentOutput, ComponentType};
 use crate::workflow::context::DataContext;
 use async_trait::async_trait;
@@ -24,6 +24,9 @@ pub struct ToolComponent {
 
     /// Default parameters for the tool
     default_params: Value,
+
+    /// Template engine for parameter expansion
+    template_engine: Arc<TemplateEngine>,
 }
 
 impl ToolComponent {
@@ -34,11 +37,20 @@ impl ToolComponent {
         tool_registry: Arc<dyn ToolRegistry>,
         default_params: Value,
     ) -> Self {
+        // Initialize template engine
+        // We ignore initialization errors and fallback to basic engine if it fails
+        // In a real production system, we might want to propagate this error
+        let template_engine = Arc::new(TemplateEngine::new().unwrap_or_else(|e| {
+            tracing::error!("Failed to initialize template engine: {}", e);
+            TemplateEngine::default()
+        }));
+
         Self {
             id: id.into(),
             tool_name: tool_name.into(),
             tool_registry,
             default_params,
+            template_engine,
         }
     }
 
@@ -71,6 +83,32 @@ impl ToolComponent {
 
         // If not both objects, prefer runtime params
         runtime_params.clone()
+    }
+
+    /// Resolve parameters using template engine
+    fn resolve_parameters(&self, params: &Value, context: &DataContext) -> Result<Value> {
+        // Create template context
+        let mut template_context = TemplateContext::new();
+
+        // Add all global slots to template context
+        let global_slots = context.export_global_slots();
+        
+        // Special handling for input_params: flatten it into the root context
+        if let Some(input_params) = global_slots.get("input_params") {
+            if let Value::Object(map) = input_params {
+                for (k, v) in map {
+                    template_context.set_variable(k.clone(), v.clone());
+                }
+            }
+        }
+        
+        // Add other global slots (overwriting input_params if name collision, or keeping them as objects)
+        template_context.set_variables(global_slots);
+
+        // Expand parameters
+        self.template_engine
+            .expand(params, &template_context)
+            .map_err(|e| crate::error::WorkflowError::ParameterResolutionError(e.to_string()))
     }
 }
 
@@ -107,10 +145,13 @@ impl Component for ToolComponent {
         // Merge with default parameters
         let params = self.merge_params(&runtime_params);
 
+        // Resolve templates in parameters
+        let resolved_params = self.resolve_parameters(&params, context)?;
+
         // Execute the tool
         let result = self
             .tool_registry
-            .execute_tool(&self.tool_name, params, execution_ctx.clone())
+            .execute_tool(&self.tool_name, resolved_params, execution_ctx.clone())
             .await?;
 
         // Store the result in context

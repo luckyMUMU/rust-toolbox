@@ -51,6 +51,37 @@ async fn main() -> Result<()> {
     // Create tool registry with some basic tools
     let mut tool_registry = BasicToolRegistry::new();
 
+    // Register File Management Plugin Tools
+    use workflow_toolkit::core::{PluginInfo, PluginType};
+    use workflow_toolkit::plugins::file_management::{FileManagementConfig, FileManagementToolRegistry};
+    use std::collections::HashMap;
+
+    let fm_config = FileManagementConfig::default();
+    let fm_plugin_info = PluginInfo {
+        name: "file-management".to_string(),
+        version: "1.0.0".to_string(),
+        plugin_type: PluginType::Native,
+        description: Some("File management tools".to_string()),
+        author: Some("System".to_string()),
+        homepage: None,
+        metadata: HashMap::new(),
+    };
+
+    let mut fm_registry = FileManagementToolRegistry::new(fm_config, fm_plugin_info);
+    match fm_registry.register_all_tools() {
+        Ok(tools) => {
+            for tool in tools {
+                if let Err(e) = tool_registry.register_tool(tool.clone()) {
+                    eprintln!("Failed to register tool {}: {}", tool.name(), e);
+                }
+            }
+            println!("Registered file management tools successfully");
+        }
+        Err(e) => {
+            eprintln!("Failed to register file management tools: {}", e);
+        }
+    }
+
     // Add a simple echo tool for testing
     use workflow_toolkit::tools::{AsyncFunctionExecutor, BasicTool};
     let echo_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| Box::pin(async move {

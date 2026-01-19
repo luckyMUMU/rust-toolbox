@@ -213,7 +213,10 @@ impl DataContext {
 
     /// Store the output of a node execution in a standard location
     pub fn store_node_output(&self, node_id: &str, output: Value) -> Result<()> {
-        self.set_global(format!("{}_output", node_id), output)
+        // Store with _output suffix (legacy/explicit)
+        self.set_global(format!("{}_output", node_id), output.clone())?;
+        // Store with node_id directly (convenience for templates)
+        self.set_global(node_id, output)
     }
 
     /// Retrieve the output of a previously executed node

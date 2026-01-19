@@ -58,12 +58,81 @@ impl ToolNode for RuleLoaderTool {
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         let rules_input = params.get("rules").ok_or_else(|| WorkflowError::validation("rules parameter required"))?;
         
-        let rules: ClassificationRules = if let Some(path) = rules_input.as_str() {
-            let content = std::fs::read_to_string(path).map_err(|e| WorkflowError::tool(format!("Failed to read rules file: {}", e)))?;
-            serde_json::from_str(&content).map_err(|e| WorkflowError::validation(format!("Invalid rules JSON: {}", e)))?
+        // 1. Load initial Value
+        let mut rules_value = if let Some(path) = rules_input.as_str() {
+            info!("Attempting to read rules from path: {}", path);
+            let content = std::fs::read_to_string(path).map_err(|e| WorkflowError::tool(format!("Failed to read rules file '{}': {}", path, e)))?;
+            serde_json::from_str::<Value>(&content).map_err(|e| WorkflowError::validation(format!("Invalid rules JSON: {}", e)))?
         } else {
-            serde_json::from_value(rules_input.clone()).map_err(|e| WorkflowError::validation(format!("Invalid rules object: {}", e)))?
+            rules_input.clone()
         };
+
+        // 2. Apply transformations (Legacy Support)
+        if let Some(obj) = rules_value.as_object_mut() {
+            // Legacy "categories" -> "rules"
+            if obj.contains_key("categories") && !obj.contains_key("rules") {
+                if let Some(categories) = obj.remove("categories") {
+                    obj.insert("rules".to_string(), categories);
+                }
+            }
+
+            // Transform nested keywords into combinations and name -> category
+            if let Some(rules) = obj.get_mut("rules").and_then(|r| r.as_array_mut()) {
+                for rule in rules {
+                    if let Some(rule_obj) = rule.as_object_mut() {
+                        // Legacy "name" -> "category"
+                        if rule_obj.contains_key("name") && !rule_obj.contains_key("category") {
+                            if let Some(name) = rule_obj.remove("name") {
+                                rule_obj.insert("category".to_string(), name);
+                            }
+                        }
+
+                        // Legacy "priority" -> "score_weight"
+                        // Python logic: priority_weight = (1 + priority * 0.1)
+                        if let Some(priority) = rule_obj.get("priority").and_then(|v| v.as_i64()) {
+                            if !rule_obj.contains_key("score_weight") {
+                                let weight = 1.0 + (priority as f64) * 0.1;
+                                rule_obj.insert("score_weight".to_string(), json!(weight));
+                            }
+                        }
+
+                        // Process keywords
+                        if let Some(keywords_val) = rule_obj.get_mut("keywords") {
+                            if let Some(keywords_arr) = keywords_val.as_array() {
+                                let mut simple_keywords = Vec::new();
+                                let mut combinations = Vec::new();
+
+                                for item in keywords_arr {
+                                    if let Some(s) = item.as_str() {
+                                        simple_keywords.push(Value::String(s.to_string()));
+                                    } else if let Some(arr) = item.as_array() {
+                                        let mut combo = Vec::new();
+                                        for sub_item in arr {
+                                            if let Some(s) = sub_item.as_str() {
+                                                combo.push(s.to_string());
+                                            }
+                                        }
+                                        if !combo.is_empty() {
+                                            combinations.push(combo);
+                                        }
+                                    }
+                                }
+
+                                *keywords_val = Value::Array(simple_keywords);
+
+                                if !combinations.is_empty() {
+                                    rule_obj.insert("combinations".to_string(), json!(combinations));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Deserialize to struct
+        let rules: ClassificationRules = serde_json::from_value(rules_value)
+            .map_err(|e| WorkflowError::validation(format!("Invalid classification rules structure: {}", e)))?;
 
         // Basic validation
         if rules.rules.is_empty() {
