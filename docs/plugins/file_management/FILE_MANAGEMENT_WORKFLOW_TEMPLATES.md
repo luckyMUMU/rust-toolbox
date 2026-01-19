@@ -45,15 +45,19 @@ Intelligently classify and organize folders based on configurable rules with sup
 
 ### Workflow Steps
 
-1. **📁 Scan Folders**: Discover all folders in the source directory
-2. **✅ Validate Rules**: Verify classification rules are valid and complete
-3. **🔄 Classify Batch**: Process folders in configurable batches with parallel execution
-4. **📊 Review Results**: Display classification statistics and confidence scores
-5. **❓ Experimental Check**: Branch execution based on experimental mode setting
-6. **👤 Human Confirmation**: Get user approval for operations (if experimental mode)
-7. **⚡ Execute Operations**: Move folders to classified locations with conflict resolution
-8. **📋 Generate Report**: Create detailed operation report with statistics
-9. **🧹 Cleanup**: Remove empty directories and perform final cleanup
+1. **📥 Load Rules**: Load and validate classification rules (supports legacy JSON format)
+2. **🔄 Preprocess Rules**: Generate variants (pinyin, traditional) for keywords
+3. **🏗️ Build Automaton**: Build Aho-Corasick automaton for efficient matching
+4. **📁 Scan Source**: Discover all folders in the source directory
+5. **📝 Preprocess Folders**: Normalize folder names for matching
+6. **⚡ Parallel Match**: Execute parallel keyword matching using AC automaton
+7. **📊 Calculate Scores**: Calculate confidence scores based on matches and weights
+8. **🔍 Detect Ambiguity**: Identify ambiguous or unclassified items
+9. **🔄 Merge Results**: Merge auto-classification results
+10. **❓ Experimental Check**: Validate experimental mode status
+11. **👤 Human Confirmation**: Interactive user confirmation for ambiguous items
+12. **📂 Move Folders**: Execute physical file/folder operations
+13. **📋 Generate Report**: Generate execution report and statistics
 
 ### Parameters
 
