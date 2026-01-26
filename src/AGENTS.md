@@ -1,9 +1,11 @@
 # src/ - Core Library Modules
 
-## OVERVIEW
+## 概述 - Overview
 Main library entry point with re-exports and module declarations.
 
-## STRUCTURE
+**中文概述**: 核心库入口点，包含重新导出和模块声明。
+
+## 模块结构 - Structure
 ```
 src/
 ├── config.rs          # Hierarchical configuration (env > CLI > file > defaults)
@@ -11,20 +13,28 @@ src/
 ├── error.rs          # WorkflowError with 20+ variants, Result type alias
 ├── storage/          # Persistence layer (backends, state, backup)
 ├── workflow/         # DAG engine (scheduler, executor, validator, audit)
+│   ├── executor/    # Execution strategies (basic, parallel, retry)
+│   ├── component/   # Workflow components (parallel, switch, loop)
+│   ├── context/     # Execution context and data slots
+│   └── state/       # State management and checkpoints
 ├── tools/            # Tool system (registry, nodes, templates, versioning)
+│   └── algo/        # Algorithm implementations (Aho-Corasick)
 ├── plugins/          # Plugin system (native, python, nodejs, docker, file mgmt)
 ├── interfaces/       # User interfaces (CLI, TUI, MCP server)
+│   ├── cli/         # Command-line interface (5 files, 1.5k+ lines)
+│   └── tui/         # Terminal UI (25 files, 3.2k+ lines in layout.rs)
+│       └── widgets/ # 8 specialized widgets (3.5k+ lines in plugin_manager.rs)
 └── performance/      # Optimization tools (cache, concurrency, metrics, profiling)
 ```
 
-## KEY MODULES
+## 关键模块 - Key Modules
 - **init_logging()**: Initialize tracing subscriber with env filter
 - **ConfigManager**: Hierarchical config with hot reload capability
 - **WorkflowEngine**: Trait for DAG-based execution engines
 - **ToolRegistry**: Trait for concurrent tool management
 - **WorkflowError**: Centralized error type with constructors
 
-## RE-EXPORTS
+## 重新导出 - Re-Exports
 The library re-exports commonly used types:
 ```rust
 pub use crate::config::{Config, ConfigManager, CliConfigOverrides};
@@ -35,7 +45,7 @@ pub use crate::tools::{ToolNode, ToolRegistry};
 pub use crate::performance::{PerformanceManager, PerformanceConfig};
 ```
 
-## USAGE
+## 使用示例 - Usage
 ```rust
 use workflow_toolkit::{Config, WorkflowEngine, Result, init_logging};
 
@@ -47,7 +57,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
-
+ 
 <!-- AUTO-GENERATED-AGENT-MAP:START -->
 ## 🗺️ Agent Map & Directory Structure
 

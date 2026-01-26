@@ -1066,19 +1066,48 @@ impl CliApp {
         );
 
         if let Some(mcp_server) = &self.mcp_server {
+            // Get JWT secret from environment variable or generate a secure random one
+            let jwt_secret = if auth {
+                std::env::var("WORKFLOW_TOOLKIT_JWT_SECRET")
+                    .ok()
+                    .or_else(|| {
+                        // Generate a random secret if not provided
+                        use rand::Rng;
+                        let mut rng = rand::thread_rng();
+                        let secret: [u8; 32] = rng.gen();
+                        let secret_hex = hex::encode(secret);
+                        info!("Generated random JWT secret (for development only)");
+                        Some(secret_hex)
+                    })
+            } else {
+                None
+            };
+
+            // Get allowed origins from environment variable
+            let allowed_origins = std::env::var("WORKFLOW_TOOLKIT_ALLOWED_ORIGINS")
+                .ok()
+                .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_else(|| {
+                    vec!["localhost".to_string(), "127.0.0.1".to_string()]
+                });
+
+            // Get CORS origins from environment variable
+            let cors_origins = std::env::var("WORKFLOW_TOOLKIT_CORS_ORIGINS")
+                .ok()
+                .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_else(|| {
+                    vec!["localhost".to_string(), "127.0.0.1".to_string()]
+                });
+
             let config = McpServerConfig {
                 http_port,
                 ws_port,
                 auth: crate::core::AuthConfig {
                     enabled: auth,
                     token: None,
-                    jwt_secret: if auth {
-                        Some("default_secret_key".to_string())
-                    } else {
-                        None
-                    },
+                    jwt_secret,
                     token_expiry: std::time::Duration::from_secs(3600),
-                    allowed_origins: vec!["*".to_string()],
+                    allowed_origins,
                 },
                 rate_limit: crate::core::RateLimitConfig {
                     requests_per_minute: 60,
@@ -1087,7 +1116,7 @@ impl CliApp {
                     max_requests: 1000,
                     window_ms: 60000,
                 },
-                cors_origins: vec!["*".to_string()], // TODO: Configure properly
+                cors_origins,
             };
 
             // List available tools
@@ -1154,15 +1183,12 @@ impl CliApp {
         &self,
         path: &PathBuf,
     ) -> Result<crate::workflow::WorkflowDefinition> {
-        use tokio::fs;
 
         if !path.exists() {
             return Err(CliError::FileNotFound(path.clone()).into());
         }
 
-        let content = fs::read_to_string(path)
-            .await
-            .map_err(CliError::IoError)?;
+        let content = tokio::fs::read_to_string(path).await.map_err(CliError::IoError)?;
 
         debug!("Loaded file content: {}", content);
 

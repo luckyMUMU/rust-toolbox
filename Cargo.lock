@@ -7348,6 +7348,7 @@ dependencies = [
  "dashmap",
  "flate2",
  "futures",
+ "hex",
  "jsonschema",
  "lancedb",
  "libloading",

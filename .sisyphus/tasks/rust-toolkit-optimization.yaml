@@ -1,0 +1,109 @@
+# Rust Toolkit Optimization Tasks
+
+plan: rust-toolkit-optimization
+status: ready_to_start
+priority: high
+
+tasks:
+  - id: security-1
+    name: "修复硬编码 JWT 密钥和 CORS 配置"
+    description: "修复 src/interfaces/cli/app.rs 中的安全问题"
+    status: pending
+    priority: high
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: security-2
+    name: "实现超时包装器"
+    description: "为工具执行添加超时控制"
+    status: pending
+    priority: high
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: security-3
+    name: "实现工具注册表线程安全"
+    description: "使用 DashMap 实现线程安全的工具注册表"
+    status: pending
+    priority: high
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: security-4
+    name: "移除 unwrap() 调用"
+    description: "添加适当的错误处理，避免 panic"
+    status: pending
+    priority: high
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: quality-1
+    name: "重构长函数"
+    description: "将 handle_plugin_command 函数拆分为多个小函数"
+    status: pending
+    priority: medium
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: quality-2
+    name: "提取重复代码"
+    description: "消除参数解析和文件加载的重复代码"
+    status: pending
+    priority: medium
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: quality-3
+    name: "添加详细文档"
+    description: "为所有公共 API 添加完整文档"
+    status: pending
+    priority: medium
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: testing-1
+    name: "添加集成测试"
+    description: "为 CLI 命令添加端到端测试"
+    status: pending
+    priority: medium
+    category: unspecified-high
+    skills: ["git-master"]
+
+  - id: cleanup-1
+    name: "清理注释代码"
+    description: "清理 WASM 插件的注释代码"
+    status: pending
+    priority: low
+    category: unspecified-low
+    skills: ["git-master"]
+
+  - id: optimization-1
+    name: "优化批量执行性能"
+    description: "改进批量执行的性能和错误处理"
+    status: pending
+    priority: low
+    category: unspecified-low
+    skills: ["git-master"]
+
+  - id: documentation-1
+    name: "更新 AGENTS.md 文档"
+    description: "更新所有 AGENTS.md 文件，反映代码改进"
+    status: pending
+    priority: medium
+    category: unspecified-high
+    skills: ["git-master"]
+
+time_estimate:
+  security: "8-12 hours"
+  quality: "6-8 hours"
+  testing: "4-6 hours"
+  cleanup: "2-4 hours"
+  documentation: "2-3 hours"
+  total: "22-33 hours"
+
+execution_command: "/start-work"
+
+references:
+  - "AGENTS.md - 项目概述"
+  - "src/interfaces/cli/AGENTS.md - CLI 文档"
+  - "GLOBAL_RULES.md - 全局规则"

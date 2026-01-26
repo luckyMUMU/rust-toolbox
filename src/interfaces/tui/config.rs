@@ -18,8 +18,7 @@ use tokio::sync::{watch, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// TUI-specific configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TuiConfig {
     pub interface: InterfaceConfig,
     pub themes: ThemeManagerConfig,

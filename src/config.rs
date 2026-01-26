@@ -44,8 +44,7 @@ where
 /// Main configuration structure.
 ///
 /// Holds all configuration sections for the application.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// Server settings (ports, host)
     pub server: ServerConfig,
@@ -273,7 +272,9 @@ impl ConfigManager {
 
     /// Get current configuration
     pub fn get_config(&self) -> Config {
-        self.config.read().unwrap().clone()
+        self.config.read()
+            .expect("Config RwLock poisoned - this should never happen in single-threaded context")
+            .clone()
     }
 
     /// Get configuration watch receiver for hot reload notifications
@@ -283,8 +284,10 @@ impl ConfigManager {
 
     /// Update configuration with priority handling
     pub fn update_config(&self, new_config: Config, source: ConfigSource) -> Result<()> {
-        let mut config = self.config.write().unwrap();
-        let mut sources = self.sources.write().unwrap();
+        let mut config = self.config.write()
+            .expect("Config RwLock poisoned during update");
+        let mut sources = self.sources.write()
+            .expect("Sources RwLock poisoned during update");
 
         // Add or update source
         if let Some(existing_source) = sources.iter_mut().find(|s| s.source == source.source) {
@@ -482,7 +485,9 @@ impl ConfigManager {
 
     /// Get configuration sources with their priorities
     pub fn get_sources(&self) -> Vec<ConfigSource> {
-        self.sources.read().unwrap().clone()
+        self.sources.read()
+            .expect("Sources RwLock poisoned")
+            .clone()
     }
 }
 
@@ -533,8 +538,18 @@ impl ConfigManagerForHotReload {
     async fn reload_config_file(&self, config_path: &Path) -> Result<()> {
         let new_config = Config::load_from_path(config_path)?;
 
-        let mut config = self.config.write().unwrap();
-        let mut sources = self.sources.write().unwrap();
+        let mut config = self.config.write().map_err(|e| {
+            crate::WorkflowError::workflow_execution(format!(
+                "Failed to acquire config write lock: {}",
+                e
+            ))
+        })?;
+        let mut sources = self.sources.write().map_err(|e| {
+            crate::WorkflowError::workflow_execution(format!(
+                "Failed to acquire sources write lock: {}",
+                e
+            ))
+        })?;
 
         // Update file source
         let source = ConfigSource {
@@ -795,7 +810,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_hot_reload() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
         let config_file = temp_dir.path().join("test_config.toml");
 
         // Create initial config file
@@ -807,16 +822,17 @@ ws_port = 8081
 [logging]
 level = "info"
 "#;
-        std::fs::write(&config_file, initial_config).unwrap();
+        std::fs::write(&config_file, initial_config).expect("Failed to write initial config");
 
         // Load config with hot reload
-        let manager = Config::load_from_path_with_priority(&config_file).unwrap();
+        let manager = Config::load_from_path_with_priority(&config_file)
+            .expect("Failed to load config from path");
         let initial_loaded_config = manager.get_config();
         assert_eq!(initial_loaded_config.server.http_port, 8080);
         assert_eq!(initial_loaded_config.logging.level, "info");
 
         // Start hot reload monitoring
-        manager.start_hot_reload().await.unwrap();
+        manager.start_hot_reload().await.expect("Failed to start hot reload");
 
         // Wait a bit for the monitoring to start
         sleep(std::time::Duration::from_millis(100)).await;
@@ -830,13 +846,13 @@ ws_port = 8081
 [logging]
 level = "debug"
 "#;
-        std::fs::write(&config_file, updated_config).unwrap();
+        std::fs::write(&config_file, updated_config).expect("Failed to write updated config");
 
         // Wait for hot reload to detect the change
         sleep(std::time::Duration::from_secs(6)).await;
 
         // Manually trigger reload for testing (since hot reload runs in background)
-        manager.reload_from_file().await.unwrap();
+        manager.reload_from_file().await.expect("Failed to reload config from file");
 
         let reloaded_config = manager.get_config();
         assert_eq!(reloaded_config.server.http_port, 9090);
@@ -855,7 +871,9 @@ level = "debug"
         };
 
         let new_config = Config::default();
-        manager.update_config(new_config, source.clone()).unwrap();
+        manager
+            .update_config(new_config, source.clone())
+            .expect("Failed to update config");
 
         let sources = manager.get_sources();
         assert_eq!(sources.len(), 1);
@@ -880,7 +898,9 @@ level = "debug"
             timestamp: std::time::SystemTime::now(),
         };
 
-        manager.update_config(new_config, source).unwrap();
+        manager
+            .update_config(new_config, source)
+            .expect("Failed to update config");
 
         // Check if watch receiver gets the update
         if watch_receiver.changed().await.is_ok() {

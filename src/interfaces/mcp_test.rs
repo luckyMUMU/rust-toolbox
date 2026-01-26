@@ -42,16 +42,19 @@ mod tests {
             ws_port: 8081,
             auth: AuthConfig {
                 enabled: true,
+                token: None,
                 jwt_secret: Some("test_secret".to_string()),
                 token_expiry: std::time::Duration::from_secs(3600),
-                allowed_origins: vec!["*".to_string()],
+                allowed_origins: vec!["localhost".to_string(), "127.0.0.1".to_string()],
             },
             rate_limit: RateLimitConfig {
                 requests_per_minute: 60,
                 burst_size: 10,
                 enabled: true,
+                max_requests: 1000,
+                window_ms: 60000,
             },
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec!["localhost".to_string(), "127.0.0.1".to_string()],
         };
 
         assert_eq!(config.http_port, 8080);

@@ -670,6 +670,7 @@ mod tests {
             plugin_type: PluginType::Native,
             description: Some("Test plugin".to_string()),
             author: Some("Test".to_string()),
+            homepage: Some("https://example.com".to_string()),
             metadata: HashMap::new(),
         }
     }

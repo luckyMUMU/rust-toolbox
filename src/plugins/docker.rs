@@ -568,7 +568,7 @@ impl DockerEnvironment {
             }),
         );
 
-        while let Some(result) = stream.next().await {
+        if let Some(result) = stream.next().await {
             match result {
                 Ok(wait_response) => {
                     let status_code = wait_response.status_code;

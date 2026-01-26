@@ -1824,7 +1824,7 @@ mod tests {
     use super::*;
     use crate::storage::{FileStorage, SimpleMemoryCache, StateManager};
     use crate::tools::ToolRegistry;
-    use crate::workflow::{NodeType, WorkflowDefinition, WorkflowNode};
+    use crate::workflow::{NodeType, WorkflowDefinition, WorkflowNode, WorkflowEdge};
     use proptest::prelude::*;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -1998,7 +1998,7 @@ mod tests {
 
         // Verify pause signal is set
         let control = engine.control_signals.get(&workflow_id).unwrap();
-        assert!(control.should_pause(), "Pause signal should be set");
+        assert!(control.check_pause(), "Pause signal should be set");
 
         // Test resume
         let resume_result = engine.resume_workflow(workflow_id).await;
@@ -2021,7 +2021,7 @@ mod tests {
         // Verify pause signal is cleared
         let control = engine.control_signals.get(&workflow_id).unwrap();
         assert!(
-            !control.should_pause(),
+            !control.check_pause(),
             "Pause signal should be cleared after resume"
         );
 
@@ -2391,7 +2391,7 @@ mod tests {
 
                 // Verify control signals are consistent
                 let control = engine.control_signals.get(&workflow_id).unwrap();
-                prop_assert!(!control.should_pause(), "Pause signal should be cleared after resume");
+                prop_assert!(!control.check_pause(), "Pause signal should be cleared after resume");
 
                 // Clean up
                 engine.active_executions.remove(&workflow_id);

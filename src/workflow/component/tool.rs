@@ -195,7 +195,7 @@ mod tests {
 
         // Register a simple echo tool for testing
         let echo_executor = Arc::new(crate::tools::AsyncFunctionExecutor::new(
-            |params, _ctx| async move { Ok(params) },
+            |params, _ctx| Box::pin(async move { Ok(params) }),
         ));
 
         let echo_tool = BasicTool::builder()

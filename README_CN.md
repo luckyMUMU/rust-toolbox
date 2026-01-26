@@ -4,6 +4,23 @@
 
 一个使用 Rust 构建的综合性多接口工作流执行系统，通过 CLI、TUI 和 MCP 服务器接口提供灵活的工作流管理，具备先进的文件管理能力和全面的系统监控。
 
+## 全局规则 - Global Rules
+
+**默认使用中文回复** - Default to Chinese responses
+
+- **中文用户**: 使用简体中文回复
+- **英文用户**: 使用英文回复
+- **混合场景**: 根据用户输入语言自动切换
+
+**文档创建规则**:
+1. **新模块**: 创建模块时必须有 AGENTS.md
+2. **复杂功能**: 功能复杂度 > 5 分时
+3. **公共API**: 所有公共接口必须有文档
+4. **架构变更**: 任何架构调整都需要更新文档
+5. **用户请求**: 用户明确要求创建文档
+
+**详见**: [GLOBAL_RULES.md](GLOBAL_RULES.md)
+
 ## 特性
 
 ### 核心工作流引擎
@@ -112,42 +129,28 @@ workflow-toolkit tool execute echo --params '{"message": "Hello World"}'
 
 提供多种格式的全面文档：
 
-### 快速入门
-- **[README.md](README.md)**: 英文版本项目概述
-- **[docs/INDEX.md](docs/INDEX.md)**: 完整文档索引
-- **[docs/CHEATSHEET.md](docs/CHEATSHEET.md)**: 快速命令参考
+### 快速参考
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)**: 快速命令参考
+- **[GLOBAL_RULES.md](GLOBAL_RULES.md)**: 全局规则（必读）
+- **[AGENTS.md](AGENTS.md)**: 项目总览和开发指南
 
 ### 用户文档
-- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**: 包含示例的完整用户手册
-- **[docs/TUTORIAL.md](docs/TUTORIAL.md)**: 分步教程
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: 问题解决指南
-- **[examples/](examples/)**: 运行示例和模板
+- **[README.md](README.md)**: 英文用户文档
+- **[examples/](examples/)**: 工作示例和模板
+- **[examples/templates/](examples/templates/)**: 工作流模板
 
-### API 与参考
-- **[docs/API_INDEX.md](docs/API_INDEX.md)**: 完整的命令和 API 参考
-- **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)**: 详细的 API 文档
-- **[docs/API_USAGE_GUIDE.md](docs/API_USAGE_GUIDE.md)**: 使用模式和示例
-
-### 开发者文档
-- **[docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)**: 开发工作流和最佳实践
-- **[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)**: 架构概述
-- **[docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md)**: 插件开发指南
-- **[AGENTS.md](AGENTS.md)**: 根开发指南
-- **[docs/AGENTS.md](docs/AGENTS.md)**: 文档指南
-- **[docs/DOCUMENTATION_STANDARDS.md](docs/DOCUMENTATION_STANDARDS.md)**: 编写标准
-
-### 特定特性文档
-- **[docs/FILE_MANAGEMENT_TOOLS_GUIDE.md](docs/FILE_MANAGEMENT_TOOLS_GUIDE.md)**: 文件操作
-- **[docs/FILE_MANAGEMENT_API_REFERENCE.md](docs/FILE_MANAGEMENT_API_REFERENCE.md)**: 文件管理 API
-- **[docs/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md](docs/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)**: 工作流模板
-
-### Python 脚本迁移
-- **[scripts/](scripts/)**: 原始 Python 脚本参考
-- **[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)**: Python 到 Rust 迁移指南（即将推出）
-
-### 历史与存档
-- **[.backup/](.backup/)**: 存档的历史文档
-- **[.backup/ARCHIVE_INDEX.md](.backup/ARCHIVE_INDEX.md)**: 存档内容索引
+### 开发文档
+- **[src/AGENTS.md](src/AGENTS.md)**: 核心库指南
+- **[src/workflow/AGENTS.md](src/workflow/AGENTS.md)**: 工作流引擎
+- **[src/tools/AGENTS.md](src/tools/AGENTS.md)**: 工具系统
+- **[src/plugins/AGENTS.md](src/plugins/AGENTS.md)**: 插件系统
+- **[src/storage/AGENTS.md](src/storage/AGENTS.md)**: 存储层
+- **[src/performance/AGENTS.md](src/performance/AGENTS.md)**: 性能优化
+- **[src/interfaces/AGENTS.md](src/interfaces/AGENTS.md)**: 用户接口
+- **[src/interfaces/cli/AGENTS.md](src/interfaces/cli/AGENTS.md)**: CLI
+- **[src/interfaces/tui/AGENTS.md](src/interfaces/tui/AGENTS.md)**: TUI
+- **[src/interfaces/tui/widgets/AGENTS.md](src/interfaces/tui/widgets/AGENTS.md)**: TUI 组件
+- **[tests/AGENTS.md](tests/AGENTS.md)**: 测试指南
 
 ## 界面与交互
 

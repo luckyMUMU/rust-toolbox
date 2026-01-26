@@ -2,6 +2,8 @@
 //!
 //! This module contains all components for the file management plugin including
 //! tools, utilities, and error handling.
+//!
+//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod ac_automaton;
 pub mod batch_confirmation_tool;

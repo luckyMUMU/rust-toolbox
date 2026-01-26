@@ -193,13 +193,7 @@ impl RefactoredWorkflowEngine {
             tracker: tracker.clone(),
         };
 
-        let result = self
-            .execute_workflow_loop(
-                loop_ctx,
-                &mut context,
-                &mut scheduler,
-                checkpoint_manager,
-            )
+        let result = self.execute_workflow_loop(loop_ctx, &mut context, &mut scheduler, checkpoint_manager)
             .await;
 
         // Build final execution result
@@ -265,12 +259,7 @@ impl RefactoredWorkflowEngine {
 
             // Execute nodes in parallel
             let results = self
-                .execute_nodes_parallel(
-                    &ctx,
-                    &ready_nodes,
-                    context,
-                    scheduler,
-                )
+                .execute_nodes_parallel(&ctx, &ready_nodes, context, scheduler)
                 .await;
 
             // Process results
@@ -580,7 +569,7 @@ mod tests {
 
         // Register a simple echo tool
         let echo_executor = Arc::new(crate::tools::AsyncFunctionExecutor::new(
-            |params, _ctx| async move { Ok(params) },
+            |params, _ctx| Box::pin(async move { Ok(params) }),
         ));
 
         let echo_tool = crate::tools::BasicTool::builder()

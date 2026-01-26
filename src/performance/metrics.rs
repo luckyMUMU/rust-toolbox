@@ -350,10 +350,7 @@ impl MetricsCollector {
 
     async fn record_time_series(&self, name: &str, value: f64) {
         let config = self.config.read().await;
-        let mut series = self
-            .time_series
-            .entry(name.to_string())
-            .or_default();
+        let mut series = self.time_series.entry(name.to_string()).or_default();
 
         series.add_point(TimeSeriesPoint {
             timestamp_millis: std::time::SystemTime::now()

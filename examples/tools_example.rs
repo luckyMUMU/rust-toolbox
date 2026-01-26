@@ -11,7 +11,7 @@ use workflow_toolkit::{
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create a simple calculator tool
-    let calculator_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| async move {
+    let calculator_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| Box::pin(async move {
         let operation = params["operation"].as_str().unwrap_or("add");
         let a = params["a"].as_f64().unwrap_or(0.0);
         let b = params["b"].as_f64().unwrap_or(0.0);
@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
         .version("1.0.0")
         .description("A simple calculator tool")
         .category("math")
-        .tags(vec!["calculator", "math", "arithmetic"])
+        .tags(vec!["calculator".to_string(), "math".to_string(), "arithmetic".to_string()])
         .parameters_schema(json!({
             "type": "object",
             "properties": {
@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
         .build()?;
 
     // Create a string manipulation tool
-    let string_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| async move {
+    let string_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| Box::pin(async move {
         let operation = params["operation"].as_str().unwrap_or("uppercase");
         let text = params["text"].as_str().unwrap_or("");
 
@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
         .version("1.0.0")
         .description("A string manipulation tool")
         .category("text")
-        .tags(vec!["string", "text", "manipulation"])
+        .tags(vec!["string".to_string(), "text".to_string(), "manipulation".to_string()])
         .parameters_schema(json!({
             "type": "object",
             "properties": {

@@ -1,0 +1,24 @@
+{
+  "disabled_hooks": [],
+  "disabled_commands": [],
+  "agents": {
+    "sisyphus": {
+      "model": "opencode/gpt-5-nano",
+      "variant": "default",
+      "category": "unspecified-high",
+      "skills": ["git-master"]
+    },
+    "prometheus": {
+      "model": "opencode/gpt-5-nano",
+      "variant": "default",
+      "category": "unspecified-high",
+      "skills": ["git-master"]
+    },
+    "atlas": {
+      "model": "opencode/gpt-5-nano",
+      "variant": "default",
+      "category": "unspecified-high",
+      "skills": ["git-master"]
+    }
+  }
+}

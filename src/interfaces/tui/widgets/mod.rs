@@ -1,6 +1,8 @@
 //! TUI Widget implementations
 //!
 //! This module contains concrete widget implementations for the TUI interface.
+//!
+//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod execution_monitor;
 pub mod log_viewer;

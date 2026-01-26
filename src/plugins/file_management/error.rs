@@ -240,8 +240,7 @@ pub struct RecoverySuggestion {
 }
 
 /// Error severity levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ErrorSeverity {
     /// Low severity - operation can continue
     Low,

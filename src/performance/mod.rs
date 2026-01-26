@@ -2,6 +2,8 @@
 //!
 //! This module provides performance monitoring, optimization utilities,
 //! and tuning capabilities for the workflow toolkit.
+//!
+//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod cache;
 pub mod concurrency;
@@ -22,8 +24,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 /// Performance configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PerformanceConfig {
     /// Memory optimization settings
     pub memory: MemoryConfig,

@@ -11,8 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 /// Strategy for waiting on parallel node completion.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum WaitStrategy {
     /// Wait for all nodes to complete
     #[default]

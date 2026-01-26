@@ -440,9 +440,9 @@ mod tests {
         let mut registry = BasicToolRegistry::new();
 
         // Create a simple test tool
-        let executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| async move {
+        let executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| Box::pin(async move {
             Ok(json!({ "result": params }))
-        }));
+        })));
 
         let tool = BasicTool::builder()
             .name("test_tool")

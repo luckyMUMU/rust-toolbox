@@ -134,12 +134,7 @@ async fn main() -> Result<()> {
     ));
 
     // Create and run CLI application with all components
-    let app = CliApp::with_components(
-        config_manager,
-        workflow_engine,
-        tool_registry,
-    )
-    .await;
+    let app = CliApp::with_components(config_manager, workflow_engine, tool_registry).await;
 
     // Start configuration hot reload monitoring for the app
     app.start_config_hot_reload().await?;

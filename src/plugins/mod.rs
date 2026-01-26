@@ -16,6 +16,8 @@
 //! - **Python**: Python scripts running in a managed environment.
 //! - **Node.js**: JavaScript/TypeScript modules.
 //! - **Docker**: Containerized tools.
+//!
+//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 pub mod docker;
 pub mod file_management;
 pub mod integration;

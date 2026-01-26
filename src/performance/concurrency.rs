@@ -598,10 +598,7 @@ impl LoadBalancer {
     }
 
     pub async fn record_worker_activity(&self, worker: &str, active: bool) {
-        let mut stats = self
-            .worker_stats
-            .entry(worker.to_string())
-            .or_default();
+        let mut stats = self.worker_stats.entry(worker.to_string()).or_default();
 
         if active {
             stats.active_connections += 1;

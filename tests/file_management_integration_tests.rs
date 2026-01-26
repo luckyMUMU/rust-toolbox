@@ -68,9 +68,9 @@ impl FileManagementTestFixture {
     }
 
     async fn register_mock_file_management_tools(registry: &mut BasicToolRegistry) -> Result<()> {
-        // Mock folder classifier
+// Mock folder classifier
         let classifier_executor = Arc::new(AsyncFunctionExecutor::new(
-            |params: Value, _context| async move {
+            |params: Value, _context| Box::pin(async move {
                 let folder_path = params
                     .get("folder_path")
                     .and_then(|v| v.as_str())
@@ -128,8 +128,8 @@ impl FileManagementTestFixture {
         registry.register_tool(Arc::new(classifier_tool))?;
 
         // Mock text processor
-        let text_processor_executor = Arc::new(AsyncFunctionExecutor::new(
-            |params: Value, _context| async move {
+let text_processor_executor = Arc::new(AsyncFunctionExecutor::new(
+            |params: Value, _context| Box::pin(async move {
                 let text = params.get("text").and_then(|v| v.as_str()).unwrap_or("");
                 let empty_vec = vec![];
                 let operations = params
@@ -183,9 +183,9 @@ impl FileManagementTestFixture {
 
         registry.register_tool(Arc::new(text_processor_tool))?;
 
-        // Mock batch processor
+// Mock batch processor
         let batch_processor_executor = Arc::new(AsyncFunctionExecutor::new(
-            |params: Value, _context| async move {
+            |params: Value, _context| Box::pin(async move {
                 let empty_vec = vec![];
                 let items = params
                     .get("items")
@@ -256,9 +256,9 @@ impl FileManagementTestFixture {
 
         registry.register_tool(Arc::new(batch_processor_tool))?;
 
-        // Mock human decision tool
+// Mock human decision tool
         let human_decision_executor = Arc::new(AsyncFunctionExecutor::new(
-            |params: Value, _context| async move {
+            |params: Value, _context| Box::pin(async move {
                 let _decision_type = params
                     .get("decision_type")
                     .and_then(|v| v.as_str())
@@ -330,9 +330,9 @@ impl FileManagementTestFixture {
     }
 
     async fn register_test_helper_tools(registry: &mut BasicToolRegistry) -> Result<()> {
-        // Directory scanner mock
+// Directory scanner mock
         let scanner_executor = Arc::new(AsyncFunctionExecutor::new(
-            |params: Value, _context| async move {
+            |params: Value, _context| Box::pin(async move {
                 let directory = params
                     .get("directory")
                     .and_then(|v| v.as_str())
@@ -363,9 +363,9 @@ impl FileManagementTestFixture {
 
         registry.register_tool(Arc::new(scanner_tool))?;
 
-        // Rule validator mock
+// Rule validator mock
         let validator_executor = Arc::new(AsyncFunctionExecutor::new(
-            |params: Value, _context| async move {
+            |params: Value, _context| Box::pin(async move {
                 let _rules = params.get("rules");
 
                 // Mock validation results

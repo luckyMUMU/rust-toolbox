@@ -5,6 +5,8 @@
 //! - **CLI**: Command-line interface for batch processing and automation.
 //! - **TUI**: Terminal user interface for interactive monitoring and management.
 //! - **MCP**: Model Context Protocol server for AI assistant integration.
+//!
+//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 pub mod cli;
 pub mod mcp;
 pub mod tui;

@@ -23,6 +23,8 @@
 //! 3. The engine validates the definition.
 //! 4. The scheduler determines the execution order.
 //! 5. Nodes are executed (possibly in parallel) using the tool registry.
+//!
+//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod audit;
 pub mod component;

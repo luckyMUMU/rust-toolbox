@@ -355,8 +355,7 @@ impl AdvancedSizeConstraints {
 }
 
 /// Animation state for smooth transitions
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum AnimationState {
     /// No animation
     #[default]

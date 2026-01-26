@@ -36,8 +36,7 @@ pub struct Cli {
 }
 
 /// Output format options
-#[derive(Debug, Clone, ValueEnum)]
-#[derive(Default)]
+#[derive(Debug, Clone, ValueEnum, Default)]
 pub enum OutputFormat {
     /// Human-readable table format
     #[default]

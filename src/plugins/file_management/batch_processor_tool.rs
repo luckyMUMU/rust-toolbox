@@ -73,8 +73,7 @@ pub struct BatchItemParams {
 }
 
 /// Batch processing mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum BatchProcessingMode {
     /// Process all items in parallel (default)
     #[default]
@@ -1055,6 +1054,7 @@ mod tests {
             plugin_type: PluginType::Native,
             description: Some("Test plugin".to_string()),
             author: Some("Test".to_string()),
+            homepage: Some("https://example.com".to_string()),
             metadata: HashMap::new(),
         }
     }

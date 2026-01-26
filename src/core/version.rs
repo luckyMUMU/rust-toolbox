@@ -99,11 +99,19 @@ impl FromStr for Version {
 
     fn from_str(s: &str) -> Result<Self> {
         let mut parts = s.split('+');
-        let version_part = parts.next().unwrap();
+        let version_part = parts.next().ok_or_else(|| {
+            WorkflowError::ValidationError(
+                "Invalid version format: missing version part".to_string(),
+            )
+        })?;
         let build = parts.next().map(|s| s.to_string());
 
         let mut parts = version_part.split('-');
-        let version_numbers = parts.next().unwrap();
+        let version_numbers = parts.next().ok_or_else(|| {
+            WorkflowError::ValidationError(
+                "Invalid version format: missing version numbers".to_string(),
+            )
+        })?;
         let pre_release = parts.next().map(|s| s.to_string());
 
         let numbers: Vec<&str> = version_numbers.split('.').collect();
@@ -540,9 +548,7 @@ impl DependencyResolver {
     pub fn has_version(&self, tool_name: &str, version: &Version) -> bool {
         self.available_versions
             .get(tool_name)
-            .is_some_and(|versions| {
-                versions.iter().any(|tv| tv.version == *version)
-            })
+            .is_some_and(|versions| versions.iter().any(|tv| tv.version == *version))
     }
 }
 

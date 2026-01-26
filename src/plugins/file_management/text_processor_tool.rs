@@ -19,8 +19,9 @@ use std::collections::HashMap;
 use tracing::{debug, info};
 
 /// Text processing operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum TextOperation {
+    #[default]
     NormalizeCase,
     NormalizeWhitespace,
     RemoveSpaces,

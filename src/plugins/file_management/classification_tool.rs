@@ -38,7 +38,7 @@ fn default_ambiguity_threshold() -> f64 {
 }
 
 /// Classification rule definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClassificationRule {
     pub category: String,
     pub keywords: Vec<String>,

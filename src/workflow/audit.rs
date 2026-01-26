@@ -519,10 +519,7 @@ impl AuditLogger {
                 .or_insert(0) += 1;
 
             // Count by severity
-            *report
-                .events_by_severity
-                .entry(event.severity)
-                .or_insert(0) += 1;
+            *report.events_by_severity.entry(event.severity).or_insert(0) += 1;
 
             // Track workflows and users
             if let Some(workflow_id) = event.workflow_id {
