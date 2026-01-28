@@ -31,6 +31,7 @@ pub mod component;
 pub mod context;
 pub mod converter;
 pub mod definition;
+pub mod el_expression;
 pub mod engine;
 pub mod engine_v2;
 pub mod execution;
@@ -41,6 +42,11 @@ pub mod result_cache;
 pub mod scheduler;
 pub mod state;
 pub mod validator;
+
+// Re-export EL expression types
+pub mod el {
+    pub use super::el_expression::{ExpressionContext, ExpressionEngine};
+}
 
 #[cfg(test)]
 pub mod retry_tests;

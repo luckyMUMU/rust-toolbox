@@ -10,6 +10,7 @@ repository = "https://github.com/workflow-toolkit/workflow-toolkit"
 [features]
 default = []
 lancedb = ["dep:lancedb", "dep:arrow", "dep:parquet"]
+mcp = ["dep:rmcp", "dep:schemars"]
 
 [dependencies]
 # 异步运行时
@@ -31,11 +32,9 @@ clap_complete = "4.5"
 ratatui = "0.29"
 crossterm = "0.28"
 
-# MCP协议 (暂时注释掉，避免构建依赖问题)
-# mcp-protocol-server = "0.2"
-# jsonrpc-core = "18.0"
-# jsonrpc-http-server = "18.0"
-# jsonrpc-ws-server = "18.0"
+# MCP协议 - Model Context Protocol 支持
+rmcp = { version = "0.14", features = ["server", "macros", "transport-io"], optional = true }
+schemars = { version = "0.8", optional = true }
 
 # 数据库和存储 (可选功能)
 lancedb = { version = "0.20", optional = true }

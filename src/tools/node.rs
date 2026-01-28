@@ -17,6 +17,16 @@ pub trait ToolNode: Send + Sync {
 
     /// Get the version of the tool
     fn version(&self) -> &str;
+    
+    /// Get the description of the tool
+    fn description(&self) -> String {
+        self.get_info().description
+    }
+    
+    /// Get the tool definition (schema info)
+    fn definition(&self) -> ToolInfo {
+        self.get_info()
+    }
 
     /// Validate parameters for this tool
     fn validate_parameters(&self, params: &Value) -> Result<()>;

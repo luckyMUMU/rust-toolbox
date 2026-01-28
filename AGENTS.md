@@ -6,9 +6,15 @@
 **Version**: 0.1.0
 
 ## 项目概述 - Project Overview
-Multi-interface workflow execution system built with Rust: CLI, TUI, and MCP server with DAG-based orchestration, plugin architecture, and comprehensive file management capabilities. 159 Rust files, 108,870 lines of code.
+Multi-interface workflow execution system built with Rust: CLI, TUI, and MCP server with DAG-based orchestration, plugin architecture, and comprehensive file management capabilities. 163 Rust files, ~110,000+ lines of code.
 
-**中文概述**: 基于 Rust 的多接口工作流执行系统，支持 CLI、TUI 和 MCP 服务器，具备 DAG 编排、插件架构和全面的文件管理能力。159 个 Rust 文件，108,870 行代码。
+**中文概述**: 基于 Rust 的多接口工作流执行系统，支持 CLI、TUI 和 MCP 服务器，具备 DAG 编排、插件架构和全面的文件管理能力。163 个 Rust 文件，约 110,000+ 行代码。
+
+### 功能状态说明
+- **CLI**: ✅ 完全实现
+- **TUI**: ✅ 完全实现
+- **MCP Server**: ⚠️ 存根实现 (Stub - 待完成)
+- **WASM 插件**: ⚠️ 暂时禁用 (依赖问题)
 
 ## 全局规则 - Global Rules
 
@@ -111,7 +117,7 @@ Multi-interface workflow execution system built with Rust: CLI, TUI, and MCP ser
 ## STRUCTURE
 ```
 workflow-toolkit/
-├── src/                      # Core library (159 files, 108,870 lines)
+├── src/                      # Core library (163 files, ~110,000+ lines)
 │   ├── config.rs              # Hierarchical config (env > CLI > file > defaults)
 │   ├── core.rs                # Shared types, ExecutionContext, RetryPolicy
 │   ├── error.rs               # WorkflowError with 20+ variants, Result type
@@ -448,8 +454,8 @@ let result = engine.execute_workflow(workflow).await?;
 ## CODEBASE STATISTICS
 
 ### File and Line Counts
-- **Total Rust files**: 159
-- **Total lines of code**: 108,870
+- **Total Rust files**: 163
+- **Total lines of code**: ~110,000+
 - **Files >500 lines**: 85 (complexity hotspots)
 - **Maximum directory depth**: 8 levels
 - **Test files with `#[cfg(test)]`**: 72
@@ -564,3 +570,21 @@ See module-specific guidance:
 2. **New modules**: Create AGENTS.md with overview
 3. **Major refactors**: Update all affected AGENTS.md files
 4. **Review**: Verify cross-references remain valid
+### Update Workflow
+1. **Code changes**: Update relevant AGENTS.md files
+2. **New modules**: Create AGENTS.md with overview
+3. **Major refactors**: Update all affected AGENTS.md files
+4. **Review**: Verify cross-references remain valid
+
+### Update Workflow
+1. **Code changes**: Update relevant AGENTS.md files
+2. **New modules**: Create AGENTS.md with overview
+3. **Major refactors**: Update all affected AGENTS.md files
+4. **Review**: Verify cross-references remain valid
+### Update Workflow
+1. **Code changes**: Update relevant AGENTS.md files
+2. **New modules**: Create AGENTS.md with overview
+3. **Major refactors**: Update all affected AGENTS.md files
+4. **Review**: Verify cross-references remain valid
+
+

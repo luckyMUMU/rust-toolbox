@@ -141,6 +141,16 @@ impl ExecutionContext {
         }
         Ok(())
     }
+
+    /// Set a variable in the global variables
+    pub fn set_variable(&mut self, key: &str, value: Value) {
+        self.global_variables.insert(key.to_string(), value);
+    }
+
+    /// Get a variable from the global variables
+    pub fn get_variable(&self, key: &str) -> Option<&Value> {
+        self.global_variables.get(key)
+    }
 }
 
 impl Default for ExecutionContext {
@@ -355,6 +365,16 @@ pub struct ConcurrencyConfig {
     pub max_concurrent_workflows: usize,
     pub max_concurrent_tasks: usize,
     pub task_queue_size: usize,
+}
+
+impl Default for ConcurrencyConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_workflows: 10,
+            max_concurrent_tasks: 50,
+            task_queue_size: 100,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

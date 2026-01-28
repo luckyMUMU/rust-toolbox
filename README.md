@@ -115,46 +115,38 @@ Comprehensive documentation is available in multiple formats:
 ### Quick Start
 - **[README.md](README.md)**: You're here! Project overview
 - **[docs/INDEX.md](docs/INDEX.md)**: Complete documentation index
-- **[docs/CHEATSHEET.md](docs/CHEATSHEET.md)**: Quick command reference
+- **[docs/guides/CHEATSHEET.md](docs/guides/CHEATSHEET.md)**: Quick command reference
 
 ### User Documentation
-- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**: Complete user manual with examples
-- **[docs/TUTORIAL.md](docs/TUTORIAL.md)**: Step-by-step tutorials
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: Problem solving guide
+- **[docs/guides/USER_GUIDE.md](docs/guides/USER_GUIDE.md)**: Complete user manual with examples
+- **[docs/guides/TUTORIAL.md](docs/guides/TUTORIAL.md)**: Step-by-step tutorials
+- **[docs/guides/TROUBLESHOOTING.md](docs/guides/TROUBLESHOOTING.md)**: Problem solving guide
 - **[examples/](examples/)**: Working examples and templates
 
 ### API & Reference
-- **[docs/API_INDEX.md](docs/API_INDEX.md)**: Complete command and API reference
-- **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)**: Detailed API documentation
-- **[docs/API_USAGE_GUIDE.md](docs/API_USAGE_GUIDE.md)**: Usage patterns and examples
+- **[docs/api/CLI_REFERENCE.md](docs/api/CLI_REFERENCE.md)**: Complete command-line interface reference
+- **[docs/api/RUST_SDK_REFERENCE.md](docs/api/RUST_SDK_REFERENCE.md)**: Rust SDK API documentation
 
 ### Developer Documentation
-- **[docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)**: Development workflow and best practices
-- **[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)**: Architecture overview
-- **[docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md)**: Plugin development guide
+- **[docs/dev/DEVELOPMENT_GUIDE.md](docs/dev/DEVELOPMENT_GUIDE.md)**: Development workflow and best practices
+- **[docs/dev/PROJECT_OVERVIEW.md](docs/dev/PROJECT_OVERVIEW.md)**: Architecture overview
+- **[docs/dev/PLUGIN_DEVELOPMENT.md](docs/dev/PLUGIN_DEVELOPMENT.md)**: Plugin development guide
+- **[docs/dev/DOCUMENTATION_STANDARDS.md](docs/dev/DOCUMENTATION_STANDARDS.md)**: Writing standards
+- **[docs/dev/WORKFLOW_DESIGN.md](docs/dev/WORKFLOW_DESIGN.md)**: Workflow engine design
 - **[AGENTS.md](AGENTS.md)**: Root development guide
-- **[docs/AGENTS.md](docs/AGENTS.md)**: Documentation guidelines
-- **[docs/DOCUMENTATION_STANDARDS.md](docs/DOCUMENTATION_STANDARDS.md)**: Writing standards
 
 ### Feature-Specific Documentation
-- **[docs/FILE_MANAGEMENT_TOOLS_GUIDE.md](docs/FILE_MANAGEMENT_TOOLS_GUIDE.md)**: File operations
-- **[docs/FILE_MANAGEMENT_API_REFERENCE.md](docs/FILE_MANAGEMENT_API_REFERENCE.md)**: File management API
-- **[docs/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md](docs/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)**: Workflow templates
+- **[docs/plugins/file_management/FILE_MANAGEMENT_TOOLS_GUIDE.md](docs/plugins/file_management/FILE_MANAGEMENT_TOOLS_GUIDE.md)**: File operations
+- **[docs/plugins/file_management/FILE_MANAGEMENT_API_REFERENCE.md](docs/plugins/file_management/FILE_MANAGEMENT_API_REFERENCE.md)**: File management API
+- **[docs/plugins/file_management/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md](docs/plugins/file_management/FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)**: Workflow templates
 
 ### Python Script Migration
 - **[scripts/](scripts/)**: Original Python scripts for reference
-- **[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)**: Python to Rust migration guide (coming soon)
+- **[docs/guides/MIGRATION_GUIDE.md](docs/guides/MIGRATION_GUIDE.md)**: Python to Rust migration guide (coming soon)
 
 ### Historical & Archived
 - **[.backup/](.backup/)**: Archived historical documentation
 - **[.backup/ARCHIVE_INDEX.md](.backup/ARCHIVE_INDEX.md)**: Archive contents index
-- **System Monitoring**: Live CPU, memory, disk, and network monitoring with visual charts
-- **Log Viewer**: Real-time log streaming with filtering and search capabilities
-- **Tool Manager**: Browse, configure, and execute tools interactively
-- **Plugin Manager**: Install, configure, and manage plugins
-- **System Status**: Comprehensive system health dashboard with maintenance tools
-- **Performance Monitor**: Real-time performance metrics and optimization recommendations
-- **Error Management**: Interactive error handling with recovery suggestions
 
 #### System Maintenance Features
 

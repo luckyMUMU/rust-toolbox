@@ -46,11 +46,16 @@
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
+pub mod composable;
 pub mod node;
 pub mod registry;
 pub mod template;
 pub mod version;
 
+pub use composable::{
+    ComposableTool, ComposableToolAdapter, ConditionalTool, ParallelTools, ToolChain,
+    ToolComposer, ToolCompositionBuilder,
+};
 pub use node::{
     AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor, ToolExecutor, ToolNode,
 };
