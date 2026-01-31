@@ -222,14 +222,24 @@ impl ExpressionEngine {
             return Ok(value.clone());
         }
 
-        // Try to parse as arithmetic or comparison expression
+        // Try to parse as arithmetic expression
         if let Ok(result) = self.parse_and_evaluate_arithmetic(trimmed, context) {
             return Ok(result);
         }
 
-        // Try to parse as conditional expression
-        if let Ok(result) = self.parse_and_evaluate_condition_bool(trimmed, context) {
-            return Ok(Value::Bool(result));
+        // Try to parse as conditional expression (but avoid recursion on simple expressions)
+        // Check if it looks like a comparison or logical expression
+        let is_comparison = ["==", "!=", "<", ">", "<=", ">="].iter().any(|op| trimmed.contains(op));
+        let is_logical = trimmed.contains("&&") || trimmed.contains("||");
+        
+        if (is_comparison || is_logical) && trimmed.len() > 3 {
+            // Use a simple check to avoid infinite recursion
+            // Only try condition evaluation if we haven't already
+            if !trimmed.starts_with("${") {
+                if let Ok(result) = self.parse_and_evaluate_condition_bool(trimmed, context) {
+                    return Ok(Value::Bool(result));
+                }
+            }
         }
 
         Err(WorkflowError::workflow_execution(format!(

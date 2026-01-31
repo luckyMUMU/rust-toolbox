@@ -33,7 +33,7 @@ pub mod converter;
 pub mod definition;
 pub mod el_expression;
 pub mod engine;
-pub mod engine_v2;
+pub mod engine_legacy;
 pub mod execution;
 pub mod execution_manager;
 pub mod executor;
@@ -65,7 +65,7 @@ pub use definition::{
     NodeType, ParameterType, TemplateParameter, WorkflowDefinition, WorkflowEdge, WorkflowNode,
     WorkflowTemplate,
 };
-pub use engine::WorkflowEngine;
+pub use engine_legacy::WorkflowEngine;
 pub use execution::{
     Checkpoint, ExecutionRecord, NodeExecutionState, WorkflowExecution, WorkflowState,
 };
@@ -92,6 +92,6 @@ pub use executor::{
 };
 pub use state::{CheckpointManager, ControlSignals, ExecutionTracker};
 
-// Refactored engine (v2)
-pub use engine_v2::RefactoredWorkflowEngine;
+// Refactored engine (now default)
+pub use engine::RefactoredWorkflowEngine;
 pub use flow_node::FlowNode;

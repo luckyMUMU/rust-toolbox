@@ -246,6 +246,11 @@ impl ParallelTools {
         self
     }
 
+    /// Alias for add_tool for builder API consistency
+    pub fn with_tool(self, name: impl Into<String>, tool: Arc<dyn ToolNode>) -> Self {
+        self.add_tool(name, tool)
+    }
+
     /// Set maximum concurrency
     pub fn with_max_concurrency(mut self, max: usize) -> Self {
         self.max_concurrency = max;
