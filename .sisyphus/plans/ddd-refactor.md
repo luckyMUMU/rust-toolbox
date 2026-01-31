@@ -165,35 +165,40 @@ adapter → application → domain ← infrastructure
 
 ## 执行策略
 
-### 波次1: 基础结构 (并行执行)
-- [ ] 1.1 建立新的目录结构
-- [ ] 1.2 设置依赖注入框架 (shaku)
-- [ ] 1.3 定义领域层端口（接口）
+### 波次1: 基础结构 (并行执行) ✅
+- [x] 1.1 建立新的目录结构
+- [x] 1.2 设置依赖注入框架 (shaku)
+- [x] 1.3 定义领域层端口（接口）
 
-### 波次2: 领域层迁移 (依赖波次1)
-- [ ] 2.1 迁移领域模型（从core/）
-- [ ] 2.2 重构工具系统到领域层
-- [ ] 2.3 重构插件抽象接口
+### 波次2: 领域层迁移 (依赖波次1) ✅
+- [x] 2.1 迁移领域模型（从core/）
+- [x] 2.2 重构工具系统到领域层
+- [x] 2.3 重构插件抽象接口
 
-### 波次3: 基础设施层实现 (依赖波次2)
-- [ ] 3.1 实现仓储层（原storage/）
-- [ ] 3.2 重构插件实现（原plugins/）
-- [ ] 3.3 重构缓存和性能优化
+### 波次3: 基础设施层实现 (依赖波次2) ✅
+- [x] 3.1 实现仓储层（原storage/）
+- [x] 3.2 重构插件实现（原plugins/）
+- [x] 3.3 重构缓存和性能优化
 
-### 波次4: 应用层重构 (依赖波次3)
-- [ ] 4.1 重构工作流编排器
-- [ ] 4.2 实现用例层
-- [ ] 4.3 重构工作流执行器
+### 波次4: 应用层重构 (依赖波次3) ✅
+- [x] 4.1 重构工作流编排器
+- [x] 4.2 实现用例层
+- [x] 4.3 重构工作流执行器
 
-### 波次5: 适配层迁移 (依赖波次4)
-- [ ] 5.1 重构CLI适配器
-- [ ] 5.2 重构TUI适配器
-- [ ] 5.3 重构MCP适配器
+### 波次5: 适配层迁移 (依赖波次4) ✅
+- [x] 5.1 重构CLI适配器
+- [x] 5.2 重构TUI适配器
+- [x] 5.3 重构MCP适配器
 
-### 波次6: 清理与测试
-- [ ] 6.1 删除遗留代码
-- [ ] 6.2 契约测试实现
-- [ ] 6.3 集成测试与验证
+### 波次6: 清理与测试 ✅
+- [x] 6.1 删除遗留代码
+- [x] 6.2 契约测试实现
+- [x] 6.3 集成测试与验证
+
+### 波次7: 编译修复 ✅
+- [x] 7.1 修复execution_manager兼容性
+- [x] 7.2 添加缺失的引擎方法
+- [x] 7.3 确保cargo check通过
 
 ---
 
@@ -201,7 +206,7 @@ adapter → application → domain ← infrastructure
 
 ### 波次1: 基础结构
 
-- [ ] 1.1 建立DDD分层目录结构
+- [x] 1.1 建立DDD分层目录结构 ✅
 
   **What to do**:
   - 创建新的目录结构: adapter/, application/, domain/, infrastructure/, di/
@@ -209,34 +214,13 @@ adapter → application → domain ← infrastructure
   - 在Cargo.toml添加shaku依赖
   - 保持现有src/结构不动，建立新的模块树
 
-  **Must NOT do**:
-  - 不要删除现有文件
-  - 不要修改现有模块的可见性
-  - 不要移动现有代码（只创建新目录）
-
-  **Recommended Agent Profile**:
-  - **Category**: quick
-  - **Skills**: 不需要特殊技能
-  - **Reason**: 简单的目录创建和文件模板
-
-  **Parallelization**:
-  - **Can Run In Parallel**: YES (与其他1.x任务)
-  - **Parallel Group**: Wave 1
-  - **Blocks**: 所有后续任务
-  - **Blocked By**: None
-
-  **References**:
-  - `src/lib.rs:78-86` - 当前模块声明
-  - `Cargo.toml:1-131` - 当前依赖配置
+  **Status**: ✅ 已完成
+  - 提交: `d66d4a9 feat(ddd): establish DDD layer directory structure`
 
   **Acceptance Criteria**:
-  - [ ] 新目录结构已创建
-  - [ ] `cargo check` 能通过（新模块为空但编译通过）
-  - [ ] shaku 已添加到 Cargo.toml
-
-  **Commit**: YES
-  - Message: `chore(ddd): establish DDD layer directory structure`
-  - Files: `src/adapter/`, `src/application/`, `src/domain/`, `src/infrastructure/`, `src/di/`, `Cargo.toml`
+  - [x] 新目录结构已创建
+  - [x] `cargo check` 能通过（新模块为空但编译通过）
+  - [x] shaku 已添加到 Cargo.toml
 
 ---
 
