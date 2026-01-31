@@ -758,7 +758,7 @@ All errors include rich context:
 - [Plugins AGENTS.md](../AGENTS.md) - Plugin system
 - [Tools AGENTS.md](../../tools/AGENTS.md) - Tool system
 - [Workflow AGENTS.md](../../workflow/AGENTS.md) - Workflow engine
-- [Examples](../../../examples/templates/AGENTS.md) - Usage examples
+- [Examples](../../../workflows/templates/AGENTS.md) - Usage examples
 
 ### 模块级补充细则
 - 目标与范围
