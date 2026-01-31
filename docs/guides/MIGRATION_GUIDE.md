@@ -1,74 +1,74 @@
-# Python to Rust Migration Guide
+# Python到Rust迁移指南
 
-> **Complete guide for migrating Python scripts to rust-tool-v2**  
-> *Last Updated: 2026-01-14*
+> **将Python脚本迁移到rust-tool-v2的完整指南**  
+> *最后更新：2026-01-14*
 
 ---
 
-## 🎯 Migration Overview
+## 🎯 迁移概述
 
-### Why Migrate?
-| Metric | Python | Rust | Improvement |
+### 为什么要迁移？
+| 指标 | Python | Rust | 提升 |
 |--------|--------|------|-------------|
-| **Startup Time** | 2.1s | 0.1s | **21x faster** |
-| **Classification** | 12.3s | 2.5s | **5x faster** |
-| **File Operations** | 8.7s | 2.1s | **4x faster** |
-| **Memory Usage** | 180MB | 45MB | **4x less** |
-| **Binary Size** | 2.5MB + Python | 8MB single | **Self-contained** |
+| **启动时间** | 2.1秒 | 0.1秒 | **21倍更快** |
+| **分类速度** | 12.3秒 | 2.5秒 | **5倍更快** |
+| **文件操作** | 8.7秒 | 2.1秒 | **4倍更快** |
+| **内存使用** | 180MB | 45MB | **减少4倍** |
+| **二进制大小** | 2.5MB + Python | 8MB单一文件 | **自包含** |
 
-### Migration Complexity
-- **Simple scripts**: 1-2 hours
-- **Medium complexity**: 4-8 hours
-- **Complex systems**: 1-3 days
+### 迁移复杂度
+- **简单脚本**：1-2小时
+- **中等复杂度**：4-8小时
+- **复杂系统**：1-3天
 
 ---
 
-## 📋 Pre-Migration Checklist
+## 📋 迁移前检查清单
 
-### 1. Analyze Your Python Script
+### 1. 分析你的Python脚本
 ```bash
-# Check script size and complexity
+# 检查脚本大小和复杂度
 wc -l your_script.py
 grep -c "def " your_script.py
 grep -c "import " your_script.py
 
-# Check dependencies
+# 检查依赖
 pip freeze | grep -f <(grep "import " your_script.py | awk '{print $2}' | sed 's/from //;s/;//')
 
-# Profile performance
+# 性能分析
 python -m cProfile -o profile.stats your_script.py
 python -m pstats profile.stats
 ```
 
-### 2. Identify Required Features
+### 2. 识别所需功能
 ```bash
-# Check for common patterns
-grep -E "(threading|multiprocessing|asyncio)" your_script.py  # Concurrency
-grep -E "(json|yaml|toml)" your_script.py                    # Serialization
-grep -E "(re|glob|fnmatch)" your_script.py                   # Pattern matching
-grep -E "(os\.|shutil|pathlib)" your_script.py               # File operations
-grep -E "(socket|http|requests)" your_script.py              # Networking
+# 检查常见模式
+grep -E "(threading|multiprocessing|asyncio)" your_script.py  # 并发
+grep -E "(json|yaml|toml)" your_script.py                    # 序列化
+grep -E "(re|glob|fnmatch)" your_script.py                   # 模式匹配
+grep -E "(os\.|shutil|pathlib)" your_script.py               # 文件操作
+grep -E "(socket|http|requests)" your_script.py              # 网络
 ```
 
-### 3. Verify Rust Equivalents
+### 3. 验证Rust等效工具
 ```bash
-# Check available tools
+# 检查可用工具
 cargo run -- file-classifier --help
 cargo run -- file-mover --help
 cargo run -- folder-merger --help
 cargo run -- batch-processor --help
 
-# Check if custom logic needed
-# Review src/tools/ for existing implementations
+# 检查是否需要自定义逻辑
+# 查看 src/tools/ 了解现有实现
 ```
 
 ---
 
-## 🔧 Migration Strategies
+## 🔧 迁移策略
 
-### Strategy 1: Direct Replacement (Simple)
+### 策略1：直接替换（简单）
 
-**Python:**
+**Python：**
 ```python
 import os
 import shutil
@@ -80,7 +80,7 @@ def classify_files(source, dest):
         shutil.move(str(file), str(dest_path))
 ```
 
-**Rust Equivalent:**
+**Rust等效：**
 ```bash
 cargo run -- file-classifier \
   --source ./source \
@@ -88,24 +88,24 @@ cargo run -- file-classifier \
   --pattern "*.txt"
 ```
 
-**Migration Steps:**
-1. Identify file patterns
-2. Map to `file-classifier` options
-3. Create command or workflow file
-4. Test with `--dry-run`
+**迁移步骤：**
+1. 识别文件模式
+2. 映射到 `file-classifier` 选项
+3. 创建命令或工作流文件
+4. 使用 `--dry-run` 测试
 
 ---
 
-### Strategy 2: Workflow Composition (Medium)
+### 策略2：工作流组合（中等）
 
-**Python:**
+**Python：**
 ```python
 import os
 import shutil
 import json
 
 def process_documents(source, dest):
-    # Step 1: Classify by type
+    # 步骤1：按类型分类
     for root, dirs, files in os.walk(source):
         for file in files:
             if file.endswith(('.pdf', '.docx')):
@@ -115,10 +115,10 @@ def process_documents(source, dest):
                 shutil.move(os.path.join(root, file), 
                           os.path.join(dest, 'images', file))
     
-    # Step 2: Merge duplicates
-    # ... merge logic ...
+    # 步骤2：合并重复项
+    # ... 合并逻辑 ...
     
-    # Step 3: Create index
+    # 步骤3：创建索引
     index = {}
     for root, dirs, files in os.walk(dest):
         for file in files:
@@ -132,7 +132,7 @@ def process_documents(source, dest):
         json.dump(index, f, indent=2)
 ```
 
-**Rust Workflow:**
+**Rust工作流：**
 ```yaml
 # process_documents.yaml
 name: document-processor
@@ -167,24 +167,24 @@ steps:
       output: ./dest/index.json
 ```
 
-**Migration Steps:**
-1. Break Python script into logical steps
-2. Map each step to Rust tool
-3. Create workflow YAML
-4. Add custom scripts for missing logic
-5. Test incrementally
+**迁移步骤：**
+1. 将Python脚本分解为逻辑步骤
+2. 将每个步骤映射到Rust工具
+3. 创建工作流YAML
+4. 为缺失的逻辑添加自定义脚本
+5. 增量测试
 
 ---
 
-### Strategy 3: Custom Tool Development (Complex)
+### 策略3：自定义工具开发（复杂）
 
-**When to use:**
-- Logic not covered by existing tools
-- Need custom business rules
-- Integration with external systems
-- Performance-critical operations
+**何时使用：**
+- 现有工具未涵盖的逻辑
+- 需要自定义业务规则
+- 与外部系统集成
+- 性能关键的操作
 
-**Python:**
+**Python：**
 ```python
 import asyncio
 import aiohttp
@@ -196,14 +196,14 @@ async def fetch_and_process(url, output_dir):
         async with session.get(url) as response:
             data = await response.json()
             
-            # Custom processing
+            # 自定义处理
             processed = {
                 'id': data['id'],
                 'name': data['name'].upper(),
                 'timestamp': datetime.now().isoformat()
             }
             
-            # Save
+            # 保存
             output_path = Path(output_dir) / f"{data['id']}.json"
             with open(output_path, 'w') as f:
                 json.dump(processed, f, indent=2)
@@ -215,7 +215,7 @@ async def main(urls):
     return await asyncio.gather(*tasks)
 ```
 
-**Rust Implementation:**
+**Rust实现：**
 ```rust
 // src/tools/custom_fetcher.rs
 use async_trait::async_trait;
@@ -236,18 +236,18 @@ impl Tool for FetcherTool {
             .as_str()
             .unwrap_or("./output");
         
-        // Fetch
+        // 获取
         let response = reqwest::get(url).await?;
         let data: Value = response.json().await?;
         
-        // Process
+        // 处理
         let processed = serde_json::json!({
             "id": data["id"],
             "name": data["name"].as_str().unwrap().to_uppercase(),
             "timestamp": chrono::Local::now().to_rfc3339()
         });
         
-        // Save
+        // 保存
         let output_path = PathBuf::from(output_dir)
             .join(format!("{}.json", data["id"]));
         
@@ -261,7 +261,7 @@ impl Tool for FetcherTool {
 }
 ```
 
-**Workflow Usage:**
+**工作流使用：**
 ```yaml
 name: custom-fetcher-workflow
 steps:
@@ -274,87 +274,87 @@ steps:
 
 ---
 
-## 📊 Feature Mapping Guide
+## 📊 功能映射指南
 
-### File Operations
+### 文件操作
 
-| Python | Rust Tool | Command/Config |
+| Python | Rust工具 | 命令/配置 |
 |--------|-----------|----------------|
 | `os.listdir()` | `file-classifier` | `--source <dir>` |
 | `shutil.move()` | `file-mover` | `--source <file> --dest <dir>` |
 | `shutil.copy()` | `file-mover` | `--source <file> --dest <dir> --preserve` |
 | `os.walk()` | `file-classifier` | `--recursive` |
 | `glob.glob()` | `file-classifier` | `--pattern "*.ext"` |
-| `os.remove()` | `file-mover` | Move to trash or use `--delete` |
-| `shutil.rmtree()` | `folder-merger` | Merge with empty or use system commands |
+| `os.remove()` | `file-mover` | 移动到回收站或使用 `--delete` |
+| `shutil.rmtree()` | `folder-merger` | 与空目录合并或使用系统命令 |
 
-### Pattern Matching
+### 模式匹配
 
-| Python | Rust Tool | Command/Config |
+| Python | Rust工具 | 命令/配置 |
 |--------|-----------|----------------|
 | `fnmatch()` | `file-classifier` | `--pattern "*.txt"` |
-| `re.match()` | `file-classifier` | Use regex patterns |
+| `re.match()` | `file-classifier` | 使用正则模式 |
 | `pathlib.Path.glob()` | `file-classifier` | `--pattern "*.ext"` |
 
-### Data Processing
+### 数据处理
 
-| Python | Rust Tool | Command/Config |
+| Python | Rust工具 | 命令/配置 |
 |--------|-----------|----------------|
-| `json.load()` | `batch-processor` | Use custom script |
-| `yaml.safe_load()` | `batch-processor` | Use custom script |
-| `csv.reader()` | `batch-processor` | Use custom script |
-| `pandas` | Custom tool | Develop custom tool |
+| `json.load()` | `batch-processor` | 使用自定义脚本 |
+| `yaml.safe_load()` | `batch-processor` | 使用自定义脚本 |
+| `csv.reader()` | `batch-processor` | 使用自定义脚本 |
+| `pandas` | 自定义工具 | 开发自定义工具 |
 
-### Concurrency
+### 并发
 
-| Python | Rust Tool | Command/Config |
+| Python | Rust工具 | 命令/配置 |
 |--------|-----------|----------------|
 | `threading` | `batch-processor` | `--parallel <N>` |
 | `multiprocessing` | `batch-processor` | `--parallel <N>` |
-| `asyncio` | Custom tool | Async Rust implementation |
+| `asyncio` | 自定义工具 | 异步Rust实现 |
 
-### Networking
+### 网络
 
-| Python | Rust Tool | Command/Config |
+| Python | Rust工具 | 命令/配置 |
 |--------|-----------|----------------|
-| `requests.get()` | Custom tool | `reqwest` crate |
-| `aiohttp` | Custom tool | `tokio` + `reqwest` |
-| `socket` | Custom tool | `tokio::net` |
+| `requests.get()` | 自定义工具 | `reqwest` crate |
+| `aiohttp` | 自定义工具 | `tokio` + `reqwest` |
+| `socket` | 自定义工具 | `tokio::net` |
 
 ---
 
-## 🔨 Step-by-Step Migration Process
+## 🔨 分步迁移流程
 
-### Step 1: Analyze Current Script
+### 步骤1：分析当前脚本
 ```bash
-# Create analysis report
+# 创建分析报告
 python analyze_script.py your_script.py > analysis.txt
 
-# Check dependencies
+# 检查依赖
 pip show $(pip freeze | cut -d'=' -f1) > dependencies.txt
 
-# Profile performance
+# 性能分析
 python -m cProfile -o profile.stats your_script.py
 ```
 
-### Step 2: Map to Rust Tools
+### 步骤2：映射到Rust工具
 ```bash
-# List available tools
+# 列出可用工具
 cargo run -- --help
 
-# Check tool capabilities
+# 检查工具能力
 cargo run -- file-classifier --help
 cargo run -- file-mover --help
 cargo run -- folder-merger --help
 cargo run -- batch-processor --help
 
-# Identify gaps
-# If tools don't cover your needs → Plan custom tool
+# 识别差距
+# 如果工具不能满足需求 → 计划自定义工具
 ```
 
-### Step 3: Create Workflow or Command
+### 步骤3：创建工作流或命令
 ```bash
-# For simple cases: Create command
+# 简单情况：创建命令
 cat > migrate_command.sh << 'EOF'
 #!/bin/bash
 cargo run -- file-classifier \
@@ -365,7 +365,7 @@ cargo run -- file-classifier \
   --threads 4
 EOF
 
-# For complex cases: Create workflow
+# 复杂情况：创建工作流
 cat > workflow.yaml << 'EOF'
 name: migration-workflow
 steps:
@@ -384,108 +384,108 @@ steps:
 EOF
 ```
 
-### Step 4: Test Incrementally
+### 步骤4：增量测试
 ```bash
-# Test with dry-run
+# 使用试运行测试
 cargo run -- file-classifier --source ./test --dest ./output --dry-run
 
-# Test small batch
+# 测试小批量
 cargo run -- batch-processor --source ./small --dest ./output --batch-size 10
 
-# Verify results
+# 验证结果
 diff -r expected/ output/
 ```
 
-### Step 5: Handle Custom Logic
+### 步骤5：处理自定义逻辑
 ```bash
-# If Python logic is complex:
-# 1. Check if Rust tool can be extended
-# 2. Create custom tool in src/tools/
-# 3. Register in tool registry
-# 4. Use in workflow
+# 如果Python逻辑复杂：
+# 1. 检查Rust工具是否可以扩展
+# 2. 在 src/tools/ 中创建自定义工具
+# 3. 注册到工具注册表
+# 4. 在工作流中使用
 
-# Example: Create custom tool
+# 示例：创建自定义工具
 cat > src/tools/custom_processor.rs << 'EOF'
-// Your custom implementation
+// 你的自定义实现
 EOF
 ```
 
-### Step 6: Performance Testing
+### 步骤6：性能测试
 ```bash
-# Compare performance
+# 比较性能
 time python your_script.py
 time cargo run --release -- workflow execute workflow.yaml
 
-# Profile if needed
+# 如需分析
 cargo build --release
 /usr/bin/time -v ./target/release/rust-tool-v2 workflow execute workflow.yaml
 ```
 
-### Step 7: Deployment
+### 步骤7：部署
 ```bash
-# Build release
+# 构建release
 cargo build --release
 
-# Create deployment package
+# 创建部署包
 tar -czf rust-tool-v2.tar.gz target/release/rust-tool-v2 examples/ docs/
 
-# Deploy
-# Copy binary to target system
-# Test on target system
+# 部署
+# 复制二进制文件到目标系统
+# 在目标系统上测试
 ```
 
 ---
 
-## 📝 Common Python Patterns → Rust Solutions
+## 📝 常见Python模式 → Rust解决方案
 
-### Pattern 1: Simple File Copy
-**Python:**
+### 模式1：简单文件复制
+**Python：**
 ```python
 import shutil
 shutil.copytree("source", "dest")
 ```
 
-**Rust:**
+**Rust：**
 ```bash
-# Option 1: Use file-mover with preserve
-cargo run -- file-mover --source source --dest dest --preserve
+# 选项1：使用file-mover并保留
+ cargo run -- file-mover --source source --dest dest --preserve
 
-# Option 2: Use folder-merger
+# 选项2：使用folder-merger
 cargo run -- folder-merger --source source --dest dest --strategy replace
 ```
 
-### Pattern 2: Conditional Processing
-**Python:**
+### 模式2：条件处理
+**Python：**
 ```python
 for file in os.listdir("."):
     if file.endswith(".txt") and os.path.getsize(file) > 1024:
         process(file)
 ```
 
-**Rust:**
+**Rust：**
 ```bash
-# Use file-classifier with pattern
+# 使用file-classifier并指定模式
 cargo run -- file-classifier --source . --dest ./processed --pattern "*.txt"
 
-# For size filtering: Use custom tool or script
-# Create workflow with custom step
+# 对于大小过滤：使用自定义工具或脚本
+# 创建带自定义步骤的工作流
 ```
 
-### Pattern 3: Batch Processing with Progress
-**Python:**
+### 模式3：带进度的批处理
+**Python：**
 ```python
 from tqdm import tqdm
 for item in tqdm(items):
     process(item)
 ```
 
-**Rust:**
+**Rust：**
 ```bash
 cargo run -- batch-processor --source ./data --dest ./output --progress
 ```
 
-### Pattern 4: Error Handling and Logging
-**Python:**
+### 模式4：错误处理和日志
+**Python：**
 ```python
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -498,48 +498,48 @@ except Exception as e:
     raise
 ```
 
-**Rust:**
+**Rust：**
 ```bash
-# Enable logging
+# 启用日志
 RUST_LOG=info cargo run -- workflow execute workflow.yaml
 
-# Or in code:
-# Use tracing macros: info!(), error!(), debug!()
+# 或在代码中：
+# 使用tracing宏：info!(), error!(), debug!()
 ```
 
-### Pattern 5: Configuration Files
-**Python:**
+### 模式5：配置文件
+**Python：**
 ```python
 import json
 with open("config.json") as f:
     config = json.load(f)
 ```
 
-**Rust:**
+**Rust：**
 ```bash
-# Use config file
+# 使用配置文件
 cargo run -- config show
 
-# Or environment variable
+# 或环境变量
 export RUST_TOOL_V2_CONFIG=/path/to/config.toml
 cargo run -- workflow execute workflow.yaml
 ```
 
 ---
 
-## 🎯 Migration Examples
+## 🎯 迁移示例
 
-### Example 1: Folder Classifier (65KB Python → Rust)
+### 示例1：文件夹分类器（65KB Python → Rust）
 
-**Original Python (folder_classifier_v5_improved2.py):**
+**原始Python（folder_classifier_v5_improved2.py）：**
 ```python
-# Features: AC Automaton, Chinese pinyin, multi-threading
-# ~65KB, 2.1s startup, 12.3s classification
+# 功能：AC自动机、中文拼音、多线程
+# ~65KB，2.1秒启动，12.3秒分类
 ```
 
-**Rust Equivalent:**
+**Rust等效：**
 ```bash
-# Single command
+# 单条命令
 cargo run -- file-classifier \
   --source ./downloads \
   --dest ./organized \
@@ -548,7 +548,7 @@ cargo run -- file-classifier \
   --threads 8 \
   --verbose
 
-# Or workflow
+# 或工作流
 cat > classify.yaml << 'EOF'
 name: classify-files
 steps:
@@ -565,22 +565,22 @@ EOF
 cargo run -- workflow execute classify.yaml
 ```
 
-**Performance Gain:**
-- Startup: 21x faster
-- Classification: 5x faster
-- Memory: 4x less
+**性能提升：**
+- 启动：21倍更快
+- 分类：5倍更快
+- 内存：减少4倍
 
-### Example 2: Folder Merger (18KB Python → Rust)
+### 示例2：文件夹合并器（18KB Python → Rust）
 
-**Original Python (mergeClassifierSimple.py):**
+**原始Python（mergeClassifierSimple.py）：**
 ```python
-# Features: Merging, duplicate handling, conflict resolution
-# ~18KB, 8.7s file operations
+# 功能：合并、重复处理、冲突解决
+# ~18KB，8.7秒文件操作
 ```
 
-**Rust Equivalent:**
+**Rust等效：**
 ```bash
-# Interactive merge
+# 交互式合并
 cargo run -- folder-merger \
   --source ./folder1 \
   --dest ./folder2 \
@@ -588,7 +588,7 @@ cargo run -- folder-merger \
   --duplicate-check \
   --interactive
 
-# Or batch mode
+# 或批处理模式
 cargo run -- folder-merger \
   --source ./folder1 \
   --dest ./folder2 \
@@ -597,26 +597,26 @@ cargo run -- folder-merger \
   --backup
 ```
 
-**Performance Gain:**
-- File operations: 4x faster
-- Memory: 4x less
-- Binary: Self-contained
+**性能提升：**
+- 文件操作：4倍更快
+- 内存：减少4倍
+- 二进制：自包含
 
 ---
 
-## 🛠️ Custom Tool Development
+## 🛠️ 自定义工具开发
 
-### When to Create Custom Tool
-- Logic not covered by existing tools
-- Need specific business rules
-- Integration with external APIs
-- Performance-critical custom algorithms
+### 何时创建自定义工具
+- 现有工具未涵盖的逻辑
+- 需要特定业务规则
+- 与外部API集成
+- 性能关键的自定义算法
 
-### Development Steps
+### 开发步骤
 
-#### 1. Create Tool File
+#### 1. 创建工具文件
 ```bash
-# In src/tools/
+# 在 src/tools/ 中
 cat > src/tools/custom_processor.rs << 'EOF'
 use async_trait::async_trait;
 use serde_json::Value;
@@ -628,12 +628,12 @@ pub struct CustomProcessor;
 #[async_trait]
 impl Tool for CustomProcessor {
     async fn execute(&self, params: Value, context: Context) -> Result<Value> {
-        // Your logic here
+        // 你的逻辑在这里
         let input = params["input"]
             .as_str()
             .ok_or(WorkflowError::tool("Missing input"))?;
         
-        // Process
+        // 处理
         let result = process_input(input);
         
         Ok(serde_json::json!({
@@ -644,26 +644,26 @@ impl Tool for CustomProcessor {
 }
 
 fn process_input(input: &str) -> String {
-    // Custom processing logic
+    // 自定义处理逻辑
     input.to_uppercase()
 }
 EOF
 ```
 
-#### 2. Register Tool
+#### 2. 注册工具
 ```bash
-# In src/tools/registry.rs
+# 在 src/tools/registry.rs 中
 pub fn register_custom_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register(
         "custom-processor",
         Box::new(CustomProcessor),
-        "Custom processing tool"
+        "自定义处理工具"
     )?;
     Ok(())
 }
 ```
 
-#### 3. Use in Workflow
+#### 3. 在工作流中使用
 ```yaml
 name: custom-workflow
 steps:
@@ -675,22 +675,22 @@ steps:
 
 ---
 
-## 📊 Performance Comparison Tool
+## 📊 性能比较工具
 
-### Benchmark Script
+### 基准测试脚本
 ```bash
 cat > benchmark.sh << 'EOF'
 #!/bin/bash
-echo "Performance Comparison"
+echo "性能比较"
 echo "======================"
 
-echo -e "\n1. Python Script:"
+echo -e "\n1. Python脚本："
 time python your_script.py
 
-echo -e "\n2. Rust Equivalent:"
+echo -e "\n2. Rust等效："
 time cargo run --release -- workflow execute workflow.yaml
 
-echo -e "\n3. Memory Usage (Linux/macOS):"
+echo -e "\n3. 内存使用（Linux/macOS）："
 /usr/bin/time -v python your_script.py 2>&1 | grep "Maximum resident"
 /usr/bin/time -v cargo run --release -- workflow execute workflow.yaml 2>&1 | grep "Maximum resident"
 EOF
@@ -701,47 +701,47 @@ chmod +x benchmark.sh
 
 ---
 
-## ✅ Migration Verification
+## ✅ 迁移验证
 
-### Checklist
-- [ ] All Python features mapped to Rust tools
-- [ ] Workflow or commands created
-- [ ] Tested with `--dry-run`
-- [ ] Tested with small dataset
-- [ ] Performance benchmarked
-- [ ] Error handling verified
-- [ ] Logging configured
-- [ ] Documentation updated
-- [ ] Deployment tested
+### 检查清单
+- [ ] 所有Python功能映射到Rust工具
+- [ ] 工作流或命令已创建
+- [ ] 使用 `--dry-run` 测试
+- [ ] 使用小数据集测试
+- [ ] 性能已基准测试
+- [ ] 错误处理已验证
+- [ ] 日志已配置
+- [ ] 文档已更新
+- [ ] 部署已测试
 
-### Verification Commands
+### 验证命令
 ```bash
-# 1. Compilation
+# 1. 编译
 cargo check
 cargo build --release
 
-# 2. Basic functionality
+# 2. 基本功能
 cargo run -- workflow execute test.yaml
 
-# 3. Performance test
+# 3. 性能测试
 time cargo run --release -- workflow execute large.yaml
 
-# 4. Error handling
-# Test with invalid inputs
-cargo run -- workflow execute invalid.yaml  # Should fail gracefully
+# 4. 错误处理
+# 使用无效输入测试
+cargo run -- workflow execute invalid.yaml  # 应该优雅地失败
 
-# 5. Memory usage
+# 5. 内存使用
 /usr/bin/time -v cargo run --release -- workflow execute test.yaml
 ```
 
 ---
 
-## 🚀 Quick Start Templates
+## 🚀 快速启动模板
 
-### Template 1: File Organization
+### 模板1：文件组织
 ```bash
-# Python equivalent: ~20 lines
-# Rust: 1 command
+# Python等效：~20行
+# Rust：1条命令
 
 cargo run -- file-classifier \
   --source ./downloads \
@@ -751,10 +751,10 @@ cargo run -- file-classifier \
   --threads 8
 ```
 
-### Template 2: Folder Sync
+### 模板2：文件夹同步
 ```bash
-# Python equivalent: ~30 lines
-# Rust: 1 command
+# Python等效：~30行
+# Rust：1条命令
 
 cargo run -- folder-merger \
   --source ./folder1 \
@@ -764,10 +764,10 @@ cargo run -- folder-merger \
   --backup
 ```
 
-### Template 3: Batch Processing
+### 模板3：批处理
 ```bash
-# Python equivalent: ~50 lines with threading
-# Rust: 1 command
+# Python等效：~50行带线程
+# Rust：1条命令
 
 cargo run -- batch-processor \
   --source ./data \
@@ -777,10 +777,10 @@ cargo run -- batch-processor \
   --progress
 ```
 
-### Template 4: Complex Workflow
+### 模板4：复杂工作流
 ```yaml
-# Python equivalent: ~100+ lines
-# Rust: Workflow YAML
+# Python等效：~100+行
+# Rust：工作流YAML
 
 name: complex-workflow
 steps:
@@ -807,65 +807,63 @@ steps:
 
 ---
 
-## 📚 Migration Resources
+## 📚 迁移资源
 
-### Documentation
-- **[USER_GUIDE.md](USER_GUIDE.md)** - Usage examples
-- **[API_INDEX.md](API_INDEX.md)** - Command reference
-- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - Custom tools
-- **[FILE_MANAGEMENT_TOOLS_GUIDE.md](FILE_MANAGEMENT_TOOLS_GUIDE.md)** - File operations
+### 文档
+- **[USER_GUIDE.md](USER_GUIDE.md)** - 使用示例
+- **[API_INDEX.md](API_INDEX.md)** - 命令参考
+- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - 自定义工具
+- **[FILE_MANAGEMENT_TOOLS_GUIDE.md](FILE_MANAGEMENT_TOOLS_GUIDE.md)** - 文件操作
 
-### Tools
-- **[INDEX.md](INDEX.md)** - Complete navigation
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues
+### 工具
+- **[INDEX.md](INDEX.md)** - 完整导航
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - 常见问题
 
-### External
-- Rust Book: https://doc.rust-lang.org/book/
-- Tokio: https://tokio.rs/
-- Serde: https://serde.rs/
-
----
-
-## 🎯 Migration Success Criteria
-
-### Performance
-- [ ] 5x+ faster execution
-- [ ] 4x+ less memory
-- [ ] <0.5s startup time
-
-### Functionality
-- [ ] All Python features supported
-- [ ] Error handling equivalent
-- [ ] Logging equivalent
-- [ ] Configuration equivalent
-
-### Quality
-- [ ] No compilation warnings
-- [ ] All tests pass
-- [ ] Code formatted
-- [ ] Documentation complete
-
-### Deployment
-- [ ] Single binary deployment
-- [ ] No external dependencies
-- [ ] Cross-platform compatible
-- [ ] Self-contained
+### 外部资源
+- Rust书籍：https://doc.rust-lang.org/book/
+- Tokio：https://tokio.rs/
+- Serde：https://serde.rs/
 
 ---
 
-## 📞 Getting Help
+## 🎯 迁移成功标准
 
-### Migration Issues
-1. **Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)** for common issues
-2. **Review [API_INDEX.md](API_INDEX.md)** for command options
-3. **Consult [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** for custom tools
-4. **Use [INDEX.md](INDEX.md)** to find related docs
+### 性能
+- [ ] 5倍以上执行速度
+- [ ] 4倍以下内存使用
+- [ ] <0.5秒启动时间
 
-### Custom Development
-1. **Read [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** for code style
-2. **Check [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md)** for extensions
-3. **Review existing tools** in `src/tools/`
+### 功能
+- [ ] 所有Python功能都支持
+- [ ] 等效的错误处理
+- [ ] 等效的日志
+- [ ] 等效的配置
+
+### 质量
+- [ ] 无编译警告
+- [ ] 所有测试通过
+- [ ] 代码已格式化
+- [ ] 文档完整
+
+### 部署
+- [ ] 单一二进制部署
+- [ ] 无外部依赖
+- [ ] 跨平台兼容
+- [ ] 自包含
 
 ---
 
-**← Back to [INDEX.md](INDEX.md)** | **Top** ↑
+## 📞 获取帮助
+
+### 迁移问题
+1. **查看 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)** 了解常见问题
+2. **查看 [API_INDEX.md](API_INDEX.md)** 了解命令选项
+3. **查看 [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** 了解自定义工具
+4. **使用 [INDEX.md](INDEX.md)** 查找相关文档
+
+### 自定义开发
+1. **阅读 [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** 了解代码风格
+2. **查看 [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md)** 了解扩展
+3. **查看现有工具** 在 `src/tools/`
+
+---
