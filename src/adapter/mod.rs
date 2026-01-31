@@ -1,3 +1,6 @@
-//! Adapter layer for external interfaces (CLI, TUI, MCP)
+//! 适配层 - 外部接口适配器
 
-// TODO: 迁移CLI, TUI, MCP适配器到这里
+pub mod cli;
+pub mod tui;
+pub mod mcp;
+pub mod dto;
