@@ -1,70 +1,70 @@
-# File Management Tools User Guide
+# 文件管理工具用户指南
 
-This comprehensive guide covers the File Management Tools plugin for the workflow-toolkit system, providing intelligent file and folder management capabilities through reusable workflow components.
+本综合指南涵盖工作流工具包系统的文件管理工具插件，通过可重用的工作流组件提供智能文件和文件夹管理能力。
 
-## Table of Contents
+## 目录
 
-1. [Overview](#overview)
-2. [Quick Start](#quick-start)
-3. [Tool Reference](#tool-reference)
-4. [Workflow Templates](#workflow-templates)
-5. [Configuration Guide](#configuration-guide)
-6. [Human Decision Integration](#human-decision-integration)
-7. [Best Practices](#best-practices)
-8. [Troubleshooting](#troubleshooting)
-9. [Advanced Usage](#advanced-usage)
+1. [概述](#概述)
+2. [快速开始](#快速开始)
+3. [工具参考](#工具参考)
+4. [工作流模板](#工作流模板)
+5. [配置指南](#配置指南)
+6. [人工决策集成](#人工决策集成)
+7. [最佳实践](#最佳实践)
+8. [故障排除](#故障排除)
+9. [高级用法](#高级用法)
 
-## Overview
+## 概述
 
-The File Management Tools plugin provides a comprehensive suite of tools for intelligent file and folder organization, including:
+文件管理工具插件提供了一套全面的工具，用于智能文件和文件夹组织，包括：
 
-- **Intelligent Classification**: Categorize folders based on configurable rules with Chinese text support
-- **Batch Processing**: Process multiple files/folders in parallel with progress tracking
-- **Folder Merging**: Intelligently merge duplicate folders with conflict resolution
-- **Human Decision Integration**: Interactive decision-making for ambiguous scenarios
-- **Experimental Mode**: Preview operations before execution with detailed reporting
-- **Text Processing**: Advanced text normalization and Chinese/pinyin conversion
-- **Pattern Matching**: Efficient multi-pattern string matching using Aho-Corasick automaton
+- **智能分类**：基于可配置规则对文件夹进行分类，支持中文文本
+- **批处理**：并行处理多个文件/文件夹，带进度跟踪
+- **文件夹合并**：智能合并重复文件夹，带冲突解决
+- **人工决策集成**：针对模糊场景的交互式决策
+- **实验模式**：执行前预览操作并生成详细报告
+- **文本处理**：高级文本规范化和中文/拼音转换
+- **模式匹配**：使用AC自动机进行高效多模式字符串匹配
 
-### Key Features
+### 主要特性
 
-✅ **Workflow Integration**: Seamlessly integrates with workflow-toolkit's plugin system  
-✅ **Human-in-the-Loop**: Interactive decision-making for complex scenarios  
-✅ **Experimental Mode**: Safe preview and confirmation before execution  
-✅ **Chinese Text Support**: Full Unicode support with pinyin conversion  
-✅ **Batch Operations**: Parallel processing with configurable concurrency  
-✅ **Conflict Resolution**: Multiple strategies for handling file conflicts  
-✅ **Progress Tracking**: Real-time progress reporting and performance metrics  
-✅ **Error Recovery**: Comprehensive error handling with rollback capabilities  
+✅ **工作流集成**：与工作流工具包的插件系统无缝集成  
+✅ **人机协作**：针对复杂场景的交互式决策  
+✅ **实验模式**：执行前安全预览和确认  
+✅ **中文文本支持**：完整的Unicode支持，带拼音转换  
+✅ **批处理操作**：可配置并发度的并行处理  
+✅ **冲突解决**：多种处理文件冲突的策略  
+✅ **进度跟踪**：实时进度报告和性能指标  
+✅ **错误恢复**：全面的错误处理，带回滚能力  
 
-### Architecture & Implementation
+### 架构与实现
 
-The File Management Tools are implemented in Rust and registered as a plugin within the `workflow-toolkit` ecosystem. Each tool in a workflow YAML corresponds to a specific Rust executor:
+文件管理工具使用Rust实现，并在`workflow-toolkit`生态系统中注册为插件。工作流YAML中的每个工具对应一个特定的Rust执行器：
 
-- **YAML Tool Mapping**: Workflow nodes use `tool_name` to look up Rust executors in the `FileManagementToolRegistry`.
-- **Safe Execution**: All operations support an `experimental_mode` for safe dry-runs.
-- **Detailed Mapping**: For a complete list of YAML-to-Rust mappings, see the [API Reference - Workflow Integration](FILE_MANAGEMENT_API_REFERENCE.md#workflow-integration--execution-mechanism).
+- **YAML工具映射**：工作流节点使用`tool_name`在`FileManagementToolRegistry`中查找Rust执行器。
+- **安全执行**：所有操作都支持`experimental_mode`进行安全试运行。
+- **详细映射**：有关YAML到Rust映射的完整列表，请参阅[API参考 - 工作流集成](FILE_MANAGEMENT_API_REFERENCE.md#workflow-integration--execution-mechanism)。
 
-## Quick Start
+## 快速开始
 
-### Installation
+### 安装
 
-The File Management Tools are included as a plugin in the workflow-toolkit system:
+文件管理工具作为插件包含在工作流工具包系统中：
 
 ```bash
-# Build the project with file management tools
+# 构建包含文件管理工具的项目
 cargo build --features file-management
 
-# Verify plugin is available
+# 验证插件可用
 cargo run -- plugin list | grep file-management
 ```
 
-### Basic Usage
+### 基本用法
 
-#### 1. Simple Folder Classification
+#### 1. 简单文件夹分类
 
 ```bash
-# Create basic classification rules
+# 创建基本分类规则
 cat > basic-rules.json << 'EOF'
 {
   "categories": {
@@ -86,30 +86,30 @@ cat > basic-rules.json << 'EOF'
 }
 EOF
 
-# Run classification workflow
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+# 运行分类工作流
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/path/to/messy/folders" \
   --param output_directory="/path/to/organized" \
   --param classification_rules="basic-rules.json" \
   --param experimental_mode=true
 ```
 
-#### 2. Folder Merging
+#### 2. 文件夹合并
 
 ```bash
-# Merge duplicate folders across locations
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+# 跨位置合并重复文件夹
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/home/user/Downloads", "/home/user/Desktop"]' \
   --param target_directory="/home/user/Organized" \
   --param merge_strategy="UserDecision" \
   --param experimental_mode=true
 ```
 
-#### 3. Batch File Processing
+#### 3. 批处理文件
 
 ```bash
-# Process files in batches
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+# 批量处理文件
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/data/incoming" \
   --param target_directory="/data/processed" \
   --param operation_type="move" \
@@ -117,31 +117,31 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
   --param experimental_mode=true
 ```
 
-## Tool Reference
+## 工具参考
 
-### Core Tools
+### 核心工具
 
-#### 1. Folder Classifier (`folder-classifier`)
+#### 1. 文件夹分类器 (`folder-classifier`)
 
-*Note: In advanced workflows, the classification process is often broken down into granular steps (loading rules, building automaton, parallel matching) for better performance and control. See the [API Reference](FILE_MANAGEMENT_API_REFERENCE.md#granular-classification-tools-api) for details on these low-level tools.*
+*注意：在高级工作流中，分类过程通常被分解为细粒度步骤（加载规则、构建自动机、并行匹配）以获得更好的性能和控制。有关这些底层工具的详细信息，请参阅[API参考](FILE_MANAGEMENT_API_REFERENCE.md#granular-classification-tools-api)。*
 
-Intelligently categorizes folders based on configurable rules.
+基于可配置规则智能地对文件夹进行分类。
 
-**Parameters:**
-- `folder_path` (string): Path to folder to classify
-- `classification_rules` (object/string): Classification rules (JSON object or file path)
-- `enable_user_interaction` (boolean): Enable human decision-making
-- `experimental_mode` (boolean): Run in simulation mode
-- `confidence_threshold` (number): Minimum confidence for auto-classification
+**参数：**
+- `folder_path` (字符串)：要分类的文件夹路径
+- `classification_rules` (对象/字符串)：分类规则（JSON对象或文件路径）
+- `enable_user_interaction` (布尔值)：启用人工决策
+- `experimental_mode` (布尔值)：以模拟模式运行
+- `confidence_threshold` (数字)：自动分类的最低置信度
 
-**Returns:**
-- `status`: Classification status (classified, unclassified, pending, error)
-- `category`: Assigned category (if classified)
-- `candidates`: All category candidates with scores
-- `score`: Confidence score for the classification
-- `processing_time_ms`: Time taken for classification
+**返回：**
+- `status`：分类状态（classified, unclassified, pending, error）
+- `category`：分配的类别（如果已分类）
+- `candidates`：所有类别候选及其分数
+- `score`：分类的置信度分数
+- `processing_time_ms`：分类所用时间
 
-**Example:**
+**示例：**
 ```yaml
 - name: "classify_folder"
   tool: "folder-classifier"
@@ -152,24 +152,24 @@ Intelligently categorizes folders based on configurable rules.
     experimental_mode: true
 ```
 
-#### 2. File Mover (`file-mover`)
+#### 2. 文件移动器 (`file-mover`)
 
-Safe file and folder operations with conflict resolution.
+安全的文件和文件夹操作，带冲突解决。
 
-**Parameters:**
-- `operations` (array): List of move operations
-- `conflict_resolution` (string): How to handle conflicts (Skip, Overwrite, Rename, Fail)
-- `check_disk_space` (boolean): Verify disk space before operations
-- `create_directories` (boolean): Create target directories as needed
+**参数：**
+- `operations` (数组)：移动操作列表
+- `conflict_resolution` (字符串)：如何处理冲突（Skip, Overwrite, Rename, Fail）
+- `check_disk_space` (布尔值)：操作前验证磁盘空间
+- `create_directories` (布尔值)：按需创建目标目录
 
-**Returns:**
-- `operations_completed`: Number of successful operations
-- `operations_failed`: Number of failed operations
-- `total_bytes_moved`: Total data transferred
-- `duration_ms`: Operation duration
-- `errors`: Detailed error information
+**返回：**
+- `operations_completed`：成功操作的数量
+- `operations_failed`：失败操作的数量
+- `total_bytes_moved`：传输的总数据量
+- `duration_ms`：操作持续时间
+- `errors`：详细的错误信息
 
-**Example:**
+**示例：**
 ```yaml
 - name: "move_files"
   tool: "file-mover"
@@ -182,24 +182,24 @@ Safe file and folder operations with conflict resolution.
     check_disk_space: true
 ```
 
-#### 3. Folder Merger (`folder-merger`)
+#### 3. 文件夹合并器 (`folder-merger`)
 
-Intelligently merge folders with duplicate handling.
+智能合并文件夹，带重复处理。
 
-**Parameters:**
-- `source_directories` (array): Directories to scan for mergeable folders
-- `target_directory` (string): Target directory for merged folders
-- `merge_strategy` (string): Merge strategy (SmallerToLarger, LargerToSmaller, UserDecision, TargetDirectory)
-- `duplicate_handling` (string): How to handle duplicates
-- `minimum_folder_size` (number): Minimum folder size to consider
+**参数：**
+- `source_directories` (数组)：要扫描可合并文件夹的目录
+- `target_directory` (字符串)：合并文件夹的目标目录
+- `merge_strategy` (字符串)：合并策略（SmallerToLarger, LargerToSmaller, UserDecision, TargetDirectory）
+- `duplicate_handling` (字符串)：如何处理重复项
+- `minimum_folder_size` (数字)：要考虑的最小文件夹大小
 
-**Returns:**
-- `merge_operations`: List of planned merge operations
-- `space_savings`: Estimated space savings
-- `conflicts_detected`: Number of conflicts found
-- `merge_summary`: Summary of merge analysis
+**返回：**
+- `merge_operations`：计划的合并操作列表
+- `space_savings`：估计的空间节省
+- `conflicts_detected`：发现的冲突数量
+- `merge_summary`：合并分析摘要
 
-**Example:**
+**示例：**
 ```yaml
 - name: "merge_folders"
   tool: "folder-merger"
@@ -209,25 +209,25 @@ Intelligently merge folders with duplicate handling.
     duplicate_handling: "Rename"
 ```
 
-#### 4. Batch Processor (`batch-processor`)
+#### 4. 批处理器 (`batch-processor`)
 
-Process multiple items in parallel workflows.
+在工作流中并行处理多个项目。
 
-**Parameters:**
-- `source_directory` (string): Directory containing items to process
-- `target_directory` (string): Target directory for processed items
-- `operation_type` (string): Type of operation (move, copy, classify, merge, custom)
-- `batch_size` (number): Items per batch
-- `max_concurrent_batches` (number): Maximum concurrent batches
+**参数：**
+- `source_directory` (字符串)：包含要处理项目的目录
+- `target_directory` (字符串)：处理后项目的目标目录
+- `operation_type` (字符串)：操作类型（move, copy, classify, merge, custom）
+- `batch_size` (数字)：每批项目数
+- `max_concurrent_batches` (数字)：最大并发批次数
 
-**Returns:**
-- `batches_completed`: Number of completed batches
-- `total_items_processed`: Total items processed
-- `processing_time`: Total processing time
-- `throughput`: Items processed per second
-- `error_summary`: Summary of any errors
+**返回：**
+- `batches_completed`：完成的批次数
+- `total_items_processed`：处理的总项目数
+- `processing_time`：总处理时间
+- `throughput`：每秒处理的项目数
+- `error_summary`：任何错误的摘要
 
-**Example:**
+**示例：**
 ```yaml
 - name: "batch_process"
   tool: "batch-processor"
@@ -239,154 +239,154 @@ Process multiple items in parallel workflows.
     max_concurrent_batches: 4
 ```
 
-#### 5. Human Decision (`human-decision`)
+#### 5. 人工决策 (`human-decision`)
 
-Interactive decision-making for ambiguous scenarios. Supports both single-item and batch decision modes.
+针对模糊场景的交互式决策。支持单项目和批量决策模式。
 
-**Parameters:**
-- `decision_type` (string): Type of decision (Classification, FileConflict, MergeStrategy, Custom)
-- `context` (object): Decision context with title, description, and metadata
-- `options` (array): Available decision options (for single mode)
-- `items` (array): List of items to decide on (for batch mode)
-- `timeout_seconds` (number): Decision timeout
-- `default_choice` (number): Default option if timeout occurs
+**参数：**
+- `decision_type` (字符串)：决策类型（Classification, FileConflict, MergeStrategy, Custom）
+- `context` (对象)：决策上下文，包含标题、描述和元数据
+- `options` (数组)：可用的决策选项（单模式）
+- `items` (数组)：要决策的项目列表（批量模式）
+- `timeout_seconds` (数字)：决策超时
+- `default_choice` (数字)：超时时的默认选项
 
-**Returns:**
-- `selected_option`: ID of selected option (single mode)
-- `decisions`: List of decision results (batch mode)
-- `decision_time_ms`: Time taken for decision
-- `was_timeout`: Whether decision timed out
-- `user_input`: Additional user input (if any)
+**返回：**
+- `selected_option`：所选选项的ID（单模式）
+- `decisions`：决策结果列表（批量模式）
+- `decision_time_ms`：决策所用时间
+- `was_timeout`：决策是否超时
+- `user_input`：额外的用户输入（如果有）
 
-**Example (Single):**
+**示例（单模式）：**
 ```yaml
 - name: "user_decision"
   tool: "human-decision"
   params:
     decision_type: "Classification"
     context:
-      title: "Folder Classification Decision"
-      description: "Multiple categories found"
+      title: "文件夹分类决策"
+      description: "发现多个类别"
     options:
       - id: "documents"
-        label: "Documents"
+        label: "文档"
         recommended: true
       - id: "projects"
-        label: "Projects"
+        label: "项目"
     timeout_seconds: 300
 ```
 
-### Utility Tools
+### 实用工具
 
-#### 6. Text Processor (`text-processor`)
+#### 6. 文本处理器 (`text-processor`)
 
-Advanced text processing including Chinese and pinyin conversion.
+高级文本处理，包括中文和拼音转换。
 
-**Parameters:**
-- `text` (string): Text to process
-- `operations` (array): Processing operations to apply
-- `chinese_processing` (object): Chinese-specific processing options
+**参数：**
+- `text` (字符串)：要处理的文本
+- `operations` (数组)：要应用的处理操作
+- `chinese_processing` (对象)：中文特定的处理选项
 
-**Returns:**
-- `original`: Original text
-- `processed`: Processed text
-- `pinyin_variants`: Generated pinyin variants
-- `combinations`: Keyword combinations
-- `metadata`: Processing metadata
+**返回：**
+- `original`：原始文本
+- `processed`：处理后的文本
+- `pinyin_variants`：生成的拼音变体
+- `combinations`：关键词组合
+- `metadata`：处理元数据
 
-#### 7. AC Matcher (`ac-matcher`)
+#### 7. AC匹配器 (`ac-matcher`)
 
-Efficient multi-pattern string matching using Aho-Corasick automaton.
+使用AC自动机进行高效多模式字符串匹配。
 
-**Parameters:**
-- `text` (string): Text to search in
-- `patterns` (array): Patterns to search for
-- `case_sensitive` (boolean): Case-sensitive matching
-- `find_overlapping` (boolean): Find overlapping matches
+**参数：**
+- `text` (字符串)：要搜索的文本
+- `patterns` (数组)：要搜索的模式
+- `case_sensitive` (布尔值)：区分大小写匹配
+- `find_overlapping` (布尔值)：查找重叠匹配
 
-**Returns:**
-- `matches`: Found pattern matches
-- `total_matches`: Total number of matches
-- `categories_found`: Categories with matches
+**返回：**
+- `matches`：找到的模式匹配
+- `total_matches`：匹配总数
+- `categories_found`：有匹配的类别
 
-## Workflow Templates
+## 工作流模板
 
-The File Management Tools include three comprehensive workflow templates:
+文件管理工具包括三个综合工作流模板：
 
-### 1. Interactive Classification Workflow
+### 1. 交互式分类工作流
 
-**File:** `examples/templates/interactive-classification-workflow.yaml`
+**文件：** `workflows/templates/interactive/classification.yaml`
 
-**Purpose:** Intelligent folder classification with human decision support and experimental mode.
+**目的：** 带人工决策支持和实验模式的智能文件夹分类。
 
-**Key Features:**
-- Batch processing with configurable sizes
-- Human decision-making for ambiguous classifications
-- Experimental mode with confirmation steps
-- Chinese text processing support
-- Automatic cleanup of empty directories
+**主要特性：**
+- 可配置大小的批处理
+- 针对模糊分类的人工决策
+- 带确认步骤的实验模式
+- 中文文本处理支持
+- 自动清理空目录
 
-**Usage:**
+**用法：**
 ```bash
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/path/to/folders" \
   --param output_directory="/path/to/organized" \
   --param classification_rules="rules.json"
 ```
 
-### 2. Interactive Merge Workflow
+### 2. 交互式合并工作流
 
-**File:** `examples/templates/interactive-merge-workflow.yaml`
+**文件：** `workflows/templates/interactive/merge.yaml`
 
-**Purpose:** Intelligent folder merging with user decisions and multiple strategies.
+**目的：** 带用户决策和多种策略的智能文件夹合并。
 
-**Key Features:**
-- Multiple merge strategies (SmallerToLarger, LargerToSmaller, UserDecision, TargetDirectory)
-- Human decision-making for merge strategies and conflicts
-- Experimental mode with detailed preview
-- Backup creation before operations
-- Comprehensive verification and reporting
+**主要特性：**
+- 多种合并策略（SmallerToLarger, LargerToSmaller, UserDecision, TargetDirectory）
+- 针对合并策略和冲突的人工决策
+- 带详细预览的实验模式
+- 操作前创建备份
+- 全面的验证和报告
 
-**Usage:**
+**用法：**
 ```bash
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/dir1", "/dir2"]' \
   --param merge_strategy="UserDecision"
 ```
 
-### 3. Interactive Batch Processing Workflow
+### 3. 交互式批处理工作流
 
-**File:** `examples/templates/interactive-batch-processing-workflow.yaml`
+**文件：** `workflows/templates/interactive/batch-processing.yaml`
 
-**Purpose:** Generic batch file operation workflow with human oversight.
+**目的：** 带人工监督的通用批处理文件操作工作流。
 
-**Key Features:**
-- Generic batch processing for any operation type
-- Configurable batch sizes and concurrency
-- Human decision-making for conflicts
-- Comprehensive error handling and recovery
-- Flexible filtering criteria
+**主要特性：**
+- 任何操作类型的通用批处理
+- 可配置的批次大小和并发度
+- 针对冲突的人工决策
+- 全面的错误处理和恢复
+- 灵活的过滤条件
 
-**Usage:**
+**用法：**
 ```bash
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/data/input" \
   --param target_directory="/data/output" \
   --param operation_type="move"
 ```
 
-## Configuration Guide
+## 配置指南
 
-### Classification Rules Format
+### 分类规则格式
 
-Classification rules define how folders are categorized:
+分类规则定义如何对文件夹进行分类：
 
 ```json
 {
   "version": "1.0",
   "categories": {
     "documents": {
-      "description": "Document and text files",
+      "description": "文档和文本文件",
       "keywords": [
         {"pattern": "doc", "weight": 1.0, "case_sensitive": false},
         {"pattern": "pdf", "weight": 1.0, "case_sensitive": false}
@@ -403,9 +403,9 @@ Classification rules define how folders are categorized:
 }
 ```
 
-### Chinese Text Processing
+### 中文文本处理
 
-Enable Chinese text processing for multilingual environments:
+为多语言环境启用中文文本处理：
 
 ```json
 {
@@ -427,19 +427,19 @@ Enable Chinese text processing for multilingual environments:
 }
 ```
 
-### Performance Configuration
+### 性能配置
 
-Optimize performance for different scenarios:
+针对不同场景优化性能：
 
 ```yaml
-# For large datasets
+# 对于大数据集
 performance_config:
   batch_size: 100
   max_concurrent_batches: 8
   streaming_mode: true
   memory_limit: "4GB"
 
-# For interactive use
+# 对于交互式使用
 interactive_config:
   batch_size: 10
   enable_user_interaction: true
@@ -447,41 +447,44 @@ interactive_config:
   detailed_progress: true
 ```
 
-## Human Decision Integration
+## 人工决策集成
 
-### Decision Types
+### 决策类型
 
-The system supports several types of human decisions:
+系统支持几种类型的决策：
 
-#### 1. Classification Decisions
-When multiple categories have similar confidence scores:
-- Display all candidate categories with scores
-- Show folder context and analysis
-- Allow user to select the correct category
-- Learn from decisions to improve future classifications
+#### 1. 分类决策
 
-#### 2. Conflict Resolution
-When file conflicts are detected:
-- Show conflicting files with details (size, date, checksum)
-- Present resolution options (keep newer, rename, skip)
-- Allow batch resolution for similar conflicts
-- Maintain operation safety and data integrity
+当多个类别具有相似的置信度分数时：
+- 显示所有候选类别及其分数
+- 显示文件夹上下文和分析
+- 允许用户选择正确的类别
+- 从决策中学习以改进未来的分类
 
-#### 3. Merge Strategy Selection
-When merging duplicate folders:
-- Display folder sizes and locations
-- Present merge strategy options
-- Show estimated space savings
-- Allow per-group strategy decisions
+#### 2. 冲突解决
 
-### Decision Context
+当检测到文件冲突时：
+- 显示冲突文件的详细信息（大小、日期、校验和）
+- 提供解决选项（保留较新的、重命名、跳过）
+- 允许对类似冲突进行批量解决
+- 保持操作安全性和数据完整性
 
-Rich context is provided for informed decisions:
+#### 3. 合并策略选择
+
+当合并重复文件夹时：
+- 显示文件夹大小和位置
+- 提供合并策略选项
+- 显示估计的空间节省
+- 允许每组策略决策
+
+### 决策上下文
+
+为知情决策提供丰富的上下文：
 
 ```yaml
 decision_context:
-  title: "Folder Classification Decision"
-  description: "Multiple categories found for folder 'Project Documents'"
+  title: "文件夹分类决策"
+  description: "文件夹'Project Documents'发现多个类别"
   metadata:
     folder_name: "Project Documents"
     folder_size: "2.3 GB"
@@ -491,15 +494,15 @@ decision_context:
       projects: 0.72
 ```
 
-### Timeout and Escalation
+### 超时和升级
 
-Configure timeouts and escalation for different scenarios:
+为不同场景配置超时和升级：
 
 ```yaml
 timeout_config:
-  classification: 120      # 2 minutes
-  conflict_resolution: 300 # 5 minutes
-  merge_strategy: 600      # 10 minutes
+  classification: 120      # 2分钟
+  conflict_resolution: 300 # 5分钟
+  merge_strategy: 600      # 10分钟
   
 escalation_config:
   escalate_on_timeout: true
@@ -508,61 +511,61 @@ escalation_config:
     - "supervisor"
 ```
 
-## Best Practices
+## 最佳实践
 
-### 1. Start with Experimental Mode
+### 1. 从实验模式开始
 
-Always begin with experimental mode to preview operations:
+始终从实验模式开始预览操作：
 
 ```yaml
 experimental_mode: true
 enable_user_interaction: true
 ```
 
-### 2. Use Appropriate Batch Sizes
+### 2. 使用适当的批次大小
 
-Choose batch sizes based on your system and use case:
+根据您的系统和用例选择批次大小：
 
 ```yaml
-# For interactive use
+# 对于交互式使用
 batch_size: 5-10
 
-# For automated processing
+# 对于自动处理
 batch_size: 25-50
 
-# For high-performance systems
+# 对于高性能系统
 batch_size: 100+
 ```
 
-### 3. Configure Reasonable Timeouts
+### 3. 配置合理的超时
 
-Set timeouts based on decision complexity:
+根据决策复杂度设置超时：
 
 ```yaml
-# Simple decisions
+# 简单决策
 decision_timeout: 60
 
-# Complex decisions
+# 复杂决策
 decision_timeout: 300
 
-# Critical decisions
+# 关键决策
 decision_timeout: 600
 ```
 
-### 4. Test Classification Rules
+### 4. 测试分类规则
 
-Test rules on small datasets first:
+首先在小数据集上测试规则：
 
 ```bash
-# Test with a small subset
+# 使用小子集测试
 cargo run -- workflow execute template.yaml \
   --param source_directory="/test/small_dataset" \
   --param experimental_mode=true
 ```
 
-### 5. Monitor Performance
+### 5. 监控性能
 
-Enable performance monitoring for optimization:
+启用性能监控以进行优化：
 
 ```yaml
 performance_monitoring:
@@ -572,9 +575,9 @@ performance_monitoring:
   report_bottlenecks: true
 ```
 
-### 6. Backup Important Data
+### 6. 备份重要数据
 
-Always create backups before operations:
+操作前始终创建备份：
 
 ```yaml
 backup_config:
@@ -583,91 +586,91 @@ backup_config:
   verify_backup: true
 ```
 
-## Troubleshooting
+## 故障排除
 
-### Common Issues
+### 常见问题
 
-#### 1. Classification Rules Not Loading
+#### 1. 分类规则未加载
 
-**Symptoms:** Classification fails with "Invalid rules" error
+**症状：** 分类失败，显示"Invalid rules"错误
 
-**Solutions:**
-- Verify JSON syntax using `jq '.' rules.json`
-- Check file permissions and accessibility
-- Validate rules structure against schema
-- Ensure all required fields are present
+**解决方案：**
+- 使用 `jq '.' rules.json` 验证JSON语法
+- 检查文件权限和可访问性
+- 根据模式验证规则结构
+- 确保所有必填字段都存在
 
-#### 2. Human Decisions Timing Out
+#### 2. 人工决策超时
 
-**Symptoms:** Workflow stops with "Decision timeout" error
+**症状：** 工作流停止，显示"Decision timeout"错误
 
-**Solutions:**
-- Increase `decision_timeout` parameter
-- Check terminal/UI responsiveness
-- Verify user interaction is enabled
-- Consider batch decision mode
+**解决方案：**
+- 增加 `decision_timeout` 参数
+- 检查终端/UI响应性
+- 验证用户交互是否启用
+- 考虑批量决策模式
 
-#### 3. File Operations Failing
+#### 3. 文件操作失败
 
-**Symptoms:** "Permission denied" or "Disk full" errors
+**症状：** "Permission denied"或"Disk full"错误
 
-**Solutions:**
-- Check disk space: `df -h /target/directory`
-- Verify permissions: `ls -ld /target/directory`
-- Review conflict resolution settings
-- Ensure target directories exist
+**解决方案：**
+- 检查磁盘空间：`df -h /target/directory`
+- 验证权限：`ls -ld /target/directory`
+- 查看冲突解决设置
+- 确保目标目录存在
 
-#### 4. Performance Issues
+#### 4. 性能问题
 
-**Symptoms:** Slow processing, high memory usage
+**症状：** 处理缓慢，内存使用高
 
-**Solutions:**
-- Reduce batch size
-- Limit concurrent operations
-- Enable streaming mode
-- Monitor system resources
+**解决方案：**
+- 减少批次大小
+- 限制并发操作
+- 启用流式模式
+- 监控系统资源
 
-#### 5. Chinese Text Processing Errors
+#### 5. 中文文本处理错误
 
-**Symptoms:** Incorrect pinyin conversion, encoding issues
+**症状：** 拼音转换不正确，编码问题
 
-**Solutions:**
-- Verify Unicode support in terminal
-- Check input text encoding (UTF-8)
-- Enable proper Chinese processing settings
-- Test with simplified examples
+**解决方案：**
+- 验证终端中的Unicode支持
+- 检查输入文本编码（UTF-8）
+- 启用正确的中文处理设置
+- 使用简化示例测试
 
-### Debug Mode
+### 调试模式
 
-Enable debug logging for troubleshooting:
+启用调试日志进行故障排除：
 
 ```bash
-# Enable debug logging
+# 启用调试日志
 RUST_LOG=debug cargo run -- workflow execute template.yaml
 
-# Enable trace logging for detailed analysis
+# 启用跟踪日志进行详细分析
 RUST_LOG=trace cargo run -- workflow execute template.yaml
 
-# Log to file for analysis
+# 记录到文件进行分析
 RUST_LOG=debug cargo run -- workflow execute template.yaml 2> debug.log
 ```
 
-### Performance Profiling
+### 性能分析
 
-Profile performance to identify bottlenecks:
+分析性能以识别瓶颈：
 
 ```bash
-# Enable performance profiling
+# 启用性能分析
 cargo run -- workflow execute template.yaml \
   --param enable_profiling=true \
   --param profile_output="profile.json"
 ```
 
-## Advanced Usage
+## 高级用法
 
-### Custom Classification Rules
+### 自定义分类规则
 
-Create sophisticated classification rules:
+创建复杂的分类规则：
 
 ```json
 {
@@ -689,9 +692,9 @@ Create sophisticated classification rules:
 }
 ```
 
-### Workflow Composition
+### 工作流组合
 
-Combine multiple tools in complex workflows:
+在复杂工作流中组合多个工具：
 
 ```yaml
 steps:
@@ -715,9 +718,9 @@ steps:
       operations: "{{ human_review.final_operations }}"
 ```
 
-### Integration with External Systems
+### 与外部系统集成
 
-Integrate with databases and external APIs:
+与数据库和外部API集成：
 
 ```yaml
 integration_config:
@@ -735,9 +738,9 @@ integration_config:
     alert_on_errors: true
 ```
 
-### Enterprise Features
+### 企业特性
 
-Configure enterprise-grade features:
+配置企业级特性：
 
 ```yaml
 enterprise_config:
@@ -757,29 +760,29 @@ enterprise_config:
     compliance_reporting: true
 ```
 
-## Getting Help
+## 获取帮助
 
-### Documentation Resources
+### 文档资源
 
-- **API Reference**: Detailed API documentation for all tools
-- **Configuration Guide**: Comprehensive configuration options
-- **Usage Examples**: Working examples for common scenarios
-- **Best Practices**: Recommended patterns and practices
+- **API参考**：所有工具的详细API文档
+- **配置指南**：全面的配置选项
+- **使用示例**：常见场景的工作示例
+- **最佳实践**：推荐的模式和实践
 
-### Community Support
+### 社区支持
 
-- **GitHub Issues**: Report bugs and request features
-- **Discussions**: Ask questions and share experiences
-- **Examples Repository**: Community-contributed examples
-- **Wiki**: Community-maintained documentation
+- **GitHub Issues**：报告错误和请求功能
+- **Discussions**：提问和分享经验
+- **Examples Repository**：社区贡献的示例
+- **Wiki**：社区维护的文档
 
-### Professional Support
+### 专业支持
 
-- **Enterprise Support**: Available for enterprise deployments
-- **Custom Development**: Tailored solutions for specific needs
-- **Training**: Workshops and training sessions
-- **Consulting**: Architecture and implementation guidance
+- **企业支持**：适用于企业部署
+- **定制开发**：针对特定需求的定制解决方案
+- **培训**：研讨会和培训课程
+- **咨询**：架构和实施指导
 
 ---
 
-*This guide is continuously updated. For the latest information, please refer to the official documentation and community resources.*
+*本指南持续更新。有关最新信息和额外资源，请参阅各个文档和社区资源。*
