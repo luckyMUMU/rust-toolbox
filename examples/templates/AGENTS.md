@@ -6,7 +6,7 @@ Production-ready workflow templates with comprehensive documentation and interac
 ## WORKFLOW TEMPLATES
 
 ### Interactive Classification
-**File**: `interactive-classification-workflow.yaml`  
+**File**: `workflows/templates/interactive/classification.yaml`  
 **Purpose**: Folder classification with human decision support  
 **Key Features**:
 - AI-powered classification with confidence scoring
@@ -24,7 +24,7 @@ Production-ready workflow templates with comprehensive documentation and interac
 **Usage**: `cargo run --example interactive-classification-example`
 
 ### Interactive Batch Processing
-**File**: `interactive-batch-processing-workflow.yaml`  
+**File**: `workflows/templates/interactive/batch-processing.yaml`  
 **Purpose**: Generic batch file operation workflow with human oversight  
 **Key Features**:
 - Generic batch processing for any file operation (move, copy, classify, merge, custom)
@@ -45,7 +45,7 @@ Production-ready workflow templates with comprehensive documentation and interac
 **Usage**: `cargo run --example interactive-batch-processing-example`
 
 ### Interactive Merge
-**File**: `interactive-merge-workflow.yaml`  
+**File**: `workflows/templates/interactive/merge.yaml`  
 **Purpose**: Folder merging with multiple strategies  
 **Key Features**:
 - Multiple merge strategies (SmallerToLarger, LargerToSmaller, UserDecision, TargetDirectory)
@@ -197,7 +197,7 @@ These demonstrate:
 
 #### Basic Usage
 ```bash
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/path/to/messy/folders" \
   --param output_directory="/path/to/organized/folders" \
   --param classification_rules="examples/templates/classification-rules-example.json"
@@ -205,7 +205,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 #### Experimental Mode (Recommended for First Run)
 ```bash
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/path/to/messy/folders" \
   --param output_directory="/path/to/organized/folders" \
   --param classification_rules="examples/templates/classification-rules-example.json" \
@@ -215,7 +215,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 #### Production Mode (Auto-Execute)
 ```bash
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/path/to/messy/folders" \
   --param output_directory="/path/to/organized/folders" \
   --param classification_rules="examples/templates/classification-rules-example.json" \
@@ -228,7 +228,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 #### Basic Merge with User Decisions
 ```bash
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/path/to/dir1", "/path/to/dir2", "/path/to/dir3"]' \
   --param target_directory="/path/to/merged/output" \
   --param merge_strategy="UserDecision" \
@@ -237,7 +237,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 #### Automatic Merge Strategy
 ```bash
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/home/user/Downloads", "/home/user/Documents"]' \
   --param merge_strategy="SmallerToLarger" \
   --param duplicate_handling="Rename" \
@@ -246,7 +246,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 #### Production Merge with Backup
 ```bash
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/data/photos/2023", "/data/photos/2024"]' \
   --param target_directory="/data/photos/consolidated" \
   --param merge_strategy="TargetDirectory" \
@@ -258,7 +258,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 #### Basic Batch Move Operation
 ```bash
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/path/to/source/files" \
   --param target_directory="/path/to/target/location" \
   --param operation_type="move" \
@@ -268,7 +268,7 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
 
 #### Batch Copy with Conflict Resolution
 ```bash
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/path/to/documents" \
   --param target_directory="/path/to/backup" \
   --param operation_type="copy" \
@@ -280,7 +280,7 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
 
 #### Custom Batch Operations
 ```bash
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/path/to/media" \
   --param target_directory="/path/to/processed" \
   --param operation_type="custom" \
@@ -291,7 +291,7 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
 
 #### Production Batch Processing
 ```bash
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/data/files" \
   --param target_directory="/data/organized" \
   --param operation_type="move" \
@@ -612,10 +612,10 @@ Enable debug logging for troubleshooting:
 
 ```bash
 # Enable debug logging
-RUST_LOG=debug cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml [parameters]
+RUST_LOG=debug cargo run -- workflow execute workflows/templates/interactive/classification.yaml [parameters]
 
 # Enable trace logging for detailed analysis
-RUST_LOG=trace cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml [parameters]
+RUST_LOG=trace cargo run -- workflow execute workflows/templates/interactive/classification.yaml [parameters]
 
 # Log to file for analysis
 RUST_LOG=debug cargo run -- workflow execute template.yaml 2> debug.log

@@ -45,7 +45,7 @@ workflow-toolkit workflow create [OPTIONS] <DEFINITION_FILE>
 **Examples:**
 ```bash
 # Validate a workflow file
-workflow-toolkit workflow create --validate-only examples/hello-world.yaml
+workflow-toolkit workflow create --validate-only workflows/basic/hello-world.yaml
 
 # Create/Import a workflow
 workflow-toolkit workflow create examples/my-workflow.yaml

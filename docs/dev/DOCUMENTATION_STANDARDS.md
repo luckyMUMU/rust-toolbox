@@ -187,13 +187,13 @@ Use `--verbose` flag for detailed output.
 **Good:**
 ```bash
 # Comment explaining what this does
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
 **Better:**
 ```bash
 # Execute a simple workflow
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # Expected output:
 # Workflow completed successfully
@@ -202,7 +202,7 @@ cargo run -- workflow execute examples/hello-world.yaml
 **Best:**
 ```bash
 # Execute a simple workflow
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # Expected output:
 # Workflow completed successfully
@@ -661,7 +661,7 @@ docs/
 
 ### Execute Your First Workflow
 ```bash
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
 This will execute a simple workflow that prints "Hello World".

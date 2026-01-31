@@ -166,7 +166,7 @@ The `*_tools/` directories contain actual plugin implementations for testing:
 
 ### Basic Classification
 ```bash
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/path/to/folders" \
   --param output_directory="/path/to/organized" \
   --param classification_rules="examples/templates/classification-rules-example.json" \
@@ -176,7 +176,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ### Folder Merge
 ```bash
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/path/to/dir1", "/path/to/dir2"]' \
   --param target_directory="/path/to/merged" \
   --param merge_strategy="UserDecision" \
@@ -185,7 +185,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 ### Batch Processing
 ```bash
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/path/to/source" \
   --param target_directory="/path/to/target" \
   --param operation_type="move" \

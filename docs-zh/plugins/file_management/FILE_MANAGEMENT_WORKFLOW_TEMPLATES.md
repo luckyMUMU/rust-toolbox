@@ -37,7 +37,7 @@
 
 ## 交互式分类流程
 
-**文件路径：** `examples/templates/interactive-classification-workflow.yaml`
+**文件路径：** `workflows/templates/interactive/classification.yaml`
 
 ### 用途
 
