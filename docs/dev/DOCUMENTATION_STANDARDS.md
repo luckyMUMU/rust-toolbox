@@ -1,355 +1,355 @@
-# Documentation Standards
+# 文档标准
 
-> **Complete guide for writing and maintaining documentation**  
-> *Last Updated: 2026-01-14*
-
----
-
-## 📋 Overview
-
-### Purpose
-This document defines the standards for all documentation in the rust-tool-v2 project. Following these standards ensures:
-- Consistency across all documentation
-- Clear communication for all audiences
-- Easy maintenance and updates
-- Professional quality
-
-### Audience
-- **Technical Writers**: Creating new documentation
-- **Developers**: Updating API docs
-- **Maintainers**: Reviewing contributions
-- **Users**: Reading guides
+> **编写和维护文档的完整指南**  
+> *最后更新：2026-01-14*
 
 ---
 
-## 🎯 Documentation Types
+## 📋 概述
 
-### 1. User Guides
-**Purpose**: Help users accomplish tasks  
-**Audience**: End users, operators  
-**Tone**: Friendly, direct, task-oriented  
-**Examples**: USER_GUIDE.md, TUTORIAL.md
+### 目的
+本文档定义了 rust-tool-v2 项目中所有文档的标准。遵循这些标准可确保：
+- 所有文档的一致性
+- 对所有受众的清晰沟通
+- 易于维护和更新
+- 专业质量
 
-### 2. Developer Guides
-**Purpose**: Explain architecture and development practices  
-**Audience**: Contributors, maintainers  
-**Tone**: Technical, precise, comprehensive  
-**Examples**: DEVELOPMENT_GUIDE.md, PLUGIN_DEVELOPMENT.md
-
-### 3. API Reference
-**Purpose**: Document commands, functions, and interfaces  
-**Audience**: Developers, power users  
-**Tone**: Formal, structured, complete  
-**Examples**: API_REFERENCE.md, API_INDEX.md
-
-### 4. Tutorials
-**Purpose**: Step-by-step learning  
-**Audience**: New users  
-**Tone**: Encouraging, progressive, hands-on  
-**Examples**: TUTORIAL.md
-
-### 5. Troubleshooting
-**Purpose**: Solve common problems  
-**Audience**: All users  
-**Tone**: Empathetic, solution-focused  
-**Examples**: TROUBLESHOOTING.md
-
-### 6. Migration Guides
-**Purpose**: Help users migrate from alternatives  
-**Audience**: Users of other tools  
-**Tone**: Comparative, encouraging, detailed  
-**Examples**: MIGRATION_GUIDE.md
+### 受众
+- **技术文档撰写者**：创建新文档
+- **开发者**：更新API文档
+- **维护者**：审查贡献
+- **用户**：阅读指南
 
 ---
 
-## 📝 Writing Standards
+## 🎯 文档类型
 
-### Language & Tone
+### 1. 用户指南
+**目的**：帮助用户完成任务  
+**受众**：最终用户、操作员  
+**语气**：友好、直接、任务导向  
+**示例**：USER_GUIDE.md, TUTORIAL.md
 
-#### 1. Use Clear, Simple Language
-✅ **Good:**
+### 2. 开发者指南
+**目的**：解释架构和开发实践  
+**受众**：贡献者、维护者  
+**语气**：技术、精确、全面  
+**示例**：DEVELOPMENT_GUIDE.md, PLUGIN_DEVELOPMENT.md
+
+### 3. API参考
+**目的**：记录命令、函数和接口  
+**受众**：开发者、高级用户  
+**语气**：正式、结构化、完整  
+**示例**：API_REFERENCE.md, API_INDEX.md
+
+### 4. 教程
+**目的**：分步骤学习  
+**受众**：新用户  
+**语气**：鼓励性、渐进式、实践性  
+**示例**：TUTORIAL.md
+
+### 5. 故障排除
+**目的**：解决常见问题  
+**受众**：所有用户  
+**语气**：共情、解决方案导向  
+**示例**：TROUBLESHOOTING.md
+
+### 6. 迁移指南
+**目的**：帮助用户从其他工具迁移  
+**受众**：其他工具的用户  
+**语气**：比较性、鼓励性、详细  
+**示例**：MIGRATION_GUIDE.md
+
+---
+
+## 📝 写作标准
+
+### 语言与语气
+
+#### 1. 使用清晰、简单的语言
+✅ **好的示例：**
 ```markdown
-Run `cargo run -- workflow execute workflow.yaml` to execute a workflow.
+运行 `cargo run -- workflow execute workflow.yaml` 来执行工作流。
 ```
 
-❌ **Avoid:**
+❌ **避免：**
 ```markdown
-The execution of a workflow can be initiated by invoking the command 
-`cargo run -- workflow execute workflow.yaml` which will commence the 
-processing of the specified workflow definition file.
+工作流的执行可以通过调用命令 `cargo run -- workflow execute workflow.yaml` 来启动，
+该命令将开始处理指定的工作流定义文件。
 ```
 
-#### 2. Be Direct and Active
-✅ **Good:**
+#### 2. 直接且主动
+✅ **好的示例：**
 ```markdown
-Create a workflow file.
-Run the command.
-Check the output.
+创建工作流文件。
+运行命令。
+检查输出。
 ```
 
-❌ **Avoid:**
+❌ **避免：**
 ```markdown
-A workflow file should be created.
-The command should be run.
-The output should be checked.
+应该创建工作流文件。
+应该运行命令。
+应该检查输出。
 ```
 
-#### 3. Use Consistent Terminology
-| Concept | Use | Avoid |
+#### 3. 使用一致的术语
+| 概念 | 使用 | 避免 |
 |---------|-----|-------|
-| Execute workflow | `execute`, `run` | `invoke`, `trigger`, `start` |
-| Command | `command`, `CLI` | `tool`, `utility`, `program` |
-| Workflow file | `workflow file`, `YAML file` | `script`, `config`, `definition` |
-| Parameter | `parameter`, `option` | `argument`, `flag` (unless specific) |
+| 执行工作流 | `execute`, `run` | `invoke`, `trigger`, `start` |
+| 命令 | `command`, `CLI` | `tool`, `utility`, `program` |
+| 工作流文件 | `workflow file`, `YAML file` | `script`, `config`, `definition` |
+| 参数 | `parameter`, `option` | `argument`, `flag` (除非特定) |
 
-### Structure & Organization
+### 结构与组织
 
-#### 1. Hierarchical Headings
+#### 1. 层级标题
 ```markdown
-# Title (H1) - Document name
-## Section (H2) - Major topics
-### Subsection (H3) - Specific items
-#### Detail (H4) - Fine details
+# 标题 (H1) - 文档名称
+## 章节 (H2) - 主要主题
+### 小节 (H3) - 具体项目
+#### 细节 (H4) - 详细内容
 ```
 
-**Rules:**
-- Only one H1 per document
-- H2 for main sections
-- H3-H4 for subsections
-- Never skip levels (H1 → H3)
+**规则：**
+- 每个文档只有一个H1
+- H2用于主要章节
+- H3-H4用于子章节
+- 不要跳过级别 (H1 → H3)
 
-#### 2. Logical Flow
+#### 2. 逻辑流程
 ```
-1. Introduction (what & why)
-2. Prerequisites
-3. Quick start / Basic usage
-4. Detailed explanation
-5. Advanced topics
-6. Examples
-7. Troubleshooting
-8. Related resources
+1. 简介 (是什么 & 为什么)
+2. 前置条件
+3. 快速开始 / 基本用法
+4. 详细解释
+5. 高级主题
+6. 示例
+7. 故障排除
+8. 相关资源
 ```
 
-#### 3. Consistent Formatting
+#### 3. 一致的格式
 
-**Code Blocks:**
+**代码块：**
 ```markdown
 ```bash
-# Use language identifier
+# 使用语言标识符
 cargo run -- --help
 ```
-
-**Inline Code:**
-```markdown
-Use `--verbose` flag for detailed output.
 ```
 
-**Lists:**
+**行内代码：**
 ```markdown
-- Use hyphens for unordered lists
-- Keep items parallel in structure
-- Use numbers for ordered lists
-
-1. First step
-2. Second step
-3. Third step
+使用 `--verbose` 标志获取详细输出。
 ```
 
-**Tables:**
+**列表：**
 ```markdown
-| Option | Description | Default |
+- 使用连号表示无序列表
+- 保持项目结构平行
+- 使用数字表示有序列表
+
+1. 第一步
+2. 第二步
+3. 第三步
+```
+
+**表格：**
+```markdown
+| 选项 | 描述 | 默认值 |
 |--------|-------------|---------|
-| `--verbose` | Show detailed output | `false` |
+| `--verbose` | 显示详细输出 | `false` |
 ```
 
-### Markdown Conventions
+### Markdown约定
 
-#### 1. Linking
+#### 1. 链接
 ```markdown
-# Relative links (preferred)
+# 相对链接（推荐）
 [USER_GUIDE.md](USER_GUIDE.md)
 
-# With anchor
-[Quick Start](#quick-start)
+# 带锚点
+[快速开始](#quick-start)
 
-# External links
-[Rust Documentation](https://doc.rust-lang.org/)
+# 外部链接
+[Rust文档](https://doc.rust-lang.org/)
 ```
 
-**Rules:**
-- Use relative links within docs/
-- Use anchors for internal navigation
-- Always use descriptive text
-- Never use "click here"
+**规则：**
+- 在docs/内使用相对链接
+- 使用锚点进行内部导航
+- 始终使用描述性文本
+- 不要使用"点击这里"
 
-#### 2. Code Examples
+#### 2. 代码示例
 ```markdown
-**Good:**
+**好的示例：**
 ```bash
-# Comment explaining what this does
+# 解释这是做什么的注释
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
-**Better:**
+**更好的示例：**
 ```bash
-# Execute a simple workflow
+# 执行简单工作流
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# Expected output:
-# Workflow completed successfully
+# 预期输出：
+# 工作流成功完成
 ```
 
-**Best:**
+**最佳示例：**
 ```bash
-# Execute a simple workflow
+# 执行简单工作流
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# Expected output:
-# Workflow completed successfully
+# 预期输出：
+# 工作流成功完成
 
-# Common errors:
-# - File not found: Check path to workflow file
-# - Syntax error: Validate YAML structure
+# 常见错误：
+# - 文件未找到：检查工作流文件路径
+# - 语法错误：验证YAML结构
 ```
 ```
 
-#### 3. Warnings & Notes
+#### 3. 警告与注意
 ```markdown
-> **⚠️ Warning:** This operation cannot be undone. Always backup first.
+> **⚠️ 警告：** 此操作无法撤销。始终先备份。
 
-> **ℹ️ Note:** This feature requires the `lancedb` feature flag.
+> **ℹ️ 注意：** 此功能需要 `lancedb` 功能标志。
 
-> **💡 Tip:** Use `--dry-run` to preview changes before executing.
+> **💡 提示：** 使用 `--dry-run` 在执行前预览更改。
 ```
 
-#### 4. Emojis (Optional)
-Use sparingly for visual hierarchy:
-- ✅ Success/Complete
-- ❌ Error/Avoid
-- ⚠️ Warning
-- ℹ️ Information
-- 💡 Tip
-- 🚀 Quick start
-- 🔧 Technical
-- 📚 Reference
-- 🎯 Goals
+#### 4. 表情符号（可选）
+谨慎使用以增强视觉层次：
+- ✅ 成功/完成
+- ❌ 错误/避免
+- ⚠️ 警告
+- ℹ️ 信息
+- 💡 提示
+- 🚀 快速开始
+- 🔧 技术
+- 📚 参考
+- 🎯 目标
 
 ---
 
-## 📄 Document Templates
+## 📄 文档模板
 
-### Template 1: User Guide
+### 模板1：用户指南
 
 ```markdown
-# [Feature Name] Guide
+# [功能名称] 指南
 
-> **Purpose**: [What this feature does]  
-> **Audience**: [Who should use this]  
-> **Prerequisites**: [What they need to know]
+> **目的**：[此功能的作用]  
+> **受众**：[应该使用此功能的人]  
+> **前置条件**：[他们需要了解的内容]
 
 ---
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
 ```bash
-# Simplest possible example
+# 最简单的示例
 cargo run -- [command] --help
 ```
 
-## 📖 Basic Usage
+## 📖 基本用法
 
-### [Common Use Case 1]
+### [常见用例 1]
 ```bash
-# Example with explanation
+# 带解释的示例
 cargo run -- [command] [options]
 ```
 
-### [Common Use Case 2]
+### [常见用例 2]
 ```bash
-# Another example
+# 另一个示例
 cargo run -- [command] [options]
 ```
 
-## ⚙️ Options Reference
+## ⚙️ 选项参考
 
-| Option | Description | Default | Required |
+| 选项 | 描述 | 默认值 | 必需 |
 |--------|-------------|---------|----------|
-| `--source` | Source directory | None | Yes |
-| `--dest` | Destination directory | None | Yes |
+| `--source` | 源目录 | 无 | 是 |
+| `--dest` | 目标目录 | 无 | 是 |
 
-## 🎯 Examples
+## 🎯 示例
 
-### Example 1: [Scenario]
+### 示例 1：[场景]
 ```bash
-# Command
+# 命令
 cargo run -- [command] [options]
 
-# Explanation
-This will [what happens].
+# 解释
+这将[发生什么]。
 ```
 
-### Example 2: [Scenario]
+### 示例 2：[场景]
 ```bash
-# Command
+# 命令
 cargo run -- [command] [options]
 
-# Explanation
-This will [what happens].
+# 解释
+这将[发生什么]。
 ```
 
-## 🔧 Troubleshooting
+## 🔧 故障排除
 
-### Problem: [Common issue]
-**Solution:** [Solution]
+### 问题：[常见问题]
+**解决方案：** [解决方案]
 
-### Problem: [Common issue]
-**Solution:** [Solution]
+### 问题：[常见问题]
+**解决方案：** [解决方案]
 
-## 📚 Related
-- [INDEX.md](INDEX.md) - Complete documentation index
-- [API_INDEX.md](API_INDEX.md) - Command reference
+## 📚 相关
+- [INDEX.md](INDEX.md) - 完整文档索引
+- [API_INDEX.md](API_INDEX.md) - 命令参考
 ```
 
-### Template 2: API Reference
+### 模板2：API参考
 
 ```markdown
-# [Component] API Reference
+# [组件] API参考
 
-> **Last Updated**: [Date]  
-> **Version**: [Version]
+> **最后更新**：[日期]  
+> **版本**：[版本]
 
 ---
 
-## Overview
+## 概述
 
-[Brief description of component]
+[组件的简要描述]
 
-## Types
+## 类型
 
-### [Type Name]
+### [类型名称]
 ```rust
 pub struct TypeName {
     pub field: Type,
 }
 ```
 
-**Fields:**
-- `field`: Description
+**字段：**
+- `field`: 描述
 
-## Functions
+## 函数
 
 ### `function_name()`
 ```rust
 pub fn function_name(param: Type) -> Result<Output>
 ```
 
-**Parameters:**
-- `param`: Description
+**参数：**
+- `param`: 描述
 
-**Returns:**
-- `Result<Output>`: Description
+**返回：**
+- `Result<Output>`: 描述
 
-**Example:**
+**示例：**
 ```rust
 let result = function_name(value)?;
 ```
@@ -364,10 +364,10 @@ pub trait TraitName: Send + Sync {
 }
 ```
 
-**Methods:**
-- `method()`: Description
+**方法：**
+- `method()`: 描述
 
-## Enums
+## 枚举
 
 ### `EnumName`
 ```rust
@@ -377,456 +377,314 @@ pub enum EnumName {
 }
 ```
 
-**Variants:**
-- `Variant1`: Description
-- `Variant2(Type)`: Description
+**变体：**
+- `Variant1`: 描述
+- `Variant2(Type)`: 描述
 
 ---
 
-**← Back to [INDEX.md](INDEX.md)**
+**← 返回 [INDEX.md](INDEX.md)**
 ```
 
-### Template 3: Troubleshooting
+### 模板3：故障排除
 
 ```markdown
-# Troubleshooting [Feature]
+# [功能] 故障排除
 
-> **Common issues and solutions**
+> **常见问题和解决方案**
 
 ---
 
-## 🔍 Quick Fixes
+## 🔍 快速修复
 
-Try these first:
-1. [Fix 1]
-2. [Fix 2]
-3. [Fix 3]
+先尝试这些：
 
-## 🚨 Common Issues
+1. **检查版本**
+   ```bash
+   cargo --version
+   ```
 
-### Issue: [Problem description]
-**Symptoms:** [What you see]
+2. **验证安装**
+   ```bash
+   cargo run -- --help
+   ```
 
-**Causes:**
-- [Cause 1]
-- [Cause 2]
+## 🚨 常见问题
 
-**Solutions:**
+### 问题 1：[问题描述]
+
+**症状：**
+```
+错误消息或行为
+```
+
+**原因：**
+解释为什么会发生
+
+**解决方案：**
 ```bash
-# Solution 1
-command to fix
-
-# Solution 2
-alternative command
+# 修复命令或步骤
 ```
 
-### Issue: [Problem description]
-**Symptoms:** [What you see]
-
-**Causes:**
-- [Cause 1]
-
-**Solutions:**
-```bash
-command to fix
-```
-
-## 🔧 Advanced Debugging
-
-### Enable Logging
-```bash
-RUST_LOG=debug cargo run -- [command]
-```
-
-### Check System
-```bash
-# Check Rust version
-rustc --version
-
-# Check disk space
-df -h
-
-# Check permissions
-ls -la /path/to/directory
-```
-
-## 📞 Get More Help
-
-- [INDEX.md](INDEX.md) - Find related docs
-- [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) - Debugging techniques
-- [README.md](../README.md) - Project overview
+**预防：**
+如何避免再次发生
 
 ---
 
-**← Back to [INDEX.md](INDEX.md)**
+**← 返回 [INDEX.md](INDEX.md)**
 ```
 
 ---
 
-## 🔍 Quality Checklist
+## ✅ 写作检查清单
 
-### Before Publishing
-- [ ] **Spelling**: Run spell check
-- [ ] **Grammar**: Check for errors
-- [ ] **Links**: All links work
-- [ ] **Code**: All examples run
-- [ ] **Consistency**: Follows standards
-- [ ] **Completeness**: Covers all cases
-- [ ] **Clarity**: Easy to understand
-- [ ] **Tone**: Appropriate for audience
+在提交文档之前，验证：
 
-### Technical Review
-- [ ] **Accuracy**: Information is correct
-- [ ] **Current**: Up to date with code
-- [ ] **Examples**: All examples work
-- [ ] **Commands**: Commands are valid
-- [ ] **Options**: All options documented
-- [ ] **Errors**: Common errors covered
-
-### User Experience
-- [ ] **Navigation**: Easy to find information
-- [ ] **Readability**: Clear structure
-- [ ] **Scannable**: Good use of headings/lists
-- [ ] **Actionable**: Clear next steps
-- [ ] **Complete**: No missing information
+- [ ] 标题遵循层级结构
+- [ ] 所有代码块都有语言标识符
+- [ ] 链接有效且描述性强
+- [ ] 术语一致
+- [ ] 包含示例
+- [ ] 包含故障排除（如适用）
+- [ ] 已校对拼写和语法
+- [ ] 已更新日期
 
 ---
 
-## 📊 Documentation Structure
+## 🎨 风格指南
 
-### Project Layout
-```
-docs/
-├── INDEX.md                    # Master index
-├── USER_GUIDE.md              # User manual
-├── DEVELOPMENT_GUIDE.md       # Dev practices
-├── API_INDEX.md               # Command reference
-├── TROUBLESHOOTING.md         # Problem solving
-├── MIGRATION_GUIDE.md         # Python → Rust
-├── DOCUMENTATION_STANDARDS.md # This file
-├── CHEATSHEET.md              # Quick reference
-├── TUTORIAL.md                # Step-by-step
-├── PROJECT_OVERVIEW.md        # Architecture
-├── PLUGIN_DEVELOPMENT.md      # Extensions
-├── API_REFERENCE.md           # Technical specs
-├── API_USAGE_GUIDE.md         # Usage examples
-└── FILE_MANAGEMENT/           # File mgmt docs
-    ├── TOOLS_GUIDE.md
-    ├── API_REFERENCE.md
-    ├── HUMAN_DECISION_GUIDE.md
-    ├── TOOLS_INDEX.md
-    └── WORKFLOW_TEMPLATES.md
-```
+### 语气
 
-### Cross-References
+#### 主动语态
 ```markdown
-# In any document, link to:
-- [INDEX.md](INDEX.md) - Find any document
-- [USER_GUIDE.md](USER_GUIDE.md) - Usage examples
-- [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) - Dev practices
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Solutions
-- [API_INDEX.md](API_INDEX.md) - Commands
+✅ 运行命令来执行工作流。
+❌ 命令被运行来执行工作流。
 ```
 
----
-
-## 🎯 Writing Process
-
-### Step 1: Plan
+#### 第二人称（你）
 ```markdown
-1. Identify audience
-2. Define purpose
-3. Outline structure
-4. Gather examples
-5. Check existing docs
+✅ 你可以使用 --verbose 运行命令。
+❌ 用户可以使用 --verbose 运行命令。
 ```
 
-### Step 2: Draft
+#### 积极语言
 ```markdown
-1. Write H1 and intro
-2. Create main sections (H2)
-3. Add subsections (H3-H4)
-4. Write examples
-5. Add cross-references
+✅ 使用 --verbose 获取详细输出。
+❌ 除非需要详细信息，否则不要使用 --verbose。
 ```
 
-### Step 3: Review
-```markdown
-1. Check quality checklist
-2. Verify all examples work
-3. Test all commands
-4. Check all links
-5. Get peer review
-```
+### 格式规则
 
-### Step 4: Publish
-```markdown
-1. Update INDEX.md
-2. Update README.md if needed
-3. Check for broken links
-4. Verify navigation
-5. Announce updates
-```
+#### 代码块
+- 始终指定语言
+- 保持行长度在80个字符以内
+- 添加注释以提高清晰度
+- 在有帮助时显示预期输出
 
----
+#### 行内代码
+- 用于命令、选项、文件路径
+- 用于代码片段
+- 用于错误消息
 
-## 🔄 Maintenance Standards
+#### 列表
+- 使用平行结构
+- 保持项目简洁
+- 使用一致的标点符号
 
-### Update Schedule
-- **Weekly**: Check for outdated information
-- **Monthly**: Review all examples
-- **Quarterly**: Full documentation audit
+#### 表格
+- 文本左对齐
+- 使用清晰的标题
+- 保持简洁
 
-### Update Triggers
-- New feature added
-- API changes
-- Command changes
-- User feedback
-- Bug fixes affecting usage
+### 术语一致性
 
-### Version Tracking
-```markdown
-> **Last Updated**: 2026-01-14  
-> **Version**: 1.0.0  
-> **Changes**: [Brief description]
-```
-
----
-
-## 📝 Style Guide
-
-### Voice & Tone
-
-#### Active Voice (Preferred)
-```markdown
-✅ Run the command to execute the workflow.
-❌ The command is run to execute the workflow.
-```
-
-#### Second Person (You)
-```markdown
-✅ You can run the command with --verbose.
-❌ Users can run the command with --verbose.
-```
-
-#### Positive Language
-```markdown
-✅ Use --verbose for detailed output.
-❌ Don't use --verbose unless you need details.
-```
-
-### Formatting Rules
-
-#### Code Blocks
-- Always specify language
-- Keep lines under 80 characters
-- Add comments for clarity
-- Show expected output when helpful
-
-#### Inline Code
-- Use for commands, options, file paths
-- Use for code snippets
-- Use for error messages
-
-#### Lists
-- Use parallel structure
-- Keep items concise
-- Use consistent punctuation
-
-#### Tables
-- Left-align text
-- Use clear headers
-- Keep concise
-
-### Terminology Consistency
-
-| Term | Use For | Example |
+| 术语 | 用于 | 示例 |
 |------|---------|---------|
-| Execute | Running workflows | `execute a workflow` |
-| Run | Running commands | `run the command` |
-| Parameter | Command options | `--source parameter` |
-| Flag | Boolean options | `--verbose flag` |
-| Option | Any command-line choice | `available options` |
-| Workflow | Workflow files | `create a workflow` |
-| Tool | Individual tools | `file-classifier tool` |
-| Command | CLI commands | `cargo run -- command` |
+| Execute | 运行工作流 | `execute a workflow` |
+| Run | 运行命令 | `run the command` |
+| Parameter | 命令选项 | `--source parameter` |
+| Flag | 布尔选项 | `--verbose flag` |
+| Option | 任何命令行选择 | `available options` |
+| Workflow | 工作流文件 | `create a workflow` |
+| Tool | 单个工具 | `file-classifier tool` |
+| Command | CLI命令 | `cargo run -- command` |
 
 ---
 
-## 📚 Examples from Existing Docs
+## 📚 现有文档示例
 
-### Good Example: USER_GUIDE.md
+### 好示例：USER_GUIDE.md
 ```markdown
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### Execute Your First Workflow
+### 执行你的第一个工作流
 ```bash
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
-This will execute a simple workflow that prints "Hello World".
+这将执行一个打印"Hello World"的简单工作流。
 ```
 
-### Good Example: DEVELOPMENT_GUIDE.md
+### 好示例：DEVELOPMENT_GUIDE.md
 ```markdown
-## Code Style
+## 代码风格
 
-### Import Order
+### 导入顺序
 ```rust
-// 1. Standard library
+// 1. 标准库
 use std::sync::Arc;
 
-// 2. External crates (alphabetical)
+// 2. 外部crate（按字母顺序）
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-// 3. Internal modules
+// 3. 内部模块
 use crate::core::WorkflowId;
 ```
 ```
 
-### Good Example: TROUBLESHOOTING.md
+### 好示例：TROUBLESHOOTING.md
 ```markdown
-### Cargo Build Fails
+### Cargo构建失败
 
-**Symptoms:**
+**症状：**
 ```
 error: could not compile `rust-tool-v2`
 ```
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check Rust version
+# 1. 检查Rust版本
 rustc --version
 
-# 2. Update Rust
+# 2. 更新Rust
 rustup update
 ```
 ```
 
 ---
 
-## 🎯 Common Mistakes to Avoid
+## 🎯 常见错误避免
 
-### ❌ Don't Do This
+### ❌ 不要这样做
 ```markdown
-# Too vague
-## Options
-Use --verbose for more info.
+# 太模糊
+## 选项
+使用 --verbose 获取更多信息。
 
-# No examples
-Run the command.
+# 没有示例
+运行命令。
 
-# Broken links
-[Click here](some-file.md)
+# 链接损坏
+[点击这里](some-file.md)
 
-# Inconsistent terminology
-Use "run" in one place, "execute" in another
+# 术语不一致
+在一个地方使用"run"，在另一个地方使用"execute"
 
-# Missing prerequisites
-No mention of required Rust version
+# 缺少前置条件
+没有提及所需的Rust版本
 
-# No error handling
-Assumes everything works
+# 没有错误处理
+假设一切都正常工作
 ```
 
-### ✅ Do This Instead
+### ✅ 应该这样做
 ```markdown
-## Options Reference
+## 选项参考
 
-| Option | Description | Default |
+| 选项 | 描述 | 默认值 |
 |--------|-------------|---------|
-| `--verbose` | Show detailed execution logs | `false` |
+| `--verbose` | 显示详细执行日志 | `false` |
 
-**Example:**
+**示例：**
 ```bash
 cargo run -- workflow execute workflow.yaml --verbose
 ```
 
-**Expected Output:**
+**预期输出：**
 ```
-[INFO] Loading workflow...
-[DEBUG] Parsing YAML...
-[INFO] Executing step 1...
+[INFO] 正在加载工作流...
+[DEBUG] 正在解析YAML...
+[INFO] 正在执行步骤1...
 ```
 
-**Common Errors:**
-- File not found: Check path
-- Syntax error: Validate YAML
+**常见错误：**
+- 文件未找到：检查路径
+- 语法错误：验证YAML
 ```
 
 ---
 
-## 📖 Reference Links
+## 📖 参考链接
 
-### Internal Documentation
-- **[INDEX.md](INDEX.md)** - Complete navigation
-- **[README.md](../README.md)** - Project overview
-- **[USER_GUIDE.md](USER_GUIDE.md)** - Usage manual
-- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - Dev guide
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Solutions
+### 内部文档
+- **[INDEX.md](INDEX.md)** - 完整导航
+- **[README.md](../README.md)** - 项目概述
+- **[USER_GUIDE.md](USER_GUIDE.md)** - 使用手册
+- **[DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)** - 开发指南
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - 解决方案
 
-### External Resources
-- **Rust Documentation**: https://doc.rust-lang.org/
-- **Markdown Guide**: https://www.markdownguide.org/
-- **Technical Writing**: https://developers.google.com/tech-writing
+### 外部资源
+- **Rust文档**：https://doc.rust-lang.org/
+- **Markdown指南**：https://www.markdownguide.org/
+- **技术写作**：https://developers.google.com/tech-writing
 
 ---
 
-## ✅ Quick Reference
+## ✅ 快速参考
 
-### Essential Commands
+### 基本命令
 ```bash
-# Check all docs for broken links
+# 检查所有文档的损坏链接
 grep -r "\[.*\](.*\.md)" docs/ | grep -v "http"
 
-# Find all markdown files
+# 查找所有markdown文件
 find docs/ -name "*.md"
 
-# Count lines in docs
+# 统计文档行数
 wc -l docs/*.md
 ```
 
-### Common Patterns
+### 常见模式
 ```markdown
-# Link to another doc
-[Link text](FILENAME.md)
+# 链接到另一个文档
+[链接文本](FILENAME.md)
 
-# Link with anchor
-[Link text](FILENAME.md#section-name)
+# 带锚点的链接
+[链接文本](FILENAME.md#section-name)
 
-# Code block
+# 代码块
 \`\`\`bash
 command
 \`\`\`
 
-# Warning
-> **⚠️ Warning:** Important information
+# 警告
+> **⚠️ 警告：** 重要信息
 
-# Note
-> **ℹ️ Note:** Helpful information
+# 注意
+> **ℹ️ 注意：** 有帮助的信息
 
-# Tip
-> **💡 Tip:** Pro tip
+# 提示
+> **💡 提示：** 专业提示
 ```
 
 ---
 
-## 🔄 Updating This Document
+## 🔄 更新本文档
 
-### When to Update
-- New documentation type added
-- New tool or feature
-- User feedback on clarity
-- Pattern changes in existing docs
+### 何时更新
+- 添加新文档类型
+- 新工具或功能
+- 用户对清晰度的反馈
+- 现有文档的模式变化
 
-### How to Update
-1. Add new section or pattern
-2. Provide clear examples
-3. Update version/date
-4. Announce to team
-5. Update INDEX.md
+### 如何更新
+1. 添加新章节或模式
+2. 提供清晰的示例
+3. 更新版本/日期
+4. 向团队宣布
+5. 更新INDEX.md
 
 ---
 
-**← Back to [INDEX.md](INDEX.md)** | **Top** ↑
+**← 返回 [INDEX.md](INDEX.md)** | **顶部** ↑
