@@ -1,59 +1,57 @@
 //! 插件管理器端口
 
-use async_trait::async_trait;
+use crate::domain::model::{PluginInfo, PluginType};
+use crate::domain::port::tool_registry::ToolNode;
+use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use crate::domain::model::{PluginInfo, PluginType};
-use crate::domain::port::tool_registry::ToolNode;
-use crate::error::Result;
 
 /// 插件管理器trait - 管理插件生命周期
-/// 
+///
 /// 这是领域层端口，具体实现位于基础设施层
-#[async_trait]
 pub trait PluginManager: Send + Sync {
     /// 加载插件
-    async fn load_plugin(&mut self, plugin: Box<dyn Plugin>, config: PluginConfig) -> Result<()>;
-    
+    fn load_plugin(&mut self, plugin: Box<dyn Plugin>, config: PluginConfig) -> Result<()>;
+
     /// 卸载插件
     fn unload_plugin(&mut self, name: &str) -> Result<()>;
-    
+
     /// 获取插件
     fn get_plugin(&self, name: &str) -> Option<&dyn Plugin>;
-    
+
     /// 列出所有插件
     fn list_plugins(&self) -> Vec<PluginInfo>;
-    
+
     /// 获取插件数量
     fn plugin_count(&self) -> usize;
-    
+
     /// 检查插件是否存在
     fn has_plugin(&self, name: &str) -> bool;
 }
 
 /// 插件trait - 所有插件类型必须实现
-/// 
+///
 /// 这是领域层核心trait，定义插件的标准接口
 pub trait Plugin: Send + Sync {
     /// 获取插件信息
     fn info(&self) -> &PluginInfo;
-    
+
     /// 初始化插件
     fn initialize(&mut self, config: PluginConfig) -> Result<()>;
-    
+
     /// 获取插件提供的所有工具
     fn get_tools(&self) -> Vec<Arc<dyn ToolNode>>;
-    
+
     /// 关闭插件
     fn shutdown(&mut self) -> Result<()>;
-    
+
     /// 检查是否已初始化
     fn is_initialized(&self) -> bool;
-    
+
     /// 获取插件状态
     fn status(&self) -> PluginStatus;
 }

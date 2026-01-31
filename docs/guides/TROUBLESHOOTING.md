@@ -1,642 +1,640 @@
-# Troubleshooting Guide
+# 故障排除指南
 
-> **Comprehensive guide to solving common issues with rust-tool-v2**  
-> *Last Updated: 2026-01-14*
-
----
-
-## 🔍 Quick Troubleshooting
-
-### Issue Not Listed?
-1. **Check [Main Index](../INDEX.md)** for related topics
-2. **Search [Project Readme](../../README.md)** for keywords
-3. **Review [Development Guide](../dev/DEVELOPMENT_GUIDE.md)** for debugging
-4. **Run `cargo check`** to identify compilation issues
+> **rust-tool-v2常见问题综合解决方案**  
+> *最后更新：2026-01-14*
 
 ---
 
-## 🚨 Common Issues by Category
+## 🔍 快速故障排除
 
-### 1. Installation & Setup Issues
+### 问题未列出？
+1. **查看[主索引](../INDEX.md)** 了解相关主题
+2. **搜索[项目自述](../../README.md)** 查找关键词
+3. **参考[开发指南](../dev/DEVELOPMENT_GUIDE.md)** 进行调试
+4. **运行 `cargo check`** 识别编译问题
 
-#### Cargo Build Fails
-**Symptoms:**
+---
+
+## 🚨 按类别分类的常见问题
+
+### 1. 安装与设置问题
+
+#### Cargo构建失败
+**症状：**
 ```
 error: could not compile `rust-tool-v2`
 error: failed to compile
 ```
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check Rust version
-rustc --version  # Should be 1.70+ (2021 Edition)
+# 1. 检查Rust版本
+rustc --version  # 应为1.70+ (2021 Edition)
 
-# 2. Update Rust
+# 2. 更新Rust
 rustup update
 
-# 3. Clean and rebuild
+# 3. 清理并重新构建
 cargo clean
 cargo check
 cargo build
 
-# 4. Check for missing system dependencies
-# On Windows: Ensure Visual Studio C++ build tools
-# On Linux: Ensure build-essential, pkg-config
-# On macOS: Ensure Xcode command line tools
+# 4. 检查缺失的系统依赖
+# Windows: 确保安装Visual Studio C++构建工具
+# Linux: 确保安装build-essential, pkg-config
+# macOS: 确保安装Xcode命令行工具
 ```
 
-**If still failing:**
+**如果仍然失败：**
 ```bash
-# Verbose build for detailed errors
+# 详细构建以查看错误
 cargo build --verbose
 
-# Check specific dependency
+# 检查特定依赖
 cargo tree | grep <problem-crate>
 
-# Update dependencies
+# 更新依赖
 cargo update
 ```
 
-#### Missing Dependencies
-**Error:** `package 'xxx' not found`
+#### 缺少依赖
+**错误：** `package 'xxx' not found`
 
-**Solution:**
+**解决方案：**
 ```bash
-# Check Cargo.toml for required features
+# 检查Cargo.toml中所需的功能
 cargo build --all-features
 
-# Install specific feature
+# 安装特定功能
 cargo build --features lancedb
 
-# Check feature flags
+# 检查功能标志
 cargo metadata --format-version 1 | grep features
 ```
 
-#### Compilation Warnings (Not Errors)
-**Symptoms:** Many warnings during build
+#### 编译警告（非错误）
+**症状：** 构建过程中出现许多警告
 
-**Solution:**
+**解决方案：**
 ```bash
-# Fix automatically where possible
+# 自动修复（尽可能）
 cargo fix --allow-dirty
 
-# Then run clippy for best practices
+# 然后运行clippy检查最佳实践
 cargo clippy -- -D warnings
 
-# Format code
+# 格式化代码
 cargo fmt
 ```
 
 ---
 
-### 2. Runtime Issues
+### 2. 运行时问题
 
-#### CLI Commands Not Working
-**Symptoms:** `cargo run -- --help` works but commands fail
+#### CLI命令不工作
+**症状：** `cargo run -- --help` 可以工作但命令失败
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check command syntax
+# 1. 检查命令语法
 cargo run -- workflow execute --help
 
-# 2. Verify workflow file exists and is valid YAML
+# 2. 验证工作流文件存在且是有效的YAML
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# 3. Check file permissions
+# 3. 检查文件权限
 ls -la workflows/basic/hello-world.yaml
 
-# 4. Validate YAML structure
-# Use online YAML validator or:
+# 4. 验证YAML结构
+# 使用在线YAML验证器或：
 python -c "import yaml; yaml.safe_load(open('workflows/basic/hello-world.yaml'))"
 ```
 
-#### TUI Not Displaying Correctly
-**Symptoms:** Garbled display, missing colors, unresponsive
+#### TUI显示不正确
+**症状：** 显示混乱、缺少颜色、无响应
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check terminal compatibility
-echo $TERM  # Should be xterm-256color or similar
+# 1. 检查终端兼容性
+echo $TERM  # 应为xterm-256color或类似
 
-# 2. Try basic TUI
+# 2. 尝试基础TUI
 cargo run -- tui --basic
 
-# 3. Disable colors if needed
+# 3. 如需禁用颜色
 cargo run -- tui --no-color
 
-# 4. Check terminal emulator
-# Works best with: Windows Terminal, iTerm2, Alacritty, Kitty
-# May have issues with: cmd.exe, basic xterm
+# 4. 检查终端模拟器
+# 最佳支持：Windows Terminal, iTerm2, Alacritty, Kitty
+# 可能有问题：cmd.exe, 基础xterm
 ```
 
-#### Performance Issues
-**Symptoms:** Slow execution, high memory usage
+#### 性能问题
+**症状：** 执行缓慢、内存使用高
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check system resources
+# 1. 检查系统资源
 top  # Linux/macOS
-Task Manager  # Windows
+任务管理器  # Windows
 
-# 2. Run with performance profile
+# 2. 使用性能分析构建运行
 cargo run --release -- workflow execute examples/large-workflow.yaml
 
-# 3. Monitor specific operations
+# 3. 监控特定操作
 RUST_LOG=debug cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# 4. Check for memory leaks
-# Use cargo instruments (macOS) or valgrind (Linux)
+# 4. 检查内存泄漏
+# 使用cargo instruments (macOS) 或 valgrind (Linux)
 ```
 
 ---
 
-### 3. File Management Issues
+### 3. 文件管理问题
 
-#### Classification Not Working
-**Symptoms:** Files not categorized correctly
+#### 分类不工作
+**症状：** 文件未正确分类
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check file patterns
+# 1. 检查文件模式
 cargo run -- file-classifier --help
 
-# 2. Verify source directory structure
+# 2. 验证源目录结构
 tree /path/to/source
 
-# 3. Check destination directory permissions
+# 3. 检查目标目录权限
 ls -ld /path/to/destination
 
-# 4. Test with small batch first
+# 4. 先用小批量测试
 cargo run -- file-classifier --source ./test --dest ./output --dry-run
 ```
 
-#### File Merging Issues
-**Symptoms:** Duplicate files, data loss, merge conflicts
+#### 文件合并问题
+**症状：** 重复文件、数据丢失、合并冲突
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Always backup first
+# 1. 始终先备份
 cp -r source/ source_backup/
 
-# 2. Use dry-run mode
+# 2. 使用试运行模式
 cargo run -- folder-merger --source ./folder1 --dest ./folder2 --dry-run
 
-# 3. Check for duplicates
+# 3. 检查重复项
 cargo run -- file-classifier --source ./merged --check-duplicates
 
-# 4. Review merge plan before executing
-# The tool shows what will be merged
+# 4. 执行前查看合并计划
+# 工具会显示将要合并的内容
 ```
 
-#### Human Decision Mode Not Working
-**Symptoms:** Interactive prompts not appearing
+#### 人工决策模式不工作
+**症状：** 交互式提示未出现
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Ensure stdin is available
-# Not supported in background processes or pipes
+# 1. 确保stdin可用
+# 后台进程或管道中不支持
 
-# 2. Check terminal is interactive
-tty  # Should show /dev/tty or similar
+# 2. 检查终端是交互式的
+tty  # 应显示/dev/tty或类似
 
-# 3. Try with explicit interactive flag
+# 3. 尝试显式交互标志
 cargo run -- human-decision --interactive
 
-# 4. Use batch mode if needed
+# 4. 如需使用批处理模式
 cargo run -- batch-processor --auto
 ```
 
 ---
 
-### 4. MCP Server Issues
+### 4. MCP服务器问题
 
-#### Server Won't Start
-**Symptoms:** MCP server connection refused
+#### 服务器无法启动
+**症状：** MCP服务器连接被拒绝
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check if server is running
+# 1. 检查服务器是否运行
 cargo run -- mcp-server --help
 
-# 2. Verify port availability
-netstat -an | grep 8080  # or your configured port
+# 2. 验证端口可用性
+netstat -an | grep 8080  # 或您配置的端口
 
-# 3. Check configuration
+# 3. 检查配置
 cat ~/.config/rust-tool-v2/mcp.toml
 
-# 4. Start with debug logging
+# 4. 使用调试日志启动
 RUST_LOG=debug cargo run -- mcp-server
 ```
 
-#### MCP Client Connection Issues
-**Symptoms:** Client can't connect to server
+#### MCP客户端连接问题
+**症状：** 客户端无法连接服务器
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Verify server is running
+# 1. 验证服务器正在运行
 ps aux | grep mcp-server
 
-# 2. Check firewall
-# Windows: Check Windows Defender Firewall
-# Linux: Check iptables/ufw
-# macOS: Check System Preferences → Security
+# 2. 检查防火墙
+# Windows: 检查Windows Defender防火墙
+# Linux: 检查iptables/ufw
+# macOS: 检查系统偏好设置 → 安全性
 
-# 3. Test connection manually
-curl http://localhost:8080/health  # or your configured port
+# 3. 手动测试连接
+curl http://localhost:8080/health  # 或您配置的端口
 
-# 4. Check client configuration
-# Ensure client points to correct host/port
+# 4. 检查客户端配置
+# 确保客户端指向正确的主机/端口
 ```
 
 ---
 
-### 5. Performance & Optimization Issues
+### 5. 性能与优化问题
 
-#### Slow Startup
-**Symptoms:** Commands take >2s to start
+#### 启动缓慢
+**症状：** 命令启动需要>2秒
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Use release build
+# 1. 使用release构建
 cargo run --release -- <command>
 
-# 2. Pre-compile and use binary directly
+# 2. 预编译并直接使用二进制文件
 cargo build --release
 ./target/release/rust-tool-v2 <command>
 
-# 3. Check for antivirus interference
-# Add build directory to antivirus exclusions
+# 3. 检查杀毒软件干扰
+# 将构建目录添加到杀毒软件排除项
 
-# 4. Use cargo run with optimizations
+# 4. 使用cargo run并优化
 cargo run --release -- <command>
 ```
 
-#### High Memory Usage
-**Symptoms:** Memory grows continuously
+#### 内存使用高
+**症状：** 内存持续增长
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check memory usage
+# 1. 检查内存使用
 /usr/bin/time -v cargo run -- <command>  # Linux
 /usr/bin/time -l cargo run -- <command>  # macOS
 
-# 2. Process in smaller batches
+# 2. 使用更小的批次处理
 cargo run -- batch-processor --batch-size 100
 
-# 3. Use streaming mode if available
+# 3. 使用流式模式（如果可用）
 cargo run -- workflow execute --streaming
 
-# 4. Monitor with specific tools
+# 4. 使用特定工具监控
 # Linux: valgrind --tool=massif
-# macOS: Instruments (Memory Profiler)
-# Windows: Visual Studio Diagnostic Tools
+# macOS: Instruments (内存分析器)
 ```
 
-#### Slow File Operations
-**Symptoms:** File classification/moving is slow
+#### 文件操作缓慢
+**症状：** 文件分类/移动缓慢
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check disk I/O
+# 1. 检查磁盘I/O
 iostat -x 1  # Linux
-# Use Task Manager → Performance → Disk (Windows)
+# 使用任务管理器 → 性能 → 磁盘 (Windows)
 
-# 2. Use SSD instead of HDD if possible
+# 2. 如可能使用SSD
 
-# 3. Process in parallel batches
+# 3. 并行批次处理
 cargo run -- batch-processor --parallel 4
 
-# 4. Check for antivirus scanning
-# Add source/destination to antivirus exclusions
+# 4. 检查杀毒软件扫描
+# 将源/目标添加到杀毒软件排除项
 ```
 
 ---
 
-### 6. Feature-Specific Issues
+### 6. 功能特定问题
 
-#### LanceDB Integration Issues
-**Symptoms:** Database errors, connection failures
+#### LanceDB集成问题
+**症状：** 数据库错误、连接失败
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Ensure feature is enabled
+# 1. 确保功能已启用
 cargo build --features lancedb
 
-# 2. Check LanceDB version compatibility
+# 2. 检查LanceDB版本兼容性
 cargo tree | grep lancedb
 
-# 3. Verify database directory permissions
+# 3. 验证数据库目录权限
 ls -ld ~/.local/share/rust-tool-v2/lancedb
 
-# 4. Reset database if corrupted
+# 4. 如损坏重置数据库
 rm -rf ~/.local/share/rust-tool-v2/lancedb
 cargo run -- lancedb init
 ```
 
-#### Plugin Loading Issues
-**Symptoms:** Plugins not found or failing to load
+#### 插件加载问题
+**症状：** 插件未找到或加载失败
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Check plugin directory
+# 1. 检查插件目录
 ls -la ~/.config/rust-tool-v2/plugins/
 
-# 2. Verify plugin format
-# Should be .wasm files (if WASM enabled) or native libraries
+# 2. 验证插件格式
+# 应为.wasm文件（如果启用WASM）或原生库
 
-# 3. Check plugin permissions
+# 3. 检查插件权限
 chmod +x ~/.config/rust-tool-v2/plugins/*
 
-# 4. List loaded plugins
+# 4. 列出已加载插件
 cargo run -- plugin list
 ```
 
-#### Workflow Execution Issues
-**Symptoms:** Workflows fail or produce unexpected results
+#### 工作流执行问题
+**症状：** 工作流失败或产生意外结果
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Validate workflow YAML
+# 1. 验证工作流YAML
 cargo run -- workflow validate workflows/basic/hello-world.yaml
 
-# 2. Check workflow dependencies
+# 2. 检查工作流依赖
 cargo run -- workflow graph workflows/basic/hello-world.yaml
 
-# 3. Run with verbose logging
+# 3. 使用详细日志运行
 RUST_LOG=debug cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# 4. Test with simple workflow first
+# 4. 先用简单工作流测试
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
 ---
 
-## 🔧 Diagnostic Commands
+## 🔧 诊断命令
 
-### System Information
+### 系统信息
 ```bash
-# Rust version
+# Rust版本
 rustc --version
-cargo --version
 
-# Project info
+# 项目信息
 cargo metadata --format-version 1 | jq '.packages[0].version'
 
-# Features enabled
+# 启用的功能
 cargo metadata --format-version 1 | jq '.packages[0].features'
 
-# Dependencies
+# 依赖
 cargo tree
 ```
 
-### Build Diagnostics
+### 构建诊断
 ```bash
-# Check compilation
+# 检查编译
 cargo check
 
-# Build with info
+# 带信息构建
 cargo build --verbose
 
-# Check for updates
+# 检查更新
 cargo outdated
 
-# Audit dependencies
+# 审计依赖
 cargo audit
 ```
 
-### Runtime Diagnostics
+### 运行时诊断
 ```bash
-# Enable all logging
+# 启用所有日志
 RUST_LOG=debug cargo run -- <command>
 
-# Trace execution
+# 跟踪执行
 RUST_LOG=trace cargo run -- <command> 2>&1 | tee debug.log
 
-# Performance profiling
+# 性能分析
 cargo run --release -- <command> 2> perf.log
 ```
 
-### File System Checks
+### 文件系统检查
 ```bash
-# Check disk space
+# 检查磁盘空间
 df -h
 
-# Check directory permissions
+# 检查目录权限
 ls -la /path/to/directory
 
-# Check file types
+# 检查文件类型
 file /path/to/file
 
-# Check file sizes
+# 检查文件大小
 du -sh /path/to/directory
 ```
 
 ---
 
-## 🎯 Error Messages & Solutions
+## 🎯 错误消息与解决方案
 
 ### "No such file or directory"
-**Cause:** File path incorrect or file doesn't exist
+**原因：** 文件路径不正确或文件不存在
 
-**Fix:**
+**修复：**
 ```bash
-# Verify file exists
+# 验证文件存在
 ls -la /path/to/file
 
-# Use absolute paths if needed
+# 如需使用绝对路径
 cargo run -- workflow execute /absolute/path/to/workflow.yaml
 ```
 
 ### "Permission denied"
-**Cause:** Insufficient file permissions
+**原因：** 文件权限不足
 
-**Fix:**
+**修复：**
 ```bash
-# Check permissions
+# 检查权限
 ls -la /path/to/directory
 
-# Fix permissions (Linux/macOS)
+# 修复权限 (Linux/macOS)
 chmod +rw /path/to/file
 chmod +rx /path/to/directory
 
-# Fix ownership
+# 修复所有权
 sudo chown -R $USER:$USER /path/to/directory
 ```
 
 ### "Address already in use"
-**Cause:** Port conflict for MCP server
+**原因：** MCP服务器端口冲突
 
-**Fix:**
+**修复：**
 ```bash
-# Find process using port
+# 查找使用端口的进程
 lsof -i :8080  # Linux/macOS
 netstat -ano | findstr :8080  # Windows
 
-# Kill process or use different port
+# 终止进程或使用不同端口
 cargo run -- mcp-server --port 8081
 ```
 
 ### "Connection refused"
-**Cause:** Server not running or wrong address
+**原因：** 服务器未运行或地址错误
 
-**Fix:**
+**修复：**
 ```bash
-# Check if server is running
+# 检查服务器是否运行
 ps aux | grep mcp-server
 
-# Start server first
+# 先启动服务器
 cargo run -- mcp-server &
 
-# Verify connection
+# 验证连接
 curl http://localhost:8080/health
 ```
 
 ### "Out of memory"
-**Cause:** Insufficient RAM for large operations
+**原因：** 大操作内存不足
 
-**Fix:**
+**修复：**
 ```bash
-# Process in smaller batches
+# 使用更小批次处理
 cargo run -- batch-processor --batch-size 50
 
-# Use streaming mode
+# 使用流式模式
 cargo run -- workflow execute --streaming
 
-# Add swap space (Linux)
+# 添加交换空间 (Linux)
 sudo fallocate -l 2G /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
 ```
 
 ### "YAML parse error"
-**Cause:** Invalid YAML syntax in workflow files
+**原因：** 工作流文件中YAML语法无效
 
-**Fix:**
+**修复：**
 ```bash
-# Validate YAML
+# 验证YAML
 python -c "import yaml; yaml.safe_load(open('file.yaml'))"
 
-# Use online validator
+# 使用在线验证器
 # https://yamlvalidator.com/
 
-# Check for tabs vs spaces
-# YAML requires spaces, not tabs
+# 检查制表符vs空格
+# YAML需要空格，不是制表符
 ```
 
 ---
 
-## 📊 Performance Issues
+## 📊 性能问题
 
-### Slow Classification
-**Symptoms:** File classification takes too long
+### 分类缓慢
+**症状：** 文件分类耗时过长
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Use optimized build
+# 1. 使用优化构建
 cargo run --release -- file-classifier --source ./large-folder
 
-# 2. Process in parallel
+# 2. 并行处理
 cargo run -- batch-processor --parallel 8 --batch-size 1000
 
-# 3. Exclude large directories
+# 3. 排除大目录
 cargo run -- file-classifier --exclude "node_modules,target,.git"
 
-# 4. Use file patterns
+# 4. 使用文件模式
 cargo run -- file-classifier --pattern "*.txt,*.pdf,*.docx"
 ```
 
-### High CPU Usage
-**Symptoms:** CPU at 100% for extended periods
+### CPU使用率高
+**症状：** CPU长时间100%
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Limit parallelism
+# 1. 限制并行度
 cargo run -- batch-processor --parallel 2
 
-# 2. Check for infinite loops
-# Add logging to identify problematic code
+# 2. 检查无限循环
+# 添加日志识别问题代码
 
-# 3. Use release mode
+# 3. 使用release模式
 cargo run --release -- <command>
 
-# 4. Monitor with system tools
+# 4. 使用系统工具监控
 top  # Linux/macOS
-Task Manager  # Windows
+任务管理器  # Windows
 ```
 
-### Disk I/O Bottlenecks
-**Symptoms:** Slow file operations, disk at 100%
+### 磁盘I/O瓶颈
+**症状：** 文件操作缓慢，磁盘100%
 
-**Solutions:**
+**解决方案：**
 ```bash
-# 1. Use SSD if possible
+# 1. 如可能使用SSD
 
-# 2. Process smaller batches
+# 2. 处理更小批次
 cargo run -- batch-processor --batch-size 100
 
-# 3. Check disk health
+# 3. 检查磁盘健康
 # Linux: smartctl -a /dev/sda
-# Windows: Check disk properties → Tools → Check
+# Windows: 检查磁盘属性 → 工具 → 检查
 
-# 4. Add to antivirus exclusions
-# Add source/destination directories to antivirus whitelist
+# 4. 添加到杀毒软件排除项
+# 将源/目标目录添加到杀毒软件白名单
 ```
 
 ---
 
-## 🛠️ Advanced Debugging
+## 🛠️ 高级调试
 
-### Enable All Logging
+### 启用所有日志
 ```bash
-# Set environment variable
+# 设置环境变量
 export RUST_LOG=debug
 
-# Or inline
+# 或内联
 RUST_LOG=debug cargo run -- <command>
 
-# For maximum detail
+# 获取最大详情
 RUST_LOG=trace cargo run -- <command> 2>&1 | tee debug.log
 ```
 
-### Generate Debug Report
+### 生成调试报告
 ```bash
-# Create diagnostic script
+# 创建诊断脚本
 cat > diagnose.sh << 'EOF'
 #!/bin/bash
-echo "=== System Info ===" > diagnostic_report.txt
+echo "=== 系统信息 ===" > diagnostic_report.txt
 echo "Rust: $(rustc --version)" >> diagnostic_report.txt
 echo "Cargo: $(cargo --version)" >> diagnostic_report.txt
 echo "OS: $(uname -a)" >> diagnostic_report.txt
 echo "" >> diagnostic_report.txt
 
-echo "=== Build Status ===" >> diagnostic_report.txt
+echo "=== 构建状态 ===" >> diagnostic_report.txt
 cargo check >> diagnostic_report.txt 2>&1
 echo "" >> diagnostic_report.txt
 
-echo "=== Dependencies ===" >> diagnostic_report.txt
+echo "=== 依赖 ===" >> diagnostic_report.txt
 cargo tree >> diagnostic_report.txt 2>&1
 echo "" >> diagnostic_report.txt
 
-echo "=== Test Results ===" >> diagnostic_report.txt
+echo "=== 测试结果 ===" >> diagnostic_report.txt
 cargo test -- --nocapture >> diagnostic_report.txt 2>&1
 
-echo "Report generated: diagnostic_report.txt"
+echo "报告已生成: diagnostic_report.txt"
 EOF
 
 chmod +x diagnose.sh
 ./diagnose.sh
 ```
 
-### Profile Specific Operations
+### 分析特定操作
 ```bash
-# Time a specific command
+# 计时特定命令
 time cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# Profile with instruments (macOS)
+# 使用instruments分析 (macOS)
 cargo build --release
 instruments -t "Time Profiler" ./target/release/rust-tool-v2 workflow execute workflows/basic/hello-world.yaml
 
-# Profile with perf (Linux)
+# 使用perf分析 (Linux)
 cargo build --release
 perf record ./target/release/rust-tool-v2 workflow execute workflows/basic/hello-world.yaml
 perf report
@@ -644,93 +642,93 @@ perf report
 
 ---
 
-## 📞 Getting More Help
+## 📞 获取更多帮助
 
-### When to Consult Oracle
-- Architecture decisions after 2+ failed fixes
-- Complex debugging scenarios
-- Performance optimization needs
-- Security concerns
+### 何时咨询Oracle
+- 2+次修复失败后的架构决策
+- 复杂调试场景
+- 性能优化需求
+- 安全问题
 
-### When to Search Codebase
-- Use `grep` or `ast-grep` to find similar error patterns
-- Check `src/error.rs` for error types
-- Review `src/workflow/` for workflow execution issues
-- Check `src/tools/` for tool-specific problems
+### 何时搜索代码库
+- 使用 `grep` 或 `ast-grep` 查找类似错误模式
+- 检查 `src/error.rs` 了解错误类型
+- 查看 `src/workflow/` 解决工作流执行问题
+- 检查 `src/tools/` 解决工具特定问题
 
-### When to Check External Resources
-- Rust documentation: https://doc.rust-lang.org/
-- Tokio documentation: https://tokio.rs/
-- Clap documentation: https://clap.rs/
-- Ratatui documentation: https://ratatui.rs/
+### 何时查看外部资源
+- Rust文档: https://doc.rust-lang.org/
+- Tokio文档: https://tokio.rs/
+- Clap文档: https://clap.rs/
+- Ratatui文档: https://ratatui.rs/
 
 ---
 
-## ✅ Verification Checklist
+## ✅ 验证清单
 
-After fixing any issue, verify with:
+修复任何问题后，使用以下命令验证：
 
 ```bash
-# 1. Compilation check
+# 1. 编译检查
 cargo check
 
-# 2. Build succeeds
+# 2. 构建成功
 cargo build
 
-# 3. Tests pass
+# 3. 测试通过
 cargo test
 
-# 4. Basic functionality works
+# 4. 基本功能正常
 cargo run -- --help
 cargo run -- workflow execute workflows/basic/hello-world.yaml
 
-# 5. No warnings
+# 5. 无警告
 cargo clippy -- -D warnings
 
-# 6. Code formatted
+# 6. 代码已格式化
 cargo fmt -- --check
 ```
 
 ---
 
-## 🎯 Quick Reference
+## 🎯 快速参考
 
-### Essential Commands
+### 基本命令
 ```bash
-# Check system
+# 检查系统
 rustc --version && cargo --version
 
-# Build and test
+# 构建和测试
 cargo check && cargo test
 
-# Run with logging
+# 带日志运行
 RUST_LOG=info cargo run -- <command>
 
-# Release mode
+# Release模式
 cargo run --release -- <command>
 
-# Help for any command
+# 任何命令的帮助
 cargo run -- <command> --help
 ```
 
-### Common Fixes
+### 常见修复
 ```bash
-# Clean rebuild
+# 清理重建
 cargo clean && cargo check && cargo build
 
-# Update dependencies
+# 更新依赖
 cargo update
 
-# Fix formatting
+# 修复格式
 cargo fmt
 
-# Fix clippy warnings
+# 修复clippy警告
 cargo clippy --fix --allow-dirty
 
-# Run all checks
+# 运行所有检查
 cargo fmt && cargo clippy -- -D warnings && cargo test
 ```
 
 ---
 
-**← Back to [INDEX.md](INDEX.md)** | **Top** ↑
+**← 返回 [INDEX.md](INDEX.md)** | **顶部** ↑

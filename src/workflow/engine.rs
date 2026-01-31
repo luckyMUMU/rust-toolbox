@@ -81,6 +81,9 @@ pub struct RefactoredWorkflowEngine {
     checkpoint_interval: Duration,
 }
 
+/// Type alias for backward compatibility
+pub type DefaultWorkflowEngine = RefactoredWorkflowEngine;
+
 impl RefactoredWorkflowEngine {
     /// Create a new refactored workflow engine.
     pub fn new(

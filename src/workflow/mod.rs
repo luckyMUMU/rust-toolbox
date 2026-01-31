@@ -93,5 +93,5 @@ pub use executor::{
 pub use state::{CheckpointManager, ControlSignals, ExecutionTracker};
 
 // Refactored engine (now default)
-pub use engine::RefactoredWorkflowEngine;
+pub use engine::{RefactoredWorkflowEngine, DefaultWorkflowEngine};
 pub use flow_node::FlowNode;
