@@ -221,7 +221,7 @@ impl From<CliError> for crate::WorkflowError {
 ### 工作流操作
 ```bash
 # 从定义创建工作流
-cargo run -- workflow create examples/hello-world.yaml
+cargo run -- workflow create workflows/basic/hello-world.yaml
 
 # 列出工作流
 cargo run -- workflow list

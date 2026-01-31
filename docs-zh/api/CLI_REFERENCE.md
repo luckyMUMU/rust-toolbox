@@ -45,7 +45,7 @@ workflow-toolkit workflow create [选项] <定义文件>
 **示例：**
 ```bash
 # 验证工作流文件
-workflow-toolkit workflow create --validate-only examples/hello-world.yaml
+workflow-toolkit workflow create --validate-only workflows/basic/hello-world.yaml
 
 # 创建/导入工作流
 workflow-toolkit workflow create examples/my-workflow.yaml

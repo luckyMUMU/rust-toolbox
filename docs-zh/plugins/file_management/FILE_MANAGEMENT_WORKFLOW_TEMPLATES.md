@@ -83,7 +83,7 @@
 
 ```bash
 # 使用基础规则进行简单文件夹分类
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/home/user/Downloads" \
   --param output_directory="/home/user/Organized" \
   --param classification_rules="basic-rules.json" \
@@ -94,7 +94,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ```bash
 # 生产模式自动执行
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/data/incoming" \
   --param output_directory="/data/organized" \
   --param classification_rules="production-rules.json" \
@@ -107,7 +107,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ```bash
 # 支持中文文本的分类
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/home/user/中文文件夹" \
   --param output_directory="/home/user/整理后" \
   --param classification_rules="chinese-rules.json" \
@@ -177,7 +177,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ## 交互式合并流程
 
-**文件路径：** `examples/templates/interactive-merge-workflow.yaml`
+**文件路径：** `workflows/templates/interactive/merge.yaml`
 
 ### 用途
 
@@ -232,7 +232,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ```bash
 # 交互式合并，用户引导策略选择
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/home/user/Downloads", "/home/user/Desktop", "/home/user/Documents/Temp"]' \
   --param target_directory="/home/user/Organized" \
   --param merge_strategy="UserDecision" \
@@ -243,7 +243,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 ```bash
 # 使用“小合并到大”策略自动合并
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/data/dir1", "/data/dir2"]' \
   --param merge_strategy="SmallerToLarger" \
   --param duplicate_handling="Rename" \
@@ -254,7 +254,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 ```bash
 # 生产环境合并，创建备份并验证
-cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/merge.yaml \
   --param source_directories='["/enterprise/shared1", "/enterprise/shared2"]' \
   --param target_directory="/enterprise/consolidated" \
   --param merge_strategy="TargetDirectory" \
@@ -283,7 +283,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 ## 交互式批处理流程
 
-**文件路径：** `examples/templates/interactive-batch-processing-workflow.yaml`
+**文件路径：** `workflows/templates/interactive/batch-processing.yaml`
 
 ### 用途
 
@@ -339,7 +339,7 @@ cargo run -- workflow execute examples/templates/interactive-merge-workflow.yaml
 
 ```bash
 # 批量移动文件并启用用户交互
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/data/incoming" \
   --param target_directory="/data/processed" \
   --param operation_type="move" \
@@ -351,7 +351,7 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
 
 ```bash
 # 复制文件并自动解决冲突
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/source/documents" \
   --param target_directory="/backup/documents" \
   --param operation_type="copy" \
@@ -364,7 +364,7 @@ cargo run -- workflow execute examples/templates/interactive-batch-processing-wo
 
 ```bash
 # 自定义操作并过滤文件
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/media/raw" \
   --param target_directory="/media/processed" \
   --param operation_type="custom" \
@@ -507,7 +507,7 @@ cat > personal-rules.json << 'EOF'
 EOF
 
 # 运行分类工作流
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/home/user/Desktop" \
   --param output_directory="/home/user/Organized" \
   --param classification_rules="personal-rules.json" \
@@ -562,7 +562,7 @@ cat > enterprise-rules.json << 'EOF'
 EOF
 
 # 使用企业设置运行
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/enterprise/incoming" \
   --param output_directory="/enterprise/classified" \
   --param classification_rules="enterprise-rules.json" \
@@ -578,7 +578,7 @@ cargo run -- workflow execute examples/templates/interactive-classification-work
 
 ```bash
 # 为媒体文件运行批处理
-cargo run -- workflow execute examples/templates/interactive-batch-processing-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/batch-processing.yaml \
   --param source_directory="/media/unsorted" \
   --param target_directory="/media/organized" \
   --param operation_type="custom" \
@@ -640,7 +640,7 @@ cat > dev-rules.json << 'EOF'
 EOF
 
 # 使用开发设置运行分类
-cargo run -- workflow execute examples/templates/interactive-classification-workflow.yaml \
+cargo run -- workflow execute workflows/templates/interactive/classification.yaml \
   --param source_directory="/home/developer/workspace" \
   --param output_directory="/home/developer/organized" \
   --param classification_rules="dev-rules.json" \

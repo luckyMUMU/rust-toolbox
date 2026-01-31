@@ -186,13 +186,13 @@ cargo run -- --help
 **好：**
 ```bash
 # 注释解释其功能
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
 **更好：**
 ```bash
 # 执行一个简单的工作流
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # 预期输出：
 # 工作流成功完成
@@ -201,7 +201,7 @@ cargo run -- workflow execute examples/hello-world.yaml
 **最好：**
 ```bash
 # 执行一个简单的工作流
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # 预期输出：
 # 工作流成功完成
@@ -660,7 +660,7 @@ docs/
 
 ### 执行你的第一个工作流
 ```bash
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
 这将执行一个打印 "Hello World" 的简单工作流。
