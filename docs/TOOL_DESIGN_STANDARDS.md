@@ -1,29 +1,29 @@
-# Tool Design Standards & Architecture Guide
+# 工具设计标准与架构指南
 
-## 1. Core Principle: Single Responsibility Principle (SRP)
+## 1. 核心原则：单一职责原则 (SRP)
 
-Every tool in the `workflow-toolkit` ecosystem must adhere to the **Single Responsibility Principle**. A tool should do one thing, do it well, and do it completely.
+`workflow-toolkit` 生态系统中的每个工具都必须遵循**单一职责原则**。一个工具应该只做一件事，把它做好，并且做完整。
 
-### 1.1 What Defines a Tool?
-*   **Atomic Operation**: A tool performs a single, logical unit of work (e.g., "Read File", "Parse JSON", "Send HTTP Request").
-*   **No Business Logic**: Tools must **NOT** contain complex branching logic (`if/else`) that implements business rules. Business logic belongs in the **Workflow** orchestration layer.
-*   **Statelessness**: Tools should be pure functions where `Output = f(Input)`. Avoid internal state that persists between executions unless explicitly designed as a Store (like `DataCacheTool`).
+### 1.1 什么定义了一个工具？
+*   **原子操作**：工具执行单一的逻辑工作单元（例如，"读取文件"、"解析JSON"、"发送HTTP请求"）。
+*   **无业务逻辑**：工具**不得**包含实现业务规则的复杂分支逻辑（`if/else`）。业务逻辑属于**工作流**编排层。
+*   **无状态性**：工具应该是纯函数，即 `输出 = f(输入)`。避免在多次执行之间持久化的内部状态，除非明确设计为存储类工具（如 `DataCacheTool`）。
 
-### 1.2 Naming Conventions
-Tool names should clearly describe their action and target.
+### 1.2 命名规范
+工具名称应清晰描述其动作和目标。
 
-*   **Format**: `noun-verb` or `verb-noun` (kebab-case for IDs, PascalCase for Structs).
-*   **Examples**:
+*   **格式**：`名词-动词` 或 `动词-名词`（ID使用kebab-case，结构体使用PascalCase）。
+*   **示例**：
     *   ✅ `file-reader` / `FileReader`
     *   ✅ `json-transformer` / `JsonTransformer`
     *   ✅ `directory-scanner` / `DirectoryScanner`
-    *   ❌ `process-manager` (Too vague)
-    *   ❌ `file-handler` (Does it read? write? delete?)
+    *   ❌ `process-manager`（过于模糊）
+    *   ❌ `file-handler`（它是读取？写入？还是删除？）
 
-## 2. Tool Implementation Guidelines
+## 2. 工具实现指南
 
-### 2.1 The `ToolNode` Trait
-All tools must implement the `ToolNode` trait.
+### 2.1 `ToolNode` Trait
+所有工具都必须实现 `ToolNode` trait。
 
 ```rust
 #[async_trait]
@@ -31,47 +31,48 @@ impl ToolNode for MyTool {
     fn name(&self) -> String { "my-tool".to_string() }
     
     fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Strict schema validation required
+        // 需要严格的schema验证
     }
     
     async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        // Atomic execution logic
+        // 原子执行逻辑
     }
 }
 ```
 
-### 2.2 Error Handling
-*   Return specific `WorkflowError` types.
-*   Do not swallow errors; propagate them to the engine.
-*   Let the Workflow Engine handle retries and error policies.
+### 2.2 错误处理
+*   返回特定的 `WorkflowError` 类型。
+*   不要吞掉错误；将它们传播给引擎。
+*   让工作流引擎处理重试和错误策略。
 
-## 3. Workflow Orchestration
+## 3. 工作流编排
 
-Complex behavior is achieved by **composing** simple tools, not by making tools complex.
+复杂行为通过**组合**简单工具来实现，而不是让工具变得复杂。
 
-### 3.1 Conditional Logic
-*   **Anti-Pattern**: A tool taking a boolean `compress_files` parameter and branching internally.
-*   **Best Practice**:
-    *   Node A: `FileScanner`
-    *   Node B: `Condition` (checks file size)
-    *   Node C: `FileCompressor` (executed only if Node B is true)
-    *   Node D: `FileMover`
+### 3.1 条件逻辑
+*   **反模式**：工具接收一个布尔值 `compress_files` 参数并在内部分支。
+*   **最佳实践**：
+    *   节点 A：`FileScanner`
+    *   节点 B：`Condition`（检查文件大小）
+    *   节点 C：`FileCompressor`（仅在节点 B 为 true 时执行）
+    *   节点 D：`FileMover`
 
-### 3.2 Data Flow
-*   Tools receive data via `parameters`.
-*   Tools return data via `Result<Value>`.
-*   Use `DataCacheTool` for sharing data across non-adjacent nodes.
-*   Use `DataTransformTool` to map output of Tool A to input of Tool B.
+### 3.2 数据流
+*   工具通过 `parameters` 接收数据。
+*   工具通过 `Result<Value>` 返回数据。
+*   使用 `DataCacheTool` 在非相邻节点间共享数据。
+*   使用 `DataTransformTool` 将工具 A 的输出映射为工具 B 的输入。
 
-## 4. System Tools
+## 4. 系统工具
 
-The following standard tools are available for flow control and data management:
+以下标准工具可用于流程控制和数据管理：
 
-*   **`data-cache`**: Store/Retrieve temporary data in the execution context.
-*   **`data-transform`**: Apply JQ-like transformations or template rendering to JSON data.
+*   **`data-cache`**：在执行上下文中存储/检索临时数据。
+*   **`data-transform`**：对JSON数据应用类似JQ的转换或模板渲染。
 
-## 5. Review Checklist
-Before submitting a new tool, ask:
-1.  Can I describe this tool's function in one sentence without using "and"?
-2.  Does this tool make decisions about *what* to do next? (If yes, move that logic to the Workflow).
-3.  Is the name specific enough?
+## 5. 审查清单
+
+在提交新工具之前，问自己：
+1.  我能否用一句话描述这个工具的功能而不使用"和"？
+2.  这个工具是否对*接下来做什么*做出决策？（如果是，将该逻辑移到工作流）。
+3.  名称是否足够具体？
