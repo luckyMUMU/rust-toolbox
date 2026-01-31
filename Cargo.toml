@@ -48,13 +48,9 @@ moka = { version = "0.12", features = ["future"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sysinfo = "0.32"
-# metrics = "0.24"
-# metrics-exporter-prometheus = "0.16"
 
-# 插件系统 (暂时简化)
+# 插件系统
 libloading = "0.8"
-# wasmtime = "25.0"
-# extism = "1.8"
 
 # 工作流调度
 petgraph = "0.6"
@@ -100,8 +96,6 @@ hex = "0.4.3"
 proptest = "1.6"
 tokio-test = "0.4"
 tempfile = "3.14"
-# mockall = "0.13"
-# testcontainers = "0.23"
 
 [[bin]]
 name = "workflow-toolkit"
