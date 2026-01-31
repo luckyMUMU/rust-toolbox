@@ -1,85 +1,85 @@
-# Documentation Index
+# 文档索引
 
-> **Complete navigation guide for the Rust Workflow Toolkit**  
-> *Last Updated: 2026-01-14*
-
----
-
-## 📚 Quick Navigation
-
-### 🚀 Getting Started
-- **[User Guide](guides/USER_GUIDE.md)** - Complete manual for new users
-- **[Cheatsheet](guides/CHEATSHEET.md)** - Quick command reference
-- **[Tutorial](guides/TUTORIAL.md)** - Step-by-step learning path
-- **[Troubleshooting](guides/TROUBLESHOOTING.md)** - Common issues and solutions
-
-### 💻 API & Reference
-- **[CLI Reference](api/CLI_REFERENCE.md)** - Command-line interface documentation
-- **[Rust SDK Reference](api/RUST_SDK_REFERENCE.md)** - Core library API for developers
-
-### 🛠️ Development
-- **[Development Guide](dev/DEVELOPMENT_GUIDE.md)** - Contributing and setup
-- **[Plugin Development](dev/PLUGIN_DEVELOPMENT.md)** - Creating custom extensions
-- **[Project Overview](dev/PROJECT_OVERVIEW.md)** - Architecture and design
-- **[Documentation Standards](dev/DOCUMENTATION_STANDARDS.md)** - Writing guidelines
-
-### 📁 Special Topics
-- **[File Management Tools](plugins/file_management/FILE_MANAGEMENT_TOOLS_INDEX.md)** - Comprehensive file operations suite
-- **[Migration Guide](guides/MIGRATION_GUIDE.md)** - Migrating from Python/previous versions
+> **Rust工作流工具包完整导航指南**  
+> *最后更新：2026-01-14*
 
 ---
 
-## 📖 Documentation Structure
+## 📚 快速导航
 
-The documentation is organized into four main categories:
+### 🚀 入门指南
+- **[用户指南](guides/USER_GUIDE.md)** - 新用户完整手册
+- **[速查表](guides/CHEATSHEET.md)** - 快速命令参考
+- **[教程](guides/TUTORIAL.md)** - 分步骤学习路径
+- **[故障排除](guides/TROUBLESHOOTING.md)** - 常见问题和解决方案
 
-### 1. Guides (`docs/guides/`)
-Practical guides for users of all levels.
-- **Start here:** `USER_GUIDE.md`
-- **Quick help:** `CHEATSHEET.md`, `TROUBLESHOOTING.md`
+### 💻 API与参考
+- **[CLI参考](api/CLI_REFERENCE.md)** - 命令行接口文档
+- **[Rust SDK参考](api/RUST_SDK_REFERENCE.md)** - 开发者核心库API
 
-### 2. API Reference (`docs/api/`)
-Technical specifications for the CLI and Rust SDK.
-- **CLI Users:** `CLI_REFERENCE.md`
-- **Rust Developers:** `RUST_SDK_REFERENCE.md`
+### 🛠️ 开发文档
+- **[开发指南](dev/DEVELOPMENT_GUIDE.md)** - 贡献和设置
+- **[插件开发](dev/PLUGIN_DEVELOPMENT.md)** - 创建自定义扩展
+- **[项目概览](dev/PROJECT_OVERVIEW.md)** - 架构和设计
+- **[文档标准](dev/DOCUMENTATION_STANDARDS.md)** - 编写规范
 
-### 3. Development (`docs/dev/`)
-Resources for contributors and plugin developers.
-- **Contributors:** `DEVELOPMENT_GUIDE.md`
-- **Extenders:** `PLUGIN_DEVELOPMENT.md`
-
-### 4. Plugins (`docs/plugins/`)
-Documentation for specific plugin subsystems.
-- **File Management:** `file_management/`
-
----
-
-## 🔍 Search by Role
-
-### "I am a..."
-
-#### New User
-1. Read the **[User Guide](guides/USER_GUIDE.md)**
-2. Follow the **[Tutorial](guides/TUTORIAL.md)**
-3. Keep the **[Cheatsheet](guides/CHEATSHEET.md)** handy
-
-#### System Administrator
-1. Check **[CLI Reference](api/CLI_REFERENCE.md)** for automation
-2. Review **[Troubleshooting](guides/TROUBLESHOOTING.md)** for maintenance
-
-#### Developer / Contributor
-1. Start with **[Development Guide](dev/DEVELOPMENT_GUIDE.md)**
-2. Understand the architecture in **[Project Overview](dev/PROJECT_OVERVIEW.md)**
-3. Read **[Rust SDK Reference](api/RUST_SDK_REFERENCE.md)**
-
-#### Plugin Author
-1. Master **[Plugin Development](dev/PLUGIN_DEVELOPMENT.md)**
-2. Reference **[Rust SDK Reference](api/RUST_SDK_REFERENCE.md)** for traits
+### 📁 专题文档
+- **[文件管理工具](plugins/file_management/FILE_MANAGEMENT_TOOLS_INDEX.md)** - 全面的文件操作套件
+- **[迁移指南](guides/MIGRATION_GUIDE.md)** - 从Python/旧版本迁移
 
 ---
 
-## 📞 Getting Help
+## 📖 文档结构
 
-- **Issues:** Check `guides/TROUBLESHOOTING.md` first.
-- **CLI:** Run `workflow-toolkit --help` or specific command help.
-- **Code:** Run `cargo doc --open` for auto-generated source docs.
+文档分为四个主要类别：
+
+### 1. 指南 (`docs/guides/`)
+面向各级用户的实用指南。
+- **从这里开始：** `USER_GUIDE.md`
+- **快速帮助：** `CHEATSHEET.md`, `TROUBLESHOOTING.md`
+
+### 2. API参考 (`docs/api/`)
+CLI和Rust SDK的技术规范。
+- **CLI用户：** `CLI_REFERENCE.md`
+- **Rust开发者：** `RUST_SDK_REFERENCE.md`
+
+### 3. 开发文档 (`docs/dev/`)
+面向贡献者和插件开发者的资源。
+- **贡献者：** `DEVELOPMENT_GUIDE.md`
+- **扩展开发者：** `PLUGIN_DEVELOPMENT.md`
+
+### 4. 插件文档 (`docs/plugins/`)
+特定插件子系统的文档。
+- **文件管理：** `file_management/`
+
+---
+
+## 🔍 按角色查找
+
+### "我是..."
+
+#### 新用户
+1. 阅读 **[用户指南](guides/USER_GUIDE.md)**
+2. 跟随 **[教程](guides/TUTORIAL.md)**
+3. 常备 **[速查表](guides/CHEATSHEET.md)**
+
+#### 系统管理员
+1. 查看 **[CLI参考](api/CLI_REFERENCE.md)** 用于自动化
+2. 参考 **[故障排除](guides/TROUBLESHOOTING.md)** 用于维护
+
+#### 开发者/贡献者
+1. 从 **[开发指南](dev/DEVELOPMENT_GUIDE.md)** 开始
+2. 在 **[项目概览](dev/PROJECT_OVERVIEW.md)** 中了解架构
+3. 阅读 **[Rust SDK参考](api/RUST_SDK_REFERENCE.md)**
+
+#### 插件作者
+1. 掌握 **[插件开发](dev/PLUGIN_DEVELOPMENT.md)**
+2. 参考 **[Rust SDK参考](api/RUST_SDK_REFERENCE.md)** 了解traits
+
+---
+
+## 📞 获取帮助
+
+- **问题：** 首先查看 `guides/TROUBLESHOOTING.md`。
+- **CLI：** 运行 `workflow-toolkit --help` 或特定命令帮助。
+- **代码：** 运行 `cargo doc --open` 查看自动生成的源码文档。
