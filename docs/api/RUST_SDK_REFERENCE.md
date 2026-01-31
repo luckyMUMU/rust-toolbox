@@ -1,47 +1,47 @@
-# Rust SDK Reference
+# Rust SDK参考
 
-> **Comprehensive reference for the Rust Workflow Toolkit SDK**  
-> *Last Updated: 2026-01-14*
+> **Rust工作流工具包SDK完整参考**  
+> *最后更新：2026-01-14*
 
-## Overview
+## 概述
 
-This document provides the complete API reference for the Rust Workflow Toolkit, including core traits, data structures, and usage examples.
+本文档提供Rust工作流工具包的完整API参考，包括核心traits、数据结构和用法示例。
 
-## Core API Interfaces
+## 核心API接口
 
-### Workflow Engine
+### 工作流引擎
 
 #### WorkflowEngine Trait
 
-The core interface for the workflow execution engine.
+工作流执行引擎的核心接口。
 
 ```rust
 #[async_trait]
 pub trait WorkflowEngine: Send + Sync {
-    /// Execute a workflow definition
+    /// 执行工作流定义
     async fn execute_workflow(&self, definition: WorkflowDefinition) -> Result<WorkflowExecution>;
     
-    /// Pause a running workflow
+    /// 暂停运行中的工作流
     async fn pause_workflow(&self, id: WorkflowId) -> Result<()>;
     
-    /// Resume a paused workflow
+    /// 恢复暂停的工作流
     async fn resume_workflow(&self, id: WorkflowId) -> Result<()>;
     
-    /// Stop a running workflow
+    /// 停止运行中的工作流
     async fn stop_workflow(&self, id: WorkflowId) -> Result<()>;
     
-    /// Get workflow status
+    /// 获取工作流状态
     async fn get_workflow_status(&self, id: WorkflowId) -> Result<WorkflowStatus>;
     
-    /// List all workflows
+    /// 列出所有工作流
     async fn list_workflows(&self) -> Result<Vec<WorkflowInfo>>;
     
-    /// Delete a workflow
+    /// 删除工作流
     async fn delete_workflow(&self, id: WorkflowId) -> Result<()>;
 }
 ```
 
-#### Data Structures
+#### 数据结构
 
 ##### WorkflowDefinition
 
@@ -102,7 +102,7 @@ pub enum ExecutionStatus {
 }
 ```
 
-### Tool Registry
+### 工具注册表
 
 #### ToolRegistry Trait
 
@@ -133,7 +133,7 @@ pub trait ToolNode: Send + Sync {
 }
 ```
 
-### Plugin System
+### 插件系统
 
 #### Plugin Trait
 
@@ -164,7 +164,7 @@ impl PluginManager {
 }
 ```
 
-### Storage System
+### 存储系统
 
 #### StorageBackend Trait
 
@@ -181,11 +181,11 @@ pub trait StorageBackend: Send + Sync {
 
 ---
 
-## Usage Guide
+## 使用指南
 
-### Quick Start
+### 快速开始
 
-#### 1. Basic Workflow Creation and Execution
+#### 1. 基本工作流创建和执行
 
 ```rust
 use workflow_toolkit::{
@@ -199,21 +199,21 @@ use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Initialize components
+    // 1. 初始化组件
     let config = Arc::new(ConfigManager::new(Config::default()));
     let storage = Arc::new(FileStorage::new("./data")?);
     let cache = Arc::new(SimpleMemoryCache::new());
     let state_manager = Arc::new(StateManager::new(storage, cache));
     let tool_registry = Arc::new(BasicToolRegistry::new());
     
-    // 2. Create workflow engine
+    // 2. 创建工作流引擎
     let engine = Arc::new(DefaultWorkflowEngine::new(
         state_manager,
         tool_registry,
-        4, // Max concurrency
+        4, // 最大并发数
     ));
     
-    // 3. Define workflow
+    // 3. 定义工作流
     let workflow = WorkflowDefinition {
         name: "hello-world".to_string(),
         version: "1.0.0".to_string(),
@@ -270,14 +270,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         global_config: workflow_toolkit::WorkflowConfig::default(),
     };
     
-    // 4. Execute workflow
+    // 4. 执行工作流
     let execution = engine.execute_workflow(workflow).await?;
-    println!("Workflow Execution ID: {}", execution.id);
+    println!("工作流执行ID: {}", execution.id);
     
-    // 5. Monitor status
+    // 5. 监控状态
     loop {
         let status = engine.get_workflow_status(execution.id).await?;
-        println!("Current Status: {:?}", status);
+        println!("当前状态: {:?}", status);
         
         if status.is_terminal() {
             break;
@@ -290,7 +290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-#### 2. Tool Registration and Usage
+#### 2. 工具注册和使用
 
 ```rust
 use workflow_toolkit::{
@@ -303,7 +303,7 @@ use std::sync::Arc;
 async fn register_custom_tools() -> Result<Arc<BasicToolRegistry>, Box<dyn std::error::Error>> {
     let mut registry = BasicToolRegistry::new();
     
-    // Register calculator tool
+    // 注册计算器工具
     let calculator_executor = Arc::new(AsyncFunctionExecutor::new(
         |params: Value, _context: ExecutionContext| async move {
             let a = params["a"].as_f64().unwrap_or(0.0);
@@ -319,12 +319,12 @@ async fn register_custom_tools() -> Result<Arc<BasicToolRegistry>, Box<dyn std::
                         a / b
                     } else {
                         return Err(workflow_toolkit::WorkflowError::tool_execution(
-                            "Division by zero"
+                            "除零错误"
                         ));
                     }
                 }
                 _ => return Err(workflow_toolkit::WorkflowError::tool_execution(
-                    &format!("Unknown operation: {}", operation)
+                    &format!("未知操作: {}", operation)
                 )),
             };
             
@@ -339,7 +339,7 @@ async fn register_custom_tools() -> Result<Arc<BasicToolRegistry>, Box<dyn std::
     let calculator_tool = BasicTool::builder()
         .name("calculator")
         .version("1.0.0")
-        .description("Basic Calculator Tool")
+        .description("基础计算器工具")
         .executor(calculator_executor)
         .build()?;
     
@@ -349,15 +349,15 @@ async fn register_custom_tools() -> Result<Arc<BasicToolRegistry>, Box<dyn std::
 }
 ```
 
-### Advanced Usage
+### 高级用法
 
-#### Conditional and Loop Workflows
+#### 条件和循环工作流
 
 ```yaml
 # conditional-workflow.yaml
 name: "conditional-processing"
 version: "1.0.0"
-description: "Data processing with conditions"
+description: "带条件的数据处理"
 
 global_config:
   variables:
