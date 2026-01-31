@@ -1,6 +1,6 @@
 //! Tool registration framework for file management plugin
 
-use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
+use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
 use super::plugin::FileManagementConfig;
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::{Result, WorkflowError};
@@ -626,7 +626,7 @@ impl AcMatcherExecutor {
     }
 
     /// Convert pattern matches to JSON
-    fn matches_to_json(&self, matches: Vec<super::ac_automaton::PatternMatch>) -> Value {
+    fn matches_to_json(&self, matches: Vec<crate::tools::algo::ac_automaton::PatternMatch>) -> Value {
         let match_objects: Vec<Value> = matches
             .iter()
             .map(|m| {
@@ -646,7 +646,7 @@ impl AcMatcherExecutor {
     }
 
     /// Get unique categories from matches
-    fn get_categories_found(&self, matches: &[super::ac_automaton::PatternMatch]) -> Vec<String> {
+    fn get_categories_found(&self, matches: &[crate::tools::algo::ac_automaton::PatternMatch]) -> Vec<String> {
         let mut categories: Vec<String> = matches
             .iter()
             .map(|m| m.category.clone())

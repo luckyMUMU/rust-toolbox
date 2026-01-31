@@ -5,7 +5,6 @@
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
-pub mod ac_automaton;
 pub mod batch_confirmation_tool;
 pub mod batch_processor;
 pub mod batch_processor_tool;
@@ -62,7 +61,7 @@ pub use text_processor_tool::{
 // pub use rule_config::{
 //     RuleConfigLoader, KeywordCombination, EnhancedClassificationRule,
 // };
-pub use ac_automaton::{
+pub use crate::tools::algo::ac_automaton::{
     AutomatonConfig, AutomatonError, AutomatonNode, AutomatonResult, AutomatonStats, Pattern,
     PatternMatch,
 };

@@ -3,7 +3,7 @@
 //! This module provides intelligent folder classification using AC automaton
 //! and text processing with scoring algorithms and decision making.
 
-use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
+use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
 use super::error::{FileManagementError, FileManagementResult};
 use super::human_decision_tool::HumanDecisionResult;
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};

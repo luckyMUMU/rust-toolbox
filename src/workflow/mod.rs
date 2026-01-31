@@ -33,7 +33,6 @@ pub mod converter;
 pub mod definition;
 pub mod el_expression;
 pub mod engine;
-pub mod engine_legacy;
 pub mod execution;
 pub mod execution_manager;
 pub mod executor;
@@ -65,7 +64,8 @@ pub use definition::{
     NodeType, ParameterType, TemplateParameter, WorkflowDefinition, WorkflowEdge, WorkflowNode,
     WorkflowTemplate,
 };
-pub use engine_legacy::WorkflowEngine;
+// WorkflowEngine trait exported from engine module
+pub use engine::WorkflowEngine;
 pub use execution::{
     Checkpoint, ExecutionRecord, NodeExecutionState, WorkflowExecution, WorkflowState,
 };

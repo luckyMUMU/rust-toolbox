@@ -84,6 +84,28 @@ pub struct RefactoredWorkflowEngine {
 /// Type alias for backward compatibility
 pub type DefaultWorkflowEngine = RefactoredWorkflowEngine;
 
+/// WorkflowEngine trait for execution managers
+#[async_trait]
+pub trait WorkflowEngine: Send + Sync {
+    /// Execute a workflow definition
+    async fn execute(
+        &self,
+        definition: WorkflowDefinition,
+        initial_params: HashMap<String, Value>,
+    ) -> Result<WorkflowExecution>;
+}
+
+#[async_trait]
+impl WorkflowEngine for RefactoredWorkflowEngine {
+    async fn execute(
+        &self,
+        definition: WorkflowDefinition,
+        initial_params: HashMap<String, Value>,
+    ) -> Result<WorkflowExecution> {
+        self.execute(definition, initial_params).await
+    }
+}
+
 impl RefactoredWorkflowEngine {
     /// Create a new refactored workflow engine.
     pub fn new(

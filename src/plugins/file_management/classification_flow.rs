@@ -3,7 +3,7 @@
 //! This module implements specific single-function tools for the 13-step
 //! folder classification workflow.
 
-use super::ac_automaton::{AhoCorasickMatcher, AutomatonConfig};
+use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig};
 use super::classification_tool::ClassificationRules;
 use super::utils::{TextNormalizationConfig, TextProcessor};
 use crate::core::{ExecutionContext, ToolInfo};

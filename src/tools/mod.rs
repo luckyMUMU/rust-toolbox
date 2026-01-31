@@ -46,6 +46,7 @@
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
+pub mod algo;
 pub mod composable;
 pub mod node;
 pub mod registry;
