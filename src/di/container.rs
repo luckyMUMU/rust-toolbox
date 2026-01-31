@@ -1,15 +1,17 @@
 //! DI容器实现
 
-use shaku::{Container, ContainerBuilder};
-
-/// 依赖注入容器
-pub struct DiContainer {
-    inner: Container<dyn super::module::AppModule>,
-}
+/// 依赖注入容器（占位实现）
+pub struct DiContainer;
 
 impl DiContainer {
-    /// 创建容器构建器
-    pub fn builder() -> ContainerBuilder<dyn super::module::AppModule> {
-        ContainerBuilder::new()
+    /// 创建容器
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for DiContainer {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -1,6 +1,3 @@
 //! Application layer - use cases and workflow orchestration
 
-pub mod port;
-pub mod workflow;
-pub mod usecase;
-pub mod service;
+// TODO: 迁移用例和工作流编排到这里

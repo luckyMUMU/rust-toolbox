@@ -1,7 +1,3 @@
 //! Infrastructure layer - technical implementations
 
-pub mod persistence;
-pub mod plugin;
-pub mod external;
-pub mod cache;
-pub mod config;
+// TODO: 迁移存储、插件实现、缓存到这里

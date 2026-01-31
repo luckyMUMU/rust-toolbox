@@ -1,4 +1,4 @@
-//! Dependency injection container using shaku
+//! Dependency injection container
 
 pub mod container;
 pub mod module;
