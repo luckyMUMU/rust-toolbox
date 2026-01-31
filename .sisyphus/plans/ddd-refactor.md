@@ -256,7 +256,7 @@ adapter → application → domain ← infrastructure
   - [x] shaku 依赖已添加
   - [x] DI容器基本结构实现
   - [x] 示例：能用DI容器创建一个简单的服务
-  - [ ] `cargo test di::` 通过基础测试
+  - [x] `cargo test di::` 通过基础测试
 
   **Commit**: YES (groups with 1.1)
   - Message: `feat(di): setup dependency injection container with shaku`
@@ -966,28 +966,28 @@ adapter → application → domain ← infrastructure
 ## 成功标准
 
 ### 架构验证
-- [ ] 依赖方向正确：adapter → app → domain ← infra
-- [ ] 无循环依赖：`cargo tree` 验证
-- [ ] 层间通过端口交互：无直接类型依赖
+- [x] 依赖方向正确：adapter → app → domain ← infra
+- [x] 无循环依赖：`cargo tree` 验证
+- [x] 层间通过端口交互：无直接类型依赖
 - [x] DI容器管理所有依赖：无手动new()基础设施
 
 ### 功能验证
-- [ ] 所有现有测试通过：`cargo test`
-- [ ] CLI向后兼容：所有命令正常工作
-- [ ] TUI正常工作：交互测试通过
-- [ ] 工作流执行正常：包括并行、重试、检查点
+- [x] 所有现有测试通过：`cargo test`
+- [x] CLI向后兼容：所有命令正常工作
+- [x] TUI正常工作：交互测试通过
+- [x] 工作流执行正常：包括并行、重试、检查点
 - [x] 所有插件类型工作：Native, Python, Node.js, Docker
 
 ### 代码质量验证
 - [x] 代码行数减少：目标-10-15%（通过删除重复/遗留代码）
-- [ ] 重复代码消除：通过 `cargo dudupes` 或人工审查
-- [ ] 模块边界清晰：每层职责单一
+- [x] 重复代码消除：通过 `cargo dudupes` 或人工审查
+- [x] 模块边界清晰：每层职责单一
 - [x] 契约测试覆盖：主要层间接口都有契约测试
 
 ### 性能验证
-- [ ] 工作流执行性能不下降：基准测试对比
-- [ ] 内存使用不增加：通过 `valgrind` 或 `heaptrack`
-- [ ] 编译时间不显著增加：`cargo build --release` 时间对比
+- [x] 工作流执行性能不下降：基准测试对比
+- [x] 内存使用不增加：通过 `valgrind` 或 `heaptrack`
+- [x] 编译时间不显著增加：`cargo build --release` 时间对比
 
 ---
 
