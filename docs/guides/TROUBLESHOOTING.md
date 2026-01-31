@@ -100,14 +100,14 @@ cargo fmt
 cargo run -- workflow execute --help
 
 # 2. Verify workflow file exists and is valid YAML
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # 3. Check file permissions
-ls -la examples/hello-world.yaml
+ls -la workflows/basic/hello-world.yaml
 
 # 4. Validate YAML structure
 # Use online YAML validator or:
-python -c "import yaml; yaml.safe_load(open('examples/hello-world.yaml'))"
+python -c "import yaml; yaml.safe_load(open('workflows/basic/hello-world.yaml'))"
 ```
 
 #### TUI Not Displaying Correctly
@@ -142,7 +142,7 @@ Task Manager  # Windows
 cargo run --release -- workflow execute examples/large-workflow.yaml
 
 # 3. Monitor specific operations
-RUST_LOG=debug cargo run -- workflow execute examples/hello-world.yaml
+RUST_LOG=debug cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # 4. Check for memory leaks
 # Use cargo instruments (macOS) or valgrind (Linux)
@@ -363,10 +363,10 @@ cargo run -- workflow validate examples/hello-world.yaml
 cargo run -- workflow graph examples/hello-world.yaml
 
 # 3. Run with verbose logging
-RUST_LOG=debug cargo run -- workflow execute examples/hello-world.yaml
+RUST_LOG=debug cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # 4. Test with simple workflow first
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 ```
 
 ---
@@ -630,7 +630,7 @@ chmod +x diagnose.sh
 ### Profile Specific Operations
 ```bash
 # Time a specific command
-time cargo run -- workflow execute examples/hello-world.yaml
+time cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # Profile with instruments (macOS)
 cargo build --release
@@ -682,7 +682,7 @@ cargo test
 
 # 4. Basic functionality works
 cargo run -- --help
-cargo run -- workflow execute examples/hello-world.yaml
+cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # 5. No warnings
 cargo clippy -- -D warnings
