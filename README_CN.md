@@ -137,7 +137,7 @@ workflow-toolkit tool execute echo --params '{"message": "Hello World"}'
 ### 用户文档
 - **[README.md](README.md)**: 英文用户文档
 - **[examples/](examples/)**: 工作示例和模板
-- **[examples/templates/](examples/templates/)**: 工作流模板
+- **[workflows/templates/](workflows/templates/)**: 工作流模板
 
 ### 开发文档
 - **[src/AGENTS.md](src/AGENTS.md)**: 核心库指南

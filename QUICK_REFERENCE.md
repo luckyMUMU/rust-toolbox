@@ -94,7 +94,7 @@ cargo test --lib                # 库测试
 
 ### 其他文档
 - **[examples/AGENTS.md](examples/AGENTS.md)** - 示例指南
-- **[examples/templates/AGENTS.md](examples/templates/AGENTS.md)** - 模板指南
+- **[workflows/templates/AGENTS.md](workflows/templates/AGENTS.md)** - 模板指南
 - **[tests/AGENTS.md](tests/AGENTS.md)** - 测试指南
 
 ## 文档质量检查 - Documentation Quality Check

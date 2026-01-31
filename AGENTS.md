@@ -148,7 +148,7 @@ workflow-toolkit/
 ### Existing Files (15)
 1. `./AGENTS.md` (root) - 262 lines ✅
 2. `./examples/AGENTS.md` - 109 lines ✅
-3. `./examples/templates/AGENTS.md` - 114 lines ✅
+3. `./workflows/templates/AGENTS.md` - 114 lines ✅
 4. `./src/AGENTS.md` - 64 lines ✅
 5. `./src/interfaces/AGENTS.md` - 71 lines ✅
 6. `./src/interfaces/cli/AGENTS.md` - 69 lines ✅ (updated)
@@ -178,7 +178,7 @@ workflow-toolkit/
 - `./src/workflow/AGENTS.md` - Updated with subdirectories
 - `./tests/AGENTS.md` - Comprehensive update (105 lines)
 - `./examples/AGENTS.md` - Updated with template details
-- `./examples/templates/AGENTS.md` - Comprehensive update (114 lines)
+- `./workflows/templates/AGENTS.md` - Comprehensive update (114 lines)
 - `./src/interfaces/AGENTS.md` - Updated with cli/widgets details
 - `./src/interfaces/tui/AGENTS.md` - Updated with widgets details
 
@@ -199,7 +199,7 @@ workflow-toolkit/
 | File management | src/plugins/file_management/AGENTS.md | Classification, batch ops |
 | Storage | src/storage/AGENTS.md | Persistence, caching, backup |
 | Testing | tests/AGENTS.md | Integration + property tests |
-| Templates | examples/templates/AGENTS.md | Production workflows |
+| Templates | workflows/templates/AGENTS.md | Production workflows |
 
 ## CODE MAP
 | Symbol | Type | Location | Refs | Role |
@@ -335,7 +335,7 @@ cargo test --lib                # Library tests only
 - Each module has `AGENTS.md`
 - Examples have corresponding `.yaml` templates
 - `docs/INDEX.md` is documentation hub
-- `examples/templates/` has production workflows
+- `workflows/templates/` has production workflows
 - Chinese documentation in `docs-zh/`
 
 ### AGENTS.MD Files
@@ -547,7 +547,7 @@ See module-specific guidance:
 - [src/interfaces/tui/](src/interfaces/tui/AGENTS.md) - Terminal user interface (25 files, 3.2k+ lines)
 - [src/interfaces/tui/widgets/](src/interfaces/tui/widgets/AGENTS.md) - TUI widgets (8 widgets, 3.5k+ lines)
 - [examples/](examples/AGENTS.md) - Comprehensive examples (23 examples)
-- [examples/templates/](examples/templates/AGENTS.md) - Workflow templates (114 lines + docs)
+- [workflows/templates/](workflows/templates/AGENTS.md) - Workflow templates (114 lines + docs)
 - [tests/](tests/AGENTS.md) - Test suite (12 files, 1.7k+ lines in tui tests)
 
 ## ARCHITECTURE DECISIONS
