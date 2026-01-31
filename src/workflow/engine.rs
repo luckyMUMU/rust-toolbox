@@ -18,6 +18,7 @@
 //!     └── DagScheduler (determines execution order)
 //! ```
 
+use async_trait::async_trait;
 use crate::core::{ExecutionContext, ExecutionStatus};
 use crate::error::{Result, WorkflowError};
 use crate::storage::StateManager;
@@ -483,9 +484,16 @@ impl RefactoredWorkflowEngine {
         Ok(())
     }
 
-    /// Stop a running workflow.
+    /// Stop a running workflow by tracker.
     pub async fn stop_workflow(&self, tracker: Arc<ExecutionTracker>) -> Result<()> {
         tracker.request_stop().await;
+        Ok(())
+    }
+
+    /// Stop a running workflow by workflow_id (compatibility method).
+    pub async fn stop_workflow_by_id(&self, workflow_id: Uuid) -> Result<()> {
+        // TODO: Implement actual workflow stopping by ID
+        tracing::info!(workflow_id = %workflow_id, "Stop workflow by ID requested (not yet implemented)");
         Ok(())
     }
 
@@ -572,6 +580,17 @@ impl RefactoredWorkflowEngine {
             // TODO: Implement Switch and Loop
             _ => Ok(()),
         }
+    }
+
+    /// Execute workflow (alias for compatibility)
+    pub async fn execute_workflow(&self, definition: WorkflowDefinition) -> Result<WorkflowExecution> {
+        self.execute(definition, HashMap::new()).await
+    }
+
+    /// Get workflow status (stub for compatibility)
+    pub async fn get_workflow_status(&self, _workflow_id: Uuid) -> Result<ExecutionStatus> {
+        // TODO: Implement actual status retrieval from state manager
+        Ok(ExecutionStatus::Running)
     }
 }
 

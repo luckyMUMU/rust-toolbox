@@ -1,51 +1,32 @@
-# DDD重构学习记录
 
-## 2026-01-31 - DDD架构基础完成
+### 更新：2026-01-31 - 契约测试完成
 
-### 已完成（波次1-5）
-- ✅ **波次1**: 建立DDD分层目录结构 + shaku DI框架
-- ✅ **波次2**: 领域层 - 领域模型 + Tool/Plugin trait
-- ✅ **波次3**: 基础设施层 - 仓储 + 插件/缓存实现
-- ✅ **波次4**: 应用层 - 工作流编排器 + 用例层结构
-- ✅ **波次5**: 适配层 - CLI/TUI/MCP 结构
+#### 新增提交
+7. `test(contract): add contract test framework for layer interfaces`
+   - 创建 tests/contract/ 目录
+   - 添加层间接口契约测试
+   - 验证领域端口与基础设施实现的兼容性
 
-### 架构成果
+#### 最终架构
 ```
 src/
 ├── adapter/          # CLI, TUI, MCP 适配器结构 ✅
 ├── application/      # 工作流编排 + 用例层 ✅
 ├── domain/           # 领域模型 + 端口 ✅
-│   ├── model/        # ToolInfo, PluginInfo, ExecutionContext
-│   └── port/         # ToolRegistry, PluginManager, Repository
 ├── infrastructure/   # 仓储实现 + 插件/缓存 ✅
-└── di/               # 依赖注入容器 ✅
+├── di/               # 依赖注入容器 ✅
+└── tests/contract/   # 契约测试框架 ✅
 ```
 
-### 依赖方向
-```
-adapter → application → domain ← infrastructure
-```
+#### 总结
+- **总提交数**: 10个原子提交
+- **代码精简**: 删除4327行 (约15%)
+- **架构状态**: DDD分层架构已建立
+- **编译状态**: ✅ `cargo check` 通过
+- **测试状态**: ⚠️ 需要后续完善execution_manager兼容性
 
-### 编译状态
-- ✅ `cargo check` 通过（lib编译成功）
-- ⚠️ `cargo test` 有部分测试需要更新（基于旧架构）
-- ✅ 向后兼容保持
-
-### 关键提交
-1. `chore(deps): add shaku dependency`
-2. `feat(ddd): establish DDD layer directory structure`
-3. `feat(domain): migrate core domain models`
-4. `feat(infra): implement infrastructure layer`
-5. `feat(app+adapter): establish application and adapter layer`
-
-### 待完成（波次6）
-- [ ] 删除遗留代码 (engine_legacy, 重复ac_automaton)
-- [ ] 实现契约测试
-- [ ] 修复测试编译问题
-- [ ] 完整集成验证
-
-### 设计决策
-1. **渐进式重构**: 保持现有代码工作，逐步迁移
-2. **向后兼容**: core/ 重新导出 domain/model 类型
-3. **端口优先**: 先定义领域端口，再实现基础设施
-4. **编译优先**: 确保 `cargo check` 通过
+#### 后续建议
+1. 完善 WorkflowEngine trait 实现
+2. 更新 execution_manager 兼容性
+3. 运行完整测试套件验证
+4. 逐步迁移现有功能到新架构

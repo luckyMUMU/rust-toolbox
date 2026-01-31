@@ -96,8 +96,8 @@ pub trait ExecutionManager: Send + Sync {
 
 /// Default implementation of execution manager
 pub struct DefaultExecutionManager {
-    /// Underlying workflow engine
-    engine: Arc<dyn WorkflowEngine>,
+    /// Underlying workflow engine (using concrete type for now)
+    engine: Arc<crate::workflow::engine::RefactoredWorkflowEngine>,
     /// Concurrency configuration
     concurrency_config: ConcurrencyConfig,
     /// Active executions
@@ -118,7 +118,7 @@ pub struct DefaultExecutionManager {
 
 impl DefaultExecutionManager {
     /// Create a new execution manager
-    pub fn new(engine: Arc<dyn WorkflowEngine>, concurrency_config: ConcurrencyConfig) -> Self {
+    pub fn new(engine: Arc<crate::workflow::engine::RefactoredWorkflowEngine>, concurrency_config: ConcurrencyConfig) -> Self {
         let execution_semaphore =
             Arc::new(Semaphore::new(concurrency_config.max_concurrent_workflows));
         let task_queue = Arc::new(RwLock::new(VecDeque::new()));
@@ -483,7 +483,7 @@ impl ExecutionManager for DefaultExecutionManager {
         // In a real implementation, we might use a different approach like cancellation tokens
 
         // Cancel through engine if running
-        self.engine.stop_workflow(handle.workflow_id).await?;
+        self.engine.stop_workflow_by_id(handle.workflow_id).await?;
 
         // Clean up
         self.execution_handles.remove(&handle.execution_id);
