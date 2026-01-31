@@ -75,9 +75,14 @@
 //! A multi-interface workflow execution system built with Rust.
 //! Supports CLI, TUI, and MCP server interfaces for workflow management.
 
+pub mod adapter;
+pub mod application;
 pub mod config;
 pub mod core;
+pub mod di;
+pub mod domain;
 pub mod error;
+pub mod infrastructure;
 pub mod interfaces;
 pub mod performance;
 pub mod plugins;
