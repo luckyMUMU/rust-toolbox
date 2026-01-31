@@ -1,224 +1,224 @@
-# File Management Tools Documentation Index
+# 文件管理工具文档索引
 
-> **[← Back to Main Documentation](../../INDEX.md)**
+> **[← 返回主文档](../../INDEX.md)**
 
-This index provides a comprehensive overview of all documentation for the File Management Tools plugin, helping you find the right information for your needs.
+本索引提供文件管理工具插件所有文档的全面概述，帮助您找到所需的信息。
 
-## 📚 Documentation Overview
+## 📚 文档概述
 
-The File Management Tools documentation is organized into several comprehensive guides, each focusing on specific aspects of the system:
+文件管理工具文档分为几个综合指南，每个指南都专注于系统的特定方面：
 
-| Document | Purpose | Audience |
+| 文档 | 目的 | 受众 |
 |----------|---------|----------|
-| **[User Guide](FILE_MANAGEMENT_TOOLS_GUIDE.md)** | Complete user guide with quick start and examples | End users, administrators |
-| **[API Reference](FILE_MANAGEMENT_API_REFERENCE.md)** | Detailed API documentation for all tools | Developers, integrators |
-| **[Workflow Templates](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)** | Comprehensive template documentation | Workflow designers, power users |
-| **[Human Decision Guide](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md)** | Best practices for human-in-the-loop workflows | UX designers, workflow architects |
+| **[用户指南](FILE_MANAGEMENT_TOOLS_GUIDE.md)** | 包含快速入门和示例的完整用户指南 | 最终用户、管理员 |
+| **[API参考](FILE_MANAGEMENT_API_REFERENCE.md)** | 所有工具的详细API文档 | 开发者、集成者 |
+| **[工作流模板](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)** | 全面的模板文档 | 工作流设计师、高级用户 |
+| **[人工决策指南](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md)** | 人机协作工作流的最佳实践 | UX设计师、工作流架构师 |
 
-## 🚀 Quick Start Paths
+## 🚀 快速开始路径
 
-### For New Users
-1. Start with **[User Guide - Quick Start](FILE_MANAGEMENT_TOOLS_GUIDE.md#quick-start)**
-2. Try the **[Basic Usage Examples](FILE_MANAGEMENT_TOOLS_GUIDE.md#usage-examples)**
-3. Explore **[Workflow Templates](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#template-overview)**
+### 对于新用户
+1. 从 **[用户指南 - 快速开始](FILE_MANAGEMENT_TOOLS_GUIDE.md#quick-start)** 开始
+2. 尝试 **[基本使用示例](FILE_MANAGEMENT_TOOLS_GUIDE.md#usage-examples)**
+3. 探索 **[工作流模板](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#template-overview)**
 
-### For Developers
-1. Review **[API Reference - Core Tools](FILE_MANAGEMENT_API_REFERENCE.md#core-tools-api)**
-2. Study **[Integration Examples](FILE_MANAGEMENT_API_REFERENCE.md#integration-examples)**
-3. Implement **[Custom Tool Development](FILE_MANAGEMENT_API_REFERENCE.md#custom-tool-development)**
+### 对于开发者
+1. 查看 **[API参考 - 核心工具](FILE_MANAGEMENT_API_REFERENCE.md#core-tools-api)**
+2. 学习 **[集成示例](FILE_MANAGEMENT_API_REFERENCE.md#integration-examples)**
+3. 实现 **[自定义工具开发](FILE_MANAGEMENT_API_REFERENCE.md#custom-tool-development)**
 
-### For Workflow Designers
-1. Understand **[Template Architecture](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#template-overview)**
-2. Learn **[Configuration Options](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#configuration-reference)**
-3. Master **[Advanced Patterns](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#advanced-patterns)**
+### 对于工作流设计师
+1. 了解 **[模板架构](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#template-overview)**
+2. 学习 **[配置选项](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#configuration-reference)**
+3. 掌握 **[高级模式](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#advanced-patterns)**
 
-### For UX/Process Designers
-1. Study **[Decision Point Design](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#decision-point-design)**
-2. Apply **[User Experience Optimization](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#user-experience-optimization)**
-3. Implement **[Best Practices](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#best-practices)**
+### 对于UX/流程设计师
+1. 学习 **[决策点设计](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#decision-point-design)**
+2. 应用 **[用户体验优化](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#user-experience-optimization)**
+3. 实现 **[最佳实践](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#best-practices)**
 
-## 📖 Document Details
+## 📖 文档详情
 
-### [File Management Tools User Guide](FILE_MANAGEMENT_TOOLS_GUIDE.md)
+### [文件管理工具用户指南](FILE_MANAGEMENT_TOOLS_GUIDE.md)
 
-**Comprehensive user guide covering all aspects of the File Management Tools**
+**涵盖文件管理工具所有方面的综合用户指南**
 
-**Contents:**
-- **Overview**: System architecture and key features
-- **Quick Start**: Installation and basic usage examples
-- **Tool Reference**: Detailed documentation for all tools
-- **Workflow Templates**: Pre-built templates for common scenarios
-- **Configuration Guide**: Complete configuration options
-- **Human Decision Integration**: Interactive decision-making features
-- **Best Practices**: Recommended usage patterns
-- **Troubleshooting**: Common issues and solutions
-- **Advanced Usage**: Complex scenarios and customization
+**内容：**
+- **概述**：系统架构和关键特性
+- **快速开始**：安装和基本使用示例
+- **工具参考**：所有工具的详细文档
+- **工作流模板**：常见场景的预构建模板
+- **配置指南**：完整的配置选项
+- **人工决策集成**：交互式决策功能
+- **最佳实践**：推荐的使用模式
+- **故障排除**：常见问题和解决方案
+- **高级用法**：复杂场景和自定义
 
-**Key Sections:**
-- 🎯 [Quick Start Examples](FILE_MANAGEMENT_TOOLS_GUIDE.md#quick-start)
-- 🔧 [Tool Reference](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference)
-- ⚙️ [Configuration Guide](FILE_MANAGEMENT_TOOLS_GUIDE.md#configuration-guide)
-- 🤝 [Human Decision Integration](FILE_MANAGEMENT_TOOLS_GUIDE.md#human-decision-integration)
+**关键章节：**
+- 🎯 [快速开始示例](FILE_MANAGEMENT_TOOLS_GUIDE.md#quick-start)
+- 🔧 [工具参考](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference)
+- ⚙️ [配置指南](FILE_MANAGEMENT_TOOLS_GUIDE.md#configuration-guide)
+- 🤝 [人工决策集成](FILE_MANAGEMENT_TOOLS_GUIDE.md#human-decision-integration)
 
-### [File Management API Reference](FILE_MANAGEMENT_API_REFERENCE.md)
+### [文件管理API参考](FILE_MANAGEMENT_API_REFERENCE.md)
 
-**Complete API documentation for developers and integrators**
+**面向开发者和集成者的完整API文档**
 
-**Contents:**
-- **Plugin Architecture**: Core plugin structure and initialization
-- **Core Tools API**: Detailed API for all primary tools
-- **Utility Tools API**: Supporting tools and utilities
-- **Data Structures**: Complete data model documentation
-- **Error Handling**: Comprehensive error management
-- **Integration Examples**: Real-world integration patterns
-- **Performance Considerations**: Optimization guidelines
+**内容：**
+- **插件架构**：核心插件结构和初始化
+- **核心工具API**：所有主要工具的详细API
+- **实用工具API**：支持工具和实用程序
+- **数据结构**：完整的数据模型文档
+- **错误处理**：全面的错误管理
+- **集成示例**：真实世界的集成模式
+- **性能考虑**：优化指南
 
-**Key Sections:**
-- 🏗️ [Plugin Architecture](FILE_MANAGEMENT_API_REFERENCE.md#plugin-architecture)
-- 🛠️ [Core Tools API](FILE_MANAGEMENT_API_REFERENCE.md#core-tools-api)
-- 📊 [Data Structures](FILE_MANAGEMENT_API_REFERENCE.md#data-structures)
-- 🔗 [Integration Examples](FILE_MANAGEMENT_API_REFERENCE.md#integration-examples)
+**关键章节：**
+- 🏗️ [插件架构](FILE_MANAGEMENT_API_REFERENCE.md#plugin-architecture)
+- 🛠️ [核心工具API](FILE_MANAGEMENT_API_REFERENCE.md#core-tools-api)
+- 📊 [数据结构](FILE_MANAGEMENT_API_REFERENCE.md#data-structures)
+- 🔗 [集成示例](FILE_MANAGEMENT_API_REFERENCE.md#integration-examples)
 
-### [Workflow Templates Guide](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)
+### [工作流模板指南](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)
 
-**Comprehensive documentation for workflow templates and patterns**
+**工作流模板和模式的综合文档**
 
-**Contents:**
-- **Template Overview**: Architecture and common features
-- **Interactive Classification Workflow**: Intelligent folder organization
-- **Interactive Merge Workflow**: Duplicate folder consolidation
-- **Interactive Batch Processing Workflow**: Generic batch operations
-- **Configuration Reference**: Complete parameter documentation
-- **Usage Examples**: Real-world scenarios and configurations
-- **Advanced Patterns**: Complex workflow compositions
-- **Troubleshooting**: Template-specific issues and solutions
+**内容：**
+- **模板概述**：架构和通用特性
+- **交互式分类工作流**：智能文件夹组织
+- **交互式合并工作流**：重复文件夹合并
+- **交互式批处理工作流**：通用批处理操作
+- **配置参考**：完整参数文档
+- **使用示例**：真实场景和配置
+- **高级模式**：复杂工作流组合
+- **故障排除**：模板特定问题和解决方案
 
-**Key Sections:**
-- 📋 [Template Overview](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#template-overview)
-- 🗂️ [Classification Workflow](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-classification-workflow)
-- 🔄 [Merge Workflow](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-merge-workflow)
-- ⚡ [Batch Processing Workflow](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-batch-processing-workflow)
+**关键章节：**
+- 📋 [模板概述](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#template-overview)
+- 🗂️ [分类工作流](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-classification-workflow)
+- 🔄 [合并工作流](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-merge-workflow)
+- ⚡ [批处理工作流](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-batch-processing-workflow)
 
-### [Human Decision Integration Guide](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md)
+### [人工决策集成指南](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md)
 
-**Best practices for human-in-the-loop workflow design**
+**人机协作工作流设计的最佳实践**
 
-**Contents:**
-- **Overview**: Principles and benefits of human decision integration
-- **Decision Point Design**: When and how to include human decisions
-- **User Experience Optimization**: Creating intuitive decision interfaces
-- **Decision Context and Information**: Providing rich context for decisions
-- **Batch Decision Strategies**: Efficient handling of multiple decisions
-- **Timeout and Escalation Management**: Handling decision delays
-- **Learning and Adaptation**: Improving automation through human feedback
-- **Implementation Patterns**: Common integration patterns
-- **Best Practices**: Proven approaches and guidelines
-- **Troubleshooting**: Decision-specific issues and solutions
+**内容：**
+- **概述**：人工决策集成的原理和优势
+- **决策点设计**：何时以及如何包含人工决策
+- **用户体验优化**：创建直观的决策界面
+- **决策上下文和信息**：为决策提供丰富的上下文
+- **批量决策策略**：高效处理多个决策
+- **超时和升级管理**：处理决策延迟
+- **学习和适应**：通过人工反馈改进自动化
+- **实现模式**：常见集成模式
+- **最佳实践**：经过验证的方法和指南
+- **故障排除**：决策特定问题和解决方案
 
-**Key Sections:**
-- 🎯 [Decision Point Design](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#decision-point-design)
-- 👤 [User Experience Optimization](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#user-experience-optimization)
-- 📊 [Batch Decision Strategies](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#batch-decision-strategies)
-- 🧠 [Learning and Adaptation](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#learning-and-adaptation)
+**关键章节：**
+- 🎯 [决策点设计](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#decision-point-design)
+- 👤 [用户体验优化](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#user-experience-optimization)
+- 📊 [批量决策策略](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#batch-decision-strategies)
+- 🧠 [学习和适应](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#learning-and-adaptation)
 
-## 🎯 Use Case Navigation
+## 🎯 用例导航
 
-### Personal File Organization
-- **Start Here**: [User Guide - Quick Start](FILE_MANAGEMENT_TOOLS_GUIDE.md#quick-start)
-- **Templates**: [Interactive Classification Workflow](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-classification-workflow)
-- **Examples**: [Personal Desktop Cleanup](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-1-personal-desktop-cleanup)
+### 个人文件组织
+- **从这里开始**：[用户指南 - 快速开始](FILE_MANAGEMENT_TOOLS_GUIDE.md#quick-start)
+- **模板**：[交互式分类工作流](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-classification-workflow)
+- **示例**：[个人桌面清理](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-1-personal-desktop-cleanup)
 
-### Enterprise Document Management
-- **Start Here**: [User Guide - Advanced Usage](FILE_MANAGEMENT_TOOLS_GUIDE.md#advanced-usage)
-- **Templates**: [All Workflow Templates](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)
-- **Examples**: [Enterprise Document Management](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-2-enterprise-document-management)
+### 企业文档管理
+- **从这里开始**：[用户指南 - 高级用法](FILE_MANAGEMENT_TOOLS_GUIDE.md#advanced-usage)
+- **模板**：[所有工作流模板](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md)
+- **示例**：[企业文档管理](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-2-enterprise-document-management)
 
-### Development Project Organization
-- **Start Here**: [User Guide - Tool Reference](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference)
-- **Templates**: [Batch Processing Workflow](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-batch-processing-workflow)
-- **Examples**: [Development Project Cleanup](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-4-development-project-cleanup)
+### 开发项目组织
+- **从这里开始**：[用户指南 - 工具参考](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference)
+- **模板**：[批处理工作流](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-batch-processing-workflow)
+- **示例**：[开发项目清理](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-4-development-project-cleanup)
 
-### Media Library Management
-- **Start Here**: [User Guide - Configuration Guide](FILE_MANAGEMENT_TOOLS_GUIDE.md#configuration-guide)
-- **Templates**: [Custom Batch Operations](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#custom-batch-operations-with-filtering)
-- **Examples**: [Media Library Organization](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-3-media-library-organization)
+### 媒体库管理
+- **从这里开始**：[用户指南 - 配置指南](FILE_MANAGEMENT_TOOLS_GUIDE.md#configuration-guide)
+- **模板**：[自定义批处理操作](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#custom-batch-operations-with-filtering)
+- **示例**：[媒体库组织](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#example-3-media-library-organization)
 
-### Custom Tool Development
-- **Start Here**: [API Reference - Plugin Architecture](FILE_MANAGEMENT_API_REFERENCE.md#plugin-architecture)
-- **Development**: [Custom Tool Development](FILE_MANAGEMENT_API_REFERENCE.md#custom-tool-development)
-- **Integration**: [Integration Examples](FILE_MANAGEMENT_API_REFERENCE.md#integration-examples)
+### 自定义工具开发
+- **从这里开始**：[API参考 - 插件架构](FILE_MANAGEMENT_API_REFERENCE.md#plugin-architecture)
+- **开发**：[自定义工具开发](FILE_MANAGEMENT_API_REFERENCE.md#custom-tool-development)
+- **集成**：[集成示例](FILE_MANAGEMENT_API_REFERENCE.md#integration-examples)
 
-### Human-Centric Workflows
-- **Start Here**: [Human Decision Guide - Overview](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#overview)
-- **Design**: [Decision Point Design](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#decision-point-design)
-- **UX**: [User Experience Optimization](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#user-experience-optimization)
+### 以人为中心的工作流
+- **从这里开始**：[人工决策指南 - 概述](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#overview)
+- **设计**：[决策点设计](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#decision-point-design)
+- **UX**：[用户体验优化](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#user-experience-optimization)
 
-## 🔍 Feature Navigation
+## 🔍 功能导航
 
-### Core Features
+### 核心功能
 
-| Feature | Primary Documentation | Additional Resources |
+| 功能 | 主要文档 | 其他资源 |
 |---------|----------------------|---------------------|
-| **Folder Classification** | [User Guide - Tool Reference](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference) | [API Reference - Folder Classifier](FILE_MANAGEMENT_API_REFERENCE.md#1-folder-classifier-tool) |
-| **File Operations** | [User Guide - Tool Reference](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference) | [API Reference - File Mover](FILE_MANAGEMENT_API_REFERENCE.md#2-file-mover-tool) |
-| **Folder Merging** | [Templates - Merge Workflow](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-merge-workflow) | [API Reference - Folder Merger](FILE_MANAGEMENT_API_REFERENCE.md#3-folder-merger-tool) |
-| **Batch Processing** | [Templates - Batch Processing](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-batch-processing-workflow) | [API Reference - Batch Processor](FILE_MANAGEMENT_API_REFERENCE.md#4-batch-processor-tool) |
-| **Human Decisions** | [Human Decision Guide](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md) | [API Reference - Human Decision](FILE_MANAGEMENT_API_REFERENCE.md#5-human-decision-tool) |
+| **文件夹分类** | [用户指南 - 工具参考](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference) | [API参考 - 文件夹分类器](FILE_MANAGEMENT_API_REFERENCE.md#1-folder-classifier-tool) |
+| **文件操作** | [用户指南 - 工具参考](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference) | [API参考 - 文件移动器](FILE_MANAGEMENT_API_REFERENCE.md#2-file-mover-tool) |
+| **文件夹合并** | [模板 - 合并工作流](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-merge-workflow) | [API参考 - 文件夹合并器](FILE_MANAGEMENT_API_REFERENCE.md#3-folder-merger-tool) |
+| **批处理** | [模板 - 批处理](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#interactive-batch-processing-workflow) | [API参考 - 批处理器](FILE_MANAGEMENT_API_REFERENCE.md#4-batch-processor-tool) |
+| **人工决策** | [人工决策指南](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md) | [API参考 - 人工决策](FILE_MANAGEMENT_API_REFERENCE.md#5-human-decision-tool) |
 
-### Advanced Features
+### 高级功能
 
-| Feature | Primary Documentation | Additional Resources |
+| 功能 | 主要文档 | 其他资源 |
 |---------|----------------------|---------------------|
-| **Chinese Text Processing** | [User Guide - Configuration](FILE_MANAGEMENT_TOOLS_GUIDE.md#chinese-text-processing) | [API Reference - Text Processor](FILE_MANAGEMENT_API_REFERENCE.md#6-text-processor-tool) |
-| **Pattern Matching** | [User Guide - Tool Reference](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference) | [API Reference - AC Matcher](FILE_MANAGEMENT_API_REFERENCE.md#7-ac-matcher-tool) |
-| **Experimental Mode** | [User Guide - Best Practices](FILE_MANAGEMENT_TOOLS_GUIDE.md#best-practices) | [Templates - Usage Examples](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#usage-examples) |
-| **Error Recovery** | [User Guide - Troubleshooting](FILE_MANAGEMENT_TOOLS_GUIDE.md#troubleshooting) | [API Reference - Error Handling](FILE_MANAGEMENT_API_REFERENCE.md#error-handling) |
-| **Performance Optimization** | [User Guide - Best Practices](FILE_MANAGEMENT_TOOLS_GUIDE.md#best-practices) | [API Reference - Performance](FILE_MANAGEMENT_API_REFERENCE.md#performance-considerations) |
+| **中文文本处理** | [用户指南 - 配置](FILE_MANAGEMENT_TOOLS_GUIDE.md#chinese-text-processing) | [API参考 - 文本处理器](FILE_MANAGEMENT_API_REFERENCE.md#6-text-processor-tool) |
+| **模式匹配** | [用户指南 - 工具参考](FILE_MANAGEMENT_TOOLS_GUIDE.md#tool-reference) | [API参考 - AC匹配器](FILE_MANAGEMENT_API_REFERENCE.md#7-ac-matcher-tool) |
+| **实验模式** | [用户指南 - 最佳实践](FILE_MANAGEMENT_TOOLS_GUIDE.md#best-practices) | [模板 - 使用示例](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#usage-examples) |
+| **错误恢复** | [用户指南 - 故障排除](FILE_MANAGEMENT_TOOLS_GUIDE.md#troubleshooting) | [API参考 - 错误处理](FILE_MANAGEMENT_API_REFERENCE.md#error-handling) |
+| **性能优化** | [用户指南 - 最佳实践](FILE_MANAGEMENT_TOOLS_GUIDE.md#best-practices) | [API参考 - 性能](FILE_MANAGEMENT_API_REFERENCE.md#performance-considerations) |
 
-## 🛠️ Configuration Navigation
+## 🛠️ 配置导航
 
-### Basic Configuration
-- **Classification Rules**: [User Guide - Configuration](FILE_MANAGEMENT_TOOLS_GUIDE.md#classification-rules-format)
-- **Performance Settings**: [Templates - Configuration Reference](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#performance-configuration)
-- **Security Settings**: [Templates - Configuration Reference](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#security-configuration)
+### 基本配置
+- **分类规则**：[用户指南 - 配置](FILE_MANAGEMENT_TOOLS_GUIDE.md#classification-rules-format)
+- **性能设置**：[模板 - 配置参考](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#performance-configuration)
+- **安全设置**：[模板 - 配置参考](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#security-configuration)
 
-### Advanced Configuration
-- **Human Decision Settings**: [Human Decision Guide - Timeout Management](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#timeout-and-escalation-management)
-- **Learning Configuration**: [Human Decision Guide - Learning and Adaptation](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#learning-and-adaptation)
-- **Enterprise Settings**: [Templates - Enterprise Configuration](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#enterprise-features)
+### 高级配置
+- **人工决策设置**：[人工决策指南 - 超时管理](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#timeout-and-escalation-management)
+- **学习配置**：[人工决策指南 - 学习和适应](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#learning-and-adaptation)
+- **企业设置**：[模板 - 企业配置](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#enterprise-features)
 
-## 🐛 Troubleshooting Navigation
+## 🐛 故障排除导航
 
-### Common Issues
-- **Classification Problems**: [User Guide - Troubleshooting](FILE_MANAGEMENT_TOOLS_GUIDE.md#troubleshooting)
-- **Performance Issues**: [Templates - Troubleshooting](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#troubleshooting)
-- **Decision Timeouts**: [Human Decision Guide - Troubleshooting](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#troubleshooting)
+### 常见问题
+- **分类问题**：[用户指南 - 故障排除](FILE_MANAGEMENT_TOOLS_GUIDE.md#troubleshooting)
+- **性能问题**：[模板 - 故障排除](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#troubleshooting)
+- **决策超时**：[人工决策指南 - 故障排除](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#troubleshooting)
 
-### Debug and Monitoring
-- **Debug Mode**: [User Guide - Debug Mode](FILE_MANAGEMENT_TOOLS_GUIDE.md#debug-mode)
-- **Performance Profiling**: [Templates - Performance Monitoring](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#performance-monitoring)
-- **Decision Analytics**: [Human Decision Guide - Debug and Monitoring](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#debug-and-monitoring)
+### 调试和监控
+- **调试模式**：[用户指南 - 调试模式](FILE_MANAGEMENT_TOOLS_GUIDE.md#debug-mode)
+- **性能分析**：[模板 - 性能监控](FILE_MANAGEMENT_WORKFLOW_TEMPLATES.md#performance-monitoring)
+- **决策分析**：[人工决策指南 - 调试和监控](FILE_MANAGEMENT_HUMAN_DECISION_GUIDE.md#debug-and-monitoring)
 
-## 📝 Additional Resources
+## 📝 其他资源
 
-### Example Files
-- **Classification Rules**: `examples/templates/classification-rules-*.json`
-- **Workflow Templates**: `examples/templates/interactive-*-workflow.yaml`
-- **Configuration Examples**: `examples/templates/*-config-examples.yaml`
-- **Usage Examples**: `examples/templates/*-example.rs`
+### 示例文件
+- **分类规则**：`examples/templates/classification-rules-*.json`
+- **工作流模板**：`examples/templates/interactive-*-workflow.yaml`
+- **配置示例**：`examples/templates/*-config-examples.yaml`
+- **使用示例**：`examples/templates/*-example.rs`
 
-### Community Resources
-- **GitHub Repository**: Source code and issue tracking
-- **Community Forum**: Questions and discussions
-- **Wiki**: Community-contributed documentation
-- **Examples Repository**: Community examples and patterns
+### 社区资源
+- **GitHub仓库**：源代码和问题跟踪
+- **社区论坛**：问答和讨论
+- **Wiki**：社区贡献的文档
+- **示例仓库**：社区示例和模式
 
-### Professional Support
-- **Enterprise Documentation**: Advanced enterprise features
-- **Training Materials**: Workshops and certification programs
-- **Consulting Services**: Custom implementation guidance
-- **Professional Support**: Enterprise support options
+### 专业支持
+- **企业文档**：高级企业功能
+- **培训材料**：研讨会和认证项目
+- **咨询服务**：自定义实施指导
+- **专业支持**：企业支持选项
 
 ---
 
-*This documentation index is continuously updated. For the latest information and additional resources, please refer to the individual documents and community resources.*
+*本文档索引持续更新。如需最新信息和额外资源，请参阅各个文档和社区资源。*
