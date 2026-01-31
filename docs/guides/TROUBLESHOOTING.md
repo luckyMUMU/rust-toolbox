@@ -357,10 +357,10 @@ cargo run -- plugin list
 **Solutions:**
 ```bash
 # 1. Validate workflow YAML
-cargo run -- workflow validate examples/hello-world.yaml
+cargo run -- workflow validate workflows/basic/hello-world.yaml
 
 # 2. Check workflow dependencies
-cargo run -- workflow graph examples/hello-world.yaml
+cargo run -- workflow graph workflows/basic/hello-world.yaml
 
 # 3. Run with verbose logging
 RUST_LOG=debug cargo run -- workflow execute workflows/basic/hello-world.yaml
@@ -634,11 +634,11 @@ time cargo run -- workflow execute workflows/basic/hello-world.yaml
 
 # Profile with instruments (macOS)
 cargo build --release
-instruments -t "Time Profiler" ./target/release/rust-tool-v2 workflow execute examples/hello-world.yaml
+instruments -t "Time Profiler" ./target/release/rust-tool-v2 workflow execute workflows/basic/hello-world.yaml
 
 # Profile with perf (Linux)
 cargo build --release
-perf record ./target/release/rust-tool-v2 workflow execute examples/hello-world.yaml
+perf record ./target/release/rust-tool-v2 workflow execute workflows/basic/hello-world.yaml
 perf report
 ```
 
