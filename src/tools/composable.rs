@@ -1,65 +1,24 @@
 //! Composable Tool System for Workflow Toolkit
 //!
-//! This module provides a framework for building complex tools by composing
-//! atomic components. It supports tool chaining, conditional execution,
-//! and parallel processing.
+//! NOTE: This module is being refactored as part of the radical optimization.
+//! The old trait-based system is being replaced with an enum-based system.
 //!
-//! # Example
-//!
-//! ```rust
-//! use workflow_toolkit::tools::composable::{
-//!     ToolComposer, ToolChain, ConditionalTool, ParallelTools
-//! };
-//!
-//! // Create a tool chain
-//! let chain = ToolChain::new()
-//!     .add_step("scan", scan_tool)
-//!     .add_step("classify", classify_tool)
-//!     .add_step("process", process_tool);
-//!
-//! // Create a conditional tool
-//! let conditional = ConditionalTool::new()
-//!     .condition("${score} > 0.8")
-//!     .then_branch(high_confidence_tool)
-//!     .else_branch(low_confidence_tool);
-//!
-//! // Compose into a complex tool
-//! let composer = ToolComposer::new()
-//!     .register("file_pipeline", Box::new(chain))
-//!     .register("smart_processor", Box::new(conditional));
-//! ```
+//! ComposableTool trait - REMOVED (will be replaced with ComposedTool enum variant)
 
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
-use crate::tools::ToolNode;
 use crate::workflow::el::{ExpressionContext, ExpressionEngine};
-use async_trait::async_trait;
-use chrono::Utc;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
 
-/// Trait for composable tools that can be combined into complex workflows
-#[async_trait]
-pub trait ComposableTool: Send + Sync {
-    /// Execute the tool with given parameters
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value>;
-
-    /// Get tool name
-    fn name(&self) -> &str;
-
-    /// Get tool description
-    fn description(&self) -> String;
-
-    /// Validate parameters
-    fn validate_params(&self, _params: &Value) -> Result<()> {
-        // Default implementation accepts any params
-        Ok(())
-    }
-}
+// TODO: Remove old composable system and replace with new enum-based composition
+// ComposableTool trait - REMOVED
 
 /// Tool chain for sequential execution
+/// 
+/// NOTE: This will be replaced with composition logic in the Tool enum
 pub struct ToolChain {
     name: String,
     description: String,

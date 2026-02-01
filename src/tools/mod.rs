@@ -1,48 +1,17 @@
 //! # Tool System
 //!
-//! The tool system provides a flexible framework for defining, registering, and executing
-//! tools within the workflow engine. Tools are the executable units that perform actual work.
+//! NOTE: This module is undergoing radical refactoring. The old trait-based system
+//! is being replaced with an enum-based system for better performance and type safety.
 //!
-//! ## Key Components
+//! ## Migration Status
 //!
-//! - **ToolNode**: The core trait representing an executable tool.
-//! - **ToolRegistry**: Manages tool registration, retrieval, and dependency resolution.
-//! - **BasicTool**: A concrete implementation of `ToolNode` supporting async execution.
-//! - **TemplateEngine**: Handles parameter substitution and dynamic values.
-//! - **Version**: SemVer-compatible versioning for tools.
-//!
-//! ## Example
-//!
-//! ```rust
-//! use std::sync::Arc;
-//! use serde_json::{json, Value};
-//! use rust_tool_v2::tools::{BasicTool, BasicToolRegistry, ToolRegistry, AsyncFunctionExecutor};
-//! use rust_tool_v2::core::{ExecutionContext, WorkflowId};
-//!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! // 1. Create a registry
-//! let mut registry = BasicToolRegistry::default();
-//!
-//! // 2. Define a simple tool
-//! let echo_tool = BasicTool::builder()
-//!     .name("echo")
-//!     .version("1.0.0")
-//!     .description("Echoes the input")
-//!     .executor(Arc::new(AsyncFunctionExecutor::new(|params, _| Box::pin(async move {
-//!         Ok(params)
-//!     }))))
-//!     .build()?;
-//!
-//! // 3. Register the tool
-//! registry.register_tool(Arc::new(echo_tool))?;
-//!
-//! // 4. Execute the tool
-//! let context = ExecutionContext::new(WorkflowId::new(), "test-node");
-//! let result = registry.execute_tool("echo", json!({ "message": "hello" }), context).await?;
-//! println!("Result: {:?}", result);
-//! # Ok(())
-//! # }
-//! ```
+//! - [x] ToolRegistry trait - REMOVED
+//! - [x] ToolNode trait - REMOVED
+//! - [x] ToolExecutor trait - REMOVED
+//! - [x] ComposableTool trait - REMOVED
+//! - [ ] Tool enum - TODO (Task 1.2)
+//! - [ ] New registry implementation - TODO (Task 1.3)
+//! - [ ] Typed tool system - TODO (Task 3)
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
@@ -53,14 +22,18 @@ pub mod registry;
 pub mod template;
 pub mod version;
 
+// TODO: Remove old exports after migration
+// These exports are temporarily kept for dependent modules
+// Will be replaced with new enum-based exports
+
 pub use composable::{
-    ComposableTool, ComposableToolAdapter, ConditionalTool, ParallelTools, ToolChain,
+    ComposableToolAdapter, ConditionalTool, ParallelTools, ToolChain,
     ToolComposer, ToolCompositionBuilder,
 };
 pub use node::{
-    AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor, ToolExecutor, ToolNode,
+    AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor,
 };
-pub use registry::{BasicToolRegistry, ToolRegistry, ToolRegistryBuilder};
+pub use registry::{BasicToolRegistry, ToolRegistryBuilder};
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use version::{
     DependencyResolver, ResolutionResult, ToolDependency, ToolVersion, Version, VersionConflict,

@@ -1,73 +1,21 @@
-//! Tool node definitions and traits.
+//! Tool node definitions.
+//! 
+//! NOTE: This module is being refactored as part of the radical optimization.
+//! The old trait-based system is being replaced with an enum-based system.
 
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::Result;
 use crate::tools::TemplateContext;
-use async_trait::async_trait;
 use serde_json::Value;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
-/// Trait for tool nodes that can be executed in a workflow.
-#[async_trait]
-pub trait ToolNode: Send + Sync {
-    /// Get the name of the tool
-    fn name(&self) -> &str;
-
-    /// Get the version of the tool
-    fn version(&self) -> &str;
-    
-    /// Get the description of the tool
-    fn description(&self) -> String {
-        self.get_info().description
-    }
-    
-    /// Get the tool definition (schema info)
-    fn definition(&self) -> ToolInfo {
-        self.get_info()
-    }
-
-    /// Validate parameters for this tool
-    fn validate_parameters(&self, params: &Value) -> Result<()>;
-
-    /// Execute the tool with given parameters and context
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value>;
-
-    /// Get tool information
-    fn get_info(&self) -> ToolInfo;
-
-    /// Get plugin information if this tool belongs to a plugin
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        None
-    }
-
-    /// Expand parameters using templates (optional implementation)
-    fn get_parameter_templates(&self) -> Vec<crate::tools::ParameterTemplate> {
-        Vec::new()
-    }
-
-    /// Expand parameters using templates
-    fn expand_parameters(&self, params: Value, _context: &TemplateContext) -> Result<Value> {
-        // Default implementation returns params as is
-        // Real implementation should use TemplateEngine
-        Ok(params)
-    }
-}
-
-/// Tool executor trait for decoupling execution logic
-#[async_trait]
-pub trait ToolExecutor: Send + Sync {
-    /// Execute the tool logic
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value>;
-
-    /// Validate parameters (optional)
-    fn validate_parameters(&self, _params: &Value) -> Result<()> {
-        Ok(())
-    }
-}
+// TODO: Remove old traits and replace with enum-based system
+// ToolNode trait - REMOVED (replaced by Tool enum)
+// ToolExecutor trait - REMOVED (execution logic moved to specific tool types)
 
 /// Basic tool implementation using a builder pattern
+/// 
+/// NOTE: This will be replaced with NativeTool in the new system
 pub struct BasicTool {
     info: ToolInfo,
     executor: Arc<dyn ToolExecutor>,

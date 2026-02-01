@@ -1,76 +1,24 @@
 //! Tool registry for managing available tools
+//! 
+//! NOTE: This module is being refactored as part of the radical optimization.
+//! The old trait-based system is being replaced with an enum-based system.
 
 use crate::core::{ExecutionContext, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::tools::{
     DependencyResolver, ParameterTemplate, ResolutionResult, TemplateContext, ToolDependency,
-    ToolNode, ToolVersion, Version, VersionRequirement,
+    ToolVersion, Version, VersionRequirement,
 };
-use async_trait::async_trait;
 use dashmap::DashMap;
 use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
-/// Trait for tool registries
-#[async_trait]
-pub trait ToolRegistry: Send + Sync {
-    /// Register a new tool in the registry
-    fn register_tool(&mut self, tool: Arc<dyn ToolNode>) -> Result<()>;
+// TODO: Remove BasicToolRegistry and replace with new enum-based system
+// This is temporarily kept for compilation, will be removed in task 1.3
 
-    /// Get a tool by name
-    fn get_tool(&self, name: &str) -> Option<Arc<dyn ToolNode>>;
-
-    /// List all available tools
-    fn list_tools(&self) -> Vec<ToolInfo>;
-
-    /// Execute a tool by name with given parameters
-    async fn execute_tool(
-        &self,
-        name: &str,
-        params: Value,
-        context: ExecutionContext,
-    ) -> Result<Value>;
-
-    /// Validate tool parameters without executing
-    fn validate_tool_params(&self, name: &str, params: &Value) -> Result<()>;
-
-    /// Check if a tool exists in the registry
-    fn has_tool(&self, name: &str) -> bool;
-
-    /// Remove a tool from the registry
-    fn unregister_tool(&mut self, name: &str) -> Result<()>;
-
-    /// Get the number of registered tools
-    fn tool_count(&self) -> usize;
-
-    /// Clear all tools from the registry
-    fn clear(&mut self);
-
-    /// Resolve dependencies for a set of tools
-    fn resolve_dependencies(&self, tool_names: Vec<String>) -> Result<ResolutionResult>;
-
-    /// Check for version conflicts in the registry
-    fn check_version_conflicts(&self) -> Result<Vec<String>>;
-
-    /// Get tools that depend on a specific tool
-    fn get_dependents(&self, tool_name: &str) -> Vec<ToolInfo>;
-
-    /// Expand tool parameters using templates
-    async fn execute_tool_with_templates(
-        &self,
-        name: &str,
-        params: Value,
-        template_context: &TemplateContext,
-        execution_context: ExecutionContext,
-    ) -> Result<Value>;
-
-    /// Get parameter templates for a tool
-    fn get_tool_templates(&self, tool_name: &str) -> Vec<ParameterTemplate>;
-}
-
-/// Basic implementation of `ToolRegistry`.
+/// Basic implementation of tool registry.
 ///
 /// Uses `DashMap` for thread-safe concurrent access to registered tools.
 /// Handles dependency resolution and caching of tool information.
