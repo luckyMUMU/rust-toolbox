@@ -5,6 +5,7 @@
 
 use crate::core::{ExecutionContext, ToolInfo};
 use crate::error::{Result, WorkflowError};
+use crate::tools::middleware::{ExecutionMetadata, MiddlewareStack};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -221,6 +222,8 @@ pub struct NativeTool {
     pub metadata: Arc<ToolMetadata>,
     /// The executor function for this tool
     executor: Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, crate::error::Result<ToolOutput>> + Send + Sync>,
+    /// Optional middleware stack for cross-cutting concerns
+    pub middleware_stack: Option<MiddlewareStack>,
 }
 
 impl NativeTool {
@@ -238,12 +241,28 @@ impl NativeTool {
             id,
             metadata,
             executor: Arc::new(move |input, ctx| Box::pin(executor(input, ctx))),
+            middleware_stack: None,
         }
+    }
+
+    /// Set the middleware stack for this tool
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
     }
 
     /// Execute the native tool
     pub async fn execute(&self, input: ToolInput, ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
-        (self.executor)(input, ctx).await
+        // Check if middleware stack is configured
+        if let Some(ref stack) = self.middleware_stack {
+            let metadata = ExecutionMetadata::new(
+                &self.metadata.info.name,
+                &self.metadata.version,
+            );
+            stack.execute(input, metadata, &Tool::Native(Arc::new(self.clone()))).await
+        } else {
+            (self.executor)(input, ctx).await
+        }
     }
 }
 
@@ -253,6 +272,7 @@ impl Clone for NativeTool {
             id: self.id,
             metadata: Arc::clone(&self.metadata),
             executor: Arc::clone(&self.executor),
+            middleware_stack: self.middleware_stack.clone(),
         }
     }
 }
@@ -264,11 +284,22 @@ pub struct PythonTool {
     pub script_path: std::path::PathBuf,
     pub python_path: std::path::PathBuf,
     pub timeout_secs: u64,
+    /// Optional middleware stack for cross-cutting concerns
+    pub middleware_stack: Option<MiddlewareStack>,
 }
 
 impl PythonTool {
     /// Execute the Python tool
     pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // Check if middleware stack is configured
+        if let Some(ref stack) = self.middleware_stack {
+            let metadata = ExecutionMetadata::new(
+                &self.metadata.info.name,
+                &self.metadata.version,
+            );
+            return stack.execute(input, metadata, &Tool::Python(Arc::new(self.clone()))).await;
+        }
+
         // TODO: Implement actual Python execution
         // For now, return a placeholder
         Ok(ToolOutput::success(serde_json::json!({
@@ -277,6 +308,12 @@ impl PythonTool {
             "script": self.script_path.to_string_lossy(),
             "input": input.params
         })))
+    }
+
+    /// Set the middleware stack for this tool
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
     }
 }
 
@@ -288,6 +325,7 @@ impl Clone for PythonTool {
             script_path: self.script_path.clone(),
             python_path: self.python_path.clone(),
             timeout_secs: self.timeout_secs,
+            middleware_stack: self.middleware_stack.clone(),
         }
     }
 }
@@ -299,11 +337,22 @@ pub struct NodeJsTool {
     pub script_path: std::path::PathBuf,
     pub node_path: std::path::PathBuf,
     pub timeout_secs: u64,
+    /// Optional middleware stack for cross-cutting concerns
+    pub middleware_stack: Option<MiddlewareStack>,
 }
 
 impl NodeJsTool {
     /// Execute the Node.js tool
     pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // Check if middleware stack is configured
+        if let Some(ref stack) = self.middleware_stack {
+            let metadata = ExecutionMetadata::new(
+                &self.metadata.info.name,
+                &self.metadata.version,
+            );
+            return stack.execute(input, metadata, &Tool::NodeJs(Arc::new(self.clone()))).await;
+        }
+
         // TODO: Implement actual Node.js execution
         Ok(ToolOutput::success(serde_json::json!({
             "status": "executed",
@@ -311,6 +360,12 @@ impl NodeJsTool {
             "script": self.script_path.to_string_lossy(),
             "input": input.params
         })))
+    }
+
+    /// Set the middleware stack for this tool
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
     }
 }
 
@@ -322,6 +377,7 @@ impl Clone for NodeJsTool {
             script_path: self.script_path.clone(),
             node_path: self.node_path.clone(),
             timeout_secs: self.timeout_secs,
+            middleware_stack: self.middleware_stack.clone(),
         }
     }
 }
@@ -333,11 +389,22 @@ pub struct DockerTool {
     pub image: String,
     pub container_name: Option<String>,
     pub timeout_secs: u64,
+    /// Optional middleware stack for cross-cutting concerns
+    pub middleware_stack: Option<MiddlewareStack>,
 }
 
 impl DockerTool {
     /// Execute the Docker tool
     pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // Check if middleware stack is configured
+        if let Some(ref stack) = self.middleware_stack {
+            let metadata = ExecutionMetadata::new(
+                &self.metadata.info.name,
+                &self.metadata.version,
+            );
+            return stack.execute(input, metadata, &Tool::Docker(Arc::new(self.clone()))).await;
+        }
+
         // TODO: Implement actual Docker execution
         Ok(ToolOutput::success(serde_json::json!({
             "status": "executed",
@@ -345,6 +412,12 @@ impl DockerTool {
             "image": &self.image,
             "input": input.params
         })))
+    }
+
+    /// Set the middleware stack for this tool
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
     }
 }
 
@@ -356,6 +429,7 @@ impl Clone for DockerTool {
             image: self.image.clone(),
             container_name: self.container_name.clone(),
             timeout_secs: self.timeout_secs,
+            middleware_stack: self.middleware_stack.clone(),
         }
     }
 }
@@ -367,6 +441,8 @@ pub struct WasmTool {
     pub wasm_path: std::path::PathBuf,
     pub runtime: WasmRuntime,
     pub timeout_secs: u64,
+    /// Optional middleware stack for cross-cutting concerns
+    pub middleware_stack: Option<MiddlewareStack>,
 }
 
 /// WASM runtime type
@@ -379,6 +455,15 @@ pub enum WasmRuntime {
 impl WasmTool {
     /// Execute the WASM tool
     pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // Check if middleware stack is configured
+        if let Some(ref stack) = self.middleware_stack {
+            let metadata = ExecutionMetadata::new(
+                &self.metadata.info.name,
+                &self.metadata.version,
+            );
+            return stack.execute(input, metadata, &Tool::Wasm(Arc::new(self.clone()))).await;
+        }
+
         // TODO: Implement actual WASM execution
         Ok(ToolOutput::success(serde_json::json!({
             "status": "executed",
@@ -387,6 +472,12 @@ impl WasmTool {
             "runtime": format!("{:?}", self.runtime),
             "input": input.params
         })))
+    }
+
+    /// Set the middleware stack for this tool
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
     }
 }
 
@@ -398,6 +489,7 @@ impl Clone for WasmTool {
             wasm_path: self.wasm_path.clone(),
             runtime: self.runtime.clone(),
             timeout_secs: self.timeout_secs,
+            middleware_stack: self.middleware_stack.clone(),
         }
     }
 }
@@ -408,11 +500,22 @@ pub struct ComposedTool {
     pub metadata: Arc<ToolMetadata>,
     pub composition_type: CompositionType,
     pub tools: Vec<ToolId>,
+    /// Optional middleware stack for cross-cutting concerns
+    pub middleware_stack: Option<MiddlewareStack>,
 }
 
 impl ComposedTool {
     /// Execute the composed tool
     pub async fn execute(&self, input: ToolInput, ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // Check if middleware stack is configured
+        if let Some(ref stack) = self.middleware_stack {
+            let metadata = ExecutionMetadata::new(
+                &self.metadata.info.name,
+                &self.metadata.version,
+            );
+            return stack.execute(input, metadata, &Tool::Composed(Arc::new(self.clone()))).await;
+        }
+
         match &self.composition_type {
             CompositionType::Chain(_) => {
                 // TODO: Implement chain execution
@@ -437,6 +540,12 @@ impl ComposedTool {
             }
         }
     }
+
+    /// Set the middleware stack for this tool
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
+    }
 }
 
 impl Clone for ComposedTool {
@@ -446,6 +555,7 @@ impl Clone for ComposedTool {
             metadata: Arc::clone(&self.metadata),
             composition_type: self.composition_type.clone(),
             tools: self.tools.clone(),
+            middleware_stack: self.middleware_stack.clone(),
         }
     }
 }
@@ -470,6 +580,7 @@ pub struct NativeToolBuilder {
     category: Option<String>,
     tags: Vec<String>,
     executor: Option<Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, crate::error::Result<ToolOutput>> + Send + Sync>>,
+    middleware_stack: Option<MiddlewareStack>,
 }
 
 impl NativeToolBuilder {
@@ -482,6 +593,7 @@ impl NativeToolBuilder {
             category: None,
             tags: Vec::new(),
             executor: None,
+            middleware_stack: None,
         }
     }
 
@@ -525,6 +637,12 @@ impl NativeToolBuilder {
         self
     }
 
+    /// Set the middleware stack
+    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
+        self.middleware_stack = Some(stack);
+        self
+    }
+
     /// Build the NativeTool
     pub fn build(self) -> crate::error::Result<NativeTool> {
         let name = self.name.ok_or_else(|| crate::error::WorkflowError::tool("Tool name is required"))?;
@@ -559,6 +677,7 @@ impl NativeToolBuilder {
             id: ToolId::new(),
             metadata,
             executor,
+            middleware_stack: self.middleware_stack,
         })
     }
 }
