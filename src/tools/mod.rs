@@ -28,7 +28,7 @@ pub mod types;  // NEW: Enum-based tool system
 pub mod version;
 
 // COMPATIBILITY EXPORTS: Old trait system (temporary)
-pub use compat::{ComposableTool, ToolExecutor, ToolNode, ToolRegistry as ToolRegistryTrait};
+pub use compat::{ComposableTool, ToolExecutor, ToolNode, ToolRegistry as ToolRegistryTrait, BasicToolRegistry};
 
 // Backward compatibility: ToolRegistry trait is now in compat module
 // This allows old code using `use crate::tools::ToolRegistry` to continue working
@@ -47,7 +47,7 @@ pub use middleware::{
 pub use node::{
     AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor,
 };
-pub use registry::{BasicToolRegistry, ToolRegistryBuilder, ToolRegistry as ToolRegistryStruct};
+pub use registry::{ToolRegistryBuilder, ToolRegistry as ToolRegistryStruct};
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use types::{
     CompositionType, ComposedTool, DockerTool, NativeTool, NodeJsTool, PythonTool, ResourceRequirements,
