@@ -197,21 +197,45 @@ impl Tool {
         }
     }
 
+    /// Get tool name
+    pub fn name(&self) -> String {
+        match self {
+            Tool::Native(t) => t.metadata.info.name.clone(),
+            Tool::Python(t) => t.metadata.info.name.clone(),
+            Tool::NodeJs(t) => t.metadata.info.name.clone(),
+            Tool::Docker(t) => t.metadata.info.name.clone(),
+            Tool::Wasm(t) => t.metadata.info.name.clone(),
+            Tool::Composed(t) => t.metadata.info.name.clone(),
+        }
+    }
+
+    /// Get tool info directly
+    pub fn get_info(&self) -> ToolInfo {
+        match self {
+            Tool::Native(t) => t.metadata.info.clone(),
+            Tool::Python(t) => t.metadata.info.clone(),
+            Tool::NodeJs(t) => t.metadata.info.clone(),
+            Tool::Docker(t) => t.metadata.info.clone(),
+            Tool::Wasm(t) => t.metadata.info.clone(),
+            Tool::Composed(t) => t.metadata.info.clone(),
+        }
+    }
+
     /// Execute the tool
     /// 
     /// Dispatches to the appropriate tool type implementation
-    pub async fn execute(
+    pub fn execute(
         &self,
         input: ToolInput,
         ctx: ExecutionContext,
-    ) -> crate::error::Result<ToolOutput> {
+    ) -> BoxFuture<'_, crate::error::Result<ToolOutput>> {
         match self {
-            Tool::Native(tool) => tool.execute(input, ctx).await,
-            Tool::Python(tool) => tool.execute(input, ctx).await,
-            Tool::NodeJs(tool) => tool.execute(input, ctx).await,
-            Tool::Docker(tool) => tool.execute(input, ctx).await,
-            Tool::Wasm(tool) => tool.execute(input, ctx).await,
-            Tool::Composed(tool) => tool.execute(input, ctx).await,
+            Tool::Native(tool) => Box::pin(tool.execute(input, ctx)),
+            Tool::Python(tool) => Box::pin(tool.execute(input, ctx)),
+            Tool::NodeJs(tool) => Box::pin(tool.execute(input, ctx)),
+            Tool::Docker(tool) => Box::pin(tool.execute(input, ctx)),
+            Tool::Wasm(tool) => Box::pin(tool.execute(input, ctx)),
+            Tool::Composed(tool) => Box::pin(async move { tool.execute(input, ctx).await }),
         }
     }
 }
@@ -221,7 +245,7 @@ pub struct NativeTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     /// The executor function for this tool
-    executor: Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, crate::error::Result<ToolOutput>> + Send + Sync>,
+    pub executor: Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, crate::error::Result<ToolOutput>> + Send + Sync>,
     /// Optional middleware stack for cross-cutting concerns
     pub middleware_stack: Option<MiddlewareStack>,
 }
@@ -655,8 +679,8 @@ impl NativeToolBuilder {
                 name,
                 version: version.clone(),
                 description,
-                parameters_schema: None,
-                return_schema: None,
+                parameters_schema: serde_json::Value::Null,
+                return_schema: serde_json::Value::Null,
                 category: self.category,
                 tags: self.tags,
                 dependencies: vec![],
@@ -842,10 +866,10 @@ pub trait ToolInputConvert: Sized {
     fn into_tool_input(self) -> ToolInput;
     
     /// Parse a ToolInput into the struct
-    fn from_tool_input(input: &ToolInput) -> Result<Self, crate::WorkflowError>;
+    fn from_tool_input(input: &ToolInput) -> crate::Result<Self>;
     
     /// Validate the input data
-    fn validate(&self) -> Result<(), crate::WorkflowError>;
+    fn validate(&self) -> crate::Result<()>;
     
     /// Get the input schema
     fn schema() -> InputSchema;
@@ -859,7 +883,7 @@ pub trait ToolOutputConvert: Sized {
     fn into_tool_output(self) -> ToolOutput;
     
     /// Parse a ToolOutput into the struct
-    fn from_tool_output(output: &ToolOutput) -> Result<Self, crate::WorkflowError>;
+    fn from_tool_output(output: &ToolOutput) -> crate::Result<Self>;
 }
 
 /// Input schema for tool parameters

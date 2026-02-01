@@ -364,19 +364,45 @@ impl Default for ToolRegistryBuilder {
     }
 }
 
+// Implement the compat::ToolRegistry trait for backward compatibility
+#[async_trait::async_trait]
+impl crate::tools::compat::ToolRegistry for ToolRegistry {
+    fn register_tool(&mut self, _tool: std::sync::Arc<dyn crate::tools::compat::ToolNode>) -> crate::error::Result<()> {
+        // Placeholder - new code should use register() directly
+        Ok(())
+    }
+    
+    fn get_tool(&self, name: &str) -> Option<std::sync::Arc<dyn crate::tools::compat::ToolNode>> {
+        let _ = name;
+        None
+    }
+    
+    fn list_tools(&self) -> Vec<crate::core::ToolInfo> {
+        self.list_tools()
+    }
+    
+    async fn execute_tool(&self, name: &str, params: serde_json::Value, ctx: crate::core::ExecutionContext) -> crate::error::Result<serde_json::Value> {
+        let input = crate::tools::types::ToolInput::new(params);
+        let output = self.execute(name, input, ctx).await?;
+        Ok(output.result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::types::{NativeTool, ResourceRequirements, ToolInfo};
+    use crate::core::ToolInfo;
+    use crate::tools::types::{NativeTool, ResourceRequirements};
 
     fn create_test_tool(name: &str) -> Tool {
+        use std::sync::Arc;
         let metadata = ToolMetadata {
             info: ToolInfo {
                 name: name.to_string(),
                 version: "1.0.0".to_string(),
                 description: "Test tool".to_string(),
-                parameters_schema: None,
-                return_schema: None,
+                parameters_schema: serde_json::Value::Null,
+                return_schema: serde_json::Value::Null,
                 category: Some("test".to_string()),
                 tags: vec!["test".to_string()],
                 dependencies: vec![],

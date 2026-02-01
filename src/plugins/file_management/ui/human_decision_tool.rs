@@ -3,9 +3,9 @@
 //! This module provides interactive decision-making capabilities for ambiguous scenarios
 //! in file management workflows. It supports timeouts, default choices, and experimental mode.
 
-use super::plugin::FileManagementConfig;
-use super::utils::{HumanDecisionContext, HumanDecisionOption, HumanDecisionType};
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::plugins::file_management::plugin::FileManagementConfig;
+use crate::plugins::file_management::utils::utils::{HumanDecisionContext, HumanDecisionOption, HumanDecisionType};
 use crate::error::{Result, WorkflowError};
 use crate::tools::{BasicTool, ToolExecutor};
 use serde::{Deserialize, Serialize};
@@ -652,7 +652,7 @@ pub fn create_human_decision_tool(
 mod tests {
     use super::*;
     use crate::core::{ExecutionContext, PluginType};
-    use crate::tools::node::ToolNode;
+    use crate::tools::compat::ToolNode;
     use tempfile::TempDir;
 
     fn create_test_config() -> FileManagementConfig {

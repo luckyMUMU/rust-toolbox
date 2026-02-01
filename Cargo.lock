@@ -7531,6 +7531,19 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "workflow-toolkit-macros",
+]
+
+[[package]]
+name = "workflow-toolkit-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 2.0.111",
+ "workflow-toolkit",
 ]
 
 [[package]]

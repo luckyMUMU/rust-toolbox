@@ -8,7 +8,7 @@
 //! - **PluginManager**: Manages the lifecycle of plugins (load, unload, reload).
 //! - **Plugin**: The core trait that all plugins must implement.
 //! - **PluginConfig**: Configuration for plugins including security policies and resource limits.
-//! - **RuntimeManager**: Manages language runtimes (e.g., Python interpreter, Node.js process).
+//! - **RuntimeManager**: Manages language runtimes with process pools and container lifecycle.
 //!
 //! ## Plugin Types
 //!
@@ -18,13 +18,20 @@
 //! - **Docker**: Containerized tools.
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.
+
+// Macros must be defined before use
+#[macro_use]
+pub mod macros;
+
 pub mod docker;
+pub mod error;
 pub mod file_management;
 pub mod integration;
 pub mod manager;
 pub mod native;
 pub mod nodejs;
 pub mod python;
+pub mod runtime;
 pub mod types;
 // pub mod wasm;  // Temporarily disabled due to wasmtime/extism dependency issues
 
@@ -37,7 +44,9 @@ pub use file_management::{
     FileManagementConfig, FileManagementPlugin, FileManagementPluginBuilder,
 };
 pub use integration::{IntegratedPluginSystem, IntegratedPluginSystemBuilder};
-pub use manager::{PluginManager, RuntimeManager};
+pub use error::{PluginError, Result as PluginResult, IntoPluginError};
+pub use manager::PluginManager;
+pub use runtime::{RuntimeManager, RuntimePoolConfig, RuntimeStats, ResourceStats};
 pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder, NativeToolExecutor};
 pub use nodejs::{
     NodeJsEnvironment, NodeJsPlugin as NodeJsPluginImpl, NodeJsPluginBuilder, NodeJsRuntimeConfig,

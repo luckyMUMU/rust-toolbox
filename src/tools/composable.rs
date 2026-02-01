@@ -177,7 +177,6 @@ impl ParallelTools {
 ///
 /// NOTE: This is kept for backward compatibility during migration.
 /// New code should use ToolRegistry with types::ComposedTool
-#[derive(Clone)]
 pub struct ToolComposer {
     chains: HashMap<String, ToolChain>,
     conditionals: HashMap<String, ConditionalTool>,
@@ -195,31 +194,24 @@ impl ToolComposer {
     }
 
     /// Register a tool chain
-    pub fn register_chain(mut self, name: impl Into<String>, chain: ToolChain) -> Self {
+    pub fn register_chain(&mut self, name: impl Into<String>, chain: ToolChain) {
         let name = name.into();
         info!("Registering tool chain: {}", name);
         self.chains.insert(name, chain);
-        self
     }
 
     /// Register a conditional tool
-    pub fn register_conditional(
-        mut self,
-        name: impl Into<String>,
-        conditional: ConditionalTool,
-    ) -> Self {
+    pub fn register_conditional(&mut self, name: impl Into<String>, conditional: ConditionalTool) {
         let name = name.into();
         info!("Registering conditional tool: {}", name);
         self.conditionals.insert(name, conditional);
-        self
     }
 
     /// Register parallel tools
-    pub fn register_parallel(mut self, name: impl Into<String>, parallel: ParallelTools) -> Self {
+    pub fn register_parallel(&mut self, name: impl Into<String>, parallel: ParallelTools) {
         let name = name.into();
         info!("Registering parallel tools: {}", name);
         self.parallels.insert(name, parallel);
-        self
     }
 
     /// Get a registered tool chain

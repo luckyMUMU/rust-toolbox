@@ -19,6 +19,7 @@
 | [troubleshooting.md](./troubleshooting.md) | 故障排除指南 | 2026-02-01 |
 | [comparison.md](./comparison.md) | 新旧系统对比 | 2026-02-01 |
 | [best-practices.md](./best-practices.md) | 最佳实践指南 | 2026-02-01 |
+| [developer-guide.md](./developer-guide.md) | 开发者指南 | 2026-02-01 |
 | [blocker-log.md](./blocker-log.md) | 阻塞记录 | 2026-02-01 |
 | [learnings.md](./learnings.md) | 学习记录 | 2026-02-01 |
 

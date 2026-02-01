@@ -190,23 +190,22 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
 
-    fn create_test_registry() -> Arc<dyn ToolRegistry> {
-        let mut registry = BasicToolRegistry::new();
+    fn create_test_registry() -> Arc<dyn crate::tools::ToolRegistry> {
+        use crate::tools::registry::ToolRegistry;
+        use crate::tools::types::{NativeToolBuilder, Tool};
+        
+        let registry = ToolRegistry::new();
 
         // Register a simple echo tool for testing
-        let echo_executor = Arc::new(crate::tools::AsyncFunctionExecutor::new(
-            |params, _ctx| Box::pin(async move { Ok(params) }),
-        ));
-
-        let echo_tool = BasicTool::builder()
+        let echo_tool = NativeToolBuilder::new()
             .name("echo")
             .version("1.0.0")
             .description("Echo tool for testing")
-            .executor(echo_executor)
+            .executor(|input, _ctx| async move { Ok(crate::tools::types::ToolOutput::success(input.params)) })
             .build()
             .unwrap();
 
-        registry.register_tool(Arc::new(echo_tool)).unwrap();
+        registry.register("echo", Tool::Native(Arc::new(echo_tool)));
 
         Arc::new(registry)
     }

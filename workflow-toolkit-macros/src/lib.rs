@@ -22,7 +22,7 @@
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, Fields, Lit, Meta, NestedMeta};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Lit, Meta, Token};
 
 /// Derive macro for ToolInput trait
 ///
@@ -66,38 +66,51 @@ pub fn derive_tool_input(input: TokenStream) -> TokenStream {
             let mut validation = None;
 
             for attr in &field.attrs {
-                if attr.path.is_ident("tool_input") {
-                    let meta = attr
-                        .parse_meta()
-                        .expect("Failed to parse tool_input attribute");
-                    if let Meta::List(list) = meta {
-                        for nested in &list.nested {
-                            if let NestedMeta::Meta(Meta::NameValue(nv)) = nested {
-                                let key = nv.path.get_ident().unwrap().to_string();
-                                match key.as_str() {
-                                    "description" => {
-                                        if let Lit::Str(lit) = &nv.lit {
-                                            description = lit.value();
-                                        }
+                if attr.path().is_ident("tool_input") {
+                    // Parse the attribute content
+                    attr.parse_args_with(|input: syn::parse::ParseStream| {
+                        let mut first = true;
+                        while !input.is_empty() {
+                            if !first {
+                                input.parse::<Token![,]>()?;
+                            }
+                            first = false;
+
+                            let key: syn::Ident = input.parse()?;
+                            input.parse::<Token![=]>()?;
+
+                            match key.to_string().as_str() {
+                                "description" => {
+                                    let lit: Lit = input.parse()?;
+                                    if let Lit::Str(s) = lit {
+                                        description = s.value();
                                     }
-                                    "required" => {
-                                        if let Lit::Bool(lit) = &nv.lit {
-                                            required = lit.value();
-                                        }
+                                }
+                                "required" => {
+                                    let lit: Lit = input.parse()?;
+                                    if let Lit::Bool(b) = lit {
+                                        required = b.value();
                                     }
-                                    "default" => {
-                                        default_value = Some(quote!(#nv.lit));
+                                }
+                                "default" => {
+                                    let lit: Lit = input.parse()?;
+                                    default_value = Some(quote!(#lit));
+                                }
+                                "validate" => {
+                                    let lit: Lit = input.parse()?;
+                                    if let Lit::Str(s) = lit {
+                                        validation = Some(s.value());
                                     }
-                                    "validate" => {
-                                        if let Lit::Str(lit) = &nv.lit {
-                                            validation = Some(lit.value());
-                                        }
-                                    }
-                                    _ => {}
+                                }
+                                _ => {
+                                    // Skip unknown attributes
+                                    let _: syn::Expr = input.parse()?;
                                 }
                             }
                         }
-                    }
+                        Ok(())
+                    })
+                    .ok();
                 }
             }
 

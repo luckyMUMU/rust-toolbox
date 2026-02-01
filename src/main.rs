@@ -85,28 +85,26 @@ async fn main() -> Result<()> {
     }
 
     // Add a simple echo tool for testing
-    use workflow_toolkit::tools::{AsyncFunctionExecutor, BasicTool};
-    let echo_executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| {
-        Box::pin(async move {
-            if let Some(message) = params.get("message") {
-                Ok(serde_json::json!({
-                    "output": message,
-                    "timestamp": chrono::Utc::now().to_rfc3339()
-                }))
-            } else {
-                Ok(serde_json::json!({
-                    "output": "Hello, World!",
-                    "timestamp": chrono::Utc::now().to_rfc3339()
-                }))
-            }
-        })
-    }));
-
-    let echo_tool = BasicTool::builder()
+    use workflow_toolkit::tools::{NativeToolBuilder, ToolInput, ToolOutput, Tool};
+    let echo_tool = NativeToolBuilder::new()
         .name("echo")
         .version("1.0.0")
         .description("A simple echo tool for testing")
-        .executor(echo_executor)
+        .executor(|input: ToolInput, _ctx| async move {
+            let params = &input.params;
+            let result = if let Some(message) = params.get("message") {
+                serde_json::json!({
+                    "output": message,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })
+            } else {
+                serde_json::json!({
+                    "output": "Hello, World!",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })
+            };
+            Ok(ToolOutput::success(result))
+        })
         .build()
         .map_err(|e| {
             workflow_toolkit::WorkflowError::workflow_execution(format!(
@@ -116,13 +114,7 @@ async fn main() -> Result<()> {
         })?;
 
     tool_registry
-        .register_tool(Arc::new(echo_tool))
-        .map_err(|e| {
-            workflow_toolkit::WorkflowError::workflow_execution(format!(
-                "Failed to register echo tool: {}",
-                e
-            ))
-        })?;
+        .register("echo", Tool::Native(Arc::new(echo_tool)));
 
     let tool_registry = Arc::new(tool_registry);
 

@@ -1,13 +1,16 @@
 //! File Management Plugin implementation
 
-use super::error::{FileManagementError, FileManagementResult};
-use super::error_recovery::{ErrorRecoveryManager, RecoveryConfig};
-use super::monitoring::{FileManagementMonitor, MonitoringConfig};
 use crate::core::{PluginInfo, PluginType};
+use crate::plugins::file_management::core::error::{FileManagementError, FileManagementResult};
+use crate::plugins::file_management::core::error_recovery::{ErrorRecoveryManager, RecoveryConfig, RecoveryStats};
+use crate::plugins::file_management::utils::monitoring::{FileManagementMonitor, MonitoringConfig, MonitoringStats};
+use crate::plugins::file_management::utils::registry::FileManagementToolRegistry;
 use crate::error::{Result, WorkflowError};
 use crate::performance::{PerformanceConfig, PerformanceManager};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, ResourceLimits, SecurityPolicy};
 use crate::tools::{ToolNode, ToolRegistry};
+use crate::tools::compat::tool_node_to_enum;
+use crate::tools::types::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -244,7 +247,7 @@ impl FileManagementPlugin {
 
         // Create tool registry
         let mut registry =
-            super::registry::FileManagementToolRegistry::new(config.clone(), self.info.clone());
+            FileManagementToolRegistry::new(config.clone(), self.info.clone());
 
         // Register all tools
         let tools = registry.register_all_tools()?;
@@ -397,7 +400,7 @@ impl FileManagementPlugin {
     }
 
     /// Get error recovery statistics
-    pub fn get_error_recovery_stats(&self) -> Option<super::error_recovery::RecoveryStats> {
+    pub fn get_error_recovery_stats(&self) -> Option<RecoveryStats> {
         if let Some(recovery_manager_arc) = &self.error_recovery_manager {
             if let Ok(recovery_manager) = recovery_manager_arc.read() {
                 Some(recovery_manager.get_recovery_stats().clone())
@@ -415,7 +418,7 @@ impl FileManagementPlugin {
     }
 
     /// Get monitoring statistics
-    pub async fn get_monitoring_stats(&self) -> Option<super::monitoring::MonitoringStats> {
+    pub async fn get_monitoring_stats(&self) -> Option<MonitoringStats> {
         if let Some(monitor) = &self.monitoring_system {
             monitor.get_monitoring_stats().await.ok()
         } else {
@@ -665,9 +668,9 @@ impl Plugin for FileManagementPlugin {
         Ok(())
     }
 
-    fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
+    fn get_tools(&self) -> Vec<Tool> {
         match self.tools.read() {
-            Ok(tools_guard) => tools_guard.clone(),
+            Ok(tools_guard) => tools_guard.iter().map(|t| tool_node_to_enum(t.clone())).collect(),
             Err(e) => {
                 error!("Failed to acquire read lock on tools: {}", e);
                 Vec::new()

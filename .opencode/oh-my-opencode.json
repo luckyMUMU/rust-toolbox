@@ -8,6 +8,12 @@
       "category": "unspecified-high",
       "skills": ["git-master"]
     },
+    "hephaestus": {
+      "model": "opencode/kimi-k2.5-free",
+      "variant": "default",
+      "category": "unspecified-high",
+      "skills": ["git-master"]
+    },
     "prometheus": {
       "model": "opencode/kimi-k2.5-free",
       "variant": "default",

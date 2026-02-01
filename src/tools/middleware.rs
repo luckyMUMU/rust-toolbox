@@ -85,6 +85,16 @@ pub struct MiddlewareContext {
     custom_data: DashMap<String, Box<dyn Any + Send + Sync>>,
 }
 
+impl std::fmt::Debug for MiddlewareContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MiddlewareContext")
+            .field("input", &self.input)
+            .field("metadata", &self.metadata)
+            .field("custom_data", &format!("DashMap with {} entries", self.custom_data.len()))
+            .finish()
+    }
+}
+
 impl MiddlewareContext {
     /// Create a new middleware context
     pub fn new(input: ToolInput, metadata: ExecutionMetadata) -> Self {
@@ -142,14 +152,19 @@ impl<'a> Next<'a> {
     ///
     /// If there are more middlewares, calls the next one.
     /// Otherwise, executes the actual tool.
-    pub async fn run(mut self, ctx: &mut MiddlewareContext) -> Result<ToolOutput> {
+    pub async fn run(&self, ctx: &mut MiddlewareContext) -> Result<ToolOutput> {
         if let Some((current, rest)) = self.stack.split_first() {
             // More middleware to process
-            self.stack = rest;
-            current.process(ctx, self).await
+            let next = Next {
+                stack: rest,
+                tool: self.tool,
+            };
+            current.process(ctx, next).await
         } else {
             // End of chain, execute the tool
-            self.tool.execute(ctx.input.clone()).await
+            let input = ctx.input.clone();
+            let tool = self.tool.clone();
+            tool.execute(input, crate::core::ExecutionContext::new()).await
         }
     }
 }
@@ -237,7 +252,7 @@ impl MiddlewareStack {
     ) -> Result<ToolOutput> {
         if self.middlewares.is_empty() {
             // No middleware, execute directly
-            return tool.execute(input).await;
+            return tool.execute(input, crate::core::ExecutionContext::new()).await;
         }
 
         let mut ctx = MiddlewareContext::new(input, metadata);
@@ -327,7 +342,7 @@ impl LoggingMiddleware {
 impl Middleware for LoggingMiddleware {
     #[instrument(skip(self, next), fields(middleware = "LoggingMiddleware"))]
     async fn process(&self, ctx: &mut MiddlewareContext, next: Next<'_>) -> Result<ToolOutput> {
-        let tool_name = &ctx.metadata.tool_name;
+        let tool_name = ctx.metadata.tool_name.clone();
 
         if self.log_start {
             info!("Starting execution of tool: {}", tool_name);
@@ -460,7 +475,7 @@ impl Middleware for RetryMiddleware {
     #[instrument(skip(self, next), fields(middleware = "RetryMiddleware"))]
     async fn process(&self, ctx: &mut MiddlewareContext, next: Next<'_>) -> Result<ToolOutput> {
         let tool_name = ctx.metadata.tool_name.clone();
-        let mut last_error = None;
+        let mut last_error_msg = None;
 
         for attempt in 0..=self.max_retries {
             if attempt > 0 {
@@ -481,7 +496,7 @@ impl Middleware for RetryMiddleware {
                     }
                     return Ok(output);
                 }
-                Err(e) if attempt < self.max_retries && self.is_retryable(&e) => {
+                Err(ref e) if attempt < self.max_retries && self.is_retryable(e) => {
                     warn!(
                         "Tool {} failed (attempt {}/{}): {}. Will retry...",
                         tool_name,
@@ -489,7 +504,7 @@ impl Middleware for RetryMiddleware {
                         self.max_retries + 1,
                         e
                     );
-                    last_error = Some(e);
+                    last_error_msg = Some(e.to_string());
                 }
                 Err(e) => {
                     return Err(e);
@@ -497,11 +512,9 @@ impl Middleware for RetryMiddleware {
             }
         }
 
-        Err(last_error.unwrap_or_else(|| {
-            WorkflowError::WorkflowExecution {
-                message: format!("Tool {} failed after {} retries", tool_name, self.max_retries),
-            }
-        }))
+        Err(WorkflowError::WorkflowExecution { 
+            message: last_error_msg.unwrap_or_else(|| format!("Tool {} failed after {} retries", tool_name, self.max_retries)),
+        })
     }
 
     fn name(&self) -> &str {
@@ -692,12 +705,20 @@ impl Middleware for MetricsMiddleware {
 }
 
 /// Caching middleware that caches tool outputs
-#[derive(Debug)]
 pub struct CacheMiddleware {
     /// Cache key generator
     key_generator: Arc<dyn Fn(&ToolInput) -> String + Send + Sync>,
     /// TTL for cached entries
     ttl: Duration,
+}
+
+impl std::fmt::Debug for CacheMiddleware {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CacheMiddleware")
+            .field("ttl", &self.ttl)
+            .field("key_generator", &"<function>")
+            .finish()
+    }
 }
 
 impl CacheMiddleware {
@@ -746,16 +767,18 @@ mod tests {
 
     fn create_test_tool() -> Tool {
         // Create a simple native tool for testing
-        use crate::tools::types::{NativeTool, NativeToolBuilder};
+        use crate::tools::types::NativeToolBuilder;
+        use crate::core::ExecutionContext;
+        use std::sync::Arc;
 
-        NativeToolBuilder::new("test_tool", "1.0.0")
-            .with_executor(Arc::new(|input: ToolInput| {
-                Box::pin(async move {
-                    Ok(ToolOutput::success(input.params))
-                })
-            }))
+        NativeToolBuilder::new()
+            .name("test_tool")
+            .version("1.0.0")
+            .executor(|input: ToolInput, _ctx: ExecutionContext| async move {
+                Ok(ToolOutput::success(input.params))
+            })
             .build()
-            .map(Tool::Native)
+            .map(|tool| Tool::Native(Arc::new(tool)))
             .unwrap()
     }
 

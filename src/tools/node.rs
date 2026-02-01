@@ -95,8 +95,44 @@ impl BasicTool {
     }
 }
 
-// REMOVED: #[async_trait] impl ToolNode for BasicTool
-// Use types::Tool enum instead
+// Implement ToolNode trait for backward compatibility
+#[async_trait::async_trait]
+impl crate::tools::compat::ToolNode for BasicTool {
+    fn name(&self) -> &str {
+        &self.info.name
+    }
+    
+    fn version(&self) -> &str {
+        &self.info.version
+    }
+    
+    fn description(&self) -> String {
+        self.info.description.clone()
+    }
+    
+    fn definition(&self) -> ToolInfo {
+        self.info.clone()
+    }
+    
+    fn validate_parameters(&self, params: &Value) -> Result<()> {
+        let _ = params;
+        Ok(())
+    }
+    
+    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+        let input = ToolInput::new(params);
+        let output = self.execute(input, context).await?;
+        Ok(output.result)
+    }
+    
+    fn get_info(&self) -> ToolInfo {
+        self.info.clone()
+    }
+    
+    fn get_plugin_info(&self) -> Option<&PluginInfo> {
+        self.plugin_info.as_ref()
+    }
+}
 
 /// Builder for BasicTool (DEPRECATED)
 /// 

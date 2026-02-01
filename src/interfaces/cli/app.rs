@@ -487,18 +487,19 @@ impl CliApp {
                             let plugin_tools = plugin_manager.get_all_tools()?;
                             let tool = plugin_tools
                                 .iter()
-                                .find(|t| t.name() == tool_name)
+                                .find(|t| t.name() == *tool_name)
                                 .ok_or_else(|| crate::WorkflowError::NotFound {
                                     resource: format!("tool '{}'", tool_name),
                                 })?;
 
                             // Execute tool with timeout if specified
+                            let tool_input = crate::tools::types::ToolInput::new(tool_params.clone());
                             if let Some(timeout_secs) = timeout {
                                 debug!("Tool execution timeout set to {} seconds", timeout_secs);
                                 // TODO: Implement timeout wrapper
-                                tool.execute(tool_params, context).await?
+                                tool.execute(tool_input, context).await?.result
                             } else {
-                                tool.execute(tool_params, context).await?
+                                tool.execute(tool_input, context).await?.result
                             }
                         } else {
                             return Err(crate::WorkflowError::NotFound {

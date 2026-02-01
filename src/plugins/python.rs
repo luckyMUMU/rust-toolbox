@@ -4,6 +4,8 @@ use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
 use crate::tools::{BasicTool, ToolExecutor, ToolNode};
+use crate::tools::compat::tool_node_to_enum;
+use crate::tools::types::Tool;
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -730,8 +732,8 @@ impl Plugin for PythonPlugin {
         Ok(())
     }
 
-    fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
-        self.tools.clone()
+    fn get_tools(&self) -> Vec<Tool> {
+        self.tools.iter().map(|t| tool_node_to_enum(t.clone())).collect()
     }
 
     fn shutdown(&mut self) -> Result<()> {

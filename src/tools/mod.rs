@@ -50,7 +50,7 @@ pub use node::{
 pub use registry::{ToolRegistryBuilder, ToolRegistry as ToolRegistryStruct};
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use types::{
-    CompositionType, ComposedTool, DockerTool, InputSchema, NativeTool, NodeJsTool, OutputSchema, 
+    CompositionType, ComposedTool, DockerTool, InputSchema, NativeTool, NativeToolBuilder, NodeJsTool, OutputSchema, 
     PythonTool, ResourceRequirements, Tool, ToolExample, ToolId, ToolInput, ToolInputConvert, 
     ToolKind, ToolMetadata, ToolOutput, ToolOutputConvert, WasmTool,
 };

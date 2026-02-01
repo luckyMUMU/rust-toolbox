@@ -2,38 +2,13 @@
 
 use crate::core::PluginInfo;
 use crate::error::{Result, WorkflowError};
+use crate::plugins::runtime::RuntimeManager;
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::{ToolNode, ToolRegistry};
+use crate::tools::compat::tool_to_trait_object;
+use crate::tools::ToolRegistry;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
-
-/// Runtime manager for different plugin types
-pub struct RuntimeManager {
-    // Runtime management will be expanded in later tasks
-}
-
-impl RuntimeManager {
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn create_runtime(&self, _plugin_type: crate::core::PluginType) -> Result<()> {
-        // Runtime creation will be implemented in later tasks
-        Ok(())
-    }
-
-    pub fn cleanup_runtime(&self, _plugin_name: &str) -> Result<()> {
-        // Runtime cleanup will be implemented in later tasks
-        Ok(())
-    }
-}
-
-impl Default for RuntimeManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Plugin manager for loading and managing plugins.
 ///
@@ -88,8 +63,17 @@ impl PluginManager {
         self.validate_plugin_config(&config)?;
 
         // Create runtime environment if needed
-        self.runtime_manager
-            .create_runtime(config.plugin_type.clone())?;
+        // Note: Runtime creation is now async, but we're in a sync context
+        // For now, we create the runtime asynchronously and block on it
+        // TODO: Consider making load_plugin async in the future
+        let runtime_manager = &self.runtime_manager;
+        let plugin_type = config.plugin_type.clone();
+        let plugin_name_for_closure = plugin_name.clone();
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async {
+                runtime_manager.create_runtime(&plugin_name_for_closure, plugin_type).await
+            })
+        })?;
 
         // Initialize the plugin
         plugin.initialize(config.clone()).map_err(|e| {
@@ -156,7 +140,15 @@ impl PluginManager {
         })?;
 
         // Cleanup runtime
-        self.runtime_manager.cleanup_runtime(name)?;
+        // Note: cleanup_runtime is async, but we're in a sync context
+        // We need to block on it using the tokio runtime
+        let runtime_manager = &self.runtime_manager;
+        let name_owned = name.to_string();
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async {
+                runtime_manager.cleanup_runtime(&name_owned).await
+            })
+        })?;
 
         // Remove configuration
         {
@@ -247,7 +239,7 @@ impl PluginManager {
     }
 
     /// Get all tools from all loaded plugins
-    pub fn get_all_tools(&self) -> Result<Vec<Arc<dyn ToolNode>>> {
+    pub fn get_all_tools(&self) -> Result<Vec<crate::tools::types::Tool>> {
         let plugins = self
             .plugins
             .read()
@@ -264,7 +256,7 @@ impl PluginManager {
     }
 
     /// Get tools from a specific plugin
-    pub fn get_plugin_tools(&self, plugin_name: &str) -> Result<Vec<Arc<dyn ToolNode>>> {
+    pub fn get_plugin_tools(&self, plugin_name: &str) -> Result<Vec<crate::tools::types::Tool>> {
         let plugins = self
             .plugins
             .read()
@@ -296,17 +288,27 @@ impl PluginManager {
                     })?;
 
             for tool in tools {
-                if let Err(e) = registry.register_tool(tool.clone()) {
-                    error!(
-                        "Failed to register tool '{}' from plugin '{}': {}",
-                        tool.name(),
-                        plugin_name,
-                        e
-                    );
-                    // Continue registering other tools even if one fails
+                // Convert Tool enum to trait object for backward compatibility with old registry
+                // TODO: Once registry is fully migrated to enum-based, remove this conversion
+                if let Some(tool_trait) = tool_to_trait_object(&tool) {
+                    if let Err(e) = registry.register_tool(tool_trait) {
+                        error!(
+                            "Failed to register tool '{}' from plugin '{}': {}",
+                            tool.name(),
+                            plugin_name,
+                            e
+                        );
+                        // Continue registering other tools even if one fails
+                    } else {
+                        debug!(
+                            "Registered tool '{}' from plugin '{}'",
+                            tool.name(),
+                            plugin_name
+                        );
+                    }
                 } else {
-                    debug!(
-                        "Registered tool '{}' from plugin '{}'",
+                    warn!(
+                        "Skipping tool '{}' from plugin '{}' - cannot convert to trait object",
                         tool.name(),
                         plugin_name
                     );
@@ -357,7 +359,7 @@ impl PluginManager {
                         })?;
 
                 for tool in tools {
-                    if let Err(e) = registry.unregister_tool(tool.name()) {
+                    if let Err(e) = registry.unregister_tool(&tool.name()) {
                         warn!(
                             "Failed to unregister tool '{}' from plugin '{}': {}",
                             tool.name(),
