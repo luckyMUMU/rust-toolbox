@@ -698,7 +698,7 @@ impl PythonPlugin {
             timeout,
         ));
 
-        let tool = Arc::new(BasicTool::new(
+        let tool = Arc::new(BasicTool::from_executor(
             tool_info,
             executor,
             Some(self.info.clone()),

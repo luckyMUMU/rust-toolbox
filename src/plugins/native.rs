@@ -261,7 +261,7 @@ impl NativePlugin {
             ));
 
             // Create the tool
-            let tool = BasicTool::new(tool_info, executor, Some(self.info.clone()))?;
+            let tool = BasicTool::from_executor(tool_info, executor, Some(self.info.clone()))?;
             self.tools.push(Arc::new(tool));
 
             debug!("Loaded native tool: {}", name);

@@ -30,7 +30,7 @@ impl BasicTool {
         BasicToolBuilder::new()
     }
 
-    /// Create a new BasicTool
+    /// Create a new BasicTool with a closure-based executor
     pub fn new<F, Fut>(
         info: ToolInfo,
         executor: F,
@@ -43,6 +43,28 @@ impl BasicTool {
         Ok(Self {
             info,
             executor: Arc::new(move |input, ctx| Box::pin(executor(input, ctx))),
+            plugin_info,
+        })
+    }
+
+    /// Create a new BasicTool from an Arc<dyn ToolExecutor> (COMPATIBILITY)
+    /// 
+    /// NOTE: This is for backward compatibility only. New code should use the closure-based new().
+    pub fn from_executor(
+        info: ToolInfo,
+        executor: Arc<dyn crate::tools::compat::ToolExecutor>,
+        plugin_info: Option<PluginInfo>,
+    ) -> Result<Self> {
+        let executor_wrapper = move |input: ToolInput, ctx: ExecutionContext| {
+            let executor = executor.clone();
+            async move {
+                executor.execute(input.params, ctx).await.map(|v| ToolOutput::success(v))
+            }
+        };
+        
+        Ok(Self {
+            info,
+            executor: Arc::new(move |input, ctx| Box::pin(executor_wrapper(input, ctx))),
             plugin_info,
         })
     }
