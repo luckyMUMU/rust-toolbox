@@ -5,20 +5,22 @@
 
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::Result;
+use crate::tools::types::{NativeTool, NativeToolBuilder, ToolInput, ToolOutput};
 use crate::tools::TemplateContext;
+use futures::future::BoxFuture;
 use serde_json::Value;
 use std::sync::Arc;
 
-// TODO: Remove old traits and replace with enum-based system
-// ToolNode trait - REMOVED (replaced by Tool enum)
-// ToolExecutor trait - REMOVED (execution logic moved to specific tool types)
+// MIGRATION: ToolNode trait and ToolExecutor trait have been REMOVED
+// Use types::Tool enum and types::NativeTool instead
 
-/// Basic tool implementation using a builder pattern
+/// Basic tool implementation using a builder pattern (DEPRECATED)
 /// 
-/// NOTE: This will be replaced with NativeTool in the new system
+/// NOTE: This is kept for backward compatibility during migration.
+/// New code should use types::NativeTool and NativeToolBuilder
 pub struct BasicTool {
     info: ToolInfo,
-    executor: Arc<dyn ToolExecutor>,
+    executor: Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, Result<ToolOutput>> + Send + Sync>,
     plugin_info: Option<PluginInfo>,
 }
 
@@ -29,52 +31,59 @@ impl BasicTool {
     }
 
     /// Create a new BasicTool
-    pub fn new(
+    pub fn new<F, Fut>(
         info: ToolInfo,
-        executor: Arc<dyn ToolExecutor>,
+        executor: F,
         plugin_info: Option<PluginInfo>,
-    ) -> Result<Self> {
+    ) -> Result<Self>
+    where
+        F: Fn(ToolInput, ExecutionContext) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<ToolOutput>> + Send + 'static,
+    {
         Ok(Self {
             info,
-            executor,
+            executor: Arc::new(move |input, ctx| Box::pin(executor(input, ctx))),
             plugin_info,
         })
     }
-}
 
-#[async_trait]
-impl ToolNode for BasicTool {
-    fn name(&self) -> &str {
+    /// Get tool name
+    pub fn name(&self) -> &str {
         &self.info.name
     }
 
-    fn version(&self) -> &str {
+    /// Get tool version
+    pub fn version(&self) -> &str {
         &self.info.version
     }
 
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        self.executor.validate_parameters(params)
-    }
-
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        self.executor.execute(params, context).await
-    }
-
-    fn get_info(&self) -> ToolInfo {
+    /// Get tool info
+    pub fn get_info(&self) -> ToolInfo {
         self.info.clone()
     }
 
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
+    /// Get plugin info
+    pub fn get_plugin_info(&self) -> Option<&PluginInfo> {
         self.plugin_info.as_ref()
+    }
+
+    /// Execute the tool
+    pub async fn execute(&self, input: ToolInput, ctx: ExecutionContext) -> Result<ToolOutput> {
+        (self.executor)(input, ctx).await
     }
 }
 
-/// Builder for BasicTool
+// REMOVED: #[async_trait] impl ToolNode for BasicTool
+// Use types::Tool enum instead
+
+/// Builder for BasicTool (DEPRECATED)
+/// 
+/// NOTE: Use types::NativeToolBuilder instead
 pub struct BasicToolBuilder {
     name: Option<String>,
     version: Option<String>,
     description: Option<String>,
-    executor: Option<Arc<dyn ToolExecutor>>,
+    executor: Option<Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, Result<ToolOutput>> + Send + Sync>>,
     plugin_info: Option<PluginInfo>,
     category: Option<String>,
     tags: Vec<String>,
@@ -112,8 +121,12 @@ impl BasicToolBuilder {
         self
     }
 
-    pub fn executor(mut self, executor: Arc<dyn ToolExecutor>) -> Self {
-        self.executor = Some(executor);
+    pub fn executor<F, Fut>(mut self, executor: F) -> Self
+    where
+        F: Fn(ToolInput, ExecutionContext) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<ToolOutput>> + Send + 'static,
+    {
+        self.executor = Some(Arc::new(move |input, ctx| Box::pin(executor(input, ctx))));
         self
     }
 
@@ -180,35 +193,34 @@ impl Default for BasicToolBuilder {
     }
 }
 
-/// Helper for creating async function executors
+/// Helper for creating async function executors (DEPRECATED)
+/// 
+/// NOTE: Use NativeToolBuilder::executor() instead
 pub struct AsyncFunctionExecutor<F> {
     func: F,
 }
 
 impl<F> AsyncFunctionExecutor<F>
 where
-    F: Fn(Value, ExecutionContext) -> Pin<Box<dyn Future<Output = Result<Value>> + Send>>
+    F: Fn(Value, ExecutionContext) -> BoxFuture<'static, Result<Value>>
         + Send
         + Sync,
 {
     pub fn new(func: F) -> Self {
         Self { func }
     }
-}
 
-#[async_trait]
-impl<F> ToolExecutor for AsyncFunctionExecutor<F>
-where
-    F: Fn(Value, ExecutionContext) -> Pin<Box<dyn Future<Output = Result<Value>> + Send>>
-        + Send
-        + Sync,
-{
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+    pub async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
         (self.func)(params, context).await
     }
 }
 
-/// Helper for synchronous function executors
+// REMOVED: #[async_trait] impl ToolExecutor for AsyncFunctionExecutor
+// Use NativeToolBuilder::executor() instead
+
+/// Helper for synchronous function executors (DEPRECATED)
+/// 
+/// NOTE: Use NativeToolBuilder::executor() with async block instead
 pub struct FunctionExecutor<F> {
     func: F,
 }
@@ -220,15 +232,11 @@ where
     pub fn new(func: F) -> Self {
         Self { func }
     }
-}
 
-#[async_trait]
-impl<F> ToolExecutor for FunctionExecutor<F>
-where
-    F: Fn(Value, ExecutionContext) -> Result<Value> + Send + Sync,
-{
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        // Execute synchronous function
+    pub async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
         (self.func)(params, context)
     }
 }
+
+// REMOVED: #[async_trait] impl ToolExecutor for FunctionExecutor
+// Use NativeToolBuilder::executor() instead

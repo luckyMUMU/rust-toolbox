@@ -41,7 +41,13 @@ pub use middleware::{
 pub use node::{
     AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor,
 };
-pub use registry::{BasicToolRegistry, ToolRegistryBuilder};
+pub use registry::{BasicToolRegistry, ToolRegistryBuilder, ToolRegistry as ToolRegistryStruct};
+
+// Compatibility exports for migration period
+// These allow dependent modules to continue working during the transition
+pub use types::Tool as ToolEnum;
+pub use types::ToolInput as ToolInputStruct;
+pub use types::ToolOutput as ToolOutputStruct;
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use types::{
     CompositionType, ComposedTool, DockerTool, NativeTool, NodeJsTool, PythonTool, ResourceRequirements,

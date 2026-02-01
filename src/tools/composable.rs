@@ -3,26 +3,28 @@
 //! NOTE: This module is being refactored as part of the radical optimization.
 //! The old trait-based system is being replaced with an enum-based system.
 //!
-//! ComposableTool trait - REMOVED (will be replaced with ComposedTool enum variant)
+//! ComposableTool trait - REMOVED (replaced with ComposedTool enum variant in types.rs)
 
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
+use crate::tools::types::{Tool, ToolId};
 use crate::workflow::el::{ExpressionContext, ExpressionEngine};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
 
-// TODO: Remove old composable system and replace with new enum-based composition
-// ComposableTool trait - REMOVED
+// MIGRATION: Old composable system replaced with new enum-based composition
+// Use types::ComposedTool instead of the structs below
 
-/// Tool chain for sequential execution
-/// 
-/// NOTE: This will be replaced with composition logic in the Tool enum
+/// Tool chain for sequential execution (DEPRECATED - use ComposedTool::Chain)
+///
+/// NOTE: This is kept for backward compatibility during migration.
+/// New code should use types::ComposedTool with CompositionType::Chain
 pub struct ToolChain {
     name: String,
     description: String,
-    steps: Vec<(String, Arc<dyn ToolNode>)>,
+    steps: Vec<(String, ToolId)>,
     expression_engine: ExpressionEngine,
 }
 
@@ -38,8 +40,8 @@ impl ToolChain {
     }
 
     /// Add a step to the chain
-    pub fn add_step(mut self, name: impl Into<String>, tool: Arc<dyn ToolNode>) -> Self {
-        self.steps.push((name.into(), tool));
+    pub fn add_step(mut self, name: impl Into<String>, tool_id: ToolId) -> Self {
+        self.steps.push((name.into(), tool_id));
         self
     }
 
@@ -47,56 +49,31 @@ impl ToolChain {
     pub fn step_count(&self) -> usize {
         self.steps.len()
     }
-}
 
-#[async_trait]
-impl ComposableTool for ToolChain {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        info!("Executing tool chain '{}' with {} steps", self.name, self.steps.len());
-
-        let mut current_params = params;
-        let mut results = Vec::new();
-
-        for (step_name, tool) in &self.steps {
-            debug!("Executing step '{}'", step_name);
-
-            // Execute the tool
-            let result = tool.execute(current_params.clone(), context.clone()).await?;
-
-            // Store result
-            results.push(json!({
-                "step": step_name,
-                "result": result.clone()
-            }));
-
-            // Pass result to next step
-            current_params = result;
-        }
-
-        Ok(json!({
-            "chain_name": &self.name,
-            "steps_executed": results.len(),
-            "final_result": current_params,
-            "step_results": results
-        }))
-    }
-
-    fn name(&self) -> &str {
+    /// Get chain name
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    fn description(&self) -> String {
-        format!("{} (chain of {} tools)", self.description, self.steps.len())
+    /// Get description
+    pub fn description(&self) -> &str {
+        &self.description
     }
 }
 
-/// Conditional tool for branching execution
+// REMOVED: #[async_trait] impl ComposableTool for ToolChain
+// Use types::ComposedTool::execute() instead
+
+/// Conditional tool for branching execution (DEPRECATED - use ComposedTool::Conditional)
+///
+/// NOTE: This is kept for backward compatibility during migration.
+/// New code should use types::ComposedTool with CompositionType::Conditional
 pub struct ConditionalTool {
     name: String,
     description: String,
     condition: String,
-    then_branch: Arc<dyn ToolNode>,
-    else_branch: Option<Arc<dyn ToolNode>>,
+    then_branch: ToolId,
+    else_branch: Option<ToolId>,
     expression_engine: ExpressionEngine,
 }
 
@@ -106,7 +83,7 @@ impl ConditionalTool {
         name: impl Into<String>,
         description: impl Into<String>,
         condition: impl Into<String>,
-        then_branch: Arc<dyn ToolNode>,
+        then_branch: ToolId,
     ) -> Self {
         Self {
             name: name.into(),
@@ -119,72 +96,38 @@ impl ConditionalTool {
     }
 
     /// Set the else branch
-    pub fn with_else_branch(mut self, tool: Arc<dyn ToolNode>) -> Self {
-        self.else_branch = Some(tool);
+    pub fn with_else_branch(mut self, tool_id: ToolId) -> Self {
+        self.else_branch = Some(tool_id);
         self
     }
-}
 
-#[async_trait]
-impl ComposableTool for ConditionalTool {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        info!("Evaluating condition for tool '{}'", self.name);
-
-        // Build expression context from params
-        let mut expr_context = ExpressionContext::new();
-        if let Value::Object(map) = &params {
-            for (key, value) in map {
-                expr_context.set(key, value.clone());
-            }
-        }
-
-        // Evaluate condition
-        let condition_result = self
-            .expression_engine
-            .evaluate_condition(&self.condition, &expr_context)
-            .map_err(|e| WorkflowError::workflow_execution(format!("Condition evaluation failed: {}", e)))?;
-
-        debug!("Condition '{}' evaluated to: {}", self.condition, condition_result);
-
-        if condition_result {
-            info!("Executing THEN branch");
-            let result = self.then_branch.execute(params, context).await?;
-            Ok(json!({
-                "branch": "then",
-                "condition": &self.condition,
-                "result": result
-            }))
-        } else if let Some(else_tool) = &self.else_branch {
-            info!("Executing ELSE branch");
-            let result = else_tool.execute(params, context).await?;
-            Ok(json!({
-                "branch": "else",
-                "condition": &self.condition,
-                "result": result
-            }))
-        } else {
-            Ok(json!({
-                "branch": "none",
-                "condition": &self.condition,
-                "result": Value::Null
-            }))
-        }
-    }
-
-    fn name(&self) -> &str {
+    /// Get tool name
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    fn description(&self) -> String {
-        format!("{} (conditional: {})", self.description, self.condition)
+    /// Get description
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Get condition
+    pub fn condition(&self) -> &str {
+        &self.condition
     }
 }
 
-/// Parallel tool execution
+// REMOVED: #[async_trait] impl ComposableTool for ConditionalTool
+// Use types::ComposedTool::execute() instead
+
+/// Parallel tool execution (DEPRECATED - use ComposedTool::Parallel)
+///
+/// NOTE: This is kept for backward compatibility during migration.
+/// New code should use types::ComposedTool with CompositionType::Parallel
 pub struct ParallelTools {
     name: String,
     description: String,
-    tools: Vec<(String, Arc<dyn ToolNode>)>,
+    tools: Vec<(String, ToolId)>,
     max_concurrency: usize,
 }
 
@@ -200,14 +143,14 @@ impl ParallelTools {
     }
 
     /// Add a tool to the parallel set
-    pub fn add_tool(mut self, name: impl Into<String>, tool: Arc<dyn ToolNode>) -> Self {
-        self.tools.push((name.into(), tool));
+    pub fn add_tool(mut self, name: impl Into<String>, tool_id: ToolId) -> Self {
+        self.tools.push((name.into(), tool_id));
         self
     }
 
     /// Alias for add_tool for builder API consistency
-    pub fn with_tool(self, name: impl Into<String>, tool: Arc<dyn ToolNode>) -> Self {
-        self.add_tool(name, tool)
+    pub fn with_tool(self, name: impl Into<String>, tool_id: ToolId) -> Self {
+        self.add_tool(name, tool_id)
     }
 
     /// Set maximum concurrency
@@ -215,122 +158,91 @@ impl ParallelTools {
         self.max_concurrency = max;
         self
     }
-}
 
-#[async_trait]
-impl ComposableTool for ParallelTools {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        info!(
-            "Executing {} tools in parallel (max concurrency: {})",
-            self.tools.len(),
-            self.max_concurrency
-        );
-
-        use std::sync::Arc;
-        use tokio::sync::Semaphore;
-
-        let semaphore = Arc::new(Semaphore::new(self.max_concurrency));
-        let tools: Vec<(String, Arc<dyn ToolNode>)> = self.tools.clone();
-        let mut handles = Vec::new();
-
-        for (name, tool) in tools {
-            let semaphore = semaphore.clone();
-            let params = params.clone();
-            let context = context.clone();
-
-            let handle = tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
-                debug!("Executing parallel tool '{}'", name);
-
-                match tool.execute(params, context).await {
-                    Ok(result) => (name, json!({ "success": true, "result": result })),
-                    Err(e) => (
-                        name,
-                        json!({
-                            "success": false,
-                            "error": e.to_string()
-                        }),
-                    ),
-                }
-            });
-
-            handles.push(handle);
-        }
-
-        let mut results = HashMap::new();
-        for handle in handles {
-            if let Ok((name, result)) = handle.await {
-                results.insert(name, result);
-            }
-        }
-
-        Ok(json!({
-            "parallel_execution": &self.name,
-            "tools_executed": results.len(),
-            "results": results
-        }))
-    }
-
-    fn name(&self) -> &str {
+    /// Get tool name
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    fn description(&self) -> String {
-        format!("{} (parallel execution of {} tools)", self.description, self.tools.len())
+    /// Get description
+    pub fn description(&self) -> &str {
+        &self.description
     }
 }
 
-/// Tool composer for registering and managing composable tools
+// REMOVED: #[async_trait] impl ComposableTool for ParallelTools
+// Use types::ComposedTool::execute() instead
+
+/// Tool composer for registering and managing composable tools (DEPRECATED)
+///
+/// NOTE: This is kept for backward compatibility during migration.
+/// New code should use ToolRegistry with types::ComposedTool
 #[derive(Clone)]
 pub struct ToolComposer {
-    tools: HashMap<String, Arc<dyn ComposableTool>>,
+    chains: HashMap<String, ToolChain>,
+    conditionals: HashMap<String, ConditionalTool>,
+    parallels: HashMap<String, ParallelTools>,
 }
 
 impl ToolComposer {
     /// Create a new tool composer
     pub fn new() -> Self {
         Self {
-            tools: HashMap::new(),
+            chains: HashMap::new(),
+            conditionals: HashMap::new(),
+            parallels: HashMap::new(),
         }
     }
 
-    /// Register a composable tool
-    pub fn register(mut self, name: impl Into<String>, tool: Arc<dyn ComposableTool>) -> Self {
+    /// Register a tool chain
+    pub fn register_chain(mut self, name: impl Into<String>, chain: ToolChain) -> Self {
         let name = name.into();
-        info!("Registering composable tool: {}", name);
-        self.tools.insert(name, tool);
+        info!("Registering tool chain: {}", name);
+        self.chains.insert(name, chain);
         self
     }
 
-    /// Get a registered tool
-    pub fn get_tool(&self, name: &str) -> Option<Arc<dyn ComposableTool>> {
-        self.tools.get(name).cloned()
+    /// Register a conditional tool
+    pub fn register_conditional(
+        mut self,
+        name: impl Into<String>,
+        conditional: ConditionalTool,
+    ) -> Self {
+        let name = name.into();
+        info!("Registering conditional tool: {}", name);
+        self.conditionals.insert(name, conditional);
+        self
     }
 
-    /// List all registered tools
-    pub fn list_tools(&self) -> Vec<(String, String)> {
-        self.tools
+    /// Register parallel tools
+    pub fn register_parallel(mut self, name: impl Into<String>, parallel: ParallelTools) -> Self {
+        let name = name.into();
+        info!("Registering parallel tools: {}", name);
+        self.parallels.insert(name, parallel);
+        self
+    }
+
+    /// Get a registered tool chain
+    pub fn get_chain(&self, name: &str) -> Option<&ToolChain> {
+        self.chains.get(name)
+    }
+
+    /// Get a registered conditional tool
+    pub fn get_conditional(&self, name: &str) -> Option<&ConditionalTool> {
+        self.conditionals.get(name)
+    }
+
+    /// Get registered parallel tools
+    pub fn get_parallel(&self, name: &str) -> Option<&ParallelTools> {
+        self.parallels.get(name)
+    }
+
+    /// List all registered chains
+    pub fn list_chains(&self) -> Vec<(String, String)> {
+        self.chains
             .iter()
-            .map(|(name, tool)| (name.clone(), tool.description()))
+            .map(|(name, chain)| (name.clone(), chain.description().to_string()))
             .collect()
-    }
-
-    /// Execute a registered tool
-    pub async fn execute(
-        &self,
-        name: &str,
-        params: Value,
-        context: ExecutionContext,
-    ) -> Result<Value> {
-        let tool = self
-            .tools
-            .get(name)
-            .cloned()
-            .ok_or_else(|| WorkflowError::NotFound {
-                resource: format!("composable tool '{}'", name),
-            })?;
-
-        tool.execute(params, context).await
     }
 }
 
@@ -340,69 +252,24 @@ impl Default for ToolComposer {
     }
 }
 
-/// Adapter to make ComposableTool work as a ToolNode
-pub struct ComposableToolAdapter {
-    inner: Arc<dyn ComposableTool>,
-    info: crate::core::ToolInfo,
-}
+/// Adapter to convert old composable tools to new Tool enum (DEPRECATED)
+///
+/// NOTE: Use types::ComposedTool directly instead
+pub struct ComposableToolAdapter;
 
 impl ComposableToolAdapter {
-    /// Create a new adapter
-    pub fn new(inner: Arc<dyn ComposableTool>) -> Self {
-        let info = crate::core::ToolInfo {
-            name: inner.name().to_string(),
-            version: "1.0.0".to_string(),
-            description: inner.description(),
-            parameters_schema: serde_json::json!({
-                "type": "object",
-                "properties": {}
-            }),
-            return_schema: serde_json::json!({}),
-            category: Some("composable".to_string()),
-            tags: vec!["composed".to_string()],
-            dependencies: vec![],
-            plugin_name: None,
-            version_requirements: std::collections::HashMap::new(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        Self { inner, info }
+    /// Create a new adapter (placeholder for compatibility)
+    pub fn new() -> Self {
+        Self
     }
 }
 
-#[async_trait]
-impl ToolNode for ComposableToolAdapter {
-    fn name(&self) -> &str {
-        self.inner.name()
-    }
+// REMOVED: #[async_trait] impl ToolNode for ComposableToolAdapter
+// ToolNode trait has been removed. Use types::Tool enum instead.
 
-    fn version(&self) -> &str {
-        "1.0.0"
-    }
-
-    fn description(&self) -> String {
-        self.inner.description()
-    }
-
-    fn definition(&self) -> crate::core::ToolInfo {
-        self.info.clone()
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        self.inner.validate_params(params)
-    }
-
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        self.inner.execute(params, context).await
-    }
-
-    fn get_info(&self) -> crate::core::ToolInfo {
-        self.info.clone()
-    }
-}
-
-/// Builder for creating complex tool compositions using a fluent API
+/// Builder for creating complex tool compositions using a fluent API (DEPRECATED)
+///
+/// NOTE: Use types::ComposedTool and ToolRegistry instead
 pub struct ToolCompositionBuilder {
     composer: ToolComposer,
 }
@@ -460,7 +327,7 @@ pub struct ToolChainBuilder<'a> {
     builder: &'a mut ToolCompositionBuilder,
     name: String,
     description: String,
-    steps: Vec<(String, Arc<dyn ToolNode>)>,
+    steps: Vec<(String, ToolId)>,
 }
 
 impl<'a> ToolChainBuilder<'a> {
@@ -478,8 +345,8 @@ impl<'a> ToolChainBuilder<'a> {
     }
 
     /// Add a step
-    pub fn step(mut self, name: impl Into<String>, tool: Arc<dyn ToolNode>) -> Self {
-        self.steps.push((name.into(), tool));
+    pub fn step(mut self, name: impl Into<String>, tool_id: ToolId) -> Self {
+        self.steps.push((name.into(), tool_id));
         self
     }
 
@@ -492,7 +359,7 @@ impl<'a> ToolChainBuilder<'a> {
             expression_engine: ExpressionEngine::new(),
         };
 
-        self.builder.composer.tools.insert(self.name, Arc::new(chain));
+        self.builder.composer.register_chain(self.name, chain);
         self.builder
     }
 }
@@ -503,8 +370,8 @@ pub struct ConditionalToolBuilder<'a> {
     name: String,
     description: String,
     condition: String,
-    then_branch: Option<Arc<dyn ToolNode>>,
-    else_branch: Option<Arc<dyn ToolNode>>,
+    then_branch: Option<ToolId>,
+    else_branch: Option<ToolId>,
 }
 
 impl<'a> ConditionalToolBuilder<'a> {
@@ -525,21 +392,21 @@ impl<'a> ConditionalToolBuilder<'a> {
     }
 
     /// Set the then branch
-    pub fn then(mut self, tool: Arc<dyn ToolNode>) -> Self {
-        self.then_branch = Some(tool);
+    pub fn then(mut self, tool_id: ToolId) -> Self {
+        self.then_branch = Some(tool_id);
         self
     }
 
     /// Set the else branch
-    pub fn otherwise(mut self, tool: Arc<dyn ToolNode>) -> Self {
-        self.else_branch = Some(tool);
+    pub fn otherwise(mut self, tool_id: ToolId) -> Self {
+        self.else_branch = Some(tool_id);
         self
     }
 
     /// Finalize and register
     pub fn register(self) -> Result<&'a mut ToolCompositionBuilder> {
         let then_branch = self.then_branch.ok_or_else(|| {
-            WorkflowError::workflow_validation("Conditional tool must have a 'then' branch")
+            WorkflowError::ValidationError("Conditional tool must have a 'then' branch".to_string())
         })?;
 
         let conditional = ConditionalTool {
@@ -551,7 +418,9 @@ impl<'a> ConditionalToolBuilder<'a> {
             expression_engine: ExpressionEngine::new(),
         };
 
-        self.builder.composer.tools.insert(self.name, Arc::new(conditional));
+        self.builder
+            .composer
+            .register_conditional(self.name, conditional);
         Ok(self.builder)
     }
 }
@@ -561,7 +430,7 @@ pub struct ParallelToolBuilder<'a> {
     builder: &'a mut ToolCompositionBuilder,
     name: String,
     description: String,
-    tools: Vec<(String, Arc<dyn ToolNode>)>,
+    tools: Vec<(String, ToolId)>,
     max_concurrency: usize,
 }
 
@@ -581,8 +450,8 @@ impl<'a> ParallelToolBuilder<'a> {
     }
 
     /// Add a tool
-    pub fn tool(mut self, name: impl Into<String>, tool: Arc<dyn ToolNode>) -> Self {
-        self.tools.push((name.into(), tool));
+    pub fn tool(mut self, name: impl Into<String>, tool_id: ToolId) -> Self {
+        self.tools.push((name.into(), tool_id));
         self
     }
 
@@ -601,7 +470,7 @@ impl<'a> ParallelToolBuilder<'a> {
             max_concurrency: self.max_concurrency,
         };
 
-        self.builder.composer.tools.insert(self.name, Arc::new(parallel));
+        self.builder.composer.register_parallel(self.name, parallel);
         self.builder
     }
 }
@@ -609,7 +478,6 @@ impl<'a> ParallelToolBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::BasicTool;
 
     #[test]
     fn test_tool_chain_creation() {
@@ -621,13 +489,13 @@ mod tests {
     #[test]
     fn test_tool_composer() {
         let composer = ToolComposer::new();
-        assert!(composer.list_tools().is_empty());
+        assert!(composer.list_chains().is_empty());
     }
 
     #[test]
     fn test_composition_builder() {
         let mut builder = ToolCompositionBuilder::new();
         // Just test that builder can be created
-        assert_eq!(builder.composer.list_tools().len(), 0);
+        assert_eq!(builder.composer.list_chains().len(), 0);
     }
 }
