@@ -20,6 +20,7 @@ pub mod composable;
 pub mod node;
 pub mod registry;
 pub mod template;
+pub mod types;  // NEW: Enum-based tool system
 pub mod version;
 
 // TODO: Remove old exports after migration
@@ -35,6 +36,10 @@ pub use node::{
 };
 pub use registry::{BasicToolRegistry, ToolRegistryBuilder};
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
+pub use types::{
+    CompositionType, ComposedTool, DockerTool, NativeTool, NodeJsTool, PythonTool, ResourceRequirements,
+    Tool, ToolExample, ToolId, ToolInput, ToolKind, ToolMetadata, ToolOutput, WasmTool,
+};
 pub use version::{
     DependencyResolver, ResolutionResult, ToolDependency, ToolVersion, Version, VersionConflict,
     VersionRequirement,
