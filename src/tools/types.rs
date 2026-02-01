@@ -158,6 +158,57 @@ pub enum Tool {
     Composed(Arc<ComposedTool>),
 }
 
+impl Tool {
+    /// Get the tool kind/category
+    pub fn kind(&self) -> ToolKind {
+        match self {
+            Tool::Native(_) => ToolKind::Native,
+            Tool::Python(_) => ToolKind::Python,
+            Tool::NodeJs(_) => ToolKind::NodeJs,
+            Tool::Docker(_) => ToolKind::Docker,
+            Tool::Wasm(_) => ToolKind::Wasm,
+            Tool::Composed(_) => ToolKind::Composed,
+        }
+    }
+
+    /// Get tool metadata
+    pub fn metadata(&self) -> ToolMetadata {
+        match self {
+            Tool::Native(t) => (*t.metadata).clone(),
+            Tool::Python(t) => (*t.metadata).clone(),
+            Tool::NodeJs(t) => (*t.metadata).clone(),
+            Tool::Docker(t) => (*t.metadata).clone(),
+            Tool::Wasm(t) => (*t.metadata).clone(),
+            Tool::Composed(t) => (*t.metadata).clone(),
+        }
+    }
+
+    /// Get tool ID
+    pub fn id(&self) -> ToolId {
+        match self {
+            Tool::Native(t) => t.id,
+            Tool::Python(t) => t.id,
+            Tool::NodeJs(t) => t.id,
+            Tool::Docker(t) => t.id,
+            Tool::Wasm(t) => t.id,
+            Tool::Composed(t) => t.id,
+        }
+    }
+
+    /// Execute the tool
+    /// 
+    /// TODO: This is a placeholder implementation.
+    /// Actual execution logic will be implemented in Task 1.4
+    pub async fn execute(
+        &self,
+        _input: ToolInput,
+        _ctx: ExecutionContext,
+    ) -> crate::error::Result<ToolOutput> {
+        // Placeholder - will be implemented with actual execution logic
+        Ok(ToolOutput::success(serde_json::Value::Null))
+    }
+}
+
 /// Native Rust tool implementation
 #[derive(Clone)]
 pub struct NativeTool {

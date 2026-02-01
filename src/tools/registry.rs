@@ -1,372 +1,349 @@
-//! Tool registry for managing available tools
-//! 
-//! NOTE: This module is being refactored as part of the radical optimization.
-//! The old trait-based system is being replaced with an enum-based system.
+//! Tool registry for managing available tools (enum-based implementation)
+//!
+//! This module provides a high-performance, thread-safe tool registry using
+//! the new enum-based Tool system.
 
-use crate::core::{ExecutionContext, ToolInfo};
+use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
-use crate::tools::{
-    DependencyResolver, ParameterTemplate, ResolutionResult, TemplateContext, ToolDependency,
-    ToolVersion, Version, VersionRequirement,
+use crate::tools::types::{
+    Tool, ToolId, ToolInput, ToolKind, ToolMetadata, ToolOutput,
 };
+use crate::tools::version::{Version, VersionRequirement};
 use dashmap::DashMap;
 use serde_json::Value;
-use std::str::FromStr;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
-// TODO: Remove BasicToolRegistry and replace with new enum-based system
-// This is temporarily kept for compilation, will be removed in task 1.3
-
-/// Basic implementation of tool registry.
+/// High-performance tool registry using enum-based Tool system
 ///
-/// Uses `DashMap` for thread-safe concurrent access to registered tools.
-/// Handles dependency resolution and caching of tool information.
-pub struct BasicToolRegistry {
-    tools: DashMap<String, Arc<dyn ToolNode>>,
-    tool_info_cache: DashMap<String, ToolInfo>,
-    #[allow(dead_code)]
-    dependency_resolver: DependencyResolver,
+/// Features:
+/// - O(1) tool lookup by name
+/// - O(1) tool lookup by ID
+/// - Thread-safe concurrent access
+/// - Version management
+/// - Tool discovery and search
+pub struct ToolRegistry {
+    /// Primary storage: ToolId -> Tool
+    tools: DashMap<ToolId, Tool>,
+    /// Name index: tool name -> ToolId
+    name_index: DashMap<String, ToolId>,
+    /// Metadata cache: ToolId -> metadata
+    metadata_cache: DashMap<ToolId, Arc<ToolMetadata>>,
+    /// Version management: ToolId -> versions
+    versions: DashMap<ToolId, Vec<Version>>,
+    /// Category index: category -> [ToolId]
+    category_index: DashMap<String, Vec<ToolId>>,
+    /// Tag index: tag -> [ToolId]
+    tag_index: DashMap<String, Vec<ToolId>>,
 }
 
-impl BasicToolRegistry {
+impl ToolRegistry {
     /// Create a new empty tool registry
     pub fn new() -> Self {
         Self {
             tools: DashMap::new(),
-            tool_info_cache: DashMap::new(),
-            dependency_resolver: DependencyResolver::new(),
+            name_index: DashMap::new(),
+            metadata_cache: DashMap::new(),
+            versions: DashMap::new(),
+            category_index: DashMap::new(),
+            tag_index: DashMap::new(),
         }
     }
 
-    /// Create a new tool registry with initial capacity
+    /// Create a new registry with initial capacity
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             tools: DashMap::with_capacity(capacity),
-            tool_info_cache: DashMap::with_capacity(capacity),
-            dependency_resolver: DependencyResolver::new(),
+            name_index: DashMap::with_capacity(capacity),
+            metadata_cache: DashMap::with_capacity(capacity),
+            versions: DashMap::with_capacity(capacity),
+            category_index: DashMap::new(),
+            tag_index: DashMap::new(),
         }
     }
 
-    /// Get tool names matching a pattern
-    pub fn find_tools_by_pattern(&self, pattern: &str) -> Vec<String> {
-        self.tools
-            .iter()
-            .filter_map(|entry| {
-                let name = entry.key();
-                if name.contains(pattern) {
-                    Some(name.clone())
-                } else {
-                    None
+    /// Register a new tool
+    ///
+    /// Returns the ToolId assigned to the tool
+    pub fn register(&self, name: &str, tool: Tool) -> ToolId {
+        let id = ToolId::new();
+        let metadata = tool.metadata();
+
+        // Store tool
+        self.tools.insert(id, tool);
+
+        // Update name index
+        self.name_index.insert(name.to_string(), id);
+
+        // Update metadata cache
+        self.metadata_cache.insert(id, Arc::new(metadata.clone()));
+
+        // Update version tracking
+        self.versions.entry(id).or_insert_with(Vec::new).push(metadata.version.parse().unwrap_or(Version::new(0, 1, 0)));
+
+        // Update category index
+        if let Some(category) = &metadata.info.category {
+            self.category_index
+                .entry(category.clone())
+                .or_insert_with(Vec::new)
+                .push(id);
+        }
+
+        // Update tag index
+        for tag in &metadata.info.tags {
+            self.tag_index
+                .entry(tag.clone())
+                .or_insert_with(Vec::new)
+                .push(id);
+        }
+
+        info!(tool_id = %id, tool_name = %name, "Tool registered");
+        id
+    }
+
+    /// Get a tool by name
+    ///
+    /// O(1) lookup via name index
+    pub fn get(&self, name: &str) -> Option<Tool> {
+        let id = self.name_index.get(name)?;
+        self.tools.get(&*id).map(|r| r.clone())
+    }
+
+    /// Get a tool by ID
+    ///
+    /// O(1) lookup
+    pub fn get_by_id(&self, id: ToolId) -> Option<Tool> {
+        self.tools.get(&id).map(|r| r.clone())
+    }
+
+    /// Get tool metadata by name
+    pub fn get_metadata(&self, name: &str) -> Option<Arc<ToolMetadata>> {
+        let id = self.name_index.get(name)?;
+        self.metadata_cache.get(&*id).map(|r| r.clone())
+    }
+
+    /// Get tool metadata by ID
+    pub fn get_metadata_by_id(&self, id: ToolId) -> Option<Arc<ToolMetadata>> {
+        self.metadata_cache.get(&id).map(|r| r.clone())
+    }
+
+    /// Check if a tool exists
+    pub fn contains(&self, name: &str) -> bool {
+        self.name_index.contains_key(name)
+    }
+
+    /// Remove a tool by name
+    pub fn remove(&self, name: &str) -> Option<Tool> {
+        let id = self.name_index.remove(name)?.1;
+        
+        // Remove from all indexes
+        self.metadata_cache.remove(&id);
+        self.versions.remove(&id);
+        
+        // Remove from category index
+        if let Some(metadata) = self.metadata_cache.get(&id) {
+            if let Some(category) = &metadata.info.category {
+                if let Some(mut ids) = self.category_index.get_mut(category) {
+                    ids.retain(|&x| x != id);
                 }
-            })
+            }
+        }
+        
+        // Remove from tag index
+        if let Some(metadata) = self.metadata_cache.get(&id) {
+            for tag in &metadata.info.tags {
+                if let Some(mut ids) = self.tag_index.get_mut(tag) {
+                    ids.retain(|&x| x != id);
+                }
+            }
+        }
+        
+        info!(tool_id = %id, tool_name = %name, "Tool removed");
+        self.tools.remove(&id).map(|r| r.1)
+    }
+
+    /// List all tool names
+    pub fn list_names(&self) -> Vec<String> {
+        self.name_index.iter().map(|e| e.key().clone()).collect()
+    }
+
+    /// List all tool IDs
+    pub fn list_ids(&self) -> Vec<ToolId> {
+        self.tools.iter().map(|e| *e.key()).collect()
+    }
+
+    /// Get tool count
+    pub fn len(&self) -> usize {
+        self.tools.len()
+    }
+
+    /// Check if registry is empty
+    pub fn is_empty(&self) -> bool {
+        self.tools.is_empty()
+    }
+
+    /// Clear all tools
+    pub fn clear(&self) {
+        self.tools.clear();
+        self.name_index.clear();
+        self.metadata_cache.clear();
+        self.versions.clear();
+        self.category_index.clear();
+        self.tag_index.clear();
+        info!("Tool registry cleared");
+    }
+
+    /// Find tools by name pattern
+    pub fn find_by_pattern(&self, pattern: &str) -> Vec<(String, ToolId)> {
+        self.name_index
+            .iter()
+            .filter(|e| e.key().contains(pattern))
+            .map(|e| (e.key().clone(), *e.value()))
             .collect()
     }
 
     /// Get tools by category
-    pub fn get_tools_by_category(&self, category: &str) -> Vec<ToolInfo> {
-        self.tool_info_cache
-            .iter()
-            .filter_map(|entry| {
-                let info: &ToolInfo = entry.value();
-                if info.category.as_ref().is_some_and(|c| c == category) {
-                    Some(info.clone())
-                } else {
-                    None
-                }
+    pub fn get_by_category(&self, category: &str) -> Vec<Tool> {
+        self.category_index
+            .get(category)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|&id| self.get_by_id(id))
+                    .collect()
             })
-            .collect()
+            .unwrap_or_default()
     }
 
     /// Get tools by tag
-    pub fn get_tools_by_tag(&self, tag: &str) -> Vec<ToolInfo> {
-        self.tool_info_cache
-            .iter()
-            .filter_map(|entry| {
-                let info: &ToolInfo = entry.value();
-                if info.tags.contains(&tag.to_string()) {
-                    Some(info.clone())
-                } else {
-                    None
-                }
+    pub fn get_by_tag(&self, tag: &str) -> Vec<Tool> {
+        self.tag_index
+            .get(tag)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|&id| self.get_by_id(id))
+                    .collect()
             })
+            .unwrap_or_default()
+    }
+
+    /// Get tools by kind
+    pub fn get_by_kind(&self, kind: ToolKind) -> Vec<Tool> {
+        self.tools
+            .iter()
+            .filter(|e| e.value().kind() == kind)
+            .map(|e| e.value().clone())
             .collect()
     }
 
-    /// Update tool info cache and dependency resolver
-    fn update_cache(&self, tool: &Arc<dyn ToolNode>) {
-        let info = tool.get_info();
-
-        // Update info cache
-        self.tool_info_cache.insert(info.name.clone(), info.clone());
-
-        // Update dependency resolver
-        let version = Version::from_str(&info.version).unwrap_or_else(|_| Version::new(0, 0, 0));
-        let mut tool_version = ToolVersion::new(info.name.clone(), version);
-
-        // Add dependencies
-        for (dep_name, version_req) in &info.version_requirements {
-            if let Ok(requirement) = VersionRequirement::parse(version_req) {
-                let dependency = ToolDependency::new(dep_name.clone(), requirement);
-                tool_version = tool_version.with_dependency(dependency);
-            }
-        }
-
-        // This is a bit tricky since DependencyResolver doesn't have a mutable reference
-        // We'll need to rebuild it when needed or use interior mutability
-        // For now, we'll store the tool version info in the cache
+    /// Execute a tool by name
+    ///
+    /// This is a convenience method that looks up the tool and executes it
+    pub async fn execute(
+        &self,
+        name: &str,
+        input: ToolInput,
+        ctx: ExecutionContext,
+    ) -> Result<ToolOutput> {
+        let tool = self
+            .get(name)
+            .ok_or_else(|| WorkflowError::tool_not_found(name))?;
+        
+        tool.execute(input, ctx).await
     }
 
-    /// Remove from cache
-    fn remove_from_cache(&self, name: &str) {
-        self.tool_info_cache.remove(name);
+    /// Execute a tool by ID
+    pub async fn execute_by_id(
+        &self,
+        id: ToolId,
+        input: ToolInput,
+        ctx: ExecutionContext,
+    ) -> Result<ToolOutput> {
+        let tool = self
+            .get_by_id(id)
+            .ok_or_else(|| WorkflowError::tool_not_found(&format!("{}", id)))?;
+        
+        tool.execute(input, ctx).await
+    }
+
+    /// Get tool versions
+    pub fn get_versions(&self, name: &str) -> Option<Vec<Version>> {
+        let id = self.name_index.get(name)?;
+        self.versions.get(&*id).map(|v| v.clone())
+    }
+
+    /// Check for version conflicts
+    pub fn check_version_conflicts(&self) -> Vec<String> {
+        let mut conflicts = Vec::new();
+        
+        // Group tools by name base (without version)
+        let mut name_groups: HashMap<String, Vec<(ToolId, Version)>> = HashMap::new();
+        
+        for entry in self.versions.iter() {
+            let id = *entry.key();
+            if let Some(metadata) = self.metadata_cache.get(&id) {
+                let name = &metadata.info.name;
+                for version in entry.value().iter() {
+                    name_groups
+                        .entry(name.clone())
+                        .or_insert_with(Vec::new)
+                        .push((id, version.clone()));
+                }
+            }
+        }
+        
+        // Check for conflicts within groups
+        for (name, versions) in name_groups {
+            if versions.len() > 1 {
+                // Check if versions are compatible
+                for i in 0..versions.len() {
+                    for j in (i + 1)..versions.len() {
+                        let v1 = &versions[i].1;
+                        let v2 = &versions[j].1;
+                        
+                        // Major version must match for compatibility
+                        if v1.major != v2.major {
+                            conflicts.push(format!(
+                                "{}: incompatible versions {} and {}",
+                                name, v1, v2
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        
+        conflicts
     }
 }
 
-impl Default for BasicToolRegistry {
+impl Default for ToolRegistry {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[async_trait]
-impl ToolRegistry for BasicToolRegistry {
-    fn register_tool(&mut self, tool: Arc<dyn ToolNode>) -> Result<()> {
-        let name = tool.name().to_string();
-
-        // Check if tool already exists
-        if self.tools.contains_key(&name) {
-            warn!("Tool '{}' already exists, replacing", name);
-        }
-
-        // Validate tool info
-        let info = tool.get_info();
-        if info.name.is_empty() {
-            return Err(WorkflowError::ValidationError(
-                "Tool name cannot be empty".to_string(),
-            ));
-        }
-
-        if info.version.is_empty() {
-            return Err(WorkflowError::ValidationError(
-                "Tool version cannot be empty".to_string(),
-            ));
-        }
-
-        // Register the tool
-        self.tools.insert(name.clone(), tool.clone());
-        self.update_cache(&tool);
-
-        info!("Registered tool: {} v{}", name, info.version);
-        Ok(())
-    }
-
-    fn get_tool(&self, name: &str) -> Option<Arc<dyn ToolNode>> {
-        self.tools.get(name).map(|entry| entry.value().clone())
-    }
-
-    fn list_tools(&self) -> Vec<ToolInfo> {
-        self.tool_info_cache
-            .iter()
-            .map(|entry| {
-                let info: &ToolInfo = entry.value();
-                info.clone()
-            })
-            .collect()
-    }
-
-    async fn execute_tool(
-        &self,
-        name: &str,
-        params: Value,
-        context: ExecutionContext,
-    ) -> Result<Value> {
-        debug!("Executing tool '{}' with params: {}", name, params);
-
-        let tool = self.get_tool(name).ok_or_else(|| WorkflowError::NotFound {
-            resource: format!("tool '{}'", name),
-        })?;
-
-        match tool.execute(params, context).await {
-            Ok(result) => {
-                debug!("Tool '{}' executed successfully", name);
-                Ok(result)
-            }
-            Err(e) => {
-                error!("Tool '{}' execution failed: {}", name, e);
-                Err(e)
-            }
-        }
-    }
-
-    fn validate_tool_params(&self, name: &str, params: &Value) -> Result<()> {
-        let tool = self.get_tool(name).ok_or_else(|| WorkflowError::NotFound {
-            resource: format!("tool '{}'", name),
-        })?;
-
-        tool.validate_parameters(params)
-    }
-
-    fn has_tool(&self, name: &str) -> bool {
-        self.tools.contains_key(name)
-    }
-
-    fn unregister_tool(&mut self, name: &str) -> Result<()> {
-        if self.tools.remove(name).is_some() {
-            self.remove_from_cache(name);
-            info!("Unregistered tool: {}", name);
-            Ok(())
-        } else {
-            Err(WorkflowError::NotFound {
-                resource: format!("tool '{}'", name),
-            })
-        }
-    }
-
-    fn tool_count(&self) -> usize {
-        self.tools.len()
-    }
-
-    fn clear(&mut self) {
-        let count = self.tools.len();
-        self.tools.clear();
-        self.tool_info_cache.clear();
-        info!("Cleared {} tools from registry", count);
-    }
-
-    fn resolve_dependencies(&self, tool_names: Vec<String>) -> Result<ResolutionResult> {
-        debug!("Resolving dependencies for tools: {:?}", tool_names);
-
-        // Build dependency resolver with current tools
-        let mut resolver = DependencyResolver::new();
-
-        // Add all tools to the resolver
-        for entry in self.tool_info_cache.iter() {
-            let info: &ToolInfo = entry.value();
-            let version =
-                Version::from_str(&info.version).unwrap_or_else(|_| Version::new(0, 0, 0));
-            let mut tool_version = ToolVersion::new(info.name.clone(), version);
-
-            // Add dependencies
-            for (dep_name, version_req) in &info.version_requirements {
-                if let Ok(requirement) = VersionRequirement::parse(version_req) {
-                    let dependency = ToolDependency::new(dep_name.clone(), requirement);
-                    tool_version = tool_version.with_dependency(dependency);
-                }
-            }
-
-            resolver.add_tool_version(tool_version);
-        }
-
-        // Create requirements for the requested tools
-        let requirements: Vec<ToolDependency> = tool_names
-            .into_iter()
-            .map(|name| ToolDependency::new(name, VersionRequirement::Any))
-            .collect();
-
-        resolver.resolve_dependencies(requirements)
-    }
-
-    fn check_version_conflicts(&self) -> Result<Vec<String>> {
-        let tool_names: Vec<String> = self
-            .tool_info_cache
-            .iter()
-            .map(|entry| {
-                let key: &String = entry.key();
-                key.clone()
-            })
-            .collect();
-
-        let resolution = self.resolve_dependencies(tool_names)?;
-
-        Ok(resolution
-            .conflicts
-            .into_iter()
-            .map(|conflict| {
-                format!(
-                    "Conflict in tool '{}': {:?}",
-                    conflict.tool_name, conflict.conflict_type
-                )
-            })
-            .collect())
-    }
-
-    fn get_dependents(&self, tool_name: &str) -> Vec<ToolInfo> {
-        self.tool_info_cache
-            .iter()
-            .filter_map(|entry| {
-                let info: &ToolInfo = entry.value();
-                if info.dependencies.contains(&tool_name.to_string()) {
-                    Some(info.clone())
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    async fn execute_tool_with_templates(
-        &self,
-        name: &str,
-        params: Value,
-        template_context: &TemplateContext,
-        execution_context: ExecutionContext,
-    ) -> Result<Value> {
-        debug!("Executing tool '{}' with template expansion", name);
-
-        let tool = self.get_tool(name).ok_or_else(|| WorkflowError::NotFound {
-            resource: format!("tool '{}'", name),
-        })?;
-
-        // Expand parameters using templates
-        let expanded_params = tool.expand_parameters(params, template_context)?;
-
-        // Execute with expanded parameters
-        match tool.execute(expanded_params, execution_context).await {
-            Ok(result) => {
-                debug!("Tool '{}' executed successfully with templates", name);
-                Ok(result)
-            }
-            Err(e) => {
-                error!("Tool '{}' execution with templates failed: {}", name, e);
-                Err(e)
-            }
-        }
-    }
-
-    fn get_tool_templates(&self, tool_name: &str) -> Vec<ParameterTemplate> {
-        if let Some(tool) = self.get_tool(tool_name) {
-            tool.get_parameter_templates()
-        } else {
-            Vec::new()
-        }
-    }
-}
-
-/// Builder for BasicToolRegistry with pre-configured tools
+/// Builder for ToolRegistry
 pub struct ToolRegistryBuilder {
-    registry: BasicToolRegistry,
+    registry: ToolRegistry,
 }
 
 impl ToolRegistryBuilder {
+    /// Create a new builder
     pub fn new() -> Self {
         Self {
-            registry: BasicToolRegistry::new(),
+            registry: ToolRegistry::new(),
         }
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            registry: BasicToolRegistry::with_capacity(capacity),
-        }
+    /// Add a tool to the registry
+    pub fn register(mut self, name: &str, tool: Tool) -> Self {
+        self.registry.register(name, tool);
+        self
     }
 
-    pub fn add_tool(mut self, tool: Arc<dyn ToolNode>) -> Result<Self> {
-        self.registry.register_tool(tool)?;
-        Ok(self)
-    }
-
-    pub fn build(self) -> BasicToolRegistry {
+    /// Build the registry
+    pub fn build(self) -> ToolRegistry {
         self.registry
     }
 }
@@ -380,73 +357,97 @@ impl Default for ToolRegistryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::{AsyncFunctionExecutor, BasicTool};
-    use serde_json::json;
+    use crate::tools::types::{NativeTool, ResourceRequirements, ToolInfo};
 
-    #[tokio::test]
-    async fn test_basic_tool_registry() {
-        let mut registry = BasicToolRegistry::new();
+    fn create_test_tool(name: &str) -> Tool {
+        let metadata = ToolMetadata {
+            info: ToolInfo {
+                name: name.to_string(),
+                version: "1.0.0".to_string(),
+                description: "Test tool".to_string(),
+                parameters_schema: None,
+                return_schema: None,
+                category: Some("test".to_string()),
+                tags: vec!["test".to_string()],
+                dependencies: vec![],
+                plugin_name: None,
+                version_requirements: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            },
+            kind: ToolKind::Native,
+            input_schema: None,
+            output_schema: None,
+            examples: vec![],
+            resource_requirements: ResourceRequirements::default(),
+            version: "1.0.0".to_string(),
+        };
 
-        // Create a simple test tool
-        let executor = Arc::new(AsyncFunctionExecutor::new(|params, _context| Box::pin(async move {
-            Ok(json!({ "result": params }))
-        })));
+        let native_tool = NativeTool {
+            id: ToolId::new(),
+            metadata: Arc::new(metadata),
+        };
 
-        let tool = BasicTool::builder()
-            .name("test_tool")
-            .version("1.0.0")
-            .description("A test tool")
-            .executor(executor)
-            .build()
-            .unwrap();
-
-        let tool = Arc::new(tool);
-
-        // Test registration
-        assert!(registry.register_tool(tool.clone()).is_ok());
-        assert_eq!(registry.tool_count(), 1);
-        assert!(registry.has_tool("test_tool"));
-
-        // Test retrieval
-        let retrieved_tool = registry.get_tool("test_tool");
-        assert!(retrieved_tool.is_some());
-
-        // Test execution
-        let context = ExecutionContext::new();
-        let params = json!({ "input": "test" });
-        let result = registry
-            .execute_tool("test_tool", params.clone(), context)
-            .await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), json!({ "result": params }));
-
-        // Test listing
-        let tools = registry.list_tools();
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].name, "test_tool");
-
-        // Test unregistration
-        assert!(registry.unregister_tool("test_tool").is_ok());
-        assert_eq!(registry.tool_count(), 0);
-        assert!(!registry.has_tool("test_tool"));
+        Tool::Native(Arc::new(native_tool))
     }
 
-    #[tokio::test]
-    async fn test_tool_not_found() {
-        let registry = BasicToolRegistry::new();
+    #[test]
+    fn test_register_and_get() {
+        let registry = ToolRegistry::new();
+        let tool = create_test_tool("test_tool");
+        
+        let id = registry.register("test_tool", tool.clone());
+        
+        assert!(registry.contains("test_tool"));
+        assert_eq!(registry.get("test_tool").unwrap().kind(), ToolKind::Native);
+        assert_eq!(registry.get_by_id(id).unwrap().kind(), ToolKind::Native);
+    }
 
-        // Test getting non-existent tool
-        assert!(registry.get_tool("non_existent").is_none());
+    #[test]
+    fn test_remove() {
+        let registry = ToolRegistry::new();
+        let tool = create_test_tool("test_tool");
+        
+        registry.register("test_tool", tool);
+        assert!(registry.contains("test_tool"));
+        
+        registry.remove("test_tool");
+        assert!(!registry.contains("test_tool"));
+    }
 
-        // Test executing non-existent tool
-        let context = ExecutionContext::new();
-        let result = registry
-            .execute_tool("non_existent", json!({}), context)
-            .await;
-        assert!(result.is_err());
+    #[test]
+    fn test_find_by_pattern() {
+        let registry = ToolRegistry::new();
+        
+        registry.register("file_copy", create_test_tool("file_copy"));
+        registry.register("file_move", create_test_tool("file_move"));
+        registry.register("http_get", create_test_tool("http_get"));
+        
+        let file_tools = registry.find_by_pattern("file");
+        assert_eq!(file_tools.len(), 2);
+        
+        let http_tools = registry.find_by_pattern("http");
+        assert_eq!(http_tools.len(), 1);
+    }
 
-        // Test validating params for non-existent tool
-        let result = registry.validate_tool_params("non_existent", &json!({}));
-        assert!(result.is_err());
+    #[test]
+    fn test_get_by_category() {
+        let registry = ToolRegistry::new();
+        
+        registry.register("tool1", create_test_tool("tool1"));
+        registry.register("tool2", create_test_tool("tool2"));
+        
+        let tools = registry.get_by_category("test");
+        assert_eq!(tools.len(), 2);
+    }
+
+    #[test]
+    fn test_registry_builder() {
+        let registry = ToolRegistryBuilder::new()
+            .register("tool1", create_test_tool("tool1"))
+            .register("tool2", create_test_tool("tool2"))
+            .build();
+        
+        assert_eq!(registry.len(), 2);
     }
 }
