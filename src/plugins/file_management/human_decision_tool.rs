@@ -644,7 +644,7 @@ pub fn create_human_decision_tool(
         .parameters_schema(tool_info.parameters_schema.clone())
         .return_schema(tool_info.return_schema.clone())
         .plugin_info(plugin_info)
-        .executor(executor)
+        .executor_arc(executor)
         .build()
 }
 

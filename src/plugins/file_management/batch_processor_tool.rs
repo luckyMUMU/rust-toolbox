@@ -394,7 +394,7 @@ impl BatchProcessorTool {
             .parameters_schema(tool_info.parameters_schema)
             .return_schema(tool_info.return_schema)
             .plugin_info(self.plugin_info.clone())
-            .executor(executor)
+            .executor_arc(executor)
             .build()
     }
 }

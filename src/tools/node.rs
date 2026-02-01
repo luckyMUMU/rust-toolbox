@@ -152,6 +152,20 @@ impl BasicToolBuilder {
         self
     }
 
+    /// Set executor from Arc<dyn ToolExecutor> (COMPATIBILITY)
+    ///
+    /// NOTE: This is for backward compatibility only. New code should use the closure-based executor().
+    pub fn executor_arc(mut self, executor: Arc<dyn crate::tools::compat::ToolExecutor>) -> Self {
+        let executor_wrapper = move |input: ToolInput, ctx: ExecutionContext| {
+            let executor = executor.clone();
+            async move {
+                executor.execute(input.params, ctx).await.map(|v| ToolOutput::success(v))
+            }
+        };
+        self.executor = Some(Arc::new(move |input, ctx| Box::pin(executor_wrapper(input, ctx))));
+        self
+    }
+
     pub fn plugin_info(mut self, info: PluginInfo) -> Self {
         self.plugin_info = Some(info);
         self

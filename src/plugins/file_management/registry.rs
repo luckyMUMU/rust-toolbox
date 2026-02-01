@@ -251,7 +251,7 @@ impl FileManagementToolRegistry {
             .parameters_schema(tool_info.parameters_schema.clone())
             .return_schema(tool_info.return_schema.clone())
             .plugin_info(self.plugin_info.clone())
-            .executor(executor)
+            .executor_arc(executor)
             .build()?;
 
         let tool_arc = Arc::new(tool);
@@ -338,7 +338,7 @@ impl FileManagementToolRegistry {
             .parameters_schema(tool_info.parameters_schema.clone())
             .return_schema(tool_info.return_schema.clone())
             .plugin_info(self.plugin_info.clone())
-            .executor(executor)
+            .executor_arc(executor)
             .build()?;
 
         let tool_arc = Arc::new(tool);
@@ -447,7 +447,7 @@ impl FileManagementToolRegistry {
             .parameters_schema(tool_info.parameters_schema.clone())
             .return_schema(tool_info.return_schema.clone())
             .plugin_info(self.plugin_info.clone())
-            .executor(executor)
+            .executor_arc(executor)
             .build()?;
 
         let tool_arc = Arc::new(tool);
