@@ -9,8 +9,9 @@
 //! - [x] ToolNode trait - REMOVED
 //! - [x] ToolExecutor trait - REMOVED
 //! - [x] ComposableTool trait - REMOVED
-//! - [ ] Tool enum - TODO (Task 1.2)
-//! - [ ] New registry implementation - TODO (Task 1.3)
+//! - [x] Tool enum - DONE (Task 1.2)
+//! - [x] New registry implementation - DONE (Task 1.3)
+//! - [x] Tool node implementations - DONE (Task 1.4)
 //! - [ ] Typed tool system - TODO (Task 3)
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.

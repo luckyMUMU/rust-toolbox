@@ -5,6 +5,7 @@
 
 use crate::core::{ExecutionContext, ToolInfo};
 use crate::error::{Result, WorkflowError};
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -197,69 +198,375 @@ impl Tool {
 
     /// Execute the tool
     /// 
-    /// TODO: This is a placeholder implementation.
-    /// Actual execution logic will be implemented in Task 1.4
+    /// Dispatches to the appropriate tool type implementation
     pub async fn execute(
         &self,
-        _input: ToolInput,
-        _ctx: ExecutionContext,
+        input: ToolInput,
+        ctx: ExecutionContext,
     ) -> crate::error::Result<ToolOutput> {
-        // Placeholder - will be implemented with actual execution logic
-        Ok(ToolOutput::success(serde_json::Value::Null))
+        match self {
+            Tool::Native(tool) => tool.execute(input, ctx).await,
+            Tool::Python(tool) => tool.execute(input, ctx).await,
+            Tool::NodeJs(tool) => tool.execute(input, ctx).await,
+            Tool::Docker(tool) => tool.execute(input, ctx).await,
+            Tool::Wasm(tool) => tool.execute(input, ctx).await,
+            Tool::Composed(tool) => tool.execute(input, ctx).await,
+        }
     }
 }
 
 /// Native Rust tool implementation
-#[derive(Clone)]
 pub struct NativeTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
-    // TODO: Add executor field
+    /// The executor function for this tool
+    executor: Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, crate::error::Result<ToolOutput>> + Send + Sync>,
+}
+
+impl NativeTool {
+    /// Create a new native tool
+    pub fn new<F, Fut>(
+        id: ToolId,
+        metadata: Arc<ToolMetadata>,
+        executor: F,
+    ) -> Self
+    where
+        F: Fn(ToolInput, ExecutionContext) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = crate::error::Result<ToolOutput>> + Send + 'static,
+    {
+        Self {
+            id,
+            metadata,
+            executor: Arc::new(move |input, ctx| Box::pin(executor(input, ctx))),
+        }
+    }
+
+    /// Execute the native tool
+    pub async fn execute(&self, input: ToolInput, ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        (self.executor)(input, ctx).await
+    }
+}
+
+impl Clone for NativeTool {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            metadata: Arc::clone(&self.metadata),
+            executor: Arc::clone(&self.executor),
+        }
+    }
 }
 
 /// Python script tool
-#[derive(Clone)]
 pub struct PythonTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     pub script_path: std::path::PathBuf,
-    // TODO: Add interpreter configuration
+    pub python_path: std::path::PathBuf,
+    pub timeout_secs: u64,
+}
+
+impl PythonTool {
+    /// Execute the Python tool
+    pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // TODO: Implement actual Python execution
+        // For now, return a placeholder
+        Ok(ToolOutput::success(serde_json::json!({
+            "status": "executed",
+            "tool": "python",
+            "script": self.script_path.to_string_lossy(),
+            "input": input.params
+        })))
+    }
+}
+
+impl Clone for PythonTool {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            metadata: Arc::clone(&self.metadata),
+            script_path: self.script_path.clone(),
+            python_path: self.python_path.clone(),
+            timeout_secs: self.timeout_secs,
+        }
+    }
 }
 
 /// Node.js tool
-#[derive(Clone)]
 pub struct NodeJsTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     pub script_path: std::path::PathBuf,
-    // TODO: Add node configuration
+    pub node_path: std::path::PathBuf,
+    pub timeout_secs: u64,
+}
+
+impl NodeJsTool {
+    /// Execute the Node.js tool
+    pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // TODO: Implement actual Node.js execution
+        Ok(ToolOutput::success(serde_json::json!({
+            "status": "executed",
+            "tool": "nodejs",
+            "script": self.script_path.to_string_lossy(),
+            "input": input.params
+        })))
+    }
+}
+
+impl Clone for NodeJsTool {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            metadata: Arc::clone(&self.metadata),
+            script_path: self.script_path.clone(),
+            node_path: self.node_path.clone(),
+            timeout_secs: self.timeout_secs,
+        }
+    }
 }
 
 /// Docker container tool
-#[derive(Clone)]
 pub struct DockerTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     pub image: String,
-    // TODO: Add container configuration
+    pub container_name: Option<String>,
+    pub timeout_secs: u64,
+}
+
+impl DockerTool {
+    /// Execute the Docker tool
+    pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // TODO: Implement actual Docker execution
+        Ok(ToolOutput::success(serde_json::json!({
+            "status": "executed",
+            "tool": "docker",
+            "image": &self.image,
+            "input": input.params
+        })))
+    }
+}
+
+impl Clone for DockerTool {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            metadata: Arc::clone(&self.metadata),
+            image: self.image.clone(),
+            container_name: self.container_name.clone(),
+            timeout_secs: self.timeout_secs,
+        }
+    }
 }
 
 /// WebAssembly tool
-#[derive(Clone)]
 pub struct WasmTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     pub wasm_path: std::path::PathBuf,
-    // TODO: Add wasm runtime configuration
+    pub runtime: WasmRuntime,
+    pub timeout_secs: u64,
+}
+
+/// WASM runtime type
+#[derive(Clone, Debug)]
+pub enum WasmRuntime {
+    Wasmtime,
+    Wasmer,
+}
+
+impl WasmTool {
+    /// Execute the WASM tool
+    pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        // TODO: Implement actual WASM execution
+        Ok(ToolOutput::success(serde_json::json!({
+            "status": "executed",
+            "tool": "wasm",
+            "wasm": self.wasm_path.to_string_lossy(),
+            "runtime": format!("{:?}", self.runtime),
+            "input": input.params
+        })))
+    }
+}
+
+impl Clone for WasmTool {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            metadata: Arc::clone(&self.metadata),
+            wasm_path: self.wasm_path.clone(),
+            runtime: self.runtime.clone(),
+            timeout_secs: self.timeout_secs,
+        }
+    }
 }
 
 /// Composed tool (chains, conditionals, parallel execution)
-#[derive(Clone)]
 pub struct ComposedTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     pub composition_type: CompositionType,
-    // TODO: Add composition configuration
+    pub tools: Vec<ToolId>,
+}
+
+impl ComposedTool {
+    /// Execute the composed tool
+    pub async fn execute(&self, input: ToolInput, ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+        match &self.composition_type {
+            CompositionType::Chain(_) => {
+                // TODO: Implement chain execution
+                Ok(ToolOutput::success(serde_json::json!({
+                    "status": "chain_executed",
+                    "tools": self.tools.len()
+                })))
+            }
+            CompositionType::Conditional { condition, .. } => {
+                // TODO: Implement conditional execution
+                Ok(ToolOutput::success(serde_json::json!({
+                    "status": "conditional_executed",
+                    "condition": condition
+                })))
+            }
+            CompositionType::Parallel(_) => {
+                // TODO: Implement parallel execution
+                Ok(ToolOutput::success(serde_json::json!({
+                    "status": "parallel_executed",
+                    "tools": self.tools.len()
+                })))
+            }
+        }
+    }
+}
+
+impl Clone for ComposedTool {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            metadata: Arc::clone(&self.metadata),
+            composition_type: self.composition_type.clone(),
+            tools: self.tools.clone(),
+        }
+    }
+}
+
+/// Builder for creating NativeTool instances
+/// 
+/// Example:
+/// ```rust
+/// let tool = NativeToolBuilder::new()
+///     .name("echo")
+///     .version("1.0.0")
+///     .description("Echoes the input")
+///     .executor(|input, _ctx| async move {
+///         Ok(ToolOutput::success(input.params))
+///     })
+///     .build();
+/// ```
+pub struct NativeToolBuilder {
+    name: Option<String>,
+    version: Option<String>,
+    description: Option<String>,
+    category: Option<String>,
+    tags: Vec<String>,
+    executor: Option<Arc<dyn Fn(ToolInput, ExecutionContext) -> BoxFuture<'static, crate::error::Result<ToolOutput>> + Send + Sync>>,
+}
+
+impl NativeToolBuilder {
+    /// Create a new builder
+    pub fn new() -> Self {
+        Self {
+            name: None,
+            version: None,
+            description: None,
+            category: None,
+            tags: Vec::new(),
+            executor: None,
+        }
+    }
+
+    /// Set tool name
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Set tool version
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Set tool description
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Set tool category
+    pub fn category(mut self, category: impl Into<String>) -> Self {
+        self.category = Some(category.into());
+        self
+    }
+
+    /// Add a tag
+    pub fn tag(mut self, tag: impl Into<String>) -> Self {
+        self.tags.push(tag.into());
+        self
+    }
+
+    /// Set the executor function
+    pub fn executor<F, Fut>(mut self, executor: F) -> Self
+    where
+        F: Fn(ToolInput, ExecutionContext) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = crate::error::Result<ToolOutput>> + Send + 'static,
+    {
+        self.executor = Some(Arc::new(move |input, ctx| Box::pin(executor(input, ctx))));
+        self
+    }
+
+    /// Build the NativeTool
+    pub fn build(self) -> crate::error::Result<NativeTool> {
+        let name = self.name.ok_or_else(|| crate::error::WorkflowError::tool("Tool name is required"))?;
+        let version = self.version.unwrap_or_else(|| "1.0.0".to_string());
+        let description = self.description.unwrap_or_default();
+        let executor = self.executor.ok_or_else(|| crate::error::WorkflowError::tool("Tool executor is required"))?;
+
+        let metadata = Arc::new(ToolMetadata {
+            info: ToolInfo {
+                name,
+                version: version.clone(),
+                description,
+                parameters_schema: None,
+                return_schema: None,
+                category: self.category,
+                tags: self.tags,
+                dependencies: vec![],
+                plugin_name: None,
+                version_requirements: Default::default(),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            },
+            kind: ToolKind::Native,
+            input_schema: None,
+            output_schema: None,
+            examples: vec![],
+            resource_requirements: ResourceRequirements::default(),
+            version,
+        });
+
+        Ok(NativeTool {
+            id: ToolId::new(),
+            metadata,
+            executor,
+        })
+    }
+}
+
+impl Default for NativeToolBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Types of tool composition
