@@ -782,6 +782,13 @@ mod tests {
     }
 
     #[test]
+    fn test_tool_input_convert() {
+        // Test that ToolInput can be created from Value
+        let input = ToolInput::new(Value::String("test".to_string()));
+        assert_eq!(input.params, Value::String("test".to_string()));
+    }
+
+    #[test]
     fn test_tool_output() {
         let output = ToolOutput::success(Value::String("result".to_string()));
         assert!(output.success);
@@ -790,4 +797,87 @@ mod tests {
         let error = ToolOutput::failure("error message");
         assert!(!error.success);
     }
+}
+
+/// Trait for converting between ToolInput and strongly-typed structs
+/// 
+/// This trait is automatically implemented by the `#[derive(ToolInput)]` macro.
+/// It provides type-safe conversion and validation for tool inputs.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use workflow_toolkit::tools::{ToolInput, ToolInputConvert};
+/// use serde::{Serialize, Deserialize};
+/// 
+/// #[derive(Serialize, Deserialize, Debug)]
+/// struct EchoInput {
+///     message: String,
+/// }
+/// 
+/// impl ToolInputConvert for EchoInput {
+///     fn into_tool_input(self) -> ToolInput {
+///         ToolInput::new(serde_json::to_value(&self).unwrap())
+///     }
+///     
+///     fn from_tool_input(input: &ToolInput) -> Result<Self, crate::WorkflowError> {
+///         serde_json::from_value(input.params.clone())
+///             .map_err(|e| crate::WorkflowError::ValidationError(format!("Parse error: {}", e)))
+///     }
+///     
+///     fn validate(&self) -> Result<(), crate::WorkflowError> {
+///         if self.message.is_empty() {
+///             return Err(crate::WorkflowError::ValidationError("Message cannot be empty".to_string()));
+///         }
+///         Ok(())
+///     }
+///     
+///     fn schema() -> InputSchema {
+///         InputSchema::default()
+///     }
+/// }
+/// ```
+pub trait ToolInputConvert: Sized {
+    /// Convert the struct into a ToolInput
+    fn into_tool_input(self) -> ToolInput;
+    
+    /// Parse a ToolInput into the struct
+    fn from_tool_input(input: &ToolInput) -> Result<Self, crate::WorkflowError>;
+    
+    /// Validate the input data
+    fn validate(&self) -> Result<(), crate::WorkflowError>;
+    
+    /// Get the input schema
+    fn schema() -> InputSchema;
+}
+
+/// Trait for converting between ToolOutput and strongly-typed structs
+/// 
+/// This trait is automatically implemented by the `#[derive(ToolOutput)]` macro.
+pub trait ToolOutputConvert: Sized {
+    /// Convert the struct into a ToolOutput
+    fn into_tool_output(self) -> ToolOutput;
+    
+    /// Parse a ToolOutput into the struct
+    fn from_tool_output(output: &ToolOutput) -> Result<Self, crate::WorkflowError>;
+}
+
+/// Input schema for tool parameters
+#[derive(Clone, Debug, Default)]
+pub struct InputSchema {
+    /// Type name
+    pub type_name: String,
+    /// Field properties
+    pub properties: std::collections::HashMap<String, Value>,
+    /// Required fields
+    pub required: Vec<String>,
+}
+
+/// Output schema for tool results
+#[derive(Clone, Debug, Default)]
+pub struct OutputSchema {
+    /// Type name
+    pub type_name: String,
+    /// Field properties
+    pub properties: std::collections::HashMap<String, Value>,
 }

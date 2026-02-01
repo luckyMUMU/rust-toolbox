@@ -13,7 +13,7 @@
 //! - [x] New registry implementation - DONE (Task 1.3)
 //! - [x] Tool node implementations - DONE (Task 1.4)
 //! - [x] Middleware system - DONE (Task 2.1, 2.2, 2.3)
-//! - [ ] Typed tool system - TODO (Task 3)
+//! - [x] Typed tool system - DONE (Task 3.1, 3.2)
 //!
 //! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
@@ -50,8 +50,9 @@ pub use node::{
 pub use registry::{ToolRegistryBuilder, ToolRegistry as ToolRegistryStruct};
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use types::{
-    CompositionType, ComposedTool, DockerTool, NativeTool, NodeJsTool, PythonTool, ResourceRequirements,
-    Tool, ToolExample, ToolId, ToolInput, ToolKind, ToolMetadata, ToolOutput, WasmTool,
+    CompositionType, ComposedTool, DockerTool, InputSchema, NativeTool, NodeJsTool, OutputSchema, 
+    PythonTool, ResourceRequirements, Tool, ToolExample, ToolId, ToolInput, ToolInputConvert, 
+    ToolKind, ToolMetadata, ToolOutput, ToolOutputConvert, WasmTool,
 };
 pub use version::{
     DependencyResolver, ResolutionResult, ToolDependency, ToolVersion, Version, VersionConflict,

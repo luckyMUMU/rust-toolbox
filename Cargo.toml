@@ -7,10 +7,14 @@ description = "A multi-interface workflow execution system built with Rust"
 license = "MIT"
 repository = "https://github.com/workflow-toolkit/workflow-toolkit"
 
+[workspace]
+members = [".", "workflow-toolkit-macros"]
+
 [features]
-default = []
+default = ["macros"]
 lancedb = ["dep:lancedb", "dep:arrow", "dep:parquet"]
 mcp = ["dep:rmcp", "dep:schemars"]
+macros = ["dep:workflow-toolkit-macros"]
 
 [dependencies]
 # 异步运行时
@@ -94,6 +98,9 @@ flate2 = "1.0"
 # HTTP客户端
 reqwest = { version = "0.12", features = ["json"] }
 hex = "0.4.3"
+
+# Proc-macros
+workflow-toolkit-macros = { path = "workflow-toolkit-macros", optional = true }
 
 [dev-dependencies]
 proptest = "1.6"

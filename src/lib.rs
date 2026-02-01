@@ -90,6 +90,10 @@ pub mod storage;
 pub mod tools;
 pub mod workflow;
 
+// Re-export proc-macros when the "macros" feature is enabled
+#[cfg(feature = "macros")]
+pub use workflow_toolkit_macros::{ToolInput, ToolOutput};
+
 // Re-export commonly used types
 pub use crate::config::{CliConfigOverrides, Config, ConfigManager};
 pub use crate::core::*;
