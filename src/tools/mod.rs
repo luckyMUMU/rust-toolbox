@@ -18,6 +18,7 @@
 
 pub mod algo;
 pub mod composable;
+pub mod middleware;  // NEW: Middleware system (Task 2.1)
 pub mod node;
 pub mod registry;
 pub mod template;
@@ -31,6 +32,11 @@ pub mod version;
 pub use composable::{
     ComposableToolAdapter, ConditionalTool, ParallelTools, ToolChain,
     ToolComposer, ToolCompositionBuilder,
+};
+pub use middleware::{
+    CacheMiddleware, CircuitBreakerMiddleware, ExecutionMetadata, LoggingMiddleware,
+    MetricsMiddleware, Middleware, MiddlewareContext, MiddlewareStack, MiddlewareStackBuilder,
+    Next, RetryMiddleware, TimeoutMiddleware, TimingMiddleware,
 };
 pub use node::{
     AsyncFunctionExecutor, BasicTool, BasicToolBuilder, FunctionExecutor,
