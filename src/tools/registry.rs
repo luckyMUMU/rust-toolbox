@@ -173,6 +173,16 @@ impl ToolRegistry {
         self.tools.iter().map(|e| *e.key()).collect()
     }
 
+    /// List all tools with their metadata
+    /// 
+    /// Returns a vector of ToolInfo for all registered tools
+    pub fn list_tools(&self) -> Vec<crate::core::ToolInfo> {
+        self.metadata_cache
+            .iter()
+            .map(|e| e.value().info.clone())
+            .collect()
+    }
+
     /// Get tool count
     pub fn len(&self) -> usize {
         self.tools.len()
