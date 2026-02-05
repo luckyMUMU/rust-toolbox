@@ -1,0 +1,279 @@
+// 错误处理流程伪代码
+// Error Handling Flow - Pseudo Code
+//
+// 描述: 系统错误处理的分层策略
+// 版本: v0.1.0
+// 关联代码: src/error.rs, src/workflow/executor/retry.rs
+
+// ==================== 错误分类 ====================
+
+ENUM ErrorCategory:
+    // 配置错误
+    CONFIG_ERROR          // 配置文件错误、参数错误
+    
+    // 验证错误
+    VALIDATION_ERROR      // 输入验证失败、Schema不匹配
+    
+    // 执行错误
+    EXECUTION_ERROR       // 运行时错误
+    TIMEOUT_ERROR         // 执行超时
+    RESOURCE_ERROR        // 资源不足
+    
+    // 系统错误
+    SYSTEM_ERROR          // 内部系统错误
+    EXTERNAL_ERROR        // 外部依赖错误
+    
+    // 并发错误
+    CONCURRENCY_ERROR     // 并发访问冲突
+    BACKPRESSURE_ERROR    // 系统过载
+END ENUM
+
+
+// ==================== 错误处理主流程 ====================
+
+FUNCTION HANDLE_ERROR(error, context):
+    // 1. 错误分类
+    category = CLASSIFY_ERROR(error)
+    
+    // 2. 记录错误
+    LOG_ERROR(error, category, context)
+    
+    // 3. 根据层级选择处理策略
+    SWITCH context.level:
+        CASE "COMPONENT":
+            result = HANDLE_COMPONENT_ERROR(error, category, context)
+        
+        CASE "WORKFLOW":
+            result = HANDLE_WORKFLOW_ERROR(error, category, context)
+        
+        CASE "SYSTEM":
+            result = HANDLE_SYSTEM_ERROR(error, category, context)
+    
+    RETURN result
+END FUNCTION
+
+
+// ==================== 组件级错误处理 ====================
+
+FUNCTION HANDLE_COMPONENT_ERROR(error, category, context):
+    // 获取组件的错误处理配置
+    config = context.component.error_handling
+    
+    SWITCH category:
+        CASE EXECUTION_ERROR:
+            IF config.retry_policy.enabled:
+                RETURN EXECUTE_WITH_RETRY(context.component, config.retry_policy)
+            ELSE:
+                RETURN PropagateError(error)
+        
+        CASE TIMEOUT_ERROR:
+            IF config.timeout_handling == "retry":
+                RETURN EXECUTE_WITH_RETRY(context.component, config.retry_policy)
+            ELSE IF config.timeout_handling == "fail":
+                RETURN ComponentFailure(error)
+            ELSE IF config.timeout_handling == "ignore":
+                RETURN ComponentSuccess(default_value)
+        
+        CASE RESOURCE_ERROR:
+            // 尝试释放资源后重试
+            TRIGGER_RESOURCE_CLEANUP()
+            WAIT config.resource_wait_time
+            RETURN EXECUTE_WITH_RETRY(context.component, config.retry_policy)
+        
+        CASE VALIDATION_ERROR:
+            // 验证错误通常不可恢复
+            RETURN ComponentFailure(error)
+        
+        DEFAULT:
+            IF config.fallback_enabled AND config.fallback_tool IS NOT NULL:
+                RETURN EXECUTE_FALLBACK(config.fallback_tool, context)
+            ELSE:
+                RETURN ComponentFailure(error)
+    
+    RETURN ComponentFailure(error)
+END FUNCTION
+
+
+// ==================== 工作流级错误处理 ====================
+
+FUNCTION HANDLE_WORKFLOW_ERROR(error, category, context):
+    workflow = context.workflow
+    
+    SWITCH category:
+        CASE CONCURRENCY_ERROR:
+            // 并发冲突，稍后重试
+            SCHEDULE_RETRY(workflow, delay=CALCULATE_BACKOFF(context.retry_count))
+            RETURN WorkflowRetryScheduled
+        
+        CASE BACKPRESSURE_ERROR:
+            // 系统过载，进入队列等待
+            ENQUEUE_WORKFLOW(workflow, priority=LOW)
+            RETURN WorkflowQueued
+        
+        CASE SYSTEM_ERROR:
+            // 系统错误，尝试保存检查点
+            TRY:
+                SAVE_CHECKPOINT(workflow)
+                RETURN WorkflowPausedWithCheckpoint
+            CATCH:
+                RETURN WorkflowFailure(error)
+        
+        CASE EXTERNAL_ERROR:
+            // 外部服务错误，根据策略处理
+            IF workflow.config.external_error_handling == "retry":
+                RETURN EXECUTE_WITH_RETRY(workflow, workflow.config.retry_policy)
+            ELSE IF workflow.config.external_error_handling == "skip":
+                MARK_NODE_SKIPPED(context.current_node)
+                CONTINUE_WORKFLOW(workflow)
+            ELSE:
+                RETURN WorkflowFailure(error)
+        
+        DEFAULT:
+            // 默认：尝试优雅终止
+            TRIGGER_GRACEFUL_SHUTDOWN(workflow)
+            RETURN WorkflowFailure(error)
+    
+    RETURN WorkflowFailure(error)
+END FUNCTION
+
+
+// ==================== 系统级错误处理 ====================
+
+FUNCTION HANDLE_SYSTEM_ERROR(error, category, context):
+    // 系统级错误需要特别小心处理
+    
+    SWITCH category:
+        CASE SYSTEM_ERROR:
+            // 尝试恢复
+            IF IS_RECOVERABLE(error):
+                TRY:
+                    RECOVER_FROM_ERROR(error)
+                    RETURN SystemRecovered
+                CATCH recovery_error:
+                    // 恢复失败，进入安全模式
+                    ENTER_SAFE_MODE()
+                    RETURN SystemInSafeMode
+            ELSE:
+                // 不可恢复错误，优雅停机
+                INITIATE_GRACEFUL_SHUTDOWN()
+                RETURN SystemShuttingDown
+        
+        CASE RESOURCE_ERROR:
+            // 资源耗尽，尝试紧急清理
+            TRIGGER_EMERGENCY_CLEANUP()
+            IF GET_AVAILABLE_RESOURCES() > threshold:
+                RETURN SystemRecovered
+            ELSE:
+                REJECT_NEW_WORKFLOWS()
+                RETURN SystemDegraded
+        
+        DEFAULT:
+            // 记录并监控
+            ALERT_ADMINISTRATORS(error)
+            RETURN SystemErrorLogged
+    
+    RETURN SystemError(error)
+END FUNCTION
+
+
+// ==================== 重试机制 ====================
+
+FUNCTION EXECUTE_WITH_RETRY(component, retry_policy):
+    SET attempt = 0
+    SET max_attempts = retry_policy.max_retries + 1
+    
+    WHILE attempt < max_attempts:
+        TRY:
+            result = EXECUTE(component)
+            IF result.success:
+                RETURN result
+        CATCH TransientError AS error:
+            INCREMENT attempt
+            
+            IF attempt >= max_attempts:
+                RETURN MaxRetriesExceeded(error)
+            
+            // 计算退避时间
+            backoff = CALCULATE_BACKOFF(attempt, retry_policy.backoff_strategy)
+            LOG_RETRY_ATTEMPT(component, attempt, backoff)
+            WAIT backoff
+            
+        CATCH NonTransientError AS error:
+            // 非瞬态错误，直接失败
+            RETURN ComponentFailure(error)
+    
+    RETURN MaxRetriesExceeded()
+END FUNCTION
+
+
+FUNCTION CALCULATE_BACKOFF(attempt, strategy):
+    SWITCH strategy.type:
+        CASE "fixed":
+            RETURN strategy.base_delay
+        
+        CASE "linear":
+            RETURN strategy.base_delay * attempt
+        
+        CASE "exponential":
+            delay = strategy.base_delay * (2 ^ (attempt - 1))
+            IF strategy.max_delay IS NOT NULL:
+                delay = MIN(delay, strategy.max_delay)
+            RETURN delay
+        
+        CASE "jitter":
+            base = CALCULATE_BACKOFF(attempt, strategy.base_strategy)
+            jitter = RANDOM(0, strategy.jitter_max)
+            RETURN base + jitter
+    
+    RETURN strategy.base_delay
+END FUNCTION
+
+
+// ==================== 回滚机制 ====================
+
+FUNCTION ROLLBACK_WORKFLOW(workflow, failed_node):
+    // 获取已完成的节点（逆序）
+    completed_nodes = GET_COMPLETED_NODES(workflow, up_to=failed_node)
+    REVERSE completed_nodes
+    
+    FOR EACH node IN completed_nodes:
+        IF node.supports_rollback:
+            TRY:
+                EXECUTE_ROLLBACK(node)
+                LOG_ROLLBACK_SUCCESS(node)
+            CATCH rollback_error:
+                // 回滚失败，记录并继续
+                LOG_ROLLBACK_FAILURE(node, rollback_error)
+                // 可能需要人工干预
+                CREATE_INCIDENT(node, rollback_error)
+    
+    RETURN WorkflowRolledBack
+END FUNCTION
+
+
+// ==================== 错误报告 ====================
+
+FUNCTION GENERATE_ERROR_REPORT(error, context):
+    INITIALIZE report
+    
+    report.timestamp = NOW()
+    report.error_type = error.type
+    report.error_message = error.message
+    report.error_category = CLASSIFY_ERROR(error)
+    report.stack_trace = GET_STACK_TRACE(error)
+    
+    // 添加上下文信息
+    report.context = {
+        workflow_id: context.workflow_id,
+        node_id: context.node_id,
+        execution_id: context.execution_id,
+        user_id: context.user_id,
+        input_params: context.input_params,
+        system_state: GET_SYSTEM_STATE()
+    }
+    
+    // 添加历史信息
+    report.execution_history = GET_EXECUTION_HISTORY(context.workflow_id)
+    
+    RETURN report
+END FUNCTION
