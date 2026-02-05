@@ -75,10 +75,6 @@ pub struct RefactoredWorkflowEngine {
     /// Result cache (optional)
     result_cache: Option<Arc<ResultCache>>,
 
-    /// Maximum parallel workflows
-    #[allow(dead_code)]
-    max_parallel_workflows: usize,
-
     /// Workflow semaphore for controlling concurrent workflow execution
     workflow_semaphore: Arc<Semaphore>,
 
@@ -135,7 +131,6 @@ impl RefactoredWorkflowEngine {
             executor,
             audit_logger,
             result_cache: None,
-            max_parallel_workflows,
             workflow_semaphore: Arc::new(Semaphore::new(max_parallel_workflows)),
             default_max_concurrency: 4,
             checkpoint_interval: Duration::from_secs(300), // 5 minutes

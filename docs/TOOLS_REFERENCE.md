@@ -1,6 +1,10 @@
 # 工具与插件参考指南
 
-本文档详细介绍了 Rust Tool V2 系统中可用的内置工具和运行时插件。
+> **Workflow Toolkit 系统中可用的内置工具和运行时插件**  
+> **版本**: v0.1.0  
+> *最后更新：2026-02-05*
+
+---
 
 ## 1. 内置工具 (File Management Plugin)
 
@@ -34,7 +38,7 @@
   {
     "path": "扫描路径",
     "recursive": false,
-    "scan_type": "files" // "files" | "directories" | "both"
+    "scan_type": "files"
   }
   ```
 - **输出**: 返回包含文件路径、名称、类型、大小等信息的列表。
@@ -54,10 +58,10 @@
       {
         "source": "源路径",
         "destination": "目标路径",
-        "operation_type": "Move" // "Move" | "Copy" | "Link" | "HardLink"
+        "operation_type": "Move"
       }
     ],
-    "conflict_resolution": "Rename", // "Skip" | "Overwrite" | "Rename" | "Fail" | "Ask" | "Merge" | "KeepBoth" ...
+    "conflict_resolution": "Rename",
     "check_disk_space": true,
     "create_directories": true
   }
@@ -69,7 +73,7 @@
   ```json
   {
     "source_directories": ["目录1", "目录2"],
-    "merge_strategy": "SizeBased", // "SizeBased" | "DateBased" | "Intelligent"
+    "merge_strategy": "SizeBased",
     "duplicate_handling": "Rename",
     "min_confidence_threshold": 0.7
   }
@@ -83,8 +87,8 @@
   ```json
   {
     "folder_path": "待分类文件夹路径",
-    "classification_rules": { ... }, // 规则对象
-    "output_format": "Detailed" // "Simple" | "Detailed" | "Full"
+    "classification_rules": {},
+    "output_format": "Detailed"
   }
   ```
 
