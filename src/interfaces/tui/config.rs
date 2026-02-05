@@ -550,10 +550,10 @@ impl TuiConfigManager {
     }
 
     /// Get merged configuration with base configuration
-    pub async fn get_merged_config(&self) -> (Config, TuiConfig) {
-        let base_config = self.base_config_manager.get_config();
+    pub async fn get_merged_config(&self) -> Result<(Config, TuiConfig)> {
+        let base_config = self.base_config_manager.get_config()?;
         let tui_config = self.get_config().await;
-        (base_config, tui_config)
+        Ok((base_config, tui_config))
     }
 
     /// Export configuration to file

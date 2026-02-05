@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use super::execution::ExecutionStatus;
 
 /// 工作流配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -31,7 +31,6 @@ pub mod plugin;
 pub use core::{
     ErrorContext, ErrorSeverity,
     FileManagementError, FileManagementResult, RecoverySuggestion,
-    error::{ErrorContext as _, ErrorSeverity as _, RecoverySuggestion as _},
     error_recovery::{
         ErrorRecoveryManager, RecoveryAttempt, RecoveryConfig, RecoverySession,
         RecoveryStats, RecoveryStrategy,

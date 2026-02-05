@@ -1,6 +1,6 @@
 //! 领域模型 - 值对象
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::time::Duration;
 
 /// 序列化辅助函数：从秒数反序列化Duration

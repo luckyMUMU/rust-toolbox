@@ -133,11 +133,11 @@ impl CliApp {
     }
 
     /// Get current configuration
-    pub fn get_config(&self) -> Config {
-        self.config_manager
-            .as_ref()
-            .map(|cm| cm.get_config())
-            .unwrap_or_default()
+    pub fn get_config(&self) -> Result<Config> {
+        match &self.config_manager {
+            Some(cm) => cm.get_config(),
+            None => Ok(Config::default()),
+        }
     }
 
     /// Start configuration hot reload monitoring

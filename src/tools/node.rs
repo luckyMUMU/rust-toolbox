@@ -5,8 +5,7 @@
 
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::error::Result;
-use crate::tools::types::{NativeTool, NativeToolBuilder, ToolInput, ToolOutput};
-use crate::tools::TemplateContext;
+use crate::tools::types::{ToolInput, ToolOutput};
 use futures::future::BoxFuture;
 use serde_json::Value;
 use std::sync::Arc;

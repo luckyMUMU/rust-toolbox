@@ -8,12 +8,11 @@ use crate::error::{Result, WorkflowError};
 use crate::tools::types::{
     Tool, ToolId, ToolInput, ToolKind, ToolMetadata, ToolOutput,
 };
-use crate::tools::version::{Version, VersionRequirement};
+use crate::tools::version::Version;
 use dashmap::DashMap;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::info;
 
 /// High-performance tool registry using enum-based Tool system
 ///
@@ -347,7 +346,7 @@ impl ToolRegistryBuilder {
     }
 
     /// Add a tool to the registry
-    pub fn register(mut self, name: &str, tool: Tool) -> Self {
+    pub fn register(self, name: &str, tool: Tool) -> Self {
         self.registry.register(name, tool);
         self
     }
@@ -419,10 +418,13 @@ mod tests {
             version: "1.0.0".to_string(),
         };
 
-        let native_tool = NativeTool {
-            id: ToolId::new(),
-            metadata: Arc::new(metadata),
-        };
+        let native_tool = NativeTool::new(
+            ToolId::new(),
+            Arc::new(metadata),
+            |_input, _ctx| async move {
+                Ok(ToolOutput::success(serde_json::json!({"status": "ok"})))
+            },
+        );
 
         Tool::Native(Arc::new(native_tool))
     }

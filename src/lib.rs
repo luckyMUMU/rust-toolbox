@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_storage_backends() {
+    async fn test_storage_backends() -> Result<()> {
         use crate::storage::{CacheBackend, FileStorage, SimpleMemoryCache, StorageBackend};
         use tempfile::TempDir;
 
@@ -174,16 +174,16 @@ mod tests {
         let cache = SimpleMemoryCache::new();
         cache
             .set("test_key", b"test_value".to_vec(), None)
-            .await
-            .unwrap();
+            .await?;
         let value = cache.get("test_key").await;
         assert_eq!(value, Some(b"test_value".to_vec()));
 
         // Test file storage
-        let temp_dir = TempDir::new().unwrap();
-        let storage = FileStorage::new(temp_dir.path()).unwrap();
-        storage.save("test_key", b"test_value").await.unwrap();
-        let value = storage.load("test_key").await.unwrap();
+        let temp_dir = TempDir::new().map_err(|e| WorkflowError::storage(format!("Failed to create temp dir: {}", e)))?;
+        let storage = FileStorage::new(temp_dir.path())?;
+        storage.save("test_key", b"test_value").await?;
+        let value = storage.load("test_key").await?;
         assert_eq!(value, Some(b"test_value".to_vec()));
+        Ok(())
     }
 }

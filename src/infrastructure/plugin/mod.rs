@@ -1,7 +1,7 @@
 //! 插件基础设施实现
 
-use crate::domain::model::{PluginInfo, PluginType};
-use crate::domain::port::plugin_manager::{Plugin, PluginConfig, PluginManager, PluginStatus};
+use crate::domain::model::PluginInfo;
+use crate::domain::port::plugin_manager::{Plugin, PluginConfig, PluginManager};
 use crate::error::{Result, WorkflowError};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};

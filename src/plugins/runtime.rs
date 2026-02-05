@@ -80,20 +80,21 @@ impl Default for RuntimePoolConfig {
 }
 
 /// Managed runtime entry
+#[allow(dead_code)]
 struct ManagedRuntime {
     /// Plugin name this runtime is for
     plugin_name: String,
-    /// Plugin type
+    /// Plugin type (reserved for future multi-type runtime management)
     plugin_type: PluginType,
     /// Current state
     state: RuntimeState,
-    /// Resource usage statistics
+    /// Resource usage statistics (reserved for future resource monitoring)
     stats: ResourceStats,
     /// Process handle (for Python/Node.js)
     process: Option<Child>,
     /// Container ID (for Docker)
     container_id: Option<String>,
-    /// When the runtime was created
+    /// When the runtime was created (reserved for future TTL management)
     created_at: Instant,
     /// Last activity time
     last_activity: Instant,
@@ -111,12 +112,13 @@ struct RuntimePool {
 }
 
 /// Runtime Manager for different plugin types
+#[allow(dead_code)]
 pub struct RuntimeManager {
     /// Configuration for all runtime pools
     config: RuntimePoolConfig,
     /// Runtime pools by plugin name
     pools: Arc<Mutex<HashMap<String, RuntimePool>>>,
-    /// Health check task handle
+    /// Health check task handle (reserved for future health monitoring)
     health_check_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
@@ -326,7 +328,8 @@ impl RuntimeManager {
         Ok(())
     }
 
-    /// Start health check background task
+    /// Start health check background task (reserved for future use)
+    #[allow(dead_code)]
     async fn start_health_checks(&self) {
         if self.health_check_handle.is_some() {
             return; // Already running
@@ -352,7 +355,8 @@ impl RuntimeManager {
         drop(handle);
     }
 
-    /// Perform health checks on all runtimes
+    /// Perform health checks on all runtimes (reserved for future use)
+    #[allow(dead_code)]
     async fn perform_health_checks(
         pools: &Arc<Mutex<HashMap<String, RuntimePool>>>,
     ) -> Result<()> {

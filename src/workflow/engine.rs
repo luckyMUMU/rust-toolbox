@@ -29,9 +29,8 @@ use crate::workflow::executor::{BoxedExecutor, ExecutorChainBuilder};
 use crate::workflow::flow_node::FlowNode;
 use crate::workflow::scheduler::DagScheduler;
 use crate::workflow::state::{CheckpointManager, ExecutionTracker};
-use crate::core::{RetryPolicy, RetryStrategy};
 use crate::workflow::{
-    AuditLogger, CacheConfig, ResultCache, WorkflowDefinition, WorkflowExecution, WorkflowNode,
+    AuditLogger, CacheConfig, ResultCache, WorkflowDefinition, WorkflowExecution,
 };
 use chrono::Utc;
 use futures::future::join_all;
@@ -39,8 +38,15 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
+
+#[cfg(test)]
+use crate::workflow::WorkflowNode;
+#[cfg(test)]
+use crate::core::{RetryPolicy, RetryStrategy};
+#[cfg(test)]
+use tokio::sync::RwLock;
 
 /// Context for the workflow execution loop to reduce argument count
 struct WorkflowLoopContext<'a> {

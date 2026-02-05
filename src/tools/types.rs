@@ -4,7 +4,6 @@
 //! offering better performance, type safety, and developer experience.
 
 use crate::core::{ExecutionContext, ToolInfo};
-use crate::error::{Result, WorkflowError};
 use crate::tools::middleware::{ExecutionMetadata, MiddlewareStack};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -530,7 +529,7 @@ pub struct ComposedTool {
 
 impl ComposedTool {
     /// Execute the composed tool
-    pub async fn execute(&self, input: ToolInput, ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
+    pub async fn execute(&self, input: ToolInput, _ctx: ExecutionContext) -> crate::error::Result<ToolOutput> {
         // Check if middleware stack is configured
         if let Some(ref stack) = self.middleware_stack {
             let metadata = ExecutionMetadata::new(

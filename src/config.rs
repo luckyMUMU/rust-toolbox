@@ -271,10 +271,10 @@ impl ConfigManager {
     }
 
     /// Get current configuration
-    pub fn get_config(&self) -> Config {
+    pub fn get_config(&self) -> Result<Config> {
         self.config.read()
-            .expect("Config RwLock poisoned - this should never happen in single-threaded context")
-            .clone()
+            .map(|cfg| cfg.clone())
+            .map_err(|_| WorkflowError::concurrency("Config RwLock poisoned"))
     }
 
     /// Get configuration watch receiver for hot reload notifications
@@ -285,9 +285,9 @@ impl ConfigManager {
     /// Update configuration with priority handling
     pub fn update_config(&self, new_config: Config, source: ConfigSource) -> Result<()> {
         let mut config = self.config.write()
-            .expect("Config RwLock poisoned during update");
+            .map_err(|_| WorkflowError::concurrency("Config RwLock poisoned during update"))?;
         let mut sources = self.sources.write()
-            .expect("Sources RwLock poisoned during update");
+            .map_err(|_| WorkflowError::concurrency("Sources RwLock poisoned during update"))?;
 
         // Add or update source
         if let Some(existing_source) = sources.iter_mut().find(|s| s.source == source.source) {
@@ -402,7 +402,7 @@ impl ConfigManager {
         let mut builder = ConfigBuilder::builder();
 
         // Add current config as base
-        let current_config = self.get_config();
+        let current_config = self.get_config()?;
         let config_value =
             serde_json::to_value(&current_config).map_err(|e| WorkflowError::Generic(e.into()))?;
         builder = builder.add_source(
@@ -437,7 +437,7 @@ impl ConfigManager {
     pub fn apply_command_line_overrides(&self, cli_config: &CliConfigOverrides) -> Result<()> {
         debug!("Applying command line argument overrides");
 
-        let mut current_config = self.get_config();
+        let mut current_config = self.get_config()?;
 
         // Apply CLI overrides with highest priority
         if let Some(log_level) = &cli_config.log_level {
@@ -484,10 +484,10 @@ impl ConfigManager {
     }
 
     /// Get configuration sources with their priorities
-    pub fn get_sources(&self) -> Vec<ConfigSource> {
+    pub fn get_sources(&self) -> Result<Vec<ConfigSource>> {
         self.sources.read()
-            .expect("Sources RwLock poisoned")
-            .clone()
+            .map(|srcs| srcs.clone())
+            .map_err(|_| WorkflowError::concurrency("Sources RwLock poisoned"))
     }
 }
 
@@ -762,17 +762,18 @@ mod tests {
     }
 
     #[test]
-    fn test_config_manager_creation() {
+    fn test_config_manager_creation() -> Result<()> {
         let config = Config::default();
         let manager = ConfigManager::new(config.clone());
 
-        let retrieved_config = manager.get_config();
+        let retrieved_config = manager.get_config()?;
         assert_eq!(retrieved_config.server.http_port, config.server.http_port);
         assert_eq!(retrieved_config.server.ws_port, config.server.ws_port);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_environment_variable_override() {
+    async fn test_environment_variable_override() -> Result<()> {
         // Set environment variable
         std::env::set_var("WORKFLOW_TOOLKIT_SERVER_HTTP_PORT", "9090");
 
@@ -780,18 +781,18 @@ mod tests {
         let manager = ConfigManager::new(config);
 
         // Apply environment overrides
-        let result = manager.apply_environment_overrides();
-        assert!(result.is_ok());
+        manager.apply_environment_overrides()?;
 
-        let updated_config = manager.get_config();
+        let updated_config = manager.get_config()?;
         assert_eq!(updated_config.server.http_port, 9090);
 
         // Clean up
         std::env::remove_var("WORKFLOW_TOOLKIT_SERVER_HTTP_PORT");
+        Ok(())
     }
 
     #[test]
-    fn test_cli_config_overrides() {
+    fn test_cli_config_overrides() -> Result<()> {
         let config = Config::default();
         let manager = ConfigManager::new(config);
 
@@ -800,17 +801,17 @@ mod tests {
         cli_overrides.verbose = Some(true);
         cli_overrides.http_port = Some(8888);
 
-        let result = manager.apply_command_line_overrides(&cli_overrides);
-        assert!(result.is_ok());
+        manager.apply_command_line_overrides(&cli_overrides)?;
 
-        let updated_config = manager.get_config();
+        let updated_config = manager.get_config()?;
         assert_eq!(updated_config.logging.level, "debug");
         assert_eq!(updated_config.server.http_port, 8888);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_config_hot_reload() {
-        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
+    async fn test_config_hot_reload() -> Result<()> {
+        let temp_dir = TempDir::new().map_err(|e| WorkflowError::storage(format!("Failed to create temporary directory: {}", e)))?;
         let config_file = temp_dir.path().join("test_config.toml");
 
         // Create initial config file
@@ -822,17 +823,16 @@ ws_port = 8081
 [logging]
 level = "info"
 "#;
-        std::fs::write(&config_file, initial_config).expect("Failed to write initial config");
+        std::fs::write(&config_file, initial_config).map_err(|e| WorkflowError::storage(format!("Failed to write initial config: {}", e)))?;
 
         // Load config with hot reload
-        let manager = Config::load_from_path_with_priority(&config_file)
-            .expect("Failed to load config from path");
-        let initial_loaded_config = manager.get_config();
+        let manager = Config::load_from_path_with_priority(&config_file)?;
+        let initial_loaded_config = manager.get_config()?;
         assert_eq!(initial_loaded_config.server.http_port, 8080);
         assert_eq!(initial_loaded_config.logging.level, "info");
 
         // Start hot reload monitoring
-        manager.start_hot_reload().await.expect("Failed to start hot reload");
+        manager.start_hot_reload().await?;
 
         // Wait a bit for the monitoring to start
         sleep(std::time::Duration::from_millis(100)).await;
@@ -846,21 +846,22 @@ ws_port = 8081
 [logging]
 level = "debug"
 "#;
-        std::fs::write(&config_file, updated_config).expect("Failed to write updated config");
+        std::fs::write(&config_file, updated_config).map_err(|e| WorkflowError::storage(format!("Failed to write updated config: {}", e)))?;
 
         // Wait for hot reload to detect the change
         sleep(std::time::Duration::from_secs(6)).await;
 
         // Manually trigger reload for testing (since hot reload runs in background)
-        manager.reload_from_file().await.expect("Failed to reload config from file");
+        manager.reload_from_file().await?;
 
-        let reloaded_config = manager.get_config();
+        let reloaded_config = manager.get_config()?;
         assert_eq!(reloaded_config.server.http_port, 9090);
         assert_eq!(reloaded_config.logging.level, "debug");
+        Ok(())
     }
 
     #[test]
-    fn test_config_source_tracking() {
+    fn test_config_source_tracking() -> Result<()> {
         let config = Config::default();
         let manager = ConfigManager::new(config);
 
@@ -872,17 +873,17 @@ level = "debug"
 
         let new_config = Config::default();
         manager
-            .update_config(new_config, source.clone())
-            .expect("Failed to update config");
+            .update_config(new_config, source.clone())?;
 
-        let sources = manager.get_sources();
+        let sources = manager.get_sources()?;
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].source, "test_source");
         assert_eq!(sources[0].priority, ConfigPriority::Environment);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_config_watch_receiver() {
+    async fn test_config_watch_receiver() -> Result<()> {
         let config = Config::default();
         let manager = ConfigManager::new(config.clone());
 
@@ -899,13 +900,13 @@ level = "debug"
         };
 
         manager
-            .update_config(new_config, source)
-            .expect("Failed to update config");
+            .update_config(new_config, source)?;
 
         // Check if watch receiver gets the update
         if watch_receiver.changed().await.is_ok() {
             let updated_config = watch_receiver.borrow().clone();
             assert_eq!(updated_config.server.http_port, 9999);
         }
+        Ok(())
     }
 }

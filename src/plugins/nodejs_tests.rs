@@ -3,6 +3,7 @@
 use super::*;
 use crate::core::{ExecutionContext, PluginType, ToolInfo};
 use crate::plugins::types::{Plugin, PluginConfig};
+use crate::tools::types::ToolInput;
 use chrono::Utc;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -233,15 +234,15 @@ async fn test_nodejs_tool_execution() {
     let tool = tools.first().unwrap();
 
     let context = ExecutionContext::new();
-    let params = json!({
+    let input = ToolInput::new(json!({
         "message": "Hello, World!",
         "number": 42
-    });
+    }));
 
-    let result: Value = tool.execute(params.clone(), context).await.unwrap();
+    let output = tool.execute(input.clone(), context).await.unwrap();
     
-    assert!(result.get("success").and_then(|v: &Value| v.as_bool()).unwrap_or(false));
-    assert_eq!(result.get("echo"), Some(&params));
+    assert!(output.success);
+    assert_eq!(output.result.get("echo"), Some(&input.params));
 }
 
 #[tokio::test]
@@ -288,16 +289,16 @@ async fn test_nodejs_tool_math_execution() {
     let tool = tools.first().unwrap();
 
     let context = ExecutionContext::new();
-    let params = json!({
+    let input = ToolInput::new(json!({
         "a": 10,
         "b": 5
-    });
+    }));
 
-    let result: Value = tool.execute(params, context).await.unwrap();
+    let output = tool.execute(input, context).await.unwrap();
     
-    assert!(result.get("success").and_then(|v: &Value| v.as_bool()).unwrap_or(false));
-    assert_eq!(result.get("sum").and_then(|v: &Value| v.as_i64()), Some(15));
-    assert_eq!(result.get("product").and_then(|v: &Value| v.as_i64()), Some(50));
+    assert!(output.success);
+    assert_eq!(output.result.get("sum").and_then(|v: &Value| v.as_i64()), Some(15));
+    assert_eq!(output.result.get("product").and_then(|v: &Value| v.as_i64()), Some(50));
 }
 
 #[tokio::test]
@@ -346,12 +347,12 @@ async fn test_nodejs_tool_error_handling() {
     let context = ExecutionContext::new();
     
     // Test with invalid parameters (missing 'b')
-    let params = json!({
+    let input = ToolInput::new(json!({
         "a": 10
         // Missing 'b' parameter
-    });
+    }));
 
-    let result = tool.execute(params, context).await;
+    let result = tool.execute(input, context).await;
     assert!(result.is_err());
 }
 

@@ -5,8 +5,7 @@
 //! once all dependent code is updated.
 
 use crate::error::{Result, WorkflowError};
-use crate::tools::types::{Tool, ToolId, ToolInput, ToolOutput};
-use crate::tools::version::{Version, VersionRequirement};
+use crate::tools::types::{Tool, ToolId, ToolOutput};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -219,10 +218,14 @@ pub trait ToolNodeExt: ToolNode {
 ///
 /// This allows old trait-based tools to work with the new enum-based system
 /// during the migration period.
+/// 
+/// Note: Currently unused but reserved for backward compatibility during migration.
+#[allow(dead_code)]
 struct ToolNodeAdapter {
     inner: Arc<dyn ToolNode>,
 }
 
+#[allow(dead_code)]
 impl ToolNodeAdapter {
     fn new(inner: Arc<dyn ToolNode>) -> Self {
         Self { inner }
@@ -230,7 +233,6 @@ impl ToolNodeAdapter {
 }
 
 use crate::tools::types::{NativeTool, ToolMetadata, ToolKind};
-use futures::future::BoxFuture;
 
 impl NativeTool {
     /// Create a NativeTool from a ToolNode trait object (compatibility shim)

@@ -5,14 +5,11 @@
 //!
 //! ComposableTool trait - REMOVED (replaced with ComposedTool enum variant in types.rs)
 
-use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
-use crate::tools::types::{Tool, ToolId};
-use crate::workflow::el::{ExpressionContext, ExpressionEngine};
-use serde_json::{json, Value};
+use crate::tools::types::ToolId;
+use crate::workflow::el::ExpressionEngine;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::info;
 
 // MIGRATION: Old composable system replaced with new enum-based composition
 // Use types::ComposedTool instead of the structs below
@@ -21,10 +18,12 @@ use tracing::{debug, info};
 ///
 /// NOTE: This is kept for backward compatibility during migration.
 /// New code should use types::ComposedTool with CompositionType::Chain
+#[allow(dead_code)]
 pub struct ToolChain {
     name: String,
     description: String,
     steps: Vec<(String, ToolId)>,
+    /// Expression engine for data transformation (reserved for future use)
     expression_engine: ExpressionEngine,
 }
 
@@ -68,12 +67,15 @@ impl ToolChain {
 ///
 /// NOTE: This is kept for backward compatibility during migration.
 /// New code should use types::ComposedTool with CompositionType::Conditional
+#[allow(dead_code)]
 pub struct ConditionalTool {
     name: String,
     description: String,
     condition: String,
+    /// Then branch tool ID (reserved for future branching implementation)
     then_branch: ToolId,
     else_branch: Option<ToolId>,
+    /// Expression engine for condition evaluation (reserved for future use)
     expression_engine: ExpressionEngine,
 }
 
@@ -279,7 +281,7 @@ impl ToolCompositionBuilder {
         &mut self,
         name: impl Into<String>,
         description: impl Into<String>,
-    ) -> ToolChainBuilder {
+    ) -> ToolChainBuilder<'_> {
         ToolChainBuilder::new(self, name, description)
     }
 
@@ -289,7 +291,7 @@ impl ToolCompositionBuilder {
         name: impl Into<String>,
         description: impl Into<String>,
         condition: impl Into<String>,
-    ) -> ConditionalToolBuilder {
+    ) -> ConditionalToolBuilder<'_> {
         ConditionalToolBuilder::new(self, name, description, condition)
     }
 
@@ -298,7 +300,7 @@ impl ToolCompositionBuilder {
         &mut self,
         name: impl Into<String>,
         description: impl Into<String>,
-    ) -> ParallelToolBuilder {
+    ) -> ParallelToolBuilder<'_> {
         ParallelToolBuilder::new(self, name, description)
     }
 

@@ -5,7 +5,7 @@ use crate::core::{
     ResourceLimits, TaskPriority, WorkflowId,
 };
 use crate::error::{Result, WorkflowError};
-use crate::workflow::{WorkflowDefinition, WorkflowEngine, WorkflowExecution};
+use crate::workflow::{WorkflowDefinition, WorkflowExecution};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
