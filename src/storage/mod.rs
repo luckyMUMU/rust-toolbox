@@ -1,6 +1,4 @@
 //! Storage layer for the workflow toolkit
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod backends;
 pub mod backup;

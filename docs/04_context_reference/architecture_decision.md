@@ -1,4 +1,4 @@
-# 架构决策记录 (ADR)
+# Architecture Decision Records (ADR)（架构决策记录）
 
 > **项目**: Workflow Toolkit  
 > **版本**: v0.1.0  
@@ -8,32 +8,32 @@
 
 ## ADR-001: 采用 Rust 作为核心开发语言
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 需要选择一种系统编程语言来实现高性能的工作流引擎，要求：
 - 高并发处理能力
 - 内存安全保证
 - 优秀的性能表现
 - 丰富的生态系统
 
-### 决策
+### Decision（决策）
 选择 **Rust** 作为核心开发语言。
 
-### 理由
-1. **内存安全**: 所有权系统消除数据竞争和空指针问题
-2. **零成本抽象**: 高性能同时保持代码可读性
-3. **并发安全**: 编译时保证线程安全
-4. **生态系统**: 丰富的异步运行时（Tokio）、序列化（Serde）等库
-5. **跨平台**: 支持 Windows、Linux、macOS
+### Rationale（理由）
+1. **Memory Safety（内存安全）**: 所有权系统（Ownership System）消除数据竞争和空指针问题
+2. **Zero-Cost Abstractions（零成本抽象）**: 高性能同时保持代码可读性
+3. **Concurrency Safety（并发安全）**: 编译时保证线程安全
+4. **Ecosystem（生态系统）**: 丰富的异步运行时（Tokio）、序列化（Serde）等库
+5. **Cross-Platform（跨平台）**: 支持 Windows、Linux、macOS
 
-### 替代方案
+### Alternatives（替代方案）
 - **Go**: 开发速度快，但性能略低，缺乏内存安全保证
 - **C++**: 性能优秀，但内存安全问题多，开发效率低
 - **Java**: 生态成熟，但启动慢，内存占用高
 
-### 后果
+### Consequences（后果）
 - ✅ 高性能、低延迟
 - ✅ 内存安全，减少运行时错误
 - ✅ 优秀的并发处理能力
@@ -42,22 +42,22 @@ Accepted
 
 ---
 
-## ADR-002: 采用枚举而非 Trait 实现工具系统
+## ADR-002: 采用 Enum（枚举）而非 Trait 实现工具系统
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
-工具系统需要支持多种类型的工具（Native、Python、Node.js、Docker、WASM），需要决定使用 Trait 还是枚举来实现。
+### Context（背景）
+工具系统需要支持多种类型的工具（Native、Python、Node.js、Docker、WASM），需要决定使用 Trait 还是 Enum（枚举）来实现。
 
-### 决策
-采用 **枚举（Enum）** 方式实现工具系统，而非 Trait 对象。
+### Decision（决策）
+采用 **Enum（枚举）** 方式实现工具系统，而非 Trait Object（Trait 对象）。
 
-### 理由
-1. **性能**: 枚举避免动态分发开销
-2. **类型安全**: 编译时确定所有可能的工具类型
-3. **序列化**: 枚举更容易序列化和反序列化
-4. **模式匹配**: 清晰的 `match` 语法处理不同类型
+### Rationale（理由）
+1. **Performance（性能）**: Enum 避免动态分发（Dynamic Dispatch）开销
+2. **Type Safety（类型安全）**: 编译时确定所有可能的工具类型
+3. **Serialization（序列化）**: Enum 更容易序列化和反序列化
+4. **Pattern Matching（模式匹配）**: 清晰的 `match` 语法处理不同类型
 
 ```rust
 // 采用的方式
@@ -71,11 +71,11 @@ pub enum Tool {
 }
 ```
 
-### 替代方案
-- **Trait 对象**: 更灵活，但性能开销大，难以序列化
-- **泛型**: 编译时膨胀，不适合动态工具加载
+### Alternatives（替代方案）
+- **Trait Object（Trait 对象）**: 更灵活，但性能开销大，难以序列化
+- **Generics（泛型）**: 编译时膨胀，不适合动态工具加载
 
-### 后果
+### Consequences（后果）
 - ✅ 更好的性能（零成本抽象）
 - ✅ 编译时类型安全
 - ✅ 易于序列化
@@ -84,29 +84,29 @@ pub enum Tool {
 
 ---
 
-## ADR-003: 采用 DAG 而非状态机实现工作流
+## ADR-003: 采用 DAG（有向无环图）而非 State Machine（状态机）实现工作流
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 工作流引擎需要支持复杂的执行顺序和依赖关系。
 
-### 决策
-采用 **DAG（有向无环图）** 模型实现工作流，使用 `petgraph` 库。
+### Decision（决策）
+采用 **DAG（Directed Acyclic Graph，有向无环图）** 模型实现工作流，使用 `petgraph` 库。
 
-### 理由
-1. **表达能力**: DAG 可以表达复杂的依赖关系
-2. **并行执行**: 自动识别可以并行执行的节点
-3. **可视化**: 易于理解和可视化
-4. **成熟库**: `petgraph` 提供稳定的图算法实现
+### Rationale（理由）
+1. **Expressiveness（表达能力）**: DAG 可以表达复杂的依赖关系
+2. **Parallel Execution（并行执行）**: 自动识别可以并行执行的节点
+3. **Visualization（可视化）**: 易于理解和可视化
+4. **Mature Library（成熟库）**: `petgraph` 提供稳定的图算法实现
 
-### 替代方案
-- **状态机**: 简单但难以表达复杂依赖
-- **顺序执行**: 最简单但无法并行
-- **规则引擎**: 灵活但难以控制执行流程
+### Alternatives（替代方案）
+- **State Machine（状态机）**: 简单但难以表达复杂依赖
+- **Sequential Execution（顺序执行）**: 最简单但无法并行
+- **Rule Engine（规则引擎）**: 灵活但难以控制执行流程
 
-### 后果
+### Consequences（后果）
 - ✅ 强大的表达能力
 - ✅ 自动并行化
 - ✅ 可视化友好
@@ -115,16 +115,16 @@ Accepted
 
 ---
 
-## ADR-004: 采用分层架构
+## ADR-004: 采用 Layered Architecture（分层架构）
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 需要设计一个可维护、可测试、可扩展的系统架构。
 
-### 决策
-采用 **分层架构**（Layered Architecture）：
+### Decision（决策）
+采用 **Layered Architecture（分层架构）**：
 
 ```
 Interface Layer (CLI/TUI/MCP)
@@ -138,18 +138,18 @@ Infrastructure Layer (Persistence/Plugin)
 Adapter Layer (DTO/适配器)
 ```
 
-### 理由
-1. **关注点分离**: 每层职责清晰
-2. **可测试性**: 每层可以独立测试
-3. **可替换性**: 可以替换某层实现而不影响其他层
-4. **领域驱动**: 核心业务逻辑在领域层
+### Rationale（理由）
+1. **Separation of Concerns（关注点分离）**: 每层职责清晰
+2. **Testability（可测试性）**: 每层可以独立测试
+3. **Replaceability（可替换性）**: 可以替换某层实现而不影响其他层
+4. **Domain-Driven（领域驱动）**: 核心业务逻辑在领域层
 
-### 替代方案
-- **微内核**: 更灵活但复杂度高
-- **事件驱动**: 松耦合但难以追踪流程
-- **管道过滤器**: 适合数据处理但不适合复杂业务
+### Alternatives（替代方案）
+- **Microkernel（微内核）**: 更灵活但复杂度高
+- **Event-Driven（事件驱动）**: 松耦合但难以追踪流程
+- **Pipe-Filter（管道过滤器）**: 适合数据处理但不适合复杂业务
 
-### 后果
+### Consequences（后果）
 - ✅ 清晰的职责边界
 - ✅ 易于测试
 - ✅ 支持多种接口（CLI/TUI/MCP）
@@ -158,22 +158,22 @@ Adapter Layer (DTO/适配器)
 
 ---
 
-## ADR-005: 采用中间件模式实现横切关注点
+## ADR-005: 采用 Middleware Pattern（中间件模式）实现 Cross-Cutting Concerns（横切关注点）
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
-需要在工具执行中实现缓存、重试、超时、日志等横切关注点。
+### Context（背景）
+需要在工具执行中实现缓存、重试、超时、日志等横切关注点（Cross-Cutting Concerns）。
 
-### 决策
-采用 **中间件模式**（Middleware Pattern）实现横切关注点。
+### Decision（决策）
+采用 **Middleware Pattern（中间件模式）** 实现横切关注点。
 
-### 理由
-1. **可组合**: 中间件可以灵活组合
-2. **可复用**: 同一中间件可用于多个工具
-3. **可测试**: 中间件可以独立测试
-4. **清晰**: 业务逻辑和横切关注点分离
+### Rationale（理由）
+1. **Composability（可组合）**: 中间件可以灵活组合
+2. **Reusability（可复用）**: 同一中间件可用于多个工具
+3. **Testability（可测试）**: 中间件可以独立测试
+4. **Clarity（清晰）**: 业务逻辑和横切关注点分离
 
 ```rust
 pub trait Middleware {
@@ -185,12 +185,12 @@ pub trait Middleware {
 }
 ```
 
-### 替代方案
-- **装饰器模式**: 每个组合都需要新类
-- **AOP**: Rust 不支持原生 AOP
-- **模板方法**: 不够灵活
+### Alternatives（替代方案）
+- **Decorator Pattern（装饰器模式）**: 每个组合都需要新类
+- **AOP（面向切面编程）**: Rust 不支持原生 AOP
+- **Template Method（模板方法）**: 不够灵活
 
-### 后果
+### Consequences（后果）
 - ✅ 高度可组合
 - ✅ 横切关注点分离
 - ✅ 易于扩展新功能
@@ -199,29 +199,29 @@ pub trait Middleware {
 
 ---
 
-## ADR-006: 支持多语言插件
+## ADR-006: 支持 Multi-Language Plugins（多语言插件）
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 需要支持用户使用不同语言编写插件。
 
-### 决策
-支持 **多语言插件**：Native (Rust)、Python、Node.js、Docker、WASM。
+### Decision（决策）
+支持 **Multi-Language Plugins（多语言插件）**：Native (Rust)、Python、Node.js、Docker、WASM。
 
-### 理由
-1. **用户友好**: 用户可以使用熟悉的语言
-2. **生态复用**: 利用各语言的生态系统
-3. **隔离性**: 外部进程/容器提供隔离
-4. **性能选择**: 用户可以根据性能需求选择语言
+### Rationale（理由）
+1. **User-Friendly（用户友好）**: 用户可以使用熟悉的语言
+2. **Ecosystem Reuse（生态复用）**: 利用各语言的生态系统
+3. **Isolation（隔离性）**: 外部进程/容器提供隔离
+4. **Performance Choice（性能选择）**: 用户可以根据性能需求选择语言
 
-### 替代方案
-- **仅 Rust**: 性能最好但门槛高
-- **仅脚本语言**: 易用但性能差
-- **WASM 统一**: 理想但生态不成熟
+### Alternatives（替代方案）
+- **Rust Only（仅 Rust）**: 性能最好但门槛高
+- **Scripting Languages Only（仅脚本语言）**: 易用但性能差
+- **WASM Unified（WASM 统一）**: 理想但生态不成熟
 
-### 后果
+### Consequences（后果）
 - ✅ 低门槛，高灵活性
 - ✅ 利用各语言生态
 - ✅ 良好的隔离性
@@ -231,29 +231,29 @@ Accepted
 
 ---
 
-## ADR-007: 采用 Tokio 作为异步运行时
+## ADR-007: 采用 Tokio 作为 Async Runtime（异步运行时）
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
-需要选择一个异步运行时来处理并发。
+### Context（背景）
+需要选择一个异步运行时（Async Runtime）来处理并发。
 
-### 决策
-采用 **Tokio** 作为异步运行时。
+### Decision（决策）
+采用 **Tokio** 作为异步运行时（Async Runtime）。
 
-### 理由
-1. **生态**: Rust 异步生态的事实标准
-2. **性能**: 高效的调度器实现
-3. **功能丰富**: 提供网络、定时器、通道等
-4. **文档**: 优秀的文档和社区支持
+### Rationale（理由）
+1. **Ecosystem（生态）**: Rust 异步生态的事实标准
+2. **Performance（性能）**: 高效的调度器（Scheduler）实现
+3. **Feature-Rich（功能丰富）**: 提供网络、定时器、通道等
+4. **Documentation（文档）**: 优秀的文档和社区支持
 
-### 替代方案
+### Alternatives（替代方案）
 - **async-std**: API 更简洁但生态较小
 - **smol**: 轻量但功能有限
-- **自定义**: 维护成本高
+- **Custom（自定义）**: 维护成本高
 
-### 后果
+### Consequences（后果）
 - ✅ 丰富的生态支持
 - ✅ 高性能调度
 - ✅ 大量现成组件
@@ -262,33 +262,33 @@ Accepted
 
 ---
 
-## ADR-008: 采用分层配置系统
+## ADR-008: 采用 Layered Configuration System（分层配置系统）
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 需要管理不同环境（开发、测试、生产）的配置。
 
-### 决策
-采用 **分层配置系统**：
-1. 默认配置（代码内置）
-2. 配置文件（`config/default.toml`）
-3. 环境变量（`WORKFLOW_TOOLKIT_*`）
-4. 命令行参数（最高优先级）
+### Decision（决策）
+采用 **Layered Configuration System（分层配置系统）**：
+1. Default Configuration（默认配置，代码内置）
+2. Configuration File（配置文件，`config/default.toml`）
+3. Environment Variables（环境变量，`WORKFLOW_TOOLKIT_*`）
+4. Command-Line Arguments（命令行参数，最高优先级）
 
-### 理由
-1. **灵活性**: 不同环境使用不同配置
-2. **12-Factor**: 符合云原生应用最佳实践
-3. **易用性**: 用户可以选择最方便的方式
-4. **安全性**: 敏感信息通过环境变量传递
+### Rationale（理由）
+1. **Flexibility（灵活性）**: 不同环境使用不同配置
+2. **12-Factor（12 因素应用）**: 符合云原生应用最佳实践
+3. **Usability（易用性）**: 用户可以选择最方便的方式
+4. **Security（安全性）**: 敏感信息通过环境变量传递
 
-### 替代方案
-- **单一配置文件**: 简单但不灵活
-- **数据库配置**: 需要数据库连接才能启动
-- **配置中心**: 增加外部依赖
+### Alternatives（替代方案）
+- **Single Configuration File（单一配置文件）**: 简单但不灵活
+- **Database Configuration（数据库配置）**: 需要数据库连接才能启动
+- **Configuration Center（配置中心）**: 增加外部依赖
 
-### 后果
+### Consequences（后果）
 - ✅ 灵活的配置管理
 - ✅ 符合云原生最佳实践
 - ✅ 敏感信息安全
@@ -297,35 +297,35 @@ Accepted
 
 ---
 
-## ADR-009: 采用伪代码规范描述业务逻辑
+## ADR-009: 采用 Pseudocode Specification（伪代码规范）描述业务逻辑
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 需要一种方式来描述业务逻辑，既能让开发人员理解，又能被 LLM 解析。
 
-### 决策
-采用 **结构化伪代码** 规范描述业务逻辑，参考 `document_llm_GUIDE.md`。
+### Decision（决策）
+采用 **Structured Pseudocode（结构化伪代码）** 规范描述业务逻辑，参考 `document_llm_GUIDE.md`。
 
-### 理由
-1. **语言无关**: 不绑定特定编程语言
-2. **易理解**: 类似自然语言的语法
-3. **LLM 友好**: 结构化格式便于 LLM 解析
-4. **架构解耦**: 逻辑与实现分离
+### Rationale（理由）
+1. **Language-Independent（语言无关）**: 不绑定特定编程语言
+2. **Easy to Understand（易理解）**: 类似自然语言的语法
+3. **LLM-Friendly（LLM 友好）**: 结构化格式便于 LLM 解析
+4. **Architecture Decoupling（架构解耦）**: 逻辑与实现分离
 
-### 规范
+### Specification（规范）
 - 使用 `FUNCTION`、`IF`、`FOR`、`SWITCH` 等关键字
 - 使用 `UPPER_SNAKE_CASE` 表示原子操作
 - 4 空格缩进表示层级
 - 注释说明"为什么"而非"是什么"
 
-### 替代方案
-- **流程图**: 可视化但不便于版本控制
+### Alternatives（替代方案）
+- **Flowchart（流程图）**: 可视化但不便于版本控制
 - **UML**: 标准但复杂
-- **自然语言**: 灵活但不够精确
+- **Natural Language（自然语言）**: 灵活但不够精确
 
-### 后果
+### Consequences（后果）
 - ✅ 语言无关，架构与实现解耦
 - ✅ 易于理解和维护
 - ✅ LLM 友好
@@ -334,37 +334,37 @@ Accepted
 
 ---
 
-## ADR-010: 采用分级文档架构
+## ADR-010: 采用 Tiered Documentation Architecture（分级文档架构）
 
-### 状态
-Accepted
+### Status（状态）
+Accepted（已接受）
 
-### 背景
+### Context（背景）
 文档庞大且复杂，需要更好的组织结构。
 
-### 决策
-采用 **四级文档架构**：
+### Decision（决策）
+采用 **Four-Tier Documentation Architecture（四级文档架构）**：
 
 ```
 docs/
-├── 01_concept_overview.md      # L1: 核心概念
-├── 02_logical_workflow/        # L2: 逻辑工作流（伪代码）
-├── 03_technical_spec/          # L3: 技术规格
-└── 04_context_reference/       # L4: 决策参考
+├── 01_concept_overview.md      # L1: Core Concepts（核心概念）
+├── 02_logical_workflow/        # L2: Logical Workflow（逻辑工作流，伪代码）
+├── 03_technical_spec/          # L3: Technical Specification（技术规格）
+└── 04_context_reference/       # L4: Decision Reference（决策参考）
 ```
 
-### 理由
-1. **渐进式披露**: 读者可以根据需要深入
-2. **关注点分离**: 不同类型信息分开存放
-3. **LLM 友好**: 结构化便于 LLM 学习
-4. **易于维护**: 修改时知道去哪里找
+### Rationale（理由）
+1. **Progressive Disclosure（渐进式披露）**: 读者可以根据需要深入
+2. **Separation of Concerns（关注点分离）**: 不同类型信息分开存放
+3. **LLM-Friendly（LLM 友好）**: 结构化便于 LLM 学习
+4. **Easy Maintenance（易于维护）**: 修改时知道去哪里找
 
-### 替代方案
-- **单一 README**: 简单但难以维护
+### Alternatives（替代方案）
+- **Single README（单一 README）**: 简单但难以维护
 - **Wiki**: 灵活但缺乏版本控制
-- **自动生成**: 方便但缺乏上下文
+- **Auto-Generation（自动生成）**: 方便但缺乏上下文
 
-### 后果
+### Consequences（后果）
 - ✅ 清晰的文档结构
 - ✅ 渐进式学习路径
 - ✅ 易于维护
@@ -373,16 +373,16 @@ docs/
 
 ---
 
-## 待决策事项
+## Pending Decisions（待决策事项）
 
 ### 是否采用 WebAssembly 作为主要插件格式？
-- **考虑中**: WASM 提供良好的隔离性和性能
-- **阻碍**: 生态不成熟，调试困难
+- **Under Consideration（考虑中）**: WASM 提供良好的隔离性和性能
+- **Blockers（阻碍）**: 生态不成熟，调试困难
 
-### 是否支持分布式执行？
-- **考虑中**: 未来扩展需要
-- **阻碍**: 增加复杂度，当前单机足够
+### 是否支持 Distributed Execution（分布式执行）？
+- **Under Consideration（考虑中）**: 未来扩展需要
+- **Blockers（阻碍）**: 增加复杂度，当前单机足够
 
 ### 是否采用 gRPC 作为主要通信协议？
-- **考虑中**: 高性能，强类型
-- **阻碍**: 增加复杂度，HTTP/REST 足够当前需求
+- **Under Consideration（考虑中）**: 高性能，强类型
+- **Blockers（阻碍）**: 增加复杂度，HTTP/REST 足够当前需求

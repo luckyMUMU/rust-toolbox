@@ -68,8 +68,6 @@
 //! - Integration tests in tests/ directory
 //! - Property-based tests for critical paths
 //! - Mock implementations for isolation
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed development documentation.
 
 //!
 //! A multi-interface workflow execution system built with Rust.

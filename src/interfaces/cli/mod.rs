@@ -6,8 +6,6 @@
 //! - Tool management (list, inspect)
 //! - Plugin management
 //! - MCP server execution
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 pub mod app;
 pub mod commands;
 pub mod error;

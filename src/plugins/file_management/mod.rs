@@ -13,8 +13,6 @@
 //! - `text`: Text processing tools
 //! - `ui`: Human decision and confirmation tools
 //! - `utils`: Utilities, monitoring, performance, and registry
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 // Core modules
 pub mod core;

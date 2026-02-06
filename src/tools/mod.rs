@@ -14,8 +14,6 @@
 //! - [x] Tool node implementations - DONE (Task 1.4)
 //! - [x] Middleware system - DONE (Task 2.1, 2.2, 2.3)
 //! - [x] Typed tool system - DONE (Task 3.1, 3.2)
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod algo;
 pub mod compat;  // COMPAT: Old trait compatibility layer

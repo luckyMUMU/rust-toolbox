@@ -1,4 +1,4 @@
-# 接口契约规范
+# Interface Contract Specification（接口契约规范）
 
 > **版本**: v0.1.0  
 > **状态**: Active  
@@ -6,7 +6,7 @@
 
 ---
 
-## 1. 工作流引擎接口
+## 1. Workflow Engine Interface（工作流引擎接口）
 
 ### 1.1 WorkflowEngine
 
@@ -32,7 +32,7 @@ pub trait WorkflowEngine: Send + Sync {
 ```
 
 **约束**:
-- `execute` 必须是幂等的（相同输入产生相同结果）
+- `execute` 必须是幂等的（Idempotent，相同输入产生相同结果）
 - 并发执行数不得超过 `max_concurrent_workflows`
 - 执行超时后必须返回 `Timeout` 状态
 
@@ -65,7 +65,7 @@ pub trait ExecutionManager: Send + Sync {
 
 ---
 
-## 2. 工具接口
+## 2. Tool Interface（工具接口）
 
 ### 2.1 ToolRegistry
 
@@ -90,7 +90,7 @@ pub trait ToolRegistry: Send + Sync {
 }
 ```
 
-### 2.2 Tool 枚举
+### 2.2 Tool Enum（工具枚举）
 
 ```rust
 /// 工具枚举 - 统一抽象
@@ -126,7 +126,7 @@ impl Tool {
 
 ---
 
-## 3. 插件接口
+## 3. Plugin Interface（插件接口）
 
 ### 3.1 Plugin
 
@@ -179,7 +179,7 @@ pub trait PluginManager: Send + Sync {
 
 ---
 
-## 4. 存储接口
+## 4. Storage Interface（存储接口）
 
 ### 4.1 WorkflowRepository
 
@@ -232,9 +232,9 @@ pub trait StateManager: Send + Sync {
 
 ---
 
-## 5. 数据类型定义
+## 5. Data Type Definition（数据类型定义）
 
-### 5.1 核心类型
+### 5.1 Core Types（核心类型）
 
 ```rust
 /// 工作流定义
@@ -311,7 +311,7 @@ pub enum PluginType {
 }
 ```
 
-### 5.2 配置类型
+### 5.2 Configuration Types（配置类型）
 
 ```rust
 /// 资源需求
@@ -357,20 +357,20 @@ pub struct SecurityPolicy {
 
 ---
 
-## 6. 错误码定义
+## 6. Error Code Definition（错误码定义）
 
-### 6.1 系统错误码
+### 6.1 System Error Codes（系统错误码）
 
-| 错误码 | 描述 | HTTP状态码 |
+| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
 |--------|------|-----------|
 | `E0001` | 内部系统错误 | 500 |
 | `E0002` | 服务不可用 | 503 |
 | `E0003` | 请求超时 | 408 |
 | `E0004` | 资源耗尽 | 503 |
 
-### 6.2 工作流错误码
+### 6.2 Workflow Error Codes（工作流错误码）
 
-| 错误码 | 描述 | HTTP状态码 |
+| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
 |--------|------|-----------|
 | `E1001` | 工作流验证失败 | 400 |
 | `E1002` | 工作流未找到 | 404 |
@@ -379,9 +379,9 @@ pub struct SecurityPolicy {
 | `E1005` | 执行被取消 | 409 |
 | `E1006` | 循环依赖 | 400 |
 
-### 6.3 工具错误码
+### 6.3 Tool Error Codes（工具错误码）
 
-| 错误码 | 描述 | HTTP状态码 |
+| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
 |--------|------|-----------|
 | `E2001` | 工具未找到 | 404 |
 | `E2002` | 参数验证失败 | 400 |
@@ -389,9 +389,9 @@ pub struct SecurityPolicy {
 | `E2004` | 执行失败 | 422 |
 | `E2005` | 输出验证失败 | 500 |
 
-### 6.4 插件错误码
+### 6.4 Plugin Error Codes（插件错误码）
 
-| 错误码 | 描述 | HTTP状态码 |
+| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
 |--------|------|-----------|
 | `E3001` | 插件加载失败 | 500 |
 | `E3002` | 插件未找到 | 404 |
@@ -401,33 +401,33 @@ pub struct SecurityPolicy {
 
 ---
 
-## 7. 版本兼容性
+## 7. Version Compatibility（版本兼容性）
 
-### 7.1 API 版本策略
+### 7.1 API Version Policy（API 版本策略）
 
-- 公共 API 必须保持向后兼容
-- 破坏性变更必须增加主版本号
-- 废弃 API 必须标记 `#[deprecated]` 并保留至少一个版本
+- Public API（公共 API）必须保持向后兼容（Backward Compatible）
+- Breaking Changes（破坏性变更）必须增加主版本号
+- Deprecated API（废弃 API）必须标记 `#[deprecated]` 并保留至少一个版本
 
-### 7.2 数据版本策略
+### 7.2 Data Version Policy（数据版本策略）
 
 - 序列化数据必须包含版本字段
 - 支持至少两个版本的向后兼容读取
 
 ---
 
-## 8. 性能约束
+## 8. Performance Constraints（性能约束）
 
-### 8.1 响应时间目标
+### 8.1 Response Time Targets（响应时间目标）
 
-| 操作 | 目标 | 最大容忍 |
+| Operation（操作） | Target（目标） | Maximum Tolerance（最大容忍） |
 |------|------|----------|
-| 工作流提交 | < 10ms | 100ms |
-| 节点调度 | < 1ms | 10ms |
-| 工具执行 | 取决于工具 | 可配置 timeout |
-| 状态查询 | < 5ms | 50ms |
+| Workflow Submission（工作流提交） | < 10ms | 100ms |
+| Node Scheduling（节点调度） | < 1ms | 10ms |
+| Tool Execution（工具执行） | 取决于工具 | 可配置 timeout |
+| Status Query（状态查询） | < 5ms | 50ms |
 
-### 8.2 并发约束
+### 8.2 Concurrency Constraints（并发约束）
 
 ```rust
 pub struct ConcurrencyConfig {
@@ -438,4 +438,4 @@ pub struct ConcurrencyConfig {
 ```
 
 - 超过 `max_concurrent_workflows` 应返回 `Backpressure` 错误
-- 任务队列满时应触发背压机制
+- 任务队列满时应触发背压（Backpressure）机制

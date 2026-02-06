@@ -2,8 +2,6 @@
 //!
 //! This module provides performance monitoring, optimization utilities,
 //! and tuning capabilities for the workflow toolkit.
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 pub mod cache;
 pub mod concurrency;

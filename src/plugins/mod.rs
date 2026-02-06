@@ -16,8 +16,6 @@
 //! - **Python**: Python scripts running in a managed environment.
 //! - **Node.js**: JavaScript/TypeScript modules.
 //! - **Docker**: Containerized tools.
-//!
-//! See [AGENTS.md](AGENTS.md) for detailed documentation.
 
 // Macros must be defined before use
 #[macro_use]
