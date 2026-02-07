@@ -1,22 +1,16 @@
 ---
 name: "sop-capability-reuse"
-description: "指导AI Agent复用和优化已有能力，遵循'少即是多'原则。Invoke when needing to create new functionality, to check for existing capabilities first and prioritize improvement over creation."
+description: "指导AI Agent复用和优化已有能力。Invoke when needing to create new functionality, to check for existing capabilities first and prioritize improvement over creation."
 ---
 
-# 能力复用与优化指南
+# 能力复用与优化
 
-遵循"少即是多"原则，在创造新能力前先复用和优化已有能力。
-
----
-
-## 工作流程
-
-### Step 1: 检查已有能力
+## Step 1: 检查已有能力
 
 **搜索范围**:
-- `sop/skills/` - 已有 Skill 定义
-- `sop/prompts/` - 已有 Prompt 定义
-- 项目代码库 - 已有功能实现
+- `sop/skills/`
+- `sop/prompts/`
+- 项目代码库
 
 **检查维度**:
 | 维度 | 检查内容 |
@@ -30,19 +24,13 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 - 存在但不完全满足 → 进入 Step 2
 - 不存在 → 进入 Step 3
 
----
-
-### Step 2: 评估改进 vs 新建
+## Step 2: 评估改进 vs 新建
 
 **改进评估**:
-```markdown
-## 改进评估清单
-
 - [ ] 现有能力是否可扩展？
 - [ ] 改进成本是否低于新建？
 - [ ] 改进后是否影响已有功能？
 - [ ] 改进是否符合单一职责原则？
-```
 
 **决策规则**:
 | 情况 | 决策 |
@@ -51,16 +39,10 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 | 改进成本 ≥ 新建成本 | 选择新建 |
 | 改进会破坏已有功能 | 选择新建 |
 
-**输出**:
-- 改进方案 或 新建方案
+## Step 3: 执行（改进或新建）
 
----
+### 3.1 改进已有能力
 
-### Step 3: 执行（改进或新建）
-
-#### 3.1 改进已有能力
-
-**改进流程**:
 1. **分析现有实现** - 理解当前逻辑
 2. **设计扩展点** - 确定改进位置
 3. **实施改进** - 添加新功能/参数
@@ -72,11 +54,8 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 - 不破坏已有接口
 - 添加版本标记
 
----
+### 3.2 新建能力
 
-#### 3.2 新建能力
-
-**新建流程**:
 1. **设计新能力** - 定义功能和接口
 2. **实施开发** - 编写代码/Skill/Prompt
 3. **验证唯一性** - 确认与已有能力无重复
@@ -86,9 +65,7 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 - Skill: `sop-[function]-[action]`
 - Prompt: `[role]_prompt`
 
----
-
-### Step 4: 清理过时/相似代码
+## Step 4: 清理过时/相似代码
 
 **触发时机**: 新建能力完成后
 
@@ -110,8 +87,6 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 - [ ] 已备份（可选）
 - [ ] 已更新相关文档
 
----
-
 ## 决策树
 
 ```
@@ -124,9 +99,7 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
   │   └─ 不存在 → 新建 → 清理过时代码 ✅
 ```
 
----
-
-## 输入格式
+## 输入
 
 ```markdown
 ## 能力需求
@@ -146,9 +119,7 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 - [ ] 新建
 ```
 
----
-
-## 输出格式
+## 输出
 
 ### 复用场景
 ```markdown
@@ -189,83 +160,6 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 - [ ] 更新文档
 ```
 
----
-
-## 示例
-
-### 示例 1: 复用已有能力
-
-**需求**: 需要代码审查功能
-
-**检查**: 发现已有 `sop-code-reviewer` Skill
-
-**决策**: 直接复用
-
-**输出**:
-```markdown
-## 复用结果
-- **选择**: 直接复用
-- **能力**: sop-code-reviewer
-- **原因**: 功能完全匹配，无需修改
-
-## 使用方式
-调用 sop-code-reviewer Skill，传入代码文件路径
-```
-
----
-
-### 示例 2: 改进已有能力
-
-**需求**: 需要支持 Python 和 JavaScript 的代码审查
-
-**检查**: 发现 `sop-code-reviewer` 仅支持 Python
-
-**评估**: 添加语言参数的成本 < 新建 Skill 的成本
-
-**决策**: 改进已有
-
-**输出**:
-```markdown
-## 改进结果
-- **选择**: 改进已有
-- **能力**: sop-code-reviewer
-- **改进点**: 添加 `language` 参数，支持 Python/JavaScript
-
-## 变更清单
-- [x] 功能扩展：添加 language 参数
-- [x] 回归测试通过：Python 审查功能正常
-- [x] 文档更新：SKILL.md 已更新
-```
-
----
-
-### 示例 3: 新建能力并清理
-
-**需求**: 需要工作流编排功能（特定于 SOP）
-
-**检查**: 无匹配能力
-
-**决策**: 新建 `sop-workflow-orchestrator`
-
-**清理**: 发现旧版 `workflow-manager` 代码
-
-**输出**:
-```markdown
-## 新建结果
-- **选择**: 新建能力
-- **名称**: sop-workflow-orchestrator
-- **原因**: 无匹配能力，需求特定于 SOP
-
-## 清理清单
-- [x] 识别过时代码：workflow-manager（功能重复）
-- [x] 评估影响面：2 个调用点
-- [x] 迁移依赖：已迁移到新的 orchestrator
-- [x] 删除过时代码：workflow-manager 已删除
-- [x] 更新文档：已标记 workflow-manager 为废弃
-```
-
----
-
 ## 约束
 
 1. **先检查后行动** - 必须先搜索已有能力
@@ -273,17 +167,3 @@ description: "指导AI Agent复用和优化已有能力，遵循'少即是多'�
 3. **及时清理** - 新建后必须检查并清理过时代码
 4. **保持兼容** - 改进时不破坏已有接口
 5. **文档同步** - 所有变更必须同步更新文档
-
----
-
-## 快速参考
-
-| 场景 | 决策 | 后续动作 |
-|------|------|----------|
-| 已有能力满足需求 | 复用 | 直接调用 |
-| 已有能力可扩展 | 改进 | 扩展+测试+更新文档 |
-| 无匹配能力 | 新建 | 开发+清理过时代码 |
-
----
-
-👉 [返回 L1: 核心概念](../../01_concept_overview.md)

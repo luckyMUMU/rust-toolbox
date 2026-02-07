@@ -1,105 +1,123 @@
 ---
-name: "sop-progress-supervisor"
-description: "SOP进度监管员，负责监控工作流执行进度、检测异常、触发熔断机制。Invoke when monitoring task execution, detecting deviations, or when circuit breaker needs to be triggered."
+name: "sop-progress-monitoring"
+description: "Progress monitoring workflow for tracking execution and triggering circuit breakers. Invoke when monitoring task execution or detecting anomalies."
 ---
 
-# SOP Progress Supervisor Skill
+# Progress Monitoring Workflow
 
-SOP进度监管员（Supervisor），负责输出进度、风险与用户决策信息。
-
-## 输入模板
+## Input
 
 ```markdown
-## 监控任务
-[任务ID/名称]
+## Monitor Task
+[ID/name]
 
-## 当前状态
-- 执行阶段: [当前阶段]
-- 执行角色: [当前角色]
-- 开始时间: [时间]
-- 已用时间: [时长]
+## Current State
+- Stage: [current]
+- Role: [current]
+- Start: [time]
+- Elapsed: [duration]
 
-## 最新反馈
-[角色反馈内容]
+## Latest Feedback
+[Role feedback]
 
-## 失败计数（如适用）
-- 当前计数: [0/1/2/3]
-- 失败原因: [原因]
+## Failures
+- Count: [0/1/2/3]
+- Reason: [reason]
 ```
 
-## 输出模板
+## Workflow Steps
 
-### 进度通知
+### Step 1: State Collection
 
+**Purpose**: Gather current status
+
+**Actions**:
+1. Read task state
+2. Check stage progress
+3. Note any blockers
+
+### Step 2: Deviation Detection
+
+**Purpose**: Identify issues
+
+**Actions**:
+1. Compare to plan
+2. Check for delays
+3. Identify risks
+
+### Step 3: Risk Assessment
+
+**Purpose**: Evaluate severity
+
+**Severity**:
+- 🔴 Critical: Blocked, needs immediate action
+- 🟡 Warning: Delayed, needs attention
+- 🟢 Normal: On track
+
+### Step 4: Decision
+
+**Purpose**: Determine next action
+
+**Options**:
+- Continue: Normal progress
+- Alert: Warning, notify stakeholders
+- Break: Critical, trigger circuit breaker
+
+## Output
+
+### Progress Update
 ```markdown
-🔄 **进度更新**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 **执行状态**: [阶段名称]
-📈 **完成进度**: [已完成]/[总任务] ([百分比]%)
-⏱️ **已用时间**: [时长]
-📅 **预计剩余**: [时长]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## Progress Update
 
-### 当前任务
-[角色]: [任务描述]
+### State
+- Task: [name]
+- Stage: [stage]
+- Status: [in_progress/done/blocked]
 
-### 下一步
-[下一步计划]
+### Progress
+| Stage | Status | Owner |
+|-------|--------|-------|
+| [name] | [status] | [role] |
+
+### Risks
+- 🟡 [warning]
+- 🔴 [critical]
+
+### Next
+@[role]: [task]
 ```
 
-### 熔断警告
-
+### Circuit Breaker
 ```markdown
-⚠️ **熔断警告**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔥 **熔断原因**: [具体原因]
-📋 **失败统计**: [错误次数]/3
-💡 **建议行动**: [下一步建议]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## Circuit Breaker Triggered
 
-### 失败历史
-1. [第1次失败原因]
-2. [第2次失败原因]
-3. [第3次失败原因]
+### Reason
+- Type: [3 strikes/deadlock/high risk]
+- Detail: [description]
 
-### 可能原因
-- [原因1]
-- [原因2]
+### State
+- Failures: [count]/3
+- Roles: [list]
+- Blocked: [duration]
 
-### 建议方案
-- [ ] 方案A: [描述]
-- [ ] 方案B: [描述]
+### Options
+- A: [desc]
+- B: [desc]
 
-**请用户决策**
+**User decision required**
 ```
 
-### 决策请求
+## Constraints
 
-```markdown
-🤔 **决策请求**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-❓ **需要决策**: [决策事项]
-📊 **当前状况**: [背景信息]
-🔍 **影响分析**: [影响范围]
-💭 **推荐方案**: [建议方向]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Read all: code, docs, status
+- Write status only
+- Trigger `[FUSION_TRIGGERED]` when needed
+- No implementation
 
-### 可选方案
-- [ ] 方案A: [描述] - [优缺点]
-- [ ] 方案B: [描述] - [优缺点]
-- [ ] 方案C: [描述] - [优缺点]
+## 3-Strike Rule
 
-### 推荐
-[推荐方案及理由]
-
-**请用户选择**
-```
-
-
-
-
-- 必须及时发现问题和偏离
-- 必须准确评估状态和进度
-- 必须提供清晰的决策信息
-- 必须保持客观中立
-- 必须尊重用户最终决策
+| Strike | Condition | Action |
+|--------|-----------|--------|
+| 1 | Implementation fails | Log, allow retry |
+| 2 | Fails again | Audit + redesign |
+| 3 | Fails again | **Break**, `[FUSION_TRIGGERED]` |

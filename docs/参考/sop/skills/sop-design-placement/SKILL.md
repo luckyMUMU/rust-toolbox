@@ -5,10 +5,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 
 # 设计文档放置指南
 
-指导 AI Agent 正确放置设计文档，确保文档结构清晰、权限正确。
-
----
-
 ## 目录结构规范
 
 ### 文档放置位置
@@ -28,8 +24,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 - 该目录包含 SOP 标准文档
 - 仅 Librarian 角色维护
 - 其他角色**禁止**修改此目录
-
----
 
 ## design.md 创建规则
 
@@ -56,8 +50,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 | `packages/package/` | `packages/package/design.md` |
 | 顶层模块 | `docs/module/design.md` |
 
----
-
 ### 2. 基于复杂度判断
 
 **复杂度评估**:
@@ -78,8 +70,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
     │
     └─ 高 → 创建完整 design.md（完整设计 + 详细契约）
 ```
-
----
 
 ### 3. 接口契约规范
 
@@ -110,8 +100,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 |------|------|------|
 | [module] | [interface] | [purpose] |
 ```
-
----
 
 ## 工作流程
 
@@ -154,9 +142,7 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 - 依赖接口列表
 - 被依赖接口列表
 
----
-
-## 输入格式
+## 输入
 
 ```markdown
 ## 模块信息
@@ -174,9 +160,7 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 - 被依赖模块: [list]
 ```
 
----
-
-## 输出格式
+## 输出
 
 ### 场景 1: 省略 design.md
 ```markdown
@@ -204,91 +188,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 - **内容**: 完整设计 + 详细接口契约 + 任务清单 + 测试策略
 ```
 
----
-
-## 示例
-
-### 示例 1: 简单工具函数
-
-**模块**: `src/utils/formatDate.js`
-**代码行数**: 30行
-**功能**: 日期格式化
-
-**决策**:
-```markdown
-## 决策结果
-- **创建 design.md**: 否
-- **原因**: 复杂度低（30行，单一功能）
-- **建议**: 在代码中添加 JSDoc 注释
-```
-
----
-
-### 示例 2: API 客户端模块
-
-**模块**: `src/api/client/`
-**代码行数**: 约300行
-**功能**: HTTP 请求封装、错误处理、重试机制
-
-**决策**:
-```markdown
-## 决策结果
-- **创建 design.md**: 是
-- **位置**: `src/api/client/design.md`
-- **复杂度**: 中
-- **内容要求**:
-  - 接口契约（输入/输出/依赖）
-  - 简要任务清单
-  - 错误处理策略
-```
-
-**生成的接口契约**:
-```markdown
-## 接口契约
-
-### 输入
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| url | string | 是 | 请求地址 |
-| method | string | 否 | HTTP方法，默认GET |
-| data | object | 否 | 请求数据 |
-
-### 输出
-| 返回值 | 类型 | 说明 |
-|--------|------|------|
-| response | Promise<Response> | 响应对象 |
-| error | ApiError | 错误对象 |
-
-### 依赖接口
-| 模块 | 接口 | 用途 |
-|------|------|------|
-| config | getApiConfig | 获取API配置 |
-```
-
----
-
-### 示例 3: 核心业务模块
-
-**模块**: `src/core/workflow/`
-**代码行数**: 约1000行
-**功能**: 工作流引擎、状态管理、事件驱动
-
-**决策**:
-```markdown
-## 决策结果
-- **创建 design.md**: 是
-- **位置**: `docs/core/workflow/design.md`
-- **复杂度**: 高
-- **内容要求**:
-  - 完整架构设计
-  - 详细接口契约
-  - 任务清单（分解为子任务）
-  - 测试策略
-  - 性能考虑
-```
-
----
-
 ## 约束
 
 1. **禁止修改 `/docs/参考/`** - 仅 Librarian 可维护
@@ -297,8 +196,6 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 4. **必须包含接口契约** - 输入/输出/依赖必须明确定义
 5. **渐进式披露** - 复杂度越高，设计文档越详细
 
----
-
 ## 快速参考
 
 | 场景 | 决策 | 位置 | 内容 |
@@ -306,7 +203,3 @@ description: "指导AI Agent正确放置设计文档和创建design.md。Invoke 
 | 简单工具函数（<100行） | 不创建 | - | 代码注释 |
 | 中等模块（100-500行） | 创建 | `src/module/design.md` | 接口契约 + 任务清单 |
 | 复杂模块（>500行） | 创建 | `docs/module/design.md` | 完整设计 + 详细契约 |
-
----
-
-👉 [返回 L4: 参考文档](../../04_reference/index.md)

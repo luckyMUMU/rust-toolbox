@@ -1,115 +1,73 @@
-# 工作流规范 (Workflow)
-
-本页概述 AI 辅助开发的标准工作流，包含快速路径和深度路径两种模式。
-
----
-
-## 工作流总览
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        任务开始                              │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-              ┌─────────────────┐
-              │   Router 分诊   │
-              └────────┬────────┘
-                       │
-           ┌───────────┴───────────┐
-           │                       │
-           ▼                       ▼
-    ┌─────────────┐        ┌─────────────┐
-    │  快速路径   │        │  深度路径   │
-    │  Fast Path  │        │  Deep Path  │
-    └──────┬──────┘        └──────┬──────┘
-           │                       │
-           ▼                       ▼
-    [快速修改流程]        [完整设计流程]
-           │                       │
-           └───────────┬───────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │   任务完成       │
-              └─────────────────┘
-```
-
----
+# 工作流规范
 
 ## 路径选择
 
-### ⚡ 快速路径 (Fast Path)
-
-**适用场景**：
-- 单文件修改
-- 小范围变更（<30行）
-- 无逻辑变更
-- 文档更新
-- 配置调整
-
-**处理流程**：
-```
-Explorer 分析 → Worker 修改 → Librarian 更新文档
-```
-
-👉 [查看快速路径详情](./fast_path.md)
+| 路径 | 条件 |
+|------|------|
+| 快速 | 单文件+<30行+无逻辑变更 |
+| 深度 | 其他所有情况 |
 
 ---
 
-### 🏗️ 深度路径 (Deep Path)
+## 快速路径
 
-**适用场景**：
-- 跨文件变更
-- 新功能开发
-- 代码重构
-- API 变更
-- 系统架构调整
-
-**处理流程**：
 ```
-新项目/大重构：
-Analyst → Prometheus ↔ Skeptic → Oracle → Worker → Librarian
+Explorer → Worker → Librarian
+```
 
-功能迭代：
+| 阶段 | 输入 | 输出 | 停止点 |
+|------|------|------|--------|
+| Explorer | 目标文件 | 审计报告 | - |
+| Worker | 审计报告 | 代码修改 | Diff展示 |
+| Librarian | 代码修改 | 文档更新 | `[已完成]` |
+
+👉 [快速路径详情](fast_path.md)
+
+---
+
+## 深度路径
+
+### 新项目/大重构
+```
+Analyst → Prometheus ↔ Skeptic → Oracle → Worker → Librarian
+```
+
+### 功能迭代
+```
 Analyst → Oracle → Worker → Librarian
 ```
 
-👉 [查看深度路径详情](./deep_path.md)
+| 阶段 | 输入 | 输出 | 停止点 |
+|------|------|------|--------|
+| Analyst | 用户描述 | PRD | `[WAITING_FOR_REQUIREMENTS]` |
+| Prometheus | PRD | 架构设计 | `[WAITING_FOR_ARCHITECTURE]` |
+| Skeptic | 架构设计 | 审查报告 | `[ARCHITECTURE_PASSED]` |
+| Oracle | 架构设计 | 实现设计 | `[WAITING_FOR_DESIGN]` |
+| Worker | 实现设计 | 代码 | Diff展示 |
+| Librarian | 代码 | 文档更新 | `[已完成]` |
+
+👉 [深度路径详情](deep_path.md)
 
 ---
 
-## 质量控制
+## 三错即停
 
-### 三错即停机制 (3-Strike Rule)
+| Strike | 条件 | 行动 |
+|--------|------|------|
+| 1 | Worker失败 | 自动修正 |
+| 2 | 再失败 | @Explorer+@Oracle审计+微调 |
+| 3 | 再失败 | **熔断**，生成报告 |
 
-👉 [查看三错即停详情](./three_strike_rule.md)
-
----
-
-## 停止点 (Stop Points)
-
-工作流中的关键停止点：
-
-1. **Analyst 完成后**: `[WAITING_FOR_REQUIREMENTS]` - 用户确认PRD
-2. **Prometheus 完成后**: `[WAITING_FOR_ARCHITECTURE]` - 架构审批
-3. **Skeptic 完成后**: `[ARCHITECTURE_PASSED]` - 审查通过
-4. **Oracle 完成后**: `[WAITING_FOR_DESIGN]` - 设计审批
-5. **Worker 完成后**: 展示 Diff 待审
+👉 [三错即停详情](three_strike_rule.md)
 
 ---
 
-## 快速参考
+## 停止点
 
-| 场景 | 推荐路径 | 主要角色 | 预计时间 |
-|------|----------|----------|----------|
-| 修复拼写错误 | 快速路径 | Worker | 5分钟 |
-| 添加日志 | 快速路径 | Worker | 10分钟 |
-| 新增功能 | 深度路径 | 全角色 | 1-3天 |
-| 重构代码 | 深度路径 | 全角色 | 2-5天 |
-| 架构调整 | 深度路径 | 全角色 | 1-2周 |
-
----
-
-👉 [返回 L2: 角色矩阵](../02_role_matrix/index.md)  
-👉 [前往 L4: 参考文档](../04_reference/)
+| 标记 | 触发 | 等待 |
+|------|------|------|
+| `[WAITING_FOR_REQUIREMENTS]` | Analyst完成 | 用户确认PRD |
+| `[WAITING_FOR_ARCHITECTURE]` | Prometheus完成 | 架构审批 |
+| `[ARCHITECTURE_PASSED]` | Skeptic通过 | - |
+| `[WAITING_FOR_DESIGN]` | Oracle完成 | 设计审批 |
+| Diff展示 | Worker完成 | 用户审批代码 |

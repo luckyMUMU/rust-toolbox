@@ -1,103 +1,104 @@
 ---
-name: "sop-architecture-reviewer"
-description: "SOP架构审查员，负责审查Prometheus的架构设计文档，通过多轮挑刺-回复循环确保设计质量。Invoke when architecture design is complete and needs review, or when design quality needs validation."
+name: "sop-architecture-review"
+description: "Architecture review workflow with multi-round iteration. Invoke when architecture design is complete and needs quality review."
 ---
 
-# SOP Architecture Reviewer Skill
+# Architecture Review Workflow
 
-SOP架构审查员（Skeptic），负责对架构设计进行结构化审查并输出审查结果。
-
-## 输入模板
+## Input
 
 ```markdown
-## 审查对象
-[架构设计文档链接]
+## Review Target
+[Architecture document link]
 
-## 审查轮次
-第 [N] 轮
+## Round
+[N]
 
-## 上轮回复（如适用）
-[Prometheus 的回复摘要]
+## Previous Response
+[Designer reply summary]
 ```
 
-## 输出模板
+## Workflow Steps
 
-### 正常情况：继续审查
+### Step 1: Dimension Review
 
+**Purpose**: Check 6 dimensions
+
+| Dimension | Check |
+|-----------|-------|
+| Completeness | All requirements covered? |
+| Consistency | Terms and logic aligned? |
+| Feasibility | Technically achievable? |
+| Performance | Meets requirements? |
+| Security | Any vulnerabilities? |
+| Scalability | Easy to extend? |
+
+### Step 2: Issue Identification
+
+**Purpose**: Find problems
+
+**Severity**:
+- 🔴 Critical: Must fix
+- 🟡 Warning: Should fix
+- 🟢 Suggestion: Nice to have
+
+### Step 3: Iteration
+
+**Purpose**: Resolve issues
+
+**Max**: 3 rounds
+
+**Flow**:
+```
+Round 1: Identify issues → Designer fixes
+Round 2: Verify fixes → New issues?
+Round 3: Final check → Pass or deadlock
+```
+
+## Output
+
+### Continue Review
 ```markdown
-## 架构设计审查报告 - 第[N]轮
+## Review Round [N]
 
-### 审查摘要
-- **问题总数**: [N] 个
-- **严重问题**: [N] 个 🔴
-- **一般问题**: [N] 个 🟡
-- **建议**: [N] 个 🟢
+### Issues
+| Severity | Location | Description | Fix |
+|----------|----------|-------------|-----|
+| 🔴 | [loc] | [desc] | [fix] |
 
-### 详细问题列表
-[问题列表]
-
-### 审查结论
-- [ ] 设计已完善，可以进入下一阶段
-- [x] 需要继续审查（第 [N+1] 轮）
-- [ ] 陷入僵局，需要用户决策
-
-### 下一步
-@Prometheus: 请回复以上问题并修正设计
+### Next
+@Designer: Fix issues above
 ```
 
-### 正常情况：审查通过
-
+### Pass
 ```markdown
-## 架构设计审查通过 ✅
+## Review Passed ✅
 
-### 审查统计
-- **审查轮次**: 共 [N] 轮
-- **解决问题**: [N] 个
-- **采纳建议**: [N] 个
+### Stats
+- Rounds: [N]
+- Issues fixed: [N]
 
-### 审查结论
-设计已完善，无重大问题
-
-### 下一步
-@Oracle: 请基于架构设计进行实现设计
+### Next
+@Implementer: Start implementation design
 ```
 
-### 异常情况：需要用户决策
-
+### Deadlock
 ```markdown
-🤔 **架构设计审查僵局 - 需要用户决策**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-❓ **争议焦点**: [简要描述]
-📊 **审查轮次**: 第 [N] 轮
-🔍 **僵局原因**: [为什么陷入僵局]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## Review Deadlock
 
-## 争议背景
-[背景描述]
+### Dispute
+[Topic]: [conflict]
 
-## 双方观点
+### Options
+- A: [desc]
+- B: [desc]
 
-**Skeptic 观点**:
-[质疑的理由]
-
-**Prometheus 观点**:
-[回复的内容]
-
-## 可选方案
-- [ ] 方案 A: [描述]
-- [ ] 方案 B: [描述]
-- [ ] 方案 C: [描述]
-
-## 推荐
-[Skeptic/Prometheus/其他] - [理由]
-
-**请用户选择决策方案**
+**User decision required**
 ```
 
-## 约束
+## Constraints
 
-- 必须覆盖6个审查维度
-- 必须区分严重问题、一般问题和建议
-- 必须提供具体的改进建议
-- 必须保持建设性态度
-- 必须在3轮内解决或寻求用户决策
+- 6 dimensions
+- Max 3 rounds
+- Constructive feedback
+- Clear severity levels

@@ -1,209 +1,102 @@
 ---
-name: "sop-requirement-analyst"
-description: "SOP需求分析师，通过与用户对话挖掘需求，生成PRD文档并进行多维度分析。Invoke when starting a new feature, clarifying requirements, or when requirements are unclear."
+name: "sop-requirement-analysis"
+description: "Requirement analysis workflow to elicit needs and generate PRD. Invoke when starting a new feature or when requirements need clarification."
 ---
 
-# SOP Requirement Analyst Skill
+# Requirement Analysis Workflow
 
-SOP需求分析师，负责通过与用户对话挖掘需求，生成结构化的PRD文档，并从多维度进行需求分析。
-
-## 使用场景
-
-- 新项目启动时的需求收集
-- 功能迭代前的需求澄清
-- 复杂需求的拆解和分析
-- 需求变更时的影响评估
-- 用户提出模糊需求时
-
-## 角色关系
-
-```
-Analyst (本Skill)
-    │
-    ├─ 与用户多轮对话
-    │   ├─ 第1轮：了解核心诉求
-    │   ├─ 第2轮：澄清模糊点
-    │   ├─ 第3轮：探索潜在需求
-    │   └─ 第N轮：直到需求清晰
-    │
-    ├─ 生成 PRD 文档
-    │   ├─ 需求概述
-    │   ├─ 业务分析
-    │   ├─ 用户分析
-    │   ├─ 功能需求
-    │   └─ 非功能需求
-    │
-    ├─ 多维度分析
-    │   ├─ 业务维度
-    │   ├─ 用户维度
-    │   ├─ 功能维度
-    │   ├─ 技术维度
-    │   ├─ 风险维度
-    │   └─ 验收维度
-    │
-    └─ 用户确认
-        └─ 进入 Prometheus 阶段
-```
-
-## 工作流程
-
-### Step 1: 需求接收
-
-接收用户的初步想法或问题描述，了解：
-- 业务背景和目标
-- 相关利益方
-- 已知约束条件
-
-### Step 2: 对话挖掘（多轮）
-
-#### 第1轮：了解核心诉求
-- "您希望解决什么问题？"
-- "这个功能的理想效果是什么？"
-- "业务价值是什么？"
-
-#### 第2轮：澄清模糊点
-- "您说的 XX 是指...吗？"
-- "这个功能是否包含...？"
-- "在什么情况下会触发...？"
-
-#### 第3轮：探索潜在需求
-- "除了这个功能，还有其他相关需求吗？"
-- "如果...情况发生，应该怎么处理？"
-- "用户最看重的是什么？"
-
-#### 第N轮：确认理解
-- "我理解您的需求是...对吗？"
-- "优先级最高的是...吗？"
-- "有什么是我遗漏的吗？"
-
-### Step 3: 生成 PRD
-
-按模板编写结构化需求文档：
+## Input
 
 ```markdown
-# [功能名称] 需求文档 (PRD)
+## User Request
+[Original description]
 
-## 1. 需求概述
-- 背景
-- 目标
-- 成功指标
-
-## 2. 业务分析
-- 业务价值
-- 业务流程
-- 业务规则
-- 业务约束
-
-## 3. 用户分析
-- 目标用户画像
-- 用户使用场景
-- 用户故事
-
-## 4. 功能需求
-- Must Have（必须有）
-- Should Have（应该有）
-- Could Have（可以有）
-- Won't Have（暂不做）
-
-## 5. 非功能需求
-- 性能需求
-- 安全需求
-- 可用性需求
-- 兼容性需求
+## Context
+- Background: [info]
+- Constraints: [constraints]
+- Related: [docs]
 ```
 
-### Step 4: 多维度分析
+## Workflow Steps
 
-#### 业务维度
-- 业务目标是什么？
-- 业务价值如何衡量？
-- 涉及哪些业务流程？
-- 业务规则有哪些？
+### Step 1: Dialogue Elicitation
 
-#### 用户维度
-- 目标用户是谁？
-- 用户在什么场景下使用？
-- 用户的痛点是什么？
-- 用户的期望是什么？
+**Purpose**: Clarify user needs
 
-#### 功能维度
-- 需要实现哪些功能？
-- 功能优先级如何？
-- 功能之间的依赖关系？
-- 明确不包含的功能？
+**Rounds**:
+1. **Core**: Understand problem and goal
+2. **Clarify**: Resolve ambiguities
+3. **Explore**: Discover hidden needs
+4. **Confirm**: Validate understanding
 
-#### 技术维度
-- 技术可行性如何？
-- 是否需要新技术？
-- 与现有系统的集成点？
-- 技术约束有哪些？
+### Step 2: PRD Generation
 
-#### 风险维度
-- 需求不确定性有哪些？
-- 技术风险有哪些？
-- 业务风险有哪些？
-- 风险等级和缓解措施？
+**Purpose**: Document requirements
 
-#### 验收维度
-- 如何验收这个功能？
-- 成功的衡量指标是什么？
-- 测试要点有哪些？
-- 边界情况有哪些？
+**Sections**:
+1. Overview (background, goals, metrics)
+2. Business analysis (value, process, rules)
+3. User analysis (persona, scenarios, stories)
+4. Functional requirements (Must/Should/Could/Won't)
+5. Non-functional requirements (performance, security)
 
-### Step 5: 用户确认
+**Output**: `docs/01_requirements/[feature]_prd.md`
 
-向用户展示 PRD 和分析结果，确认：
-- 需求理解是否正确
-- 功能范围是否准确
-- 优先级是否合理
-- 是否有遗漏
+### Step 3: Multi-Dimension Analysis
 
-## 模板使用
-👉 [查看 PRD 文档模板](../../04_reference/document_templates/prd.md)
+| Dimension | Check | Output |
+|-----------|-------|--------|
+| Business | Goals, value, process | Conclusion + risk |
+| User | Persona, scenario, pain | Conclusion + risk |
+| Function | Scope, priority, dependency | Conclusion + risk |
+| Tech | Feasibility, constraint, integration | Conclusion + risk |
+| Risk | Uncertainty, mitigation | Conclusion + risk |
+| Acceptance | Criteria, metrics | Conclusion + risk |
 
-### 输入模板
+### Step 4: User Confirmation
+
+**Purpose**: Validate PRD
+
+**Checklist**:
+- [ ] Requirements correct?
+- [ ] Scope accurate?
+- [ ] Priority reasonable?
+- [ ] Any missing?
+
+**Stop Point**: `[WAITING_FOR_REQUIREMENTS]`
+
+## Output
+
 ```markdown
-## 用户需求
-[用户原始描述]
+## Requirement Analysis Complete
 
-## 上下文
-- 项目背景: [背景信息]
-- 已知约束: [约束条件]
-- 相关文档: [文档链接]
+### PRD
+- Location: `docs/01_requirements/[feature]_prd.md`
+- Link: [link]
+
+### Analysis Summary
+| Dimension | Conclusion | Risk |
+|-----------|------------|------|
+| Business | [conclusion] | [H/M/L] |
+| User | [conclusion] | [H/M/L] |
+| Function | [conclusion] | [H/M/L] |
+| Tech | [conclusion] | [H/M/L] |
+| Risk | [conclusion] | [H/M/L] |
+| Acceptance | [conclusion] | [H/M/L] |
+
+### User Confirmation
+- [ ] Requirements correct
+- [ ] Scope accurate
+- [ ] Priority reasonable
+- [ ] No missing items
+
+### Next
+After confirmation → Architecture Design
 ```
 
-### 输出模板
-```markdown
-## 需求分析完成
+## Constraints
 
-### PRD 文档
-- **位置**: `docs/01_requirements/[feature_name]_prd.md`
-- **链接**: [文档链接]
-
-### 多维度分析摘要
-
-| 维度 | 关键结论 | 风险等级 |
-|------|----------|----------|
-| 业务 | [结论] | [高/中/低] |
-| 用户 | [结论] | [高/中/低] |
-| 功能 | [结论] | [高/中/低] |
-| 技术 | [结论] | [高/中/低] |
-| 风险 | [结论] | [高/中/低] |
-| 验收 | [结论] | [高/中/低] |
-
-### 需要用户确认
-- [ ] 需求理解是否正确？
-- [ ] 功能范围是否准确？
-- [ ] 优先级是否合理？
-- [ ] 有什么遗漏或需要调整？
-
-### 下一步
-用户确认后，进入 Prometheus 架构设计阶段
-```
-
-## 约束
-- 必须多轮对话，确保需求完整
-- 必须从6个维度分析需求
-- 必须生成结构化的PRD文档
-- 必须得到用户确认后才能进入下一阶段
-- 必须明确需求边界，避免范围蔓延
+- Must have multi-round dialogue
+- Must cover 6 dimensions
+- Must get user confirmation
+- Must define clear boundaries
