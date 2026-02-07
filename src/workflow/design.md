@@ -705,7 +705,801 @@ pub enum ResumeStrategy {
 6. 返回执行结果
 ```
 
-## 5. 子模块
+## 5. 生产就绪改进 (Production Readiness)
+
+### 5.1 错误处理与容错机制
+
+#### 错误分类
+
+```rust
+/// 错误分类
+/// 
+/// 根据错误性质分类，指导错误处理策略
+pub enum ErrorClassification {
+    /// 业务错误（可预期，可处理）
+    /// 例如：参数验证失败、业务规则违反
+    BusinessError { 
+        code: String, 
+        message: String,
+        recoverable: bool, // 是否可恢复
+    },
+    /// 系统错误（需要重试或降级）
+    /// 例如：内存不足、线程池耗尽
+    SystemError { 
+        retryable: bool,
+        severity: ErrorSeverity,
+    },
+    /// 网络错误（通常可重试）
+    /// 例如：连接超时、DNS 解析失败
+    NetworkError { 
+        timeout: bool,
+        retry_after: Option<Duration>,
+    },
+    /// 资源错误（资源不足）
+    /// 例如：磁盘空间不足、配额超限
+    ResourceError { 
+        resource_type: String,
+        current_usage: u64,
+        limit: u64,
+    },
+}
+
+/// 错误严重程度
+pub enum ErrorSeverity {
+    Warning,    // 警告，可继续
+    Error,      // 错误，需要处理
+    Critical,   // 严重，需要熔断
+    Fatal,      // 致命，终止执行
+}
+```
+
+#### 错误处理策略
+
+```rust
+/// 错误处理策略
+/// 
+/// 定义遇到错误时的处理方式
+pub enum ErrorHandlingStrategy {
+    /// 立即重试
+    ImmediateRetry { 
+        max_attempts: u32,
+        delay: Duration,
+    },
+    /// 指数退避重试
+    ExponentialBackoff { 
+        max_attempts: u32, 
+        base_delay: Duration,
+        max_delay: Duration,
+        multiplier: f64,
+    },
+    /// 熔断（暂停服务）
+    CircuitBreaker { 
+        failure_threshold: u32,
+        success_threshold: u32,
+        timeout: Duration,
+    },
+    /// 降级（使用备用方案）
+    Fallback { 
+        fallback_node: Option<String>,
+        default_value: Option<Value>,
+    },
+    /// 快速失败
+    FailFast,
+    /// 忽略错误继续
+    Ignore,
+}
+
+/// 错误处理器
+pub struct ErrorHandler {
+    strategy: ErrorHandlingStrategy,
+    classifier: Box<dyn ErrorClassifier>,
+}
+
+impl ErrorHandler {
+    /// 处理错误
+    pub async fn handle(
+        &self,
+        error: &Error,
+        context: &ExecutionContext,
+    ) -> ErrorAction {
+        let classification = self.classifier.classify(error);
+        
+        match (&self.strategy, classification) {
+            (ErrorHandlingStrategy::CircuitBreaker { .. }, 
+             ErrorClassification::SystemError { .. }) => {
+                ErrorAction::TriggerCircuitBreaker
+            }
+            (ErrorHandlingStrategy::Fallback { fallback_node, .. }, _) => {
+                ErrorAction::ExecuteFallback(fallback_node.clone())
+            }
+            _ => ErrorAction::Retry,
+        }
+    }
+}
+```
+
+#### 熔断器实现
+
+```rust
+/// 熔断器
+/// 
+/// 防止级联故障，保护系统稳定性
+pub struct CircuitBreaker {
+    config: CircuitBreakerConfig,
+    state: Arc<RwLock<CircuitState>>,
+    metrics: Arc<CircuitBreakerMetrics>,
+}
+
+pub struct CircuitBreakerConfig {
+    /// 失败阈值（触发熔断的失败次数）
+    pub failure_threshold: u32,
+    /// 成功阈值（恢复关闭状态的成功次数）
+    pub success_threshold: u32,
+    /// 熔断超时时间
+    pub timeout: Duration,
+    /// 半开状态测试请求数
+    pub half_open_max_calls: u32,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum CircuitState {
+    /// 关闭状态 - 正常处理请求
+    Closed,
+    /// 打开状态 - 拒绝请求，直接失败
+    Open { opened_at: DateTime<Utc> },
+    /// 半开状态 - 允许部分请求测试恢复
+    HalfOpen { test_calls: u32 },
+}
+
+impl CircuitBreaker {
+    /// 执行受保护的操作
+    pub async fn call<F, T>(&self, operation: F) -> Result<T>
+    where
+        F: Future<Output = Result<T>>,
+    {
+        // 检查当前状态
+        match *self.state.read().await {
+            CircuitState::Open { opened_at } => {
+                // 检查是否到达恢复时间
+                if Utc::now() - opened_at > self.config.timeout {
+                    // 切换到半开状态
+                    *self.state.write().await = CircuitState::HalfOpen { test_calls: 0 };
+                } else {
+                    return Err(Error::CircuitBreakerOpen);
+                }
+            }
+            CircuitState::HalfOpen { test_calls } => {
+                if test_calls >= self.config.half_open_max_calls {
+                    return Err(Error::CircuitBreakerOpen);
+                }
+            }
+            CircuitState::Closed => {}
+        }
+        
+        // 执行操作
+        match operation.await {
+            Ok(result) => {
+                self.on_success().await;
+                Ok(result)
+            }
+            Err(error) => {
+                self.on_failure().await;
+                Err(error)
+            }
+        }
+    }
+    
+    /// 成功回调
+    async fn on_success(&self) {
+        let mut state = self.state.write().await;
+        match *state {
+            CircuitState::HalfOpen { test_calls } => {
+                if test_calls + 1 >= self.config.success_threshold {
+                    *state = CircuitState::Closed;
+                    self.metrics.record_state_change("half_open", "closed");
+                } else {
+                    *state = CircuitState::HalfOpen { test_calls: test_calls + 1 };
+                }
+            }
+            _ => {}
+        }
+        self.metrics.record_success();
+    }
+    
+    /// 失败回调
+    async fn on_failure(&self) {
+        let mut state = self.state.write().await;
+        match *state {
+            CircuitState::Closed => {
+                let failures = self.metrics.increment_failure();
+                if failures >= self.config.failure_threshold {
+                    *state = CircuitState::Open { opened_at: Utc::now() };
+                    self.metrics.record_state_change("closed", "open");
+                }
+            }
+            CircuitState::HalfOpen { .. } => {
+                *state = CircuitState::Open { opened_at: Utc::now() };
+                self.metrics.record_state_change("half_open", "open");
+            }
+            _ => {}
+        }
+    }
+}
+
+/// 熔断器指标
+pub struct CircuitBreakerMetrics {
+    success_count: AtomicU32,
+    failure_count: AtomicU32,
+    state_changes: Vec<StateChangeEvent>,
+}
+```
+
+### 5.2 可观测性设计
+
+#### 指标收集
+
+```rust
+/// 指标收集器接口
+#[async_trait]
+pub trait MetricsCollector: Send + Sync {
+    /// 记录工作流执行时间
+    fn record_workflow_duration(
+        &self, 
+        workflow_id: &str, 
+        duration: Duration
+    );
+    
+    /// 记录工作流执行结果
+    fn record_workflow_result(
+        &self, 
+        workflow_id: &str, 
+        success: bool
+    );
+    
+    /// 记录节点执行时间
+    fn record_node_duration(
+        &self, 
+        node_type: &str, 
+        duration: Duration
+    );
+    
+    /// 记录队列深度
+    fn record_queue_depth(&self, depth: usize);
+    
+    /// 记录并发执行数
+    fn record_concurrent_executions(&self, count: usize);
+    
+    /// 记录熔断器状态变化
+    fn record_circuit_breaker_state(
+        &self, 
+        name: &str, 
+        from: &str, 
+        to: &str
+    );
+}
+
+/// Prometheus 指标收集器实现
+pub struct PrometheusMetricsCollector {
+    workflow_duration: HistogramVec,
+    workflow_results: CounterVec,
+    node_duration: HistogramVec,
+    queue_depth: Gauge,
+    concurrent_executions: Gauge,
+}
+```
+
+#### 分布式追踪
+
+```rust
+/// 追踪上下文
+/// 
+/// 在节点间传递追踪信息
+#[derive(Clone)]
+pub struct TracingContext {
+    pub trace_id: String,
+    pub span_id: String,
+    pub parent_span_id: Option<String>,
+    pub sampled: bool,
+}
+
+impl TracingContext {
+    /// 创建根上下文
+    pub fn new_root() -> Self {
+        Self {
+            trace_id: generate_trace_id(),
+            span_id: generate_span_id(),
+            parent_span_id: None,
+            sampled: true,
+        }
+    }
+    
+    /// 创建子上下文
+    pub fn child(&self) -> Self {
+        Self {
+            trace_id: self.trace_id.clone(),
+            span_id: generate_span_id(),
+            parent_span_id: Some(self.span_id.clone()),
+            sampled: self.sampled,
+        }
+    }
+}
+
+/// 追踪 Span
+pub struct TracingSpan {
+    context: TracingContext,
+    name: String,
+    start_time: DateTime<Utc>,
+    attributes: HashMap<String, Value>,
+}
+
+impl TracingSpan {
+    pub fn new(name: &str, context: TracingContext) -> Self {
+        Self {
+            context,
+            name: name.to_string(),
+            start_time: Utc::now(),
+            attributes: HashMap::new(),
+        }
+    }
+    
+    /// 添加属性
+    pub fn set_attribute(&mut self, key: &str, value: Value) {
+        self.attributes.insert(key.to_string(), value);
+    }
+    
+    /// 结束 Span
+    pub fn end(self) -> SpanRecord {
+        SpanRecord {
+            trace_id: self.context.trace_id,
+            span_id: self.context.span_id,
+            parent_span_id: self.context.parent_span_id,
+            name: self.name,
+            start_time: self.start_time,
+            end_time: Utc::now(),
+            attributes: self.attributes,
+        }
+    }
+}
+```
+
+#### 结构化日志
+
+```rust
+/// 工作流日志
+#[derive(Serialize)]
+pub struct WorkflowLog {
+    /// 时间戳
+    pub timestamp: DateTime<Utc>,
+    /// 日志级别
+    pub level: LogLevel,
+    /// 追踪 ID
+    pub trace_id: String,
+    /// 执行 ID
+    pub execution_id: String,
+    /// 节点 ID
+    pub node_id: Option<String>,
+    /// 消息
+    pub message: String,
+    /// 上下文
+    pub context: HashMap<String, Value>,
+}
+
+#[derive(Serialize)]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+/// 日志记录器
+pub struct WorkflowLogger {
+    collector: Arc<dyn LogCollector>,
+}
+
+impl WorkflowLogger {
+    pub fn log(&self, log: WorkflowLog) {
+        self.collector.collect(log);
+    }
+    
+    /// 记录节点开始
+    pub fn node_started(&self, execution_id: &str, node_id: &str) {
+        self.log(WorkflowLog {
+            timestamp: Utc::now(),
+            level: LogLevel::Info,
+            trace_id: generate_trace_id(),
+            execution_id: execution_id.to_string(),
+            node_id: Some(node_id.to_string()),
+            message: "Node execution started".to_string(),
+            context: HashMap::new(),
+        });
+    }
+}
+```
+
+### 5.3 限流与熔断
+
+#### 限流器
+
+```rust
+/// 限流器
+/// 
+/// 使用令牌桶算法控制请求速率
+pub struct RateLimiter {
+    /// 令牌桶
+    tokens: Arc<Mutex<f64>>,
+    /// 令牌生成速率（每秒）
+    rate: f64,
+    /// 桶容量
+    capacity: f64,
+    /// 上次更新时间
+    last_update: Arc<Mutex<Instant>>,
+}
+
+impl RateLimiter {
+    pub fn new(rate: f64, capacity: f64) -> Self {
+        Self {
+            tokens: Arc::new(Mutex::new(capacity)),
+            rate,
+            capacity,
+            last_update: Arc::new(Mutex::new(Instant::now())),
+        }
+    }
+    
+    /// 更新令牌数量
+    fn update_tokens(&self) {
+        let mut last_update = self.last_update.lock().unwrap();
+        let now = Instant::now();
+        let elapsed = now.duration_since(*last_update).as_secs_f64();
+        
+        let mut tokens = self.tokens.lock().unwrap();
+        *tokens = (*tokens + elapsed * self.rate).min(self.capacity);
+        *last_update = now;
+    }
+    
+    /// 尝试获取许可
+    pub async fn acquire(&self, tokens: f64) -> Result<()> {
+        self.update_tokens();
+        
+        let mut current = self.tokens.lock().unwrap();
+        if *current >= tokens {
+            *current -= tokens;
+            Ok(())
+        } else {
+            Err(Error::RateLimitExceeded)
+        }
+    }
+    
+    /// 等待获取许可
+    pub async fn acquire_with_wait(&self, tokens: f64) -> Result<()> {
+        loop {
+            match self.acquire(tokens).await {
+                Ok(()) => return Ok(()),
+                Err(Error::RateLimitExceeded) => {
+                    sleep(Duration::from_millis(100)).await;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+}
+
+/// 工作流限流配置
+pub struct WorkflowRateLimitConfig {
+    /// 每秒最大执行数
+    pub max_executions_per_second: u32,
+    /// 并发执行限制
+    pub max_concurrent: usize,
+    /// 是否启用熔断
+    pub enable_circuit_breaker: bool,
+    /// 熔断配置
+    pub circuit_breaker: CircuitBreakerConfig,
+}
+```
+
+### 5.4 配置管理增强
+
+```rust
+/// 配置加载器
+#[async_trait]
+pub trait ConfigLoader: Send + Sync {
+    /// 加载配置
+    async fn load(&self) -> Result<WorkflowConfig>;
+    /// 重新加载配置
+    async fn reload(&self) -> Result<WorkflowConfig>;
+    /// 监听配置变化
+    async fn watch(&self) -> Result<mpsc::Receiver<ConfigChange>>;
+}
+
+/// 文件配置加载器
+pub struct FileConfigLoader {
+    path: PathBuf,
+}
+
+#[async_trait]
+impl ConfigLoader for FileConfigLoader {
+    async fn load(&self) -> Result<WorkflowConfig> {
+        let content = fs::read_to_string(&self.path).await?;
+        let config: WorkflowConfig = serde_yaml::from_str(&content)?;
+        ConfigValidator::validate(&config)?;
+        Ok(config)
+    }
+    
+    async fn reload(&self) -> Result<WorkflowConfig> {
+        self.load().await
+    }
+    
+    async fn watch(&self) -> Result<mpsc::Receiver<ConfigChange>> {
+        // 实现文件监听
+        todo!()
+    }
+}
+
+/// 配置验证器
+pub struct ConfigValidator;
+
+impl ConfigValidator {
+    /// 验证配置
+    pub fn validate(config: &WorkflowConfig) -> Result<ValidationReport> {
+        let mut report = ValidationReport::new();
+        
+        // 验证超时设置
+        if let Some(timeout) = config.default_timeout {
+            if timeout == 0 {
+                report.add_error("timeout", "超时时间不能为0");
+            }
+        }
+        
+        // 验证并发设置
+        if config.max_concurrent_steps == 0 {
+            report.add_error("max_concurrent", "并发数必须大于0");
+        }
+        
+        // 验证重试策略
+        if let Some(ref retry) = config.retry_policy {
+            if retry.max_attempts == 0 {
+                report.add_warning("retry", "重试次数为0，相当于禁用重试");
+            }
+        }
+        
+        Ok(report)
+    }
+}
+
+/// 验证报告
+pub struct ValidationReport {
+    errors: Vec<ValidationError>,
+    warnings: Vec<ValidationWarning>,
+}
+
+/// 热更新管理器
+pub struct ConfigHotReloader {
+    loader: Box<dyn ConfigLoader>,
+    current_config: Arc<RwLock<WorkflowConfig>>,
+    change_handlers: Vec<Box<dyn Fn(&ConfigChange)>>,
+}
+
+impl ConfigHotReloader {
+    pub async fn start(&self) -> Result<()> {
+        let mut receiver = self.loader.watch().await?;
+        
+        while let Some(change) = receiver.recv().await {
+            match self.loader.reload().await {
+                Ok(new_config) => {
+                    *self.current_config.write().await = new_config;
+                    for handler in &self.change_handlers {
+                        handler(&change);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to reload config: {}", e);
+                }
+            }
+        }
+        
+        Ok(())
+    }
+}
+```
+
+### 5.5 版本兼容性
+
+```rust
+/// 工作流版本
+#[derive(Clone, PartialEq)]
+pub struct WorkflowVersion {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl WorkflowVersion {
+    pub fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self { major, minor, patch }
+    }
+    
+    pub fn to_string(&self) -> String {
+        format!("{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+/// 版本兼容性检查器
+pub struct VersionCompatibilityChecker;
+
+impl VersionCompatibilityChecker {
+    /// 检查版本兼容性
+    pub fn check_compatibility(
+        &self,
+        current: &WorkflowVersion,
+        target: &WorkflowVersion,
+    ) -> CompatibilityResult {
+        if current.major != target.major {
+            CompatibilityResult::Incompatible(
+                format!("主版本不兼容: {} vs {}", current.major, target.major)
+            )
+        } else if current.minor < target.minor {
+            CompatibilityResult::UpgradeRequired
+        } else {
+            CompatibilityResult::Compatible
+        }
+    }
+}
+
+pub enum CompatibilityResult {
+    Compatible,
+    UpgradeRequired,
+    Incompatible(String),
+}
+
+/// 迁移策略
+#[async_trait]
+pub trait MigrationStrategy: Send + Sync {
+    /// 迁移工作流定义
+    async fn migrate(&self, definition: &mut WorkflowDefinition) -> Result<()>;
+    /// 检查是否支持迁移
+    fn can_migrate(&self, from: &WorkflowVersion, to: &WorkflowVersion) -> bool;
+}
+
+/// 版本迁移管理器
+pub struct MigrationManager {
+    strategies: Vec<Box<dyn MigrationStrategy>>,
+}
+
+impl MigrationManager {
+    /// 迁移工作流
+    pub async fn migrate(
+        &self,
+        definition: &mut WorkflowDefinition,
+        target_version: &WorkflowVersion,
+    ) -> Result<()> {
+        let current_version = definition.version.clone();
+        
+        // 检查兼容性
+        let checker = VersionCompatibilityChecker;
+        match checker.check_compatibility(&current_version, target_version) {
+            CompatibilityResult::Compatible => return Ok(()),
+            CompatibilityResult::Incompatible(reason) => {
+                return Err(Error::IncompatibleVersion(reason));
+            }
+            CompatibilityResult::UpgradeRequired => {}
+        }
+        
+        // 查找并执行迁移策略
+        for strategy in &self.strategies {
+            if strategy.can_migrate(&current_version, target_version) {
+                strategy.migrate(definition).await?;
+                definition.version = target_version.clone();
+                return Ok(());
+            }
+        }
+        
+        Err(Error::NoMigrationPath)
+    }
+}
+```
+
+### 5.6 安全设计
+
+```rust
+/// 权限检查器
+#[async_trait]
+pub trait PermissionChecker: Send + Sync {
+    /// 检查执行权限
+    async fn can_execute(&self, user_id: &str, workflow_id: &str) -> bool;
+    /// 检查管理权限
+    async fn can_manage(&self, user_id: &str, workflow_id: &str) -> bool;
+    /// 检查查看权限
+    async fn can_view(&self, user_id: &str, workflow_id: &str) -> bool;
+}
+
+/// 基于角色的权限检查器
+pub struct RBACPermissionChecker {
+    role_store: Arc<dyn RoleStore>,
+}
+
+#[async_trait]
+impl PermissionChecker for RBACPermissionChecker {
+    async fn can_execute(&self, user_id: &str, workflow_id: &str) -> bool {
+        let roles = self.role_store.get_user_roles(user_id).await;
+        roles.iter().any(|r| r.has_permission("workflow:execute"))
+    }
+    
+    async fn can_manage(&self, user_id: &str, workflow_id: &str) -> bool {
+        let roles = self.role_store.get_user_roles(user_id).await;
+        roles.iter().any(|r| r.has_permission("workflow:manage"))
+    }
+    
+    async fn can_view(&self, user_id: &str, workflow_id: &str) -> bool {
+        let roles = self.role_store.get_user_roles(user_id).await;
+        roles.iter().any(|r| r.has_permission("workflow:view"))
+    }
+}
+
+/// 数据加密
+pub struct DataEncryption {
+    cipher: Box<dyn Cipher>,
+}
+
+impl DataEncryption {
+    pub fn new(cipher: Box<dyn Cipher>) -> Self {
+        Self { cipher }
+    }
+    
+    /// 加密敏感数据
+    pub fn encrypt(&self, data: &str) -> Result<String> {
+        self.cipher.encrypt(data)
+    }
+    
+    /// 解密数据
+    pub fn decrypt(&self, encrypted: &str) -> Result<String> {
+        self.cipher.decrypt(encrypted)
+    }
+    
+    /// 加密工作流上下文中的敏感数据
+    pub fn encrypt_context(&self, context: &mut ExecutionContext) -> Result<()> {
+        for (key, value) in &mut context.global_variables {
+            if is_sensitive_key(key) {
+                *value = Value::String(self.encrypt(&value.to_string())?);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn is_sensitive_key(key: &str) -> bool {
+    let sensitive_patterns = ["password", "secret", "token", "key", "credential"];
+    sensitive_patterns.iter().any(|p| key.to_lowercase().contains(p))
+}
+```
+
+### 5.7 测试策略细化
+
+```markdown
+#### 测试场景矩阵
+
+| 场景 | 类型 | 覆盖率要求 | 关键验证点 |
+|------|------|-----------|-----------|
+| 简单线性工作流 | 单元测试 | 100% | 节点顺序执行 |
+| 复杂 DAG 工作流 | 集成测试 | 90% | 依赖解析正确 |
+| 并行节点执行 | 并发测试 | 85% | 无竞态条件 |
+| 检查点保存/恢复 | 容错测试 | 90% | 状态一致性 |
+| 熔断器触发 | 容错测试 | 80% | 状态转换正确 |
+| 限流器生效 | 性能测试 | 75% | 速率控制准确 |
+| 1000+ 节点工作流 | 压力测试 | 70% | 内存/性能稳定 |
+| 内存限制场景 | 资源测试 | 80% | 优雅降级 |
+| 网络超时恢复 | 容错测试 | 85% | 重试机制有效 |
+| 配置热更新 | 集成测试 | 75% | 配置生效及时 |
+
+#### 测试工具
+
+- **单元测试**: `cargo test` + `mockall` 模拟依赖
+- **集成测试**: `cargo test --test integration`
+- **性能测试**: `criterion` 基准测试
+- **压力测试**: `k6` 或自定义负载生成器
+- **混沌测试**: 随机注入故障验证容错能力
+```
+
+## 6. 子模块
 
 - [组件系统](./component/design.md) - 组件详细设计
 - [执行器链](./executor/design.md) - 执行器链详细设计
