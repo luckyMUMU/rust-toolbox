@@ -104,9 +104,9 @@ interfaces → application → domain ← infrastructure
 - `[已完成]` | 工作流引擎核心实现 | 2026-02-01
 - `[已完成]` | MCP Server 实现 | 2026-01-28
 - `[已完成]` | EL 表达式引擎 | 2026-01-28
-- `[进行中]` | 检查点机制完善 | 2026-02-06
-- `[进行中]` | 事务管理实现 | 2026-02-06
-- `[待开始]` | 工具原子化重构
+- `[已完成]` | 检查点机制完善 | 2026-02-07
+- `[已完成]` | 事务管理实现 | 2026-02-07
+- `[进行中]` | 工具原子化重构 | 2026-02-07
 - `[待开始]` | WASM 插件恢复
 - `[待开始]` | LanceDB 深度集成
 
@@ -125,6 +125,10 @@ interfaces → application → domain ← infrastructure
 - 使用 `[进行中]` / `[已完成]` 标记状态
 
 ### 相关文档
+- [需求文档](./docs/01_requirements/workflow_toolkit_prd.md) - 产品需求文档 (PRD)
 - [项目文档索引](./docs/INDEX.md) - 完整文档导航
 - [核心概念](./docs/01_concept_overview.md) - L1 层概念说明
+- [逻辑工作流](./docs/02_logical_workflow/) - L2 层架构设计
+- [技术规格](./docs/03_technical_spec/) - L3 层接口契约
+- [架构决策](./docs/04_context_reference/architecture_decision.md) - L4 层决策记录
 - [产品设计](./PRODUCT_DESIGN.md) - 产品级设计文档

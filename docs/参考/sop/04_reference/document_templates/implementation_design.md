@@ -1,74 +1,157 @@
-# 实现设计模板
+# 实现设计模板 (L3: 技术规格)
 
-**位置**: `src/**/design.md`  
-**创建者**: Oracle
+**层级**: L3 - 技术规格  
+**位置**: `src/**/design.md` 或 `docs/03_technical_spec/[module].md`  
+**创建者**: Oracle  
+**规范**: 将L2伪代码映射为具体技术实现
 
 ---
 
-## 结构
+## 文件结构
 
 ```markdown
 # [模块] 实现设计
 
-## 1. 核心定义
-### 领域模型
-| 实体 | 属性 | 职责 | 约束 |
+## 1. 技术选型
+| 组件 | 选择 | 版本 | 理由 |
 |------|------|------|------|
-| [实体A] | [属性] | [职责] | [约束] |
+| 语言 | [语言] | [版本] | [理由] |
+| 框架 | [框架] | [版本] | [理由] |
+| 存储 | [数据库] | [版本] | [理由] |
+| 缓存 | [缓存] | [版本] | [理由] |
 
-### 接口定义
-```
-interface [名称] {
-    [返回类型] [方法]([参数]);
+## 2. L2→L3 映射
+基于: [L2伪代码文档链接]
+
+| L2 伪代码 | L3 实现 | 技术细节 |
+|-----------|---------|----------|
+| `VALIDATE_INPUT` | `InputValidator.validate()` | 使用 Joi/Yup 验证 |
+| `PROCESS_TYPE_A` | `TypeAProcessor.process()` | 异步处理，线程池 |
+| `PREPROCESS_DATA` | `DataTransformer.normalize()` | 数据清洗逻辑 |
+
+## 3. 领域模型
+
+### 实体定义
+| 实体 | 属性 | 类型 | 约束 |
+|------|------|------|------|
+| [Entity] | [field] | [type] | [constraint] |
+
+### 类/接口定义
+```[language]
+interface [Name] {
+    [returnType] [method]([params]);
+}
+
+class [ClassName] implements [Interface] {
+    // 实现L2的某个原子操作
 }
 ```
 
-## 2. 实现方案
-### 技术选型
-| 组件 | 选择 | 理由 |
-|------|------|------|
-| [组件] | [选择] | [理由] |
+## 4. 接口契约
 
-### 架构映射
-- 基于: [架构文档链接]
-- 调整: [调整说明]
-
-### 任务清单
-- [ ] [任务1]
-- [ ] [任务2]
-
-## 3. 接口契约
 ### 输入
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| [param] | [type] | [Y/N] | [说明] |
+| 参数 | 类型 | 必填 | 验证规则 | 说明 |
+|------|------|------|----------|------|
+| [param] | [type] | [Y/N] | [rule] | [desc] |
 
 ### 输出
 | 返回 | 类型 | 说明 |
 |------|------|------|
-| [return] | [type] | [说明] |
+| [return] | [type] | [desc] |
 
 ### 异常
-| 类型 | 触发条件 | 处理 |
-|------|----------|------|
-| [类型] | [条件] | [处理] |
+| 类型 | 触发条件 | 处理 | HTTP码 |
+|------|----------|------|--------|
+| [Type] | [condition] | [handle] | [code] |
 
-## 4. 测试策略
-- 单元测试: [覆盖目标]
+## 5. 数据模型
+
+### 数据库表
+| 表名 | 字段 | 类型 | 索引 | 说明 |
+|------|------|------|------|------|
+| [table] | [field] | [type] | [index] | [desc] |
+
+### API 定义
+```yaml
+# OpenAPI/Swagger 片段
+paths:
+  /api/[endpoint]:
+    [method]:
+      parameters:
+        - name: [param]
+          type: [type]
+      responses:
+        [code]:
+          description: [desc]
+```
+
+## 6. 任务清单
+- [ ] [任务1: 对应L2的某个原子操作]
+- [ ] [任务2]
+- [ ] [任务3]
+
+## 7. 测试策略
+- 单元测试: [覆盖目标，对应L2逻辑分支]
 - 集成测试: [场景]
-- 边界测试: [情况]
+- 性能测试: [指标]
 
-## 5. 状态记录
+## 8. 状态
 - `[进行中]` | [阶段] | [日期]
 - `[已完成]` | [阶段] | [日期]
 ```
 
 ---
 
-## design.md规则
+## L3层约束
 
-| 复杂度 | 行数 | 要求 |
-|--------|------|------|
-| 低 | <100 | 省略，代码注释 |
-| 中 | 100-500 | 简要+接口契约 |
-| 高 | >500 | 完整+详细契约 |
+✅ **必须**:
+- 明确技术栈（语言、框架、版本）
+- 映射L2伪代码到具体实现
+- 定义数据模型和接口契约
+- 包含可执行的任务清单
+
+❌ **禁止**:
+- 重复描述L2已定义的逻辑
+- 写具体业务代码实现
+- 遗漏与L2的映射关系
+
+---
+
+## L2→L3 映射示例
+
+### L2 伪代码
+```pseudo
+FUNCTION process_order(order):
+    VALIDATE_ORDER order
+    
+    IF order.amount > 1000:
+        REQUIRE_APPROVAL order
+    END IF
+    
+    SAVE_ORDER order
+    SEND_NOTIFICATION order.user_id
+    
+    RETURN order.id
+END FUNCTION
+```
+
+### L3 实现映射
+| L2 原子操作 | L3 实现 | 技术选择 |
+|-------------|---------|----------|
+| `VALIDATE_ORDER` | `OrderValidator.validate()` | Class-validator + DTO |
+| `REQUIRE_APPROVAL` | `ApprovalService.request()` | 状态机 + 消息队列 |
+| `SAVE_ORDER` | `OrderRepository.save()` | TypeORM + PostgreSQL |
+| `SEND_NOTIFICATION` | `NotificationService.send()` | RabbitMQ + WebSocket |
+
+---
+
+## 与L2/L4的关系
+
+| 层级 | 文件 | 内容 | 创建者 |
+|------|------|------|--------|
+| L2 | `.pseudo` | 逻辑工作流 | Prometheus |
+| L3 | `design.md` | 技术规格 | Oracle |
+| L4 | `adr_*.md` | 决策背景 | Prometheus/Oracle |
+
+👉 L3 必须引用对应的 L2 文档  
+👉 L3 的关键技术决策可记录到 L4 ADR
