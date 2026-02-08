@@ -11,7 +11,7 @@
 //!
 //! ### Tool System
 //! - **ToolRegistry**: Registry for all available tools and their implementations
-//! - **ToolNode**: Individual tool execution units with retry and error handling
+//! - **Tool**: Enum-based tool types (Native, Python, Node.js, Docker, WASM, Composed)
 //! - **Template System**: Reusable tool configurations
 //!
 //! ### Plugin System
@@ -97,7 +97,7 @@ pub use crate::config::{CliConfigOverrides, Config, ConfigManager};
 pub use crate::core::*;
 pub use crate::error::{Result, WorkflowError};
 pub use crate::performance::{PerformanceConfig, PerformanceManager};
-pub use crate::tools::{ToolNode, ToolRegistry};
+pub use crate::tools::registry::ToolRegistry;
 pub use crate::workflow::{
     DefaultExecutionManager, ExecutionHandle, ExecutionManager, ExecutionResult,
     WorkflowDefinition, WorkflowEngine, WorkflowExecution,

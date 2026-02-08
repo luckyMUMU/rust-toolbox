@@ -20,7 +20,7 @@ pub struct ToolComponent {
     tool_name: String,
 
     /// Tool registry for looking up and executing tools
-    tool_registry: Arc<dyn ToolRegistry>,
+    tool_registry: Arc<ToolRegistry>,
 
     /// Default parameters for the tool
     default_params: Value,
@@ -34,7 +34,7 @@ impl ToolComponent {
     pub fn new(
         id: impl Into<String>,
         tool_name: impl Into<String>,
-        tool_registry: Arc<dyn ToolRegistry>,
+tool_registry: Arc<ToolRegistry>,
         default_params: Value,
     ) -> Self {
         // Initialize template engine
@@ -147,13 +147,14 @@ impl Component for ToolComponent {
         let resolved_params = self.resolve_parameters(&params, context)?;
 
         // Execute the tool
+        let tool_input = crate::tools::types::ToolInput::new(resolved_params);
         let result = self
             .tool_registry
-            .execute_tool(&self.tool_name, resolved_params, execution_ctx.clone())
+            .execute_tool(&self.tool_name, tool_input, execution_ctx.clone())
             .await?;
 
         // Store the result in context
-        context.store_node_output(&self.id, result.clone())?;
+        context.store_node_output(&self.id, result.result.clone())?;
 
         tracing::debug!(
             component_id = %self.id,
@@ -161,7 +162,7 @@ impl Component for ToolComponent {
             "Tool execution completed"
         );
 
-        Ok(ComponentOutput::success_with_result(result))
+        Ok(ComponentOutput::success_with_result(result.result))
     }
 
     fn validate(&self) -> Result<()> {
@@ -186,7 +187,7 @@ impl Component for ToolComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::{BasicTool, BasicToolRegistry};
+    use crate::tools::ToolRegistry;
     use serde_json::json;
     use std::sync::Arc;
 

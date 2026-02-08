@@ -2,7 +2,7 @@ use std::sync::Arc;
 use workflow_toolkit::config::Config;
 use workflow_toolkit::interfaces::cli::{Cli, CliApp};
 use workflow_toolkit::storage::{FileStorage, SimpleMemoryCache, StateManager};
-use workflow_toolkit::tools::{BasicToolRegistry, ToolRegistry};
+use workflow_toolkit::tools::ToolRegistry;
 use workflow_toolkit::workflow::RefactoredWorkflowEngine;
 use workflow_toolkit::{init_logging, Result};
 
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
     let state_manager = Arc::new(StateManager::new(storage, cache));
 
     // Create tool registry with some basic tools
-    let mut tool_registry = BasicToolRegistry::new();
+    let mut tool_registry = ToolRegistry::new();
 
     // Register File Management Plugin Tools
     use std::collections::HashMap;

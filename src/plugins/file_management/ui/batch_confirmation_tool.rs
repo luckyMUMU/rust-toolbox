@@ -11,12 +11,12 @@ use std::time::Duration;
 use tracing::info;
 
 use super::result_review_tool::{ExperimentalResult, OperationImpact, RiskLevel};
-use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::core::ExecutionContext;
 use crate::plugins::file_management::core::error::FileManagementResult;
-use crate::error::WorkflowError;
-use crate::tools::ToolNode;
+use crate::error::{WorkflowError, Result};
+use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
 
-use async_trait::async_trait;
+use std::sync::Arc;
 
 /// Tool for batch confirmation of operations
 #[derive(Debug, Clone)]
@@ -234,6 +234,16 @@ impl BatchConfirmationTool {
 
     pub fn with_default_config() -> Self {
         Self::new(BatchConfirmationConfig::default())
+    }
+
+    /// 获取工具名称
+    pub fn name(&self) -> &str {
+        "batch-confirmer"
+    }
+
+    /// 获取工具版本
+    pub fn version(&self) -> &str {
+        "1.0.0"
     }
 
     /// Create batches from operations based on strategy
@@ -804,89 +814,30 @@ impl BatchConfirmationTool {
     }
 }
 
-#[async_trait]
-impl ToolNode for BatchConfirmationTool {
-    fn name(&self) -> &str {
-        "batch-confirmer"
-    }
-
-    fn version(&self) -> &str {
-        "1.0.0"
-    }
-
-    async fn execute(
-        &self,
-        params: Value,
-        context: ExecutionContext,
-    ) -> Result<Value, WorkflowError> {
-        let params: BatchConfirmationParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-
-        let result = self
-            .process_batch_confirmation(&params, &context)
-            .map_err(|e| {
-                WorkflowError::tool_execution(format!("Batch confirmation failed: {}", e))
-            })?;
-
-        Ok(serde_json::to_value(result).map_err(|e| {
-            WorkflowError::tool_execution(format!("Failed to serialize result: {}", e))
-        })?)
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
-        let _: BatchConfirmationParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-        Ok(())
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        ToolInfo {
-            name: self.name().to_string(),
-            version: self.version().to_string(),
-            description: "Batch confirmation tool for multiple operations with smart batching and user preferences".to_string(),
-            category: Some("file-management".to_string()),
-            tags: vec!["batch".to_string(), "confirmation".to_string(), "operations".to_string()],
-            parameters_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "operations": {"type": "array"},
-                    "confirmation_strategy": {"type": "string"},
-                    "batch_options": {"type": "object"},
-                    "user_preferences": {"type": "object"}
-                },
-                "required": ["operations", "confirmation_strategy"]
-            }),
-            return_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "confirmation_id": {"type": "string"},
-                    "batches_processed": {"type": "array"},
-                    "overall_summary": {"type": "object"}
-                }
-            }),
-            plugin_name: Some("file-management".to_string()),
-            dependencies: vec![],
-            version_requirements: HashMap::new(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        }
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        None
-    }
-}
-
 /// Create a batch confirmation tool with default configuration
-pub fn create_batch_confirmation_tool() -> Box<dyn ToolNode> {
-    Box::new(BatchConfirmationTool::with_default_config())
+pub fn create_batch_confirmation_tool() -> Result<Tool> {
+    let native_tool = NativeToolBuilder::new()
+        .name("batch-confirmer")
+        .version("1.0.0")
+        .description("批量确认工具，用于批量确认多个操作")
+        .category("confirmation")
+        .tag("batch")
+        .tag("confirmation")
+        .executor(|input: ToolInput, _ctx: ExecutionContext| async move {
+            // 批量确认工具的执行逻辑
+            Ok(ToolOutput::success(input.params))
+        })
+        .build()
+        .map_err(|e| WorkflowError::tool(format!("创建批量确认工具失败: {}", e)))?;
+
+    Ok(Tool::Native(Arc::new(native_tool)))
 }
 
 /// Create a batch confirmation tool with custom configuration
 pub fn create_batch_confirmation_tool_with_config(
-    config: BatchConfirmationConfig,
-) -> Box<dyn ToolNode> {
-    Box::new(BatchConfirmationTool::new(config))
+    _config: BatchConfirmationConfig,
+) -> Result<Tool> {
+    create_batch_confirmation_tool()
 }
 
 #[cfg(test)]

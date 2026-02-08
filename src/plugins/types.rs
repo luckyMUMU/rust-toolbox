@@ -1,44 +1,22 @@
 //! Plugin types and traits
 //!
-//! # Architecture Note
-//! This module is transitioning from the old trait-based tool system to the new enum-based system.
-//! The `Plugin::get_tools()` method now returns `Vec<Tool>` (enum) instead of `Vec<Arc<dyn ToolNode>>` (trait object).
-//!
-//! ## Migration Timeline
-//! - Current: Both old and new APIs coexist
-//! - 6 months: Remove trait-based APIs (compat module)
-//! - Target: All plugins use enum-based Tool system
+//! # Architecture
+//! This module provides the enum-based plugin system.
+//! The `Plugin::get_tools()` method returns `Vec<Tool>` (enum).
 
 use crate::core::PluginInfo;
 use crate::error::Result;
 use crate::tools::types::Tool;
-use crate::tools::ToolNode; // For backward compatibility during migration
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc; // For backward compatibility during migration
 use std::time::Duration;
 
 /// Plugin trait for all plugin types.
 ///
 /// This trait defines the standard interface that all plugins must implement to interact
 /// with the workflow engine.
-///
-/// # Migration Guide
-/// Plugins should now return `Vec<Tool>` instead of `Vec<Arc<dyn ToolNode>>`:
-///
-/// ```rust,ignore
-/// // Old API (deprecated)
-/// fn get_tools(&self) -> Vec<Arc<dyn ToolNode>> {
-///     vec![Arc::new(my_tool)]
-/// }
-///
-/// // New API (recommended)
-/// fn get_tools(&self) -> Vec<Tool> {
-///     vec![Tool::Native(Arc::new(my_tool))]
-/// }
-/// ```
 pub trait Plugin: Send + Sync {
     /// Get plugin information
     fn info(&self) -> &PluginInfo;
@@ -47,10 +25,6 @@ pub trait Plugin: Send + Sync {
     fn initialize(&mut self, config: PluginConfig) -> Result<()>;
 
     /// Get all tools provided by this plugin
-    ///
-    /// # Migration Note
-    /// This method now returns `Vec<Tool>` (enum-based) instead of `Vec<Arc<dyn ToolNode>>` (trait-based).
-    /// The enum-based system provides 30-50% better performance with zero-cost abstractions.
     fn get_tools(&self) -> Vec<Tool>;
 
     /// Shutdown the plugin and cleanup resources
@@ -160,7 +134,7 @@ pub enum PluginType {
 pub struct NativePlugin {
     pub info: PluginInfo,
     pub library_path: PathBuf,
-    pub tools: Vec<Arc<dyn ToolNode>>,
+    pub tools: Vec<Tool>,
     pub status: PluginStatus,
     pub config: Option<PluginConfig>,
     // The actual implementation is in the native module

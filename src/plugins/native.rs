@@ -1,15 +1,11 @@
 //! Native plugin implementation using dynamic library loading
 
-use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, SecurityPolicy};
-use crate::tools::{BasicTool, ToolExecutor, ToolNode};
-use crate::tools::compat::tool_node_to_enum;
-use crate::tools::types::Tool;
-use async_trait::async_trait;
+use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
 use libloading::{Library, Symbol};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::path::PathBuf;
@@ -21,7 +17,7 @@ pub struct NativePlugin {
     info: PluginInfo,
     library_path: PathBuf,
     library: Option<Library>,
-    tools: Vec<Arc<dyn ToolNode>>,
+    tools: Vec<Tool>,
     status: PluginStatus,
     config: Option<PluginConfig>,
     plugin_handle: Option<*mut c_void>,
@@ -239,32 +235,97 @@ impl NativePlugin {
                 serde_json::from_str(schema_str).unwrap_or(Value::Null)
             };
 
-            // Create tool info
-            let tool_info = ToolInfo {
-                name: name.clone(),
-                version,
-                description,
-                category: Some("native".to_string()),
-                tags: vec!["native".to_string(), "plugin".to_string()],
-                parameters_schema,
-                return_schema,
-                plugin_name: Some(self.info.name.clone()),
-                dependencies: Vec::new(),
-                version_requirements: HashMap::new(),
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            };
+            // 捕获变量用于闭包
+            let tool_name = name.clone();
+            let library_path = self.library_path.clone();
+            // 将 plugin_handle 转换为 usize 以便在线程间传递
+            let plugin_handle_usize = plugin_handle as usize;
 
-            // Create native tool executor
-            let executor = Arc::new(NativeToolExecutor::new(
-                name.clone(),
-                self.library_path.clone(),
-                plugin_handle,
-            ));
+            // 使用 NativeToolBuilder 创建 Tool::Native
+            let native_tool = NativeToolBuilder::new()
+                .name(&name)
+                .version(&version)
+                .description(&description)
+                .category("native")
+                .tag("native")
+                .tag("plugin")
+                .executor(move |input: ToolInput, _ctx: ExecutionContext| {
+                    let tool_name = tool_name.clone();
+                    let library_path = library_path.clone();
+                    let plugin_handle_usize = plugin_handle_usize;
+                    async move {
+                        // 使用 spawn_blocking 来执行非线程安全的库加载
+                        let result = tokio::task::spawn_blocking(move || {
+                            // 加载动态库
+                            let library = unsafe {
+                                Library::new(&library_path).map_err(|e| {
+                                    WorkflowError::tool(format!("加载库失败: {}", e))
+                                })?
+                            };
 
-            // Create the tool
-            let tool = BasicTool::from_executor(tool_info, executor, Some(self.info.clone()))?;
-            self.tools.push(Arc::new(tool));
+                            // 获取执行函数
+                            let execute_fn: Symbol<PluginExecuteToolFn> = unsafe {
+                                library.get(b"plugin_execute_tool").map_err(|e| {
+                                    WorkflowError::tool(format!("获取执行函数失败: {}", e))
+                                })?
+                            };
+
+                            // 序列化参数和上下文
+                            let params_json = serde_json::to_string(&input.params)
+                                .map_err(|e| WorkflowError::tool(format!("序列化参数失败: {}", e)))?;
+
+                            let tool_name_cstr = CString::new(tool_name.clone()).map_err(|e| {
+                                WorkflowError::tool(format!("创建C字符串失败: {}", e))
+                            })?;
+
+                            let params_cstr = CString::new(params_json).map_err(|e| {
+                                WorkflowError::tool(format!("创建参数C字符串失败: {}", e))
+                            })?;
+
+                            let context_cstr = CString::new("{}").map_err(|e| {
+                                WorkflowError::tool(format!("创建上下文C字符串失败: {}", e))
+                            })?;
+
+                            // 将 usize 转回指针
+                            let plugin_handle = plugin_handle_usize as *mut c_void;
+
+                            // 调用执行函数
+                            let result_ptr = unsafe {
+                                execute_fn(
+                                    plugin_handle,
+                                    tool_name_cstr.as_ptr(),
+                                    params_cstr.as_ptr(),
+                                    context_cstr.as_ptr(),
+                                )
+                            };
+
+                            if result_ptr.is_null() {
+                                return Err(WorkflowError::tool("工具执行返回空结果".to_string()));
+                            }
+
+                            // 转换结果回 Rust
+                            let result_str = unsafe {
+                                CStr::from_ptr(result_ptr)
+                                    .to_str()
+                                    .map_err(|e| WorkflowError::tool(format!("无效的结果字符串: {}", e)))?
+                            };
+
+                            let result: Value = serde_json::from_str(result_str)
+                                .map_err(|e| WorkflowError::tool(format!("反序列化结果失败: {}", e)))?;
+
+                            Ok::<_, WorkflowError>(result)
+                        }).await.map_err(|e| WorkflowError::tool(format!("任务执行失败: {}", e)))?;
+
+                        match result {
+                            Ok(value) => Ok(ToolOutput::success(value)),
+                            Err(e) => Err(e),
+                        }
+                    }
+                })
+                .build()
+                .map_err(|e| WorkflowError::plugin(format!("创建工具失败: {}", e)))?;
+
+            self.tools.push(Tool::Native(Arc::new(native_tool)));
 
             debug!("Loaded native tool: {}", name);
 
@@ -373,7 +434,7 @@ impl Plugin for NativePlugin {
     }
 
     fn get_tools(&self) -> Vec<Tool> {
-        self.tools.iter().map(|t| tool_node_to_enum(t.clone())).collect()
+        self.tools.clone()
     }
 
     fn shutdown(&mut self) -> Result<()> {
@@ -406,92 +467,6 @@ impl Plugin for NativePlugin {
 
 unsafe impl Send for NativePlugin {}
 unsafe impl Sync for NativePlugin {}
-
-/// Native tool executor that calls into the dynamic library
-pub struct NativeToolExecutor {
-    tool_name: String,
-    library_path: PathBuf,
-    plugin_handle: *mut c_void,
-}
-
-impl NativeToolExecutor {
-    pub fn new(tool_name: String, library_path: PathBuf, plugin_handle: *mut c_void) -> Self {
-        Self {
-            tool_name,
-            library_path,
-            plugin_handle,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolExecutor for NativeToolExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        // Load the library (we need to do this each time since we don't store the library reference)
-        let library = unsafe {
-            Library::new(&self.library_path).map_err(|e| {
-                WorkflowError::tool(format!("Failed to load library for tool execution: {}", e))
-            })?
-        };
-
-        // Get the execute function
-        let execute_fn: Symbol<PluginExecuteToolFn> = unsafe {
-            library.get(b"plugin_execute_tool").map_err(|e| {
-                WorkflowError::tool(format!("Failed to get plugin_execute_tool symbol: {}", e))
-            })?
-        };
-
-        // Serialize parameters and context
-        let params_json = serde_json::to_string(&params)
-            .map_err(|e| WorkflowError::tool(format!("Failed to serialize parameters: {}", e)))?;
-
-        let context_json = serde_json::to_string(&context)
-            .map_err(|e| WorkflowError::tool(format!("Failed to serialize context: {}", e)))?;
-
-        let tool_name_cstr = CString::new(self.tool_name.clone()).map_err(|e| {
-            WorkflowError::tool(format!("Failed to create C string from tool name: {}", e))
-        })?;
-
-        let params_cstr = CString::new(params_json).map_err(|e| {
-            WorkflowError::tool(format!("Failed to create C string from parameters: {}", e))
-        })?;
-
-        let context_cstr = CString::new(context_json).map_err(|e| {
-            WorkflowError::tool(format!("Failed to create C string from context: {}", e))
-        })?;
-
-        // Call the execute function
-        let result_ptr = unsafe {
-            execute_fn(
-                self.plugin_handle,
-                tool_name_cstr.as_ptr(),
-                params_cstr.as_ptr(),
-                context_cstr.as_ptr(),
-            )
-        };
-
-        if result_ptr.is_null() {
-            return Err(WorkflowError::tool(
-                "Tool execution returned null result".to_string(),
-            ));
-        }
-
-        // Convert result back to Rust
-        let result_str = unsafe {
-            CStr::from_ptr(result_ptr)
-                .to_str()
-                .map_err(|e| WorkflowError::tool(format!("Invalid result string: {}", e)))?
-        };
-
-        let result: Value = serde_json::from_str(result_str)
-            .map_err(|e| WorkflowError::tool(format!("Failed to deserialize result: {}", e)))?;
-
-        Ok(result)
-    }
-}
-
-unsafe impl Send for NativeToolExecutor {}
-unsafe impl Sync for NativeToolExecutor {}
 
 /// Builder for native plugins
 pub struct NativePluginBuilder {

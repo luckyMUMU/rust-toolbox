@@ -7,7 +7,7 @@ use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::plugins::file_management::plugin::FileManagementConfig;
 use crate::plugins::file_management::utils::utils::{HumanDecisionContext, HumanDecisionOption, HumanDecisionType};
 use crate::error::{Result, WorkflowError};
-use crate::tools::{BasicTool, ToolExecutor};
+use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
-use tracing::{debug, info, warn};
+use tracing::warn;
 
 /// Parameters for human decision tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +26,8 @@ pub struct HumanDecisionParams {
     pub items: Option<Vec<Value>>,
     pub timeout_seconds: Option<u64>,
     pub default_choice: Option<usize>,
+    #[serde(default)]
+    pub experimental_mode: bool,
 }
 
 /// Decision context information
@@ -413,146 +415,11 @@ impl HumanDecisionExecutor {
     }
 }
 
-#[async_trait::async_trait]
-impl ToolExecutor for HumanDecisionExecutor {
-    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        debug!("Executing human decision tool with parameters: {}", params);
-
-        // Check if we're in experimental mode (check for experimental_mode parameter before parsing)
-        let experimental_mode = params
-            .get("experimental_mode")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        // Parse parameters
-        let params: HumanDecisionParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-
-        // Validate parameters
-        self.validate_params(&params)?;
-
-        // Check if we are processing batch items
-        if let Some(items) = &params.items {
-            if !items.is_empty() {
-                // Batch mode
-                let mut decisions = Vec::new();
-                for item in items {
-                    // Extract candidates and convert to options
-                    let folder_path = item
-                        .get("folder_path")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-                    let candidates = item.get("candidates").and_then(|v| v.as_array());
-
-                    let mut options = Vec::new();
-                    if let Some(cands) = candidates {
-                        for (i, cand) in cands.iter().enumerate() {
-                            let category = cand
-                                .get("category")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown");
-                            let score = cand.get("score").and_then(|v| v.as_f64());
-
-                            options.push(DecisionOption {
-                                id: category.to_string(),
-                                label: category.to_string(),
-                                description: score.map(|s| format!("Score: {:.2}", s)),
-                                score,
-                                recommended: i == 0, // Recommend top candidate
-                            });
-                        }
-                    }
-
-                    // Add Skip/Other options
-                    options.push(DecisionOption {
-                        id: "skip".to_string(),
-                        label: "Skip".to_string(),
-                        description: Some("Skip this item".to_string()),
-                        score: None,
-                        recommended: false,
-                    });
-
-                    // Create context for this item
-                    let mut item_context = params.context.clone();
-                    item_context.folder_name = Some(folder_path.to_string());
-                    item_context.title = format!("{} - {}", params.context.title, folder_path);
-
-                    let decision_params = HumanDecisionParams {
-                        decision_type: params.decision_type.clone(),
-                        context: item_context,
-                        options: Some(options),
-                        items: None,
-                        timeout_seconds: params.timeout_seconds,
-                        default_choice: params.default_choice,
-                    };
-
-                    let decision_context = self.create_decision_context(&decision_params)?;
-
-                    let result = if experimental_mode {
-                        info!(
-                            "Running human decision tool in experimental mode for {}",
-                            folder_path
-                        );
-                        self.simulate_decision(&decision_context)?
-                    } else {
-                        info!("Presenting decision to user: {}", decision_context.title);
-                        self.present_decision_to_user(&decision_context, params.default_choice)
-                            .await?
-                    };
-
-                    // Add folder_path to result for merging later
-                    let mut decision_val = serde_json::to_value(result)?;
-                    if let Some(obj) = decision_val.as_object_mut() {
-                        obj.insert("folder_path".to_string(), json!(folder_path));
-                        obj.insert(
-                            "selected_category".to_string(),
-                            obj.get("selected_option").unwrap().clone(),
-                        );
-                    }
-                    decisions.push(decision_val);
-                }
-
-                return Ok(json!({ "decisions": decisions }));
-            }
-        }
-
-        // Single mode
-        let decision_context = self.create_decision_context(&params)?;
-
-        let result = if experimental_mode {
-            info!("Running human decision tool in experimental mode");
-            self.simulate_decision(&decision_context)?
-        } else {
-            info!("Presenting decision to user: {}", decision_context.title);
-            self.present_decision_to_user(&decision_context, params.default_choice)
-                .await?
-        };
-
-        info!(
-            "Human decision completed: selected '{}' in {}ms (experimental: {})",
-            result.selected_option, result.decision_time_ms, experimental_mode
-        );
-
-        let mut final_result = result;
-        final_result.experimental_mode = experimental_mode;
-
-        Ok(serde_json::to_value(final_result)?)
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Parse and validate parameters
-        let params: HumanDecisionParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-
-        self.validate_params(&params)
-    }
-}
-
 /// Create a human decision tool with the given configuration
 pub fn create_human_decision_tool(
     config: FileManagementConfig,
     plugin_info: PluginInfo,
-) -> Result<BasicTool> {
+) -> Result<Tool> {
     let tool_info = ToolInfo {
         name: "human-decision".to_string(),
         version: "1.0.0".to_string(),
@@ -633,26 +500,53 @@ pub fn create_human_decision_tool(
         updated_at: chrono::Utc::now(),
     };
 
-    let executor = Arc::new(HumanDecisionExecutor::new(config));
-
-    BasicTool::builder()
+    // 使用 NativeToolBuilder 创建 Tool::Native
+    let native_tool = NativeToolBuilder::new()
         .name(&tool_info.name)
         .version(&tool_info.version)
         .description(&tool_info.description)
-        .category(tool_info.category.clone().unwrap_or_default())
-        .tags(tool_info.tags.clone())
-        .parameters_schema(tool_info.parameters_schema.clone())
-        .return_schema(tool_info.return_schema.clone())
-        .plugin_info(plugin_info)
-        .executor_arc(executor)
+        .category(tool_info.category.unwrap_or_default())
+        .tags(tool_info.tags)
+        .executor(move |input: ToolInput, _ctx: ExecutionContext| {
+            let executor = Arc::new(HumanDecisionExecutor::new(config.clone()));
+            async move {
+                // 解析输入参数
+                let params: HumanDecisionParams = serde_json::from_value(input.params)
+                    .map_err(|e| WorkflowError::validation(format!("参数解析失败: {}", e)))?;
+
+                // 验证参数
+                executor.validate_params(&params)?;
+
+                // 创建决策上下文
+                let decision_context = executor.create_decision_context(&params)?;
+
+                // 获取默认选择
+                let default_choice = params.default_choice;
+
+                // 执行决策
+                let result = if params.experimental_mode {
+                    executor.simulate_decision(&decision_context)?
+                } else {
+                    executor.present_decision_to_user(&decision_context, default_choice).await?
+                };
+
+                // 返回结果
+                let output = serde_json::to_value(result)
+                    .map_err(|e| WorkflowError::tool(format!("结果序列化失败: {}", e)))?;
+
+                Ok(ToolOutput::success(output))
+            }
+        })
         .build()
+        .map_err(|e| WorkflowError::tool(format!("创建人工决策工具失败: {}", e)))?;
+
+    Ok(Tool::Native(Arc::new(native_tool)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::{ExecutionContext, PluginType};
-    use crate::tools::compat::ToolNode;
     use tempfile::TempDir;
 
     fn create_test_config() -> FileManagementConfig {

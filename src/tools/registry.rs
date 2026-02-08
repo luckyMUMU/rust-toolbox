@@ -275,6 +275,71 @@ impl ToolRegistry {
         tool.execute(input, ctx).await
     }
 
+    /// Get a tool by name (alias for get)
+    ///
+    /// For backward compatibility with old API
+    pub fn get_tool(&self, name: &str) -> Option<Tool> {
+        self.get(name)
+    }
+
+    /// Execute a tool by name (alias for execute)
+    ///
+    /// For backward compatibility with old API
+    pub async fn execute_tool(
+        &self,
+        name: &str,
+        input: ToolInput,
+        ctx: ExecutionContext,
+    ) -> Result<ToolOutput> {
+        self.execute(name, input, ctx).await
+    }
+
+    /// Validate tool parameters
+    ///
+    /// For backward compatibility with old API
+    pub fn validate_tool_params(&self, name: &str, params: &serde_json::Value) -> Result<()> {
+        // Get tool metadata and validate parameters against schema
+        let metadata = self.get_metadata(name)
+            .ok_or_else(|| WorkflowError::tool_not_found(name))?;
+        
+        // Basic validation - check if required parameters are present
+        if let Some(schema) = &metadata.input_schema {
+            if let Some(required) = schema.get("required").and_then(|r| r.as_array()) {
+                for req in required {
+                    if let Some(req_str) = req.as_str() {
+                        if params.get(req_str).is_none() {
+                            return Err(WorkflowError::validation(
+                                format!("Missing required parameter: {}", req_str)
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Get tool count
+    pub fn tool_count(&self) -> usize {
+        self.tools.len()
+    }
+
+    /// Check if tool exists
+    pub fn has_tool(&self, name: &str) -> bool {
+        self.name_index.contains_key(name)
+    }
+
+    /// Register a tool (alias for register)
+    pub fn register_tool(&mut self, name: &str, tool: Tool) -> ToolId {
+        self.register(name, tool)
+    }
+
+    /// Unregister a tool (alias for remove)
+    pub fn unregister_tool(&mut self, name: &str) -> Option<Tool> {
+        self.remove(name)
+    }
+
     /// Get tool versions
     pub fn get_versions(&self, name: &str) -> Option<Vec<Version>> {
         let id = self.name_index.get(name)?;
@@ -363,29 +428,7 @@ impl Default for ToolRegistryBuilder {
     }
 }
 
-// Implement the compat::ToolRegistry trait for backward compatibility
-#[async_trait::async_trait]
-impl crate::tools::compat::ToolRegistry for ToolRegistry {
-    fn register_tool(&mut self, _tool: std::sync::Arc<dyn crate::tools::compat::ToolNode>) -> crate::error::Result<()> {
-        // Placeholder - new code should use register() directly
-        Ok(())
-    }
-    
-    fn get_tool(&self, name: &str) -> Option<std::sync::Arc<dyn crate::tools::compat::ToolNode>> {
-        let _ = name;
-        None
-    }
-    
-    fn list_tools(&self) -> Vec<crate::core::ToolInfo> {
-        self.list_tools()
-    }
-    
-    async fn execute_tool(&self, name: &str, params: serde_json::Value, ctx: crate::core::ExecutionContext) -> crate::error::Result<serde_json::Value> {
-        let input = crate::tools::types::ToolInput::new(params);
-        let output = self.execute(name, input, ctx).await?;
-        Ok(output.result)
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

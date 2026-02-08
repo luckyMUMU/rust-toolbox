@@ -100,7 +100,7 @@ pub trait McpServerInterface: Send + Sync {
     async fn stop(&self) -> Result<()>;
 
     /// Register MCP tools from the tool registry
-    async fn register_tools(&mut self, tool_registry: Arc<dyn ToolRegistry>) -> Result<()>;
+    async fn register_tools(&mut self, tool_registry: Arc<ToolRegistry>) -> Result<()>;
 
     /// Set plugin manager for plugin integration
     async fn set_plugin_manager(&mut self, plugin_manager: Arc<PluginManager>) -> Result<()>;
@@ -148,7 +148,7 @@ pub struct McpServer {
     /// Registered MCP tools
     tools: HashMap<String, McpToolDefinition>,
     /// Reference to tool registry for tool execution
-    tool_registry: Option<Arc<dyn ToolRegistry>>,
+    tool_registry: Option<Arc<ToolRegistry>>,
     /// Reference to plugin manager for plugin operations
     plugin_manager: Option<Arc<PluginManager>>,
     /// Server running state
@@ -309,7 +309,7 @@ impl McpServerInterface for McpServer {
         Ok(())
     }
 
-    async fn register_tools(&mut self, tool_registry: Arc<dyn ToolRegistry>) -> Result<()> {
+    async fn register_tools(&mut self, tool_registry: Arc<ToolRegistry>) -> Result<()> {
         // Store reference to tool registry
         self.tool_registry = Some(tool_registry.clone());
 

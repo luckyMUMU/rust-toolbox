@@ -14,7 +14,7 @@ use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::plugins::file_management::core::error::FileManagementResult;
 use crate::plugins::file_management::utils::utils::ExperimentalOperation;
 use crate::error::WorkflowError;
-use crate::tools::ToolNode;
+use crate::tools::types::Tool;
 
 use async_trait::async_trait;
 
@@ -664,92 +664,61 @@ impl ResultReviewTool {
     }
 }
 
-#[async_trait]
-impl ToolNode for ResultReviewTool {
-    fn name(&self) -> &str {
-        "result-reviewer"
-    }
-
-    fn version(&self) -> &str {
-        "1.0.0"
-    }
-
-    async fn execute(
-        &self,
-        params: Value,
-        context: ExecutionContext,
-    ) -> Result<Value, WorkflowError> {
-        let params: ResultReviewParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-
-        let result = self
-            .process_review(&params, &context)
-            .map_err(|e| WorkflowError::tool_execution(format!("Review failed: {}", e)))?;
-
-        Ok(serde_json::to_value(result).map_err(|e| {
-            WorkflowError::tool_execution(format!("Failed to serialize result: {}", e))
-        })?)
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
-        let _: ResultReviewParams = serde_json::from_value(params.clone())
-            .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-        Ok(())
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        ToolInfo {
-            name: self.name().to_string(),
-            version: self.version().to_string(),
-            description:
-                "Review experimental results before execution with batch confirmation support"
-                    .to_string(),
-            category: Some("file-management".to_string()),
-            tags: vec![
-                "review".to_string(),
-                "confirmation".to_string(),
-                "experimental".to_string(),
-            ],
-            parameters_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "experimental_results": {"type": "array"},
-                    "review_mode": {"type": "string"},
-                    "confirmation_options": {"type": "object"},
-                    "batch_size": {"type": "number"}
-                },
-                "required": ["experimental_results"]
-            }),
-            return_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "review_id": {"type": "string"},
-                    "approved_operations": {"type": "array"},
-                    "rejected_operations": {"type": "array"},
-                    "deferred_operations": {"type": "array"}
-                }
-            }),
-            plugin_name: Some("file-management".to_string()),
-            dependencies: vec![],
-            version_requirements: HashMap::new(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        }
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        None
-    }
-}
-
 /// Create a result review tool with default configuration
-pub fn create_result_review_tool() -> Box<dyn ToolNode> {
-    Box::new(ResultReviewTool::with_default_config())
+pub fn create_result_review_tool() -> Tool {
+    use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
+    use crate::core::ExecutionContext;
+    use std::sync::Arc;
+    
+    let native_tool = NativeToolBuilder::new()
+        .name("result-reviewer")
+        .version("1.0.0")
+        .description("Review experimental results before execution")
+        .category("file_management")
+        .tag("review")
+        .tag("experimental")
+        .executor(|input: ToolInput, ctx: ExecutionContext| async move {
+            let tool = ResultReviewTool::with_default_config();
+            let params: ResultReviewParams = serde_json::from_value(input.params)
+                .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
+            let result = tool.process_review(&params, &ctx)
+                .map_err(|e| WorkflowError::tool(format!("Review failed: {}", e)))?;
+            Ok(ToolOutput::success(serde_json::to_value(result).unwrap_or_default()))
+        })
+        .build()
+        .expect("Failed to build result review tool");
+    
+    Tool::Native(Arc::new(native_tool))
 }
 
 /// Create a result review tool with custom configuration
-pub fn create_result_review_tool_with_config(config: ResultReviewConfig) -> Box<dyn ToolNode> {
-    Box::new(ResultReviewTool::new(config))
+pub fn create_result_review_tool_with_config(config: ResultReviewConfig) -> Tool {
+    use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
+    use crate::core::ExecutionContext;
+    use std::sync::Arc;
+    
+    let native_tool = NativeToolBuilder::new()
+        .name("result-reviewer")
+        .version("1.0.0")
+        .description("Review experimental results before execution")
+        .category("file_management")
+        .tag("review")
+        .tag("experimental")
+        .executor(move |input: ToolInput, ctx: ExecutionContext| {
+            let config = config.clone();
+            async move {
+                let tool = ResultReviewTool::new(config);
+                let params: ResultReviewParams = serde_json::from_value(input.params)
+                    .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
+                let result = tool.process_review(&params, &ctx)
+                    .map_err(|e| WorkflowError::tool(format!("Review failed: {}", e)))?;
+                Ok(ToolOutput::success(serde_json::to_value(result).unwrap_or_default()))
+            }
+        })
+        .build()
+        .expect("Failed to build result review tool");
+    
+    Tool::Native(Arc::new(native_tool))
 }
 
 #[cfg(test)]

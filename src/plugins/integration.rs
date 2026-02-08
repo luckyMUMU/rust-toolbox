@@ -4,7 +4,8 @@ use crate::core::PluginInfo;
 use crate::error::{Result, WorkflowError};
 use crate::plugins::manager::PluginManager;
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::{BasicToolRegistry, ToolNode, ToolRegistry};
+use crate::tools::registry::ToolRegistry;
+use crate::tools::types::{Tool, ToolId};
 use std::sync::{Arc, RwLock};
 use tracing::info;
 
@@ -14,13 +15,13 @@ use tracing::info;
 /// workflow-toolkit tool registry, satisfying requirements 7.1 and 7.2.
 pub struct IntegratedPluginSystem {
     plugin_manager: PluginManager,
-    tool_registry: Arc<RwLock<BasicToolRegistry>>,
+    tool_registry: Arc<RwLock<ToolRegistry>>,
 }
 
 impl IntegratedPluginSystem {
     /// Create a new integrated plugin system
     pub fn new() -> Self {
-        let tool_registry = Arc::new(RwLock::new(BasicToolRegistry::new()));
+        let tool_registry = Arc::new(RwLock::new(ToolRegistry::new()));
         let plugin_manager = PluginManager::with_tool_registry(tool_registry.clone());
 
         Self {
@@ -30,7 +31,7 @@ impl IntegratedPluginSystem {
     }
 
     /// Create a new integrated plugin system with existing tool registry
-    pub fn with_tool_registry(tool_registry: Arc<RwLock<BasicToolRegistry>>) -> Self {
+    pub fn with_tool_registry(tool_registry: Arc<RwLock<ToolRegistry>>) -> Self {
         let plugin_manager = PluginManager::with_tool_registry(tool_registry.clone());
 
         Self {
@@ -78,7 +79,7 @@ impl IntegratedPluginSystem {
     }
 
     /// Get the tool registry
-    pub fn tool_registry(&self) -> Arc<RwLock<BasicToolRegistry>> {
+    pub fn tool_registry(&self) -> Arc<RwLock<ToolRegistry>> {
         self.tool_registry.clone()
     }
 
@@ -115,7 +116,9 @@ impl IntegratedPluginSystem {
             })?
         };
 
-        tool.execute(params, context).await
+        let input = crate::tools::types::ToolInput::new(params);
+        let output = tool.execute(input, context).await?;
+        Ok(output.result)
     }
 
     /// Validate tool parameters (satisfies requirement 7.2 - standard parameter system)
@@ -187,27 +190,28 @@ impl IntegratedPluginSystem {
     }
 
     /// Register a tool directly with the tool registry (for non-plugin tools)
-    pub fn register_tool(&mut self, tool: Arc<dyn ToolNode>) -> Result<()> {
-        let mut registry =
+    pub fn register_tool(&mut self, name: &str, tool: Tool) -> Result<ToolId> {
+        let registry =
             self.tool_registry
                 .write()
                 .map_err(|_| WorkflowError::ConcurrentAccess {
                     message: "Failed to acquire write lock on tool registry".to_string(),
                 })?;
 
-        registry.register_tool(tool)
+        let id = registry.register(name, tool);
+        Ok(id)
     }
 
     /// Unregister a tool directly from the tool registry
-    pub fn unregister_tool(&mut self, name: &str) -> Result<()> {
-        let mut registry =
+    pub fn unregister_tool(&mut self, name: &str) -> Result<Option<Tool>> {
+        let registry =
             self.tool_registry
                 .write()
                 .map_err(|_| WorkflowError::ConcurrentAccess {
                     message: "Failed to acquire write lock on tool registry".to_string(),
                 })?;
 
-        registry.unregister_tool(name)
+        Ok(registry.remove(name))
     }
 }
 
@@ -229,7 +233,7 @@ impl IntegratedPluginSystemBuilder {
         }
     }
 
-    pub fn with_tool_registry(tool_registry: Arc<RwLock<BasicToolRegistry>>) -> Self {
+    pub fn with_tool_registry(tool_registry: Arc<RwLock<ToolRegistry>>) -> Self {
         Self {
             system: IntegratedPluginSystem::with_tool_registry(tool_registry),
         }
@@ -240,8 +244,8 @@ impl IntegratedPluginSystemBuilder {
         Ok(self)
     }
 
-    pub fn add_tool(mut self, tool: Arc<dyn ToolNode>) -> Result<Self> {
-        self.system.register_tool(tool)?;
+    pub fn add_tool(mut self, name: &str, tool: Tool) -> Result<Self> {
+        self.system.register_tool(name, tool)?;
         Ok(self)
     }
 

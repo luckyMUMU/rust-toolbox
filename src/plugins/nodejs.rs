@@ -3,9 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::{BasicTool, ToolExecutor, ToolNode};
-use crate::tools::compat::tool_node_to_enum;
-use crate::tools::types::Tool;
+use crate::tools::types::{Tool, NodeJsTool, ToolInput, ToolOutput};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -644,158 +642,6 @@ impl NodeJsEnvironment {
         Ok(())
     }
 }
-/// Node.js tool node implementation
-pub struct NodeJsToolNode {
-    info: ToolInfo,
-    plugin_info: PluginInfo,
-    script_path: PathBuf,
-    environment: Arc<Mutex<NodeJsEnvironment>>,
-    timeout: Option<Duration>,
-}
-
-impl NodeJsToolNode {
-    /// Create a new Node.js tool node
-    pub fn new(
-        info: ToolInfo,
-        plugin_info: PluginInfo,
-        script_path: PathBuf,
-        environment: Arc<Mutex<NodeJsEnvironment>>,
-        timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            info,
-            plugin_info,
-            script_path,
-            environment,
-            timeout,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolNode for NodeJsToolNode {
-    fn name(&self) -> &str {
-        &self.info.name
-    }
-
-    fn version(&self) -> &str {
-        &self.info.version
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Basic validation - ensure params is an object
-        if !params.is_object() && !params.is_null() {
-            return Err(WorkflowError::ValidationError(
-                "Parameters must be a JSON object or null".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        self.validate_parameters(&params)?;
-
-        let environment = self.environment.lock().await;
-
-        if !environment.is_initialized() {
-            return Err(WorkflowError::plugin(
-                "Node.js environment not initialized".to_string(),
-            ));
-        }
-
-        // Clone the environment to avoid holding the lock during async execution
-        let node_executable = environment.node_executable().to_path_buf();
-        let npm_executable = environment.npm_executable().to_path_buf();
-        let config = environment.config.clone();
-        let package_json = environment.package_json().cloned();
-        drop(environment);
-
-        // Create a temporary environment for execution
-        let temp_env = NodeJsEnvironment {
-            config,
-            package_json,
-            node_executable,
-            npm_executable,
-            is_initialized: true,
-        };
-
-        temp_env
-            .execute_script(&self.script_path, params, context, self.timeout)
-            .await
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        self.info.clone()
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        Some(&self.plugin_info)
-    }
-}
-
-/// Node.js tool executor for use with BasicTool
-pub struct NodeJsToolExecutor {
-    script_path: PathBuf,
-    environment: Arc<Mutex<NodeJsEnvironment>>,
-    timeout: Option<Duration>,
-}
-
-impl NodeJsToolExecutor {
-    pub fn new(
-        script_path: PathBuf,
-        environment: Arc<Mutex<NodeJsEnvironment>>,
-        timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            script_path,
-            environment,
-            timeout,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolExecutor for NodeJsToolExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        let environment = self.environment.lock().await;
-
-        if !environment.is_initialized() {
-            return Err(WorkflowError::plugin(
-                "Node.js environment not initialized".to_string(),
-            ));
-        }
-
-        // Clone the environment to avoid holding the lock during async execution
-        let node_executable = environment.node_executable().to_path_buf();
-        let npm_executable = environment.npm_executable().to_path_buf();
-        let config = environment.config.clone();
-        let package_json = environment.package_json().cloned();
-        drop(environment);
-
-        // Create a temporary environment for execution
-        let temp_env = NodeJsEnvironment {
-            config,
-            package_json,
-            node_executable,
-            npm_executable,
-            is_initialized: true,
-        };
-
-        temp_env
-            .execute_script(&self.script_path, params, context, self.timeout)
-            .await
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Basic validation - ensure params is an object
-        if !params.is_object() && !params.is_null() {
-            return Err(WorkflowError::ValidationError(
-                "Parameters must be a JSON object or null".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
 
 /// Node.js plugin implementation
 pub struct NodeJsPlugin {
@@ -805,7 +651,7 @@ pub struct NodeJsPlugin {
     #[allow(dead_code)]
     runtime_config: NodeJsRuntimeConfig,
     environment: Arc<Mutex<NodeJsEnvironment>>,
-    tools: Vec<Arc<dyn ToolNode>>,
+    tools: Vec<Tool>,
 }
 
 impl NodeJsPlugin {
@@ -852,44 +698,64 @@ impl NodeJsPlugin {
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        // Don't validate the script path here - it will be validated during execution
-        // The script path might be relative to the working directory
+        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, NodeJsTool};
 
-        let tool = Arc::new(NodeJsToolNode::new(
-            tool_info,
-            self.info.clone(),
+        let environment = self.environment.lock().await;
+        let node_path = environment.node_executable().to_path_buf();
+        drop(environment);
+
+        let nodejs_tool = NodeJsTool {
+            id: ToolId::new(),
+            metadata: Arc::new(ToolMetadata {
+                info: tool_info.clone(),
+                kind: ToolKind::NodeJs,
+                input_schema: None,
+                output_schema: None,
+                examples: Vec::new(),
+                resource_requirements: ResourceRequirements::default(),
+                version: tool_info.version.clone(),
+            }),
             script_path,
-            self.environment.clone(),
-            timeout,
-        ));
+            node_path,
+            timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(300),
+            middleware_stack: None,
+        };
 
-        self.tools.push(tool);
+        self.tools.push(Tool::NodeJs(Arc::new(nodejs_tool)));
         Ok(())
     }
 
-    /// Add a tool using BasicTool with NodeJsToolExecutor
+    /// Add a tool using NodeJsTool directly
     pub async fn add_basic_tool(
         &mut self,
         tool_info: ToolInfo,
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        // Don't validate the script path here - it will be validated during execution
-        // The script path might be relative to the working directory
+        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, NodeJsTool};
 
-        let executor = Arc::new(NodeJsToolExecutor::new(
+        let environment = self.environment.lock().await;
+        let node_path = environment.node_executable().to_path_buf();
+        drop(environment);
+
+        let nodejs_tool = NodeJsTool {
+            id: ToolId::new(),
+            metadata: Arc::new(ToolMetadata {
+                info: tool_info.clone(),
+                kind: ToolKind::NodeJs,
+                input_schema: None,
+                output_schema: None,
+                examples: Vec::new(),
+                resource_requirements: ResourceRequirements::default(),
+                version: tool_info.version.clone(),
+            }),
             script_path,
-            self.environment.clone(),
-            timeout,
-        ));
+            node_path,
+            timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(300),
+            middleware_stack: None,
+        };
 
-        let tool = Arc::new(BasicTool::from_executor(
-            tool_info,
-            executor,
-            Some(self.info.clone()),
-        )?);
-
-        self.tools.push(tool);
+        self.tools.push(Tool::NodeJs(Arc::new(nodejs_tool)));
         Ok(())
     }
 
@@ -919,7 +785,7 @@ impl Plugin for NodeJsPlugin {
     }
 
     fn get_tools(&self) -> Vec<Tool> {
-        self.tools.iter().map(|t| tool_node_to_enum(t.clone())).collect()
+        self.tools.clone()
     }
 
     fn shutdown(&mut self) -> Result<()> {

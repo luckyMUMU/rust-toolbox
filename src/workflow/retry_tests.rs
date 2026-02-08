@@ -159,7 +159,7 @@ fn create_test_engine_with_mock_tools() -> (DefaultWorkflowEngine, Arc<MockRetry
     let cache = Arc::new(SimpleMemoryCache::new());
     let state_manager = Arc::new(StateManager::new(storage, cache));
     let mock_registry = Arc::new(MockRetryToolRegistry::new());
-    let tool_registry = mock_registry.clone() as Arc<dyn ToolRegistry>;
+    let tool_registry = mock_registry.clone() as Arc<ToolRegistry>;
 
     let engine = DefaultWorkflowEngine::new(state_manager, tool_registry, 10);
     (engine, mock_registry)

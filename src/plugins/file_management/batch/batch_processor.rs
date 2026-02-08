@@ -8,7 +8,8 @@ use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
 use crate::performance::concurrency::ConcurrencyManager;
 use crate::plugins::file_management::core::error::{FileManagementError, FileManagementResult};
-use crate::tools::{ToolNode, ToolRegistry};
+use crate::tools::registry::ToolRegistry;
+use crate::tools::types::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -298,7 +299,7 @@ pub struct MemoryStats {
 pub struct BatchProcessor {
     config: BatchProcessorConfig,
     concurrency_manager: Option<Arc<ConcurrencyManager>>,
-    tool_registry: Option<Arc<dyn ToolRegistry>>,
+    tool_registry: Option<Arc<ToolRegistry>>,
 }
 
 impl BatchProcessor {
@@ -327,7 +328,7 @@ impl BatchProcessor {
     }
 
     /// Set the tool registry for tool resolution
-    pub fn with_tool_registry(mut self, registry: Arc<dyn ToolRegistry>) -> Self {
+    pub fn with_tool_registry(mut self, registry: Arc<ToolRegistry>) -> Self {
         self.tool_registry = Some(registry);
         self
     }
@@ -446,7 +447,7 @@ impl BatchProcessor {
     }
 
     /// Get a tool from the registry
-    async fn get_tool(&self, tool_name: &str) -> FileManagementResult<Arc<dyn ToolNode>> {
+    async fn get_tool(&self, tool_name: &str) -> FileManagementResult<Tool> {
         let registry = self
             .tool_registry
             .as_ref()
@@ -459,7 +460,7 @@ impl BatchProcessor {
 
     /// Process a single batch item
     async fn process_single_item(
-        tool: Arc<dyn ToolNode>,
+        tool: Tool,
         item: BatchItem,
         context: ExecutionContext,
         semaphore: Arc<Semaphore>,
@@ -561,20 +562,25 @@ impl BatchProcessor {
 
     /// Execute a single item with timeout
     async fn execute_item_with_timeout(
-        tool: &Arc<dyn ToolNode>,
+        tool: &Tool,
         item: &BatchItem,
         context: &ExecutionContext,
         timeout: Option<Duration>,
     ) -> Result<Value> {
+        use crate::tools::types::ToolInput;
+        
+        let input = ToolInput::new(item.parameters.clone());
         if let Some(timeout_duration) = timeout {
             tokio::time::timeout(
                 timeout_duration,
-                tool.execute(item.parameters.clone(), context.clone()),
+                tool.execute(input, context.clone()),
             )
             .await
             .map_err(|_| WorkflowError::tool("Item execution timed out"))?
+            .map(|output| output.result)
         } else {
-            tool.execute(item.parameters.clone(), context.clone()).await
+            tool.execute(input, context.clone()).await
+                .map(|output| output.result)
         }
     }
 

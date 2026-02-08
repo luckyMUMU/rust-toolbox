@@ -650,6 +650,12 @@ impl NativeToolBuilder {
         self
     }
 
+    /// Set multiple tags
+    pub fn tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
     /// Set the executor function
     pub fn executor<F, Fut>(mut self, executor: F) -> Self
     where

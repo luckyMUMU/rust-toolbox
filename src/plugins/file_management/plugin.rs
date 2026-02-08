@@ -8,8 +8,7 @@ use crate::plugins::file_management::utils::registry::FileManagementToolRegistry
 use crate::error::{Result, WorkflowError};
 use crate::performance::{PerformanceConfig, PerformanceManager};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, ResourceLimits, SecurityPolicy};
-use crate::tools::{ToolNode, ToolRegistry};
-use crate::tools::compat::tool_node_to_enum;
+use crate::tools::registry::ToolRegistry;
 use crate::tools::types::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -129,8 +128,8 @@ pub struct FileManagementPlugin {
     info: PluginInfo,
     config: Option<FileManagementConfig>,
     status: PluginStatus,
-    tools: Arc<RwLock<Vec<Arc<dyn ToolNode>>>>,
-    tool_registry: Option<Arc<dyn ToolRegistry>>,
+    tools: Arc<RwLock<Vec<Tool>>>,
+    tool_registry: Option<Arc<ToolRegistry>>,
     performance_manager: Option<Arc<PerformanceManager>>,
     error_recovery_manager: Option<Arc<RwLock<ErrorRecoveryManager>>>,
     monitoring_system: Option<Arc<FileManagementMonitor>>,
@@ -179,7 +178,7 @@ impl FileManagementPlugin {
     }
 
     /// Set the tool registry for integration with workflow-toolkit
-    pub fn set_tool_registry(&mut self, registry: Arc<dyn ToolRegistry>) -> Result<()> {
+    pub fn set_tool_registry(&mut self, registry: Arc<ToolRegistry>) -> Result<()> {
         if self.status != PluginStatus::Uninitialized {
             return Err(WorkflowError::ValidationError(
                 "Cannot set tool registry after plugin initialization".to_string(),
@@ -192,18 +191,19 @@ impl FileManagementPlugin {
     }
 
     /// Register all tools with the workflow-toolkit tool registry
-    fn register_tools_with_main_registry(&self, tools: &[Arc<dyn ToolNode>]) -> Result<()> {
+    fn register_tools_with_main_registry(&self, tools: &[Tool]) -> Result<()> {
         if let Some(_registry) = &self.tool_registry {
             info!(
                 "Registering {} file management tools with main tool registry",
                 tools.len()
             );
 
-            // Note: We need a mutable reference to the registry, but we only have an Arc<dyn ToolRegistry>
+            // Note: We need a mutable reference to the registry, but we only have an Arc<ToolRegistry>
             // This is a design limitation that would need to be addressed in the main tool registry
             // For now, we'll log the registration attempt
             for tool in tools {
-                debug!("Would register tool '{}' with main registry", tool.name());
+                let metadata = tool.metadata();
+                debug!("Would register tool '{}' with main registry", metadata.info.name);
             }
 
             info!("File management tools registered with main tool registry");
@@ -215,7 +215,7 @@ impl FileManagementPlugin {
     }
 
     /// Unregister all tools from the workflow-toolkit tool registry
-    fn unregister_tools_from_main_registry(&self, tools: &[Arc<dyn ToolNode>]) -> Result<()> {
+    fn unregister_tools_from_main_registry(&self, tools: &[Tool]) -> Result<()> {
         if let Some(_registry) = &self.tool_registry {
             info!(
                 "Unregistering {} file management tools from main tool registry",
@@ -224,7 +224,8 @@ impl FileManagementPlugin {
 
             // Note: Same limitation as above - we need a mutable reference
             for tool in tools {
-                debug!("Would unregister tool '{}' from main registry", tool.name());
+                let metadata = tool.metadata();
+                debug!("Would unregister tool '{}' from main registry", metadata.info.name);
             }
 
             info!("File management tools unregistered from main tool registry");
@@ -239,7 +240,7 @@ impl FileManagementPlugin {
     }
 
     /// Initialize all tools for the plugin
-    fn initialize_tools(&self, config: &FileManagementConfig) -> Result<Vec<Arc<dyn ToolNode>>> {
+    fn initialize_tools(&self, config: &FileManagementConfig) -> Result<Vec<Tool>> {
         info!(
             "Initializing file management tools with config: {:?}",
             config
@@ -670,7 +671,7 @@ impl Plugin for FileManagementPlugin {
 
     fn get_tools(&self) -> Vec<Tool> {
         match self.tools.read() {
-            Ok(tools_guard) => tools_guard.iter().map(|t| tool_node_to_enum(t.clone())).collect(),
+            Ok(tools_guard) => tools_guard.iter().cloned().collect(),
             Err(e) => {
                 error!("Failed to acquire read lock on tools: {}", e);
                 Vec::new()

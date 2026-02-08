@@ -172,13 +172,13 @@ impl From<std::io::Error> for CommonError {
 
 impl From<serde_json::Error> for CommonError {
     fn from(err: serde_json::Error) -> Self {
-        Self::serialization("json", err.to_string())
+        Self::serialization("json", &err.to_string())
     }
 }
 
 impl From<serde_yaml::Error> for CommonError {
     fn from(err: serde_yaml::Error) -> Self {
-        Self::serialization("yaml", err.to_string())
+        Self::serialization("yaml", &err.to_string())
     }
 }
 

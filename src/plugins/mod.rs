@@ -36,7 +36,7 @@ pub mod types;
 pub use docker::{
     DockerEnvironment, DockerMount, DockerMountType, DockerNetworkConfig,
     DockerPlugin as DockerPluginImpl, DockerPluginBuilder, DockerResourceLimits,
-    DockerRuntimeConfig, DockerToolConfig, DockerToolExecutor, DockerToolNode,
+    DockerRuntimeConfig, DockerToolConfig,
 };
 pub use file_management::{
     FileManagementConfig, FileManagementPlugin, FileManagementPluginBuilder,
@@ -45,14 +45,13 @@ pub use integration::{IntegratedPluginSystem, IntegratedPluginSystemBuilder};
 pub use error::{PluginError, Result as PluginResult, IntoPluginError};
 pub use manager::PluginManager;
 pub use runtime::{RuntimeManager, RuntimePoolConfig, RuntimeStats, ResourceStats};
-pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder, NativeToolExecutor};
+pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder};
 pub use nodejs::{
     NodeJsEnvironment, NodeJsPlugin as NodeJsPluginImpl, NodeJsPluginBuilder, NodeJsRuntimeConfig,
-    NodeJsToolExecutor, NodeJsToolNode, PackageJson,
+    PackageJson,
 };
 pub use python::{
     PythonEnvironment, PythonPlugin as PythonPluginImpl, PythonPluginBuilder, PythonRuntimeConfig,
-    PythonToolExecutor, PythonToolNode,
 };
 pub use types::{
     DockerPlugin, // WasmPlugin,  // Temporarily disabled

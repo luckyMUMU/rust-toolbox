@@ -3,9 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::{BasicTool, ToolExecutor, ToolNode};
-use crate::tools::compat::tool_node_to_enum;
-use crate::tools::types::Tool;
+use crate::tools::types::{Tool, PythonTool, ToolInput, ToolOutput};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -467,153 +465,6 @@ impl PythonEnvironment {
     }
 }
 
-/// Python tool node implementation
-pub struct PythonToolNode {
-    info: ToolInfo,
-    plugin_info: PluginInfo,
-    script_path: PathBuf,
-    environment: Arc<Mutex<PythonEnvironment>>,
-    timeout: Option<Duration>,
-}
-
-impl PythonToolNode {
-    /// Create a new Python tool node
-    pub fn new(
-        info: ToolInfo,
-        plugin_info: PluginInfo,
-        script_path: PathBuf,
-        environment: Arc<Mutex<PythonEnvironment>>,
-        timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            info,
-            plugin_info,
-            script_path,
-            environment,
-            timeout,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolNode for PythonToolNode {
-    fn name(&self) -> &str {
-        &self.info.name
-    }
-
-    fn version(&self) -> &str {
-        &self.info.version
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Basic validation - ensure params is an object
-        if !params.is_object() && !params.is_null() {
-            return Err(WorkflowError::ValidationError(
-                "Parameters must be a JSON object or null".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        self.validate_parameters(&params)?;
-
-        let environment = self.environment.lock().await;
-
-        if !environment.is_initialized() {
-            return Err(WorkflowError::plugin(
-                "Python environment not initialized".to_string(),
-            ));
-        }
-
-        // Clone the environment to avoid holding the lock during async execution
-        let python_executable = environment.python_executable().to_path_buf();
-        let config = environment.config.clone();
-        drop(environment);
-
-        // Create a temporary environment for execution
-        let temp_env = PythonEnvironment {
-            venv_path: None,
-            config,
-            python_executable,
-            is_initialized: true,
-        };
-
-        temp_env
-            .execute_script(&self.script_path, params, context, self.timeout)
-            .await
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        self.info.clone()
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        Some(&self.plugin_info)
-    }
-}
-
-/// Python tool executor for use with BasicTool
-pub struct PythonToolExecutor {
-    script_path: PathBuf,
-    environment: Arc<Mutex<PythonEnvironment>>,
-    timeout: Option<Duration>,
-}
-
-impl PythonToolExecutor {
-    pub fn new(
-        script_path: PathBuf,
-        environment: Arc<Mutex<PythonEnvironment>>,
-        timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            script_path,
-            environment,
-            timeout,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolExecutor for PythonToolExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        let environment = self.environment.lock().await;
-
-        if !environment.is_initialized() {
-            return Err(WorkflowError::plugin(
-                "Python environment not initialized".to_string(),
-            ));
-        }
-
-        // Clone the environment to avoid holding the lock during async execution
-        let python_executable = environment.python_executable().to_path_buf();
-        let config = environment.config.clone();
-        drop(environment);
-
-        // Create a temporary environment for execution
-        let temp_env = PythonEnvironment {
-            venv_path: None,
-            config,
-            python_executable,
-            is_initialized: true,
-        };
-
-        temp_env
-            .execute_script(&self.script_path, params, context, self.timeout)
-            .await
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Basic validation - ensure params is an object
-        if !params.is_object() && !params.is_null() {
-            return Err(WorkflowError::ValidationError(
-                "Parameters must be a JSON object or null".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
-
 /// Python plugin implementation
 pub struct PythonPlugin {
     info: PluginInfo,
@@ -622,7 +473,7 @@ pub struct PythonPlugin {
     #[allow(dead_code)]
     runtime_config: PythonRuntimeConfig,
     environment: Arc<Mutex<PythonEnvironment>>,
-    tools: Vec<Arc<dyn ToolNode>>,
+    tools: Vec<Tool>,
 }
 
 impl PythonPlugin {
@@ -669,44 +520,64 @@ impl PythonPlugin {
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        // Don't validate the script path here - it will be validated during execution
-        // The script path might be relative to the working directory
+        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, PythonTool};
 
-        let tool = Arc::new(PythonToolNode::new(
-            tool_info,
-            self.info.clone(),
+        let environment = self.environment.lock().await;
+        let python_path = environment.python_executable().to_path_buf();
+        drop(environment);
+
+        let python_tool = PythonTool {
+            id: ToolId::new(),
+            metadata: Arc::new(ToolMetadata {
+                info: tool_info.clone(),
+                kind: ToolKind::Python,
+                input_schema: None,
+                output_schema: None,
+                examples: Vec::new(),
+                resource_requirements: ResourceRequirements::default(),
+                version: tool_info.version.clone(),
+            }),
             script_path,
-            self.environment.clone(),
-            timeout,
-        ));
+            python_path,
+            timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(300),
+            middleware_stack: None,
+        };
 
-        self.tools.push(tool);
+        self.tools.push(Tool::Python(Arc::new(python_tool)));
         Ok(())
     }
 
-    /// Add a tool using BasicTool with PythonToolExecutor
+    /// Add a tool using PythonTool directly
     pub async fn add_basic_tool(
         &mut self,
         tool_info: ToolInfo,
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        // Don't validate the script path here - it will be validated during execution
-        // The script path might be relative to the working directory
+        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, PythonTool};
 
-        let executor = Arc::new(PythonToolExecutor::new(
+        let environment = self.environment.lock().await;
+        let python_path = environment.python_executable().to_path_buf();
+        drop(environment);
+
+        let python_tool = PythonTool {
+            id: ToolId::new(),
+            metadata: Arc::new(ToolMetadata {
+                info: tool_info.clone(),
+                kind: ToolKind::Python,
+                input_schema: None,
+                output_schema: None,
+                examples: Vec::new(),
+                resource_requirements: ResourceRequirements::default(),
+                version: tool_info.version.clone(),
+            }),
             script_path,
-            self.environment.clone(),
-            timeout,
-        ));
+            python_path,
+            timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(300),
+            middleware_stack: None,
+        };
 
-        let tool = Arc::new(BasicTool::from_executor(
-            tool_info,
-            executor,
-            Some(self.info.clone()),
-        )?);
-
-        self.tools.push(tool);
+        self.tools.push(Tool::Python(Arc::new(python_tool)));
         Ok(())
     }
 
@@ -733,7 +604,7 @@ impl Plugin for PythonPlugin {
     }
 
     fn get_tools(&self) -> Vec<Tool> {
-        self.tools.iter().map(|t| tool_node_to_enum(t.clone())).collect()
+        self.tools.clone()
     }
 
     fn shutdown(&mut self) -> Result<()> {

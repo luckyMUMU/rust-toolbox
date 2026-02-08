@@ -131,6 +131,26 @@ pub enum WorkflowError {
     /// Common error wrapper for unified error handling
     #[error("{0}")]
     Common(#[from] CommonError),
+
+    /// Component not found error
+    #[error("Component not found: {0}")]
+    ComponentNotFound(String),
+
+    /// Not implemented error
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
+
+    /// Configuration error
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
+    /// Type conversion error
+    #[error("Type conversion error: {0}")]
+    TypeConversion(String),
+
+    /// Slot not found error
+    #[error("Slot not found: {0}")]
+    SlotNotFound(String),
 }
 
 impl WorkflowError {
@@ -205,5 +225,66 @@ impl WorkflowError {
     /// Convert from CommonError
     pub fn from_common(error: CommonError) -> Self {
         Self::Common(error)
+    }
+
+    /// Create a validation error
+    pub fn validation<S: Into<String>>(message: S) -> Self {
+        Self::ValidationError(message.into())
+    }
+
+    /// Create a concurrency error
+    pub fn concurrency<S: Into<String>>(message: S) -> Self {
+        Self::ConcurrentAccess {
+            message: message.into(),
+        }
+    }
+
+    /// Create a backpressure error
+    pub fn backpressure<S: Into<String>>(message: S) -> Self {
+        Self::ResourceExhausted
+    }
+
+    /// Create a tool not found error
+    pub fn tool_not_found<S: Into<String>>(tool_name: S) -> Self {
+        Self::NotFound {
+            resource: tool_name.into(),
+        }
+    }
+
+    /// Create a serialization error
+    pub fn serialization<S: Into<String>>(message: S) -> Self {
+        Self::ValidationError(format!("Serialization error: {}", message.into()))
+    }
+
+    /// Create an execution error
+    pub fn execution<S: Into<String>>(message: S) -> Self {
+        Self::WorkflowExecution {
+            message: message.into(),
+        }
+    }
+
+    /// Create a component not found error
+    pub fn component_not_found<S: Into<String>>(component: S) -> Self {
+        Self::ComponentNotFound(component.into())
+    }
+
+    /// Create a not implemented error
+    pub fn not_implemented<S: Into<String>>(feature: S) -> Self {
+        Self::NotImplemented(feature.into())
+    }
+
+    /// Create a configuration error
+    pub fn config_error<S: Into<String>>(message: S) -> Self {
+        Self::ConfigError(message.into())
+    }
+
+    /// Create a type conversion error
+    pub fn type_conversion<S: Into<String>>(message: S) -> Self {
+        Self::TypeConversion(message.into())
+    }
+
+    /// Create a slot not found error
+    pub fn slot_not_found<S: Into<String>>(slot: S) -> Self {
+        Self::SlotNotFound(slot.into())
     }
 }

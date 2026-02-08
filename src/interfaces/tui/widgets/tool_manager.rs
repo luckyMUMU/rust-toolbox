@@ -17,7 +17,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 pub struct ToolManagerWidget {
-    registry: Arc<dyn ToolRegistry>,
+    registry: Arc<ToolRegistry>,
     state: ListState,
     tools: Vec<ToolInfo>,
     filter: String,
@@ -37,7 +37,7 @@ struct FilterSet {
 }
 
 impl ToolManagerWidget {
-    pub fn new(registry: Arc<dyn ToolRegistry>) -> Self {
+    pub fn new(registry: Arc<ToolRegistry>) -> Self {
         let tools = registry.list_tools();
         let mut state = ListState::default();
         if !tools.is_empty() {

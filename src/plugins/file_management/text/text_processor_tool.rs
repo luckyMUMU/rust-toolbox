@@ -10,7 +10,7 @@ use crate::plugins::file_management::utils::utils::{
     TextProcessor,
 };
 use crate::error::{Result, WorkflowError};
-use crate::tools::ToolNode;
+use crate::tools::types::Tool;
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -150,7 +150,7 @@ impl TextProcessorTool {
     }
 
     /// Process text with all specified operations
-    fn process_text(
+    pub fn process_text(
         &self,
         params: &TextProcessorParams,
     ) -> FileManagementResult<TextProcessorResult> {
@@ -249,7 +249,7 @@ impl TextProcessorTool {
     }
 
     /// Format result based on output format
-    fn format_result(&self, result: TextProcessorResult, format: &TextOutputFormat) -> Value {
+    pub fn format_result(&self, result: TextProcessorResult, format: &TextOutputFormat) -> Value {
         match format {
             TextOutputFormat::Simple => {
                 json!({
@@ -271,199 +271,6 @@ impl TextProcessorTool {
                 serde_json::to_value(result).unwrap_or_else(|_| json!({}))
             }
         }
-    }
-}
-
-#[async_trait]
-impl ToolNode for TextProcessorTool {
-    fn name(&self) -> &str {
-        "text-processor"
-    }
-
-    fn version(&self) -> &str {
-        "1.0.0"
-    }
-
-    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        info!("Executing text processor tool");
-
-        // Parse parameters
-        let params: TextProcessorParams = serde_json::from_value(params)
-            .map_err(|e| WorkflowError::ValidationError(format!("Invalid parameters: {}", e)))?;
-
-        // Check if we're in experimental mode
-        let experimental_mode = params.experimental_mode.unwrap_or(false);
-        if experimental_mode {
-            info!("Running text processor tool in experimental mode");
-        }
-
-        // Validate parameters
-        if params.text.is_empty() {
-            return Err(WorkflowError::ValidationError(
-                "Text cannot be empty".to_string(),
-            ));
-        }
-
-        if params.operations.is_empty() {
-            return Err(WorkflowError::ValidationError(
-                "At least one operation must be specified".to_string(),
-            ));
-        }
-
-        // Process text
-        let result = self
-            .process_text(&params)
-            .map_err(|e| WorkflowError::tool(format!("Text processing failed: {}", e)))?;
-
-        // Format result
-        let output_format = params.output_format.unwrap_or_default();
-        let formatted_result = self.format_result(result, &output_format);
-
-        if experimental_mode {
-            info!("Text processor tool experimental mode completed successfully");
-        } else {
-            info!("Text processor tool completed successfully");
-        }
-
-        Ok(formatted_result)
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        let parsed_params: TextProcessorParams =
-            serde_json::from_value(params.clone()).map_err(|e| {
-                WorkflowError::ValidationError(format!("Parameter validation failed: {}", e))
-            })?;
-
-        // Additional validation beyond JSON schema
-        if parsed_params.text.trim().is_empty() {
-            return Err(WorkflowError::ValidationError(
-                "Text cannot be empty".to_string(),
-            ));
-        }
-
-        if parsed_params.operations.is_empty() {
-            return Err(WorkflowError::ValidationError(
-                "At least one operation must be specified".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        let now = Utc::now();
-        ToolInfo {
-            name: self.name().to_string(),
-            version: self.version().to_string(),
-            description:
-                "Text processing tool with normalization, Chinese processing, and pinyin conversion"
-                    .to_string(),
-            category: Some("text-processing".to_string()),
-            tags: vec![
-                "text".to_string(),
-                "chinese".to_string(),
-                "pinyin".to_string(),
-                "normalization".to_string(),
-            ],
-            parameters_schema: json!({
-                "type": "object",
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "Text to process",
-                        "minLength": 1
-                    },
-                    "operations": {
-                        "type": "array",
-                        "description": "List of text processing operations to apply",
-                        "items": {
-                            "type": "string",
-                            "enum": [
-                                "NormalizeCase",
-                                "NormalizeWhitespace",
-                                "RemoveSpaces",
-                                "RemovePunctuation",
-                                "NormalizeUnicode",
-                                "FilterCharacters",
-                                "PreserveAlphanumericOnly",
-                                "ConvertTraditional",
-                                "GeneratePinyin",
-                                "CreateCombinations",
-                                "SegmentText",
-                                "ProcessMixed",
-                                "ComprehensiveNormalization"
-                            ]
-                        },
-                        "minItems": 1
-                    },
-                    "normalization_config": {
-                        "type": "object",
-                        "description": "Text normalization configuration",
-                        "properties": {
-                            "normalize_case": {"type": "boolean", "default": true},
-                            "normalize_whitespace": {"type": "boolean", "default": true},
-                            "remove_punctuation": {"type": "boolean", "default": false},
-                            "normalize_unicode": {"type": "boolean", "default": true},
-                            "filter_characters": {
-                                "type": "array",
-                                "items": {"type": "string", "maxLength": 1}
-                            },
-                            "preserve_alphanumeric_only": {"type": "boolean", "default": false}
-                        }
-                    },
-                    "chinese_processing": {
-                        "type": "object",
-                        "description": "Chinese text processing configuration",
-                        "properties": {
-                            "pinyin_style": {
-                                "type": "string",
-                                "enum": ["Normal", "WithTone", "WithoutTone", "FirstLetter", "Numeric"],
-                                "default": "Normal"
-                            },
-                            "generate_combinations": {"type": "boolean", "default": true},
-                            "include_tones": {"type": "boolean", "default": false},
-                            "convert_traditional": {"type": "boolean", "default": true}
-                        }
-                    },
-                    "output_format": {
-                        "type": "string",
-                        "enum": ["Simple", "Detailed", "Structured"],
-                        "default": "Simple"
-                    },
-                    "experimental_mode": {
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Run in experimental mode (simulation only)"
-                    }
-                },
-                "required": ["text", "operations"]
-            }),
-            return_schema: json!({
-                "type": "object",
-                "description": "Text processing result (format depends on output_format parameter)",
-                "properties": {
-                    "processed": {"type": "string"},
-                    "original": {"type": "string"},
-                    "operations_applied": {"type": "array", "items": {"type": "string"}},
-                    "pinyin_result": {"type": "object"},
-                    "mixed_text_result": {"type": "object"},
-                    "segments": {"type": "array", "items": {"type": "string"}},
-                    "chinese_type": {"type": "string"},
-                    "metadata": {"type": "object"},
-                    "processing_time_ms": {"type": "number"},
-                    "experimental_mode": {"type": "boolean", "description": "Whether the operation was run in experimental mode"}
-                }
-            }),
-            plugin_name: self.plugin_info.as_ref().map(|p| p.name.clone()),
-            dependencies: vec![],
-            version_requirements: HashMap::new(),
-            created_at: now,
-            updated_at: now,
-        }
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        self.plugin_info.as_ref()
     }
 }
 

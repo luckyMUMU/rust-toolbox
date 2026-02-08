@@ -82,7 +82,7 @@ impl ComponentRegistry {
     pub fn register_from_definition(
         &self,
         definition: &WorkflowDefinition,
-        tool_registry: Arc<dyn ToolRegistry>,
+        tool_registry: Arc<ToolRegistry>,
     ) -> Result<()> {
         for node in &definition.nodes {
             let component = self.create_component_from_node(node, Arc::clone(&tool_registry))?;
@@ -95,7 +95,7 @@ impl ComponentRegistry {
     fn create_component_from_node(
         &self,
         node: &WorkflowNode,
-        tool_registry: Arc<dyn ToolRegistry>,
+        tool_registry: Arc<ToolRegistry>,
     ) -> Result<Arc<dyn Component>> {
         match node.node_type {
             NodeType::Tool => {

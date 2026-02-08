@@ -11,7 +11,8 @@ use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::plugins::file_management::plugin::FileManagementConfig;
 use crate::error::{Result, WorkflowError};
 use crate::performance::concurrency::ConcurrencyManager;
-use crate::tools::{BasicTool, ToolExecutor, ToolNode, ToolRegistry};
+use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
+use crate::tools::registry::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -380,22 +381,27 @@ impl BatchProcessorTool {
         ))
     }
 
-    /// Create a complete BasicTool instance
-    pub fn create_tool(&self) -> Result<BasicTool> {
+    /// Create a complete Tool instance
+    pub fn create_tool(&self) -> Result<Tool> {
         let tool_info = self.create_tool_info();
         let executor = self.create_executor();
 
-        BasicTool::builder()
+        let native_tool = NativeToolBuilder::new()
             .name(&tool_info.name)
             .version(&tool_info.version)
             .description(&tool_info.description)
             .category(tool_info.category.unwrap_or_default())
             .tags(tool_info.tags)
-            .parameters_schema(tool_info.parameters_schema)
-            .return_schema(tool_info.return_schema)
-            .plugin_info(self.plugin_info.clone())
-            .executor_arc(executor)
-            .build()
+            .executor(move |input, ctx| {
+                let executor = executor.clone();
+                async move {
+                    let result = executor.execute(input.params, ctx).await?;
+                    Ok(ToolOutput::success(result))
+                }
+            })
+            .build()?;
+
+        Ok(Tool::Native(Arc::new(native_tool)))
     }
 }
 
@@ -472,8 +478,47 @@ impl BatchProcessorExecutor {
 
     /// Create a mock tool registry for testing
     /// In a real implementation, this would be injected
-    fn create_mock_registry(&self) -> Arc<MockToolRegistry> {
-        Arc::new(MockToolRegistry::new())
+    fn create_mock_registry(&self) -> Arc<ToolRegistry> {
+        use crate::tools::registry::ToolRegistry;
+        use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
+        use crate::core::ExecutionContext;
+        use serde_json::json;
+        
+        let registry = ToolRegistry::new();
+        
+        // Add mock tools
+        for tool_name in ["test-tool", "echo-tool", "slow-tool"] {
+            let name = tool_name.to_string();
+            let native_tool = NativeToolBuilder::new()
+                .name(tool_name)
+                .version("1.0.0")
+                .description("Mock tool for testing")
+                .executor(move |input: ToolInput, _ctx: ExecutionContext| {
+                    let name = name.clone();
+                    async move {
+                        let delay = match name.as_str() {
+                            "slow-tool" => tokio::time::Duration::from_millis(100),
+                            _ => tokio::time::Duration::from_millis(10),
+                        };
+                        tokio::time::sleep(delay).await;
+                        
+                        Ok(ToolOutput::success(json!({
+                            "tool": name,
+                            "input": input.params,
+                            "processed": true,
+                            "timestamp": chrono::Utc::now().to_rfc3339()
+                        })))
+                    }
+                })
+                .build();
+                
+            if let Ok(native_tool) = native_tool {
+                let tool = Tool::Native(Arc::new(native_tool));
+                registry.register(tool_name, tool);
+            }
+        }
+        
+        Arc::new(registry)
     }
 
     /// Convert batch result to tool result
@@ -654,11 +699,9 @@ impl BatchProcessorExecutor {
         );
         Ok(serde_json::to_value(simulated_result)?)
     }
-}
 
-#[async_trait::async_trait]
-impl ToolExecutor for BatchProcessorExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
+    /// Execute the batch processor tool
+    pub async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
         info!("Executing batch processor tool");
 
         // Parse parameters
@@ -776,7 +819,8 @@ impl ToolExecutor for BatchProcessorExecutor {
             .map_err(|e| WorkflowError::tool(format!("Failed to serialize batch result: {}", e)))
     }
 
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
+    /// Validate parameters for the batch processor tool
+    pub fn validate_parameters(&self, params: &Value) -> Result<()> {
         // Parse parameters to validate structure
         let batch_params = self.parse_parameters(params)?;
 
@@ -851,7 +895,7 @@ impl ToolExecutor for BatchProcessorExecutor {
 /// Mock tool registry for testing
 /// In a real implementation, this would be replaced with the actual tool registry
 pub struct MockToolRegistry {
-    tools: HashMap<String, Arc<dyn ToolNode>>,
+    tools: HashMap<String, Tool>,
 }
 
 impl Default for MockToolRegistry {
@@ -875,14 +919,44 @@ impl MockToolRegistry {
     }
 
     fn add_mock_tool(&mut self, name: &str) {
-        let tool = Arc::new(MockTool::new(name));
-        self.tools.insert(name.to_string(), tool);
+        use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
+        use crate::core::ExecutionContext;
+        use serde_json::json;
+        
+        let name = name.to_string();
+        let tool_name = name.clone();
+        
+        let native_tool = NativeToolBuilder::new()
+            .name(&name)
+            .version("1.0.0")
+            .description("Mock tool for testing")
+            .executor(move |input: ToolInput, _ctx: ExecutionContext| {
+                let tool_name = tool_name.clone();
+                async move {
+                    // Simulate some processing time
+                    let delay = match tool_name.as_str() {
+                        "slow-tool" => tokio::time::Duration::from_millis(100),
+                        _ => tokio::time::Duration::from_millis(10),
+                    };
+                    tokio::time::sleep(delay).await;
+                    
+                    Ok(ToolOutput::success(json!({
+                        "tool": tool_name,
+                        "input": input.params,
+                        "processed": true,
+                        "timestamp": chrono::Utc::now().to_rfc3339()
+                    })))
+                }
+            })
+            .build();
+            
+        if let Ok(native_tool) = native_tool {
+            let tool = Tool::Native(Arc::new(native_tool));
+            self.tools.insert(name.to_string(), tool);
+        }
     }
-}
 
-#[async_trait::async_trait]
-impl ToolRegistry for MockToolRegistry {
-    fn get_tool(&self, name: &str) -> Option<Arc<dyn ToolNode>> {
+    fn get_tool(&self, name: &str) -> Option<Tool> {
         self.tools.get(name).cloned()
     }
 
@@ -890,78 +964,8 @@ impl ToolRegistry for MockToolRegistry {
         self.tools.values().map(|tool| tool.get_info()).collect()
     }
 
-    fn register_tool(&mut self, tool: Arc<dyn ToolNode>) -> Result<()> {
-        self.tools.insert(tool.name().to_string(), tool);
-        Ok(())
-    }
-
-    async fn execute_tool(
-        &self,
-        name: &str,
-        params: Value,
-        context: ExecutionContext,
-    ) -> Result<Value> {
-        let tool = self
-            .get_tool(name)
-            .ok_or_else(|| WorkflowError::tool(format!("Tool '{}' not found", name)))?;
-        tool.execute(params, context).await
-    }
-
-    fn validate_tool_params(&self, name: &str, params: &Value) -> Result<()> {
-        let tool = self
-            .get_tool(name)
-            .ok_or_else(|| WorkflowError::tool(format!("Tool '{}' not found", name)))?;
-        tool.validate_parameters(params)
-    }
-
     fn has_tool(&self, name: &str) -> bool {
         self.tools.contains_key(name)
-    }
-
-    fn unregister_tool(&mut self, name: &str) -> Result<()> {
-        self.tools.remove(name);
-        Ok(())
-    }
-
-    fn tool_count(&self) -> usize {
-        self.tools.len()
-    }
-
-    fn clear(&mut self) {
-        self.tools.clear();
-    }
-
-    fn resolve_dependencies(
-        &self,
-        _tool_names: Vec<String>,
-    ) -> Result<crate::tools::ResolutionResult> {
-        Ok(crate::tools::ResolutionResult {
-            resolved_versions: HashMap::new(),
-            conflicts: Vec::new(),
-            warnings: Vec::new(),
-        })
-    }
-
-    fn check_version_conflicts(&self) -> Result<Vec<String>> {
-        Ok(Vec::new())
-    }
-
-    fn get_dependents(&self, _tool_name: &str) -> Vec<ToolInfo> {
-        Vec::new()
-    }
-
-    async fn execute_tool_with_templates(
-        &self,
-        name: &str,
-        params: Value,
-        _template_context: &crate::tools::TemplateContext,
-        execution_context: ExecutionContext,
-    ) -> Result<Value> {
-        self.execute_tool(name, params, execution_context).await
-    }
-
-    fn get_tool_templates(&self, _tool_name: &str) -> Vec<crate::tools::ParameterTemplate> {
-        Vec::new()
     }
 }
 
@@ -975,39 +979,6 @@ impl MockTool {
         Self {
             name: name.to_string(),
         }
-    }
-}
-
-#[async_trait::async_trait]
-#[async_trait::async_trait]
-impl ToolNode for MockTool {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn version(&self) -> &str {
-        "1.0.0"
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        ToolInfo {
-            name: self.name.clone(),
-            version: "1.0.0".to_string(),
-            description: "Mock tool for testing".to_string(),
-            category: Some("test".to_string()),
-            tags: vec!["mock".to_string(), "test".to_string()],
-            parameters_schema: json!({}),
-            return_schema: json!({}),
-            plugin_name: None,
-            dependencies: Vec::new(),
-            version_requirements: HashMap::new(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        }
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        None
     }
 
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
@@ -1026,10 +997,6 @@ impl ToolNode for MockTool {
             "processed": true,
             "timestamp": chrono::Utc::now().to_rfc3339()
         }))
-    }
-
-    fn validate_parameters(&self, _params: &Value) -> Result<()> {
-        Ok(())
     }
 }
 

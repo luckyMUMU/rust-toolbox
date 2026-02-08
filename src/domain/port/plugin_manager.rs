@@ -1,13 +1,12 @@
 //! 插件管理器端口
 
 use crate::domain::model::{PluginInfo, PluginType};
-use crate::domain::port::tool_registry::ToolNode;
 use crate::error::Result;
+use crate::tools::types::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 
 /// 插件管理器trait - 管理插件生命周期
@@ -44,7 +43,7 @@ pub trait Plugin: Send + Sync {
     fn initialize(&mut self, config: PluginConfig) -> Result<()>;
 
     /// 获取插件提供的所有工具
-    fn get_tools(&self) -> Vec<Arc<dyn ToolNode>>;
+    fn get_tools(&self) -> Vec<Tool>;
 
     /// 关闭插件
     fn shutdown(&mut self) -> Result<()>;

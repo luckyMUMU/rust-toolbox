@@ -4,7 +4,7 @@
 mod tests {
     use super::super::mcp::{McpServer, McpServerConfig, McpServerInterface};
     use crate::core::{AuthConfig, RateLimitConfig};
-    use crate::tools::BasicToolRegistry;
+    use crate::tools::ToolRegistry;
     use std::sync::Arc;
 
     #[tokio::test]
@@ -18,7 +18,7 @@ mod tests {
     #[tokio::test]
     async fn test_mcp_server_tool_registration() {
         let mut server = McpServer::new();
-        let tool_registry = Arc::new(BasicToolRegistry::new());
+        let tool_registry = Arc::new(ToolRegistry::new());
 
         // Register tools should work
         let result = server.register_tools(tool_registry).await;
@@ -65,7 +65,7 @@ mod tests {
     #[tokio::test]
     async fn test_mcp_server_stub_operations() {
         let mut server = McpServer::new();
-        let tool_registry = Arc::new(BasicToolRegistry::new());
+        let tool_registry = Arc::new(ToolRegistry::new());
         server.register_tools(tool_registry).await.unwrap();
 
         // Test stub implementations

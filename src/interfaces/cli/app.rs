@@ -85,7 +85,7 @@ impl BatchSummary {
 pub struct CliApp {
     config_manager: Option<Arc<ConfigManager>>,
     workflow_engine: Option<Arc<RefactoredWorkflowEngine>>,
-    tool_registry: Option<Arc<dyn ToolRegistry>>,
+    tool_registry: Option<Arc<ToolRegistry>>,
     mcp_server: Option<Arc<dyn McpServerInterface>>,
     plugin_manager: Option<Arc<PluginManager>>,
 }
@@ -112,7 +112,7 @@ impl CliApp {
     pub async fn with_components(
         config_manager: Arc<ConfigManager>,
         workflow_engine: Arc<RefactoredWorkflowEngine>,
-        tool_registry: Arc<dyn ToolRegistry>,
+        tool_registry: Arc<ToolRegistry>,
     ) -> Self {
         // Create plugin manager
         let plugin_manager = Arc::new(PluginManager::new());
@@ -476,11 +476,12 @@ impl CliApp {
                 let context = ExecutionContext::new();
 
                 // Try to execute from registry first, then from plugins
+                let tool_input = crate::tools::types::ToolInput::new(tool_params.clone());
                 let result = match registry
-                    .execute_tool(tool_name, tool_params.clone(), context.clone())
+                    .execute_tool(tool_name, tool_input, context.clone())
                     .await
                 {
-                    Ok(result) => result,
+                    Ok(result) => result.result,
                     Err(_) => {
                         // Try to find and execute from plugins
                         if let Some(plugin_manager) = &self.plugin_manager {

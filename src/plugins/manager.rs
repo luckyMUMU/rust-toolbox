@@ -4,8 +4,7 @@ use crate::core::PluginInfo;
 use crate::error::{Result, WorkflowError};
 use crate::plugins::runtime::RuntimeManager;
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::compat::tool_to_trait_object;
-use crate::tools::ToolRegistry;
+use crate::tools::registry::ToolRegistry;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, warn};
@@ -18,7 +17,7 @@ pub struct PluginManager {
     plugins: Arc<RwLock<HashMap<String, Box<dyn Plugin>>>>,
     plugin_configs: Arc<RwLock<HashMap<String, PluginConfig>>>,
     runtime_manager: RuntimeManager,
-    tool_registry: Option<Arc<RwLock<dyn ToolRegistry>>>,
+    tool_registry: Option<Arc<RwLock<ToolRegistry>>>,
 }
 
 impl PluginManager {
@@ -33,7 +32,7 @@ impl PluginManager {
     }
 
     /// Create a new plugin manager with a tool registry
-    pub fn with_tool_registry(tool_registry: Arc<RwLock<dyn ToolRegistry>>) -> Self {
+    pub fn with_tool_registry(tool_registry: Arc<RwLock<ToolRegistry>>) -> Self {
         Self {
             plugins: Arc::new(RwLock::new(HashMap::new())),
             plugin_configs: Arc::new(RwLock::new(HashMap::new())),
@@ -43,7 +42,7 @@ impl PluginManager {
     }
 
     /// Set the tool registry for plugin integration
-    pub fn set_tool_registry(&mut self, tool_registry: Arc<RwLock<dyn ToolRegistry>>) {
+    pub fn set_tool_registry(&mut self, tool_registry: Arc<RwLock<ToolRegistry>>) {
         self.tool_registry = Some(tool_registry);
         info!("Tool registry set for plugin manager");
     }
@@ -288,31 +287,13 @@ impl PluginManager {
                     })?;
 
             for tool in tools {
-                // Convert Tool enum to trait object for backward compatibility with old registry
-                // TODO: Once registry is fully migrated to enum-based, remove this conversion
-                if let Some(tool_trait) = tool_to_trait_object(&tool) {
-                    if let Err(e) = registry.register_tool(tool_trait) {
-                        error!(
-                            "Failed to register tool '{}' from plugin '{}': {}",
-                            tool.name(),
-                            plugin_name,
-                            e
-                        );
-                        // Continue registering other tools even if one fails
-                    } else {
-                        debug!(
-                            "Registered tool '{}' from plugin '{}'",
-                            tool.name(),
-                            plugin_name
-                        );
-                    }
-                } else {
-                    warn!(
-                        "Skipping tool '{}' from plugin '{}' - cannot convert to trait object",
-                        tool.name(),
-                        plugin_name
-                    );
-                }
+                let tool_name = tool.name().to_string();
+                registry.register_tool(&tool_name, tool);
+                debug!(
+                    "Registered tool '{}' from plugin '{}'",
+                    tool_name,
+                    plugin_name
+                );
             }
 
             info!("Completed tool registration for plugin '{}'", plugin_name);
@@ -359,21 +340,13 @@ impl PluginManager {
                         })?;
 
                 for tool in tools {
-                    if let Err(e) = registry.unregister_tool(&tool.name()) {
-                        warn!(
-                            "Failed to unregister tool '{}' from plugin '{}': {}",
-                            tool.name(),
-                            plugin_name,
-                            e
-                        );
-                        // Continue unregistering other tools even if one fails
-                    } else {
-                        debug!(
-                            "Unregistered tool '{}' from plugin '{}'",
-                            tool.name(),
-                            plugin_name
-                        );
-                    }
+                    let tool_name = tool.name().to_string();
+                    registry.unregister_tool(&tool_name);
+                    debug!(
+                        "Unregistered tool '{}' from plugin '{}'",
+                        tool_name,
+                        plugin_name
+                    );
                 }
 
                 info!("Completed tool unregistration for plugin '{}'", plugin_name);

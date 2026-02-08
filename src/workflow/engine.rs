@@ -64,7 +64,7 @@ pub struct RefactoredWorkflowEngine {
     state_manager: Arc<StateManager>,
 
     /// Tool registry for creating tool components
-    tool_registry: Arc<dyn ToolRegistry>,
+    tool_registry: Arc<ToolRegistry>,
 
     /// Executor chain for component execution
     executor: BoxedExecutor,
@@ -114,7 +114,7 @@ impl RefactoredWorkflowEngine {
     /// Create a new refactored workflow engine.
     pub fn new(
         state_manager: Arc<StateManager>,
-        tool_registry: Arc<dyn ToolRegistry>,
+        tool_registry: Arc<ToolRegistry>,
         max_parallel_workflows: usize,
     ) -> Self {
         let audit_logger = Arc::new(AuditLogger::new(state_manager.clone(), false, 30));
@@ -140,7 +140,7 @@ impl RefactoredWorkflowEngine {
     /// Create a new engine with caching enabled.
     pub fn new_with_cache(
         state_manager: Arc<StateManager>,
-        tool_registry: Arc<dyn ToolRegistry>,
+        tool_registry: Arc<ToolRegistry>,
         max_parallel_workflows: usize,
         cache_config: CacheConfig,
     ) -> Self {
@@ -627,7 +627,7 @@ impl RefactoredWorkflowEngine {
 mod tests {
     use super::*;
     use crate::storage::{FileStorage, SimpleMemoryCache};
-    use crate::tools::BasicToolRegistry;
+    use crate::tools::ToolRegistry;
     use crate::workflow::definition::{WorkflowEdge, WorkflowNode};
     use tempfile::TempDir;
 

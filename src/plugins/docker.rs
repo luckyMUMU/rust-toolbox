@@ -3,9 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::{BasicTool, ToolExecutor, ToolNode};
-use crate::tools::compat::tool_node_to_enum;
-use crate::tools::types::Tool;
+use crate::tools::types::{Tool, DockerTool, ToolInput, ToolOutput};
 use async_trait::async_trait;
 use bollard::container::{
     Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
@@ -174,6 +172,8 @@ pub struct DockerToolConfig {
     pub user: Option<String>,
     /// Privileged mode
     pub privileged: bool,
+    /// Container name
+    pub container_name: Option<String>,
 }
 
 impl DockerToolConfig {
@@ -191,6 +191,7 @@ impl DockerToolConfig {
             labels: HashMap::new(),
             user: None,
             privileged: false,
+            container_name: None,
         }
     }
 }
@@ -875,127 +876,6 @@ pub struct ContainerLogs {
     pub stderr: String,
 }
 
-/// Docker tool node implementation
-pub struct DockerToolNode {
-    info: ToolInfo,
-    plugin_info: PluginInfo,
-    tool_config: DockerToolConfig,
-    environment: Arc<Mutex<DockerEnvironment>>,
-    timeout: Option<Duration>,
-}
-
-impl DockerToolNode {
-    /// Create a new Docker tool node
-    pub fn new(
-        info: ToolInfo,
-        plugin_info: PluginInfo,
-        tool_config: DockerToolConfig,
-        environment: Arc<Mutex<DockerEnvironment>>,
-        timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            info,
-            plugin_info,
-            tool_config,
-            environment,
-            timeout,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolNode for DockerToolNode {
-    fn name(&self) -> &str {
-        &self.info.name
-    }
-
-    fn version(&self) -> &str {
-        &self.info.version
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Basic validation - ensure params is an object
-        if !params.is_object() && !params.is_null() {
-            return Err(WorkflowError::ValidationError(
-                "Parameters must be a JSON object or null".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        self.validate_parameters(&params)?;
-
-        let environment = self.environment.lock().await;
-
-        if !environment.is_initialized() {
-            return Err(WorkflowError::plugin(
-                "Docker environment not initialized".to_string(),
-            ));
-        }
-
-        environment
-            .execute_container(&self.tool_config, params, context, self.timeout)
-            .await
-    }
-
-    fn get_info(&self) -> ToolInfo {
-        self.info.clone()
-    }
-
-    fn get_plugin_info(&self) -> Option<&PluginInfo> {
-        Some(&self.plugin_info)
-    }
-}
-
-/// Docker tool executor for use with BasicTool
-pub struct DockerToolExecutor {
-    tool_config: DockerToolConfig,
-    environment: Arc<Mutex<DockerEnvironment>>,
-    timeout: Option<Duration>,
-}
-
-impl DockerToolExecutor {
-    pub fn new(
-        tool_config: DockerToolConfig,
-        environment: Arc<Mutex<DockerEnvironment>>,
-        timeout: Option<Duration>,
-    ) -> Self {
-        Self {
-            tool_config,
-            environment,
-            timeout,
-        }
-    }
-}
-
-#[async_trait]
-impl ToolExecutor for DockerToolExecutor {
-    async fn execute(&self, params: Value, context: ExecutionContext) -> Result<Value> {
-        let environment = self.environment.lock().await;
-
-        if !environment.is_initialized() {
-            return Err(WorkflowError::plugin(
-                "Docker environment not initialized".to_string(),
-            ));
-        }
-
-        environment
-            .execute_container(&self.tool_config, params, context, self.timeout)
-            .await
-    }
-
-    fn validate_parameters(&self, params: &Value) -> Result<()> {
-        // Basic validation - ensure params is an object
-        if !params.is_object() && !params.is_null() {
-            return Err(WorkflowError::ValidationError(
-                "Parameters must be a JSON object or null".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
-
 /// Docker plugin implementation
 pub struct DockerPlugin {
     info: PluginInfo,
@@ -1004,7 +884,7 @@ pub struct DockerPlugin {
     #[allow(dead_code)]
     runtime_config: DockerRuntimeConfig,
     environment: Arc<Mutex<DockerEnvironment>>,
-    tools: Vec<Arc<dyn ToolNode>>,
+    tools: Vec<Tool>,
 }
 
 impl DockerPlugin {
@@ -1053,38 +933,56 @@ impl DockerPlugin {
         tool_config: DockerToolConfig,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        let tool = Arc::new(DockerToolNode::new(
-            tool_info,
-            self.info.clone(),
-            tool_config,
-            self.environment.clone(),
-            timeout,
-        ));
+        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements};
 
-        self.tools.push(tool);
+        let docker_tool = DockerTool {
+            id: ToolId::new(),
+            metadata: Arc::new(ToolMetadata {
+                info: tool_info.clone(),
+                kind: ToolKind::Docker,
+                input_schema: None,
+                output_schema: None,
+                examples: Vec::new(),
+                resource_requirements: ResourceRequirements::default(),
+                version: tool_info.version.clone(),
+            }),
+            image: tool_config.image.clone(),
+            container_name: tool_config.container_name.clone(),
+            timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(300),
+            middleware_stack: None,
+        };
+
+        self.tools.push(Tool::Docker(Arc::new(docker_tool)));
         Ok(())
     }
 
-    /// Add a tool using BasicTool with DockerToolExecutor
+    /// Add a tool using DockerTool directly
     pub async fn add_basic_tool(
         &mut self,
         tool_info: ToolInfo,
         tool_config: DockerToolConfig,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        let executor = Arc::new(DockerToolExecutor::new(
-            tool_config,
-            self.environment.clone(),
-            timeout,
-        ));
+        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements};
 
-        let tool = Arc::new(BasicTool::from_executor(
-            tool_info,
-            executor,
-            Some(self.info.clone()),
-        )?);
+        let docker_tool = DockerTool {
+            id: ToolId::new(),
+            metadata: Arc::new(ToolMetadata {
+                info: tool_info.clone(),
+                kind: ToolKind::Docker,
+                input_schema: None,
+                output_schema: None,
+                examples: Vec::new(),
+                resource_requirements: ResourceRequirements::default(),
+                version: tool_info.version.clone(),
+            }),
+            image: tool_config.image.clone(),
+            container_name: tool_config.container_name.clone(),
+            timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(300),
+            middleware_stack: None,
+        };
 
-        self.tools.push(tool);
+        self.tools.push(Tool::Docker(Arc::new(docker_tool)));
         Ok(())
     }
 
@@ -1123,7 +1021,7 @@ impl Plugin for DockerPlugin {
     }
 
     fn get_tools(&self) -> Vec<Tool> {
-        self.tools.iter().map(|t| tool_node_to_enum(t.clone())).collect()
+        self.tools.clone()
     }
 
     fn shutdown(&mut self) -> Result<()> {
