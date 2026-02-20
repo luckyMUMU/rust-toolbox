@@ -28,6 +28,7 @@ pub mod integration;
 pub mod manager;
 pub mod native;
 pub mod nodejs;
+pub mod process_pool;
 pub mod python;
 pub mod runtime;
 pub mod types;
@@ -44,6 +45,7 @@ pub use file_management::{
 pub use integration::{IntegratedPluginSystem, IntegratedPluginSystemBuilder};
 pub use error::{PluginError, Result as PluginResult, IntoPluginError};
 pub use manager::PluginManager;
+pub use process_pool::{PluginProcessPool, ProcessPoolConfig, ProcessState, ProcessInfo, PoolStats};
 pub use runtime::{RuntimeManager, RuntimePoolConfig, RuntimeStats, ResourceStats};
 pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder};
 pub use nodejs::{

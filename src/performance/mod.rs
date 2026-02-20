@@ -7,12 +7,17 @@ pub mod cache;
 pub mod concurrency;
 pub mod memory;
 pub mod metrics;
+pub mod metrics_registry;
 pub mod profiler;
 
 pub use cache::*;
 pub use concurrency::*;
 pub use memory::*;
 pub use metrics::*;
+pub use metrics_registry::{
+    Counter, Gauge, Histogram, HistogramBucket, Labels, MetricType,
+    MetricsRegistry, global_registry,
+};
 pub use profiler::*;
 
 use dashmap::DashMap;

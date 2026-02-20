@@ -1,5 +1,7 @@
 //! 应用层端口 - 定义应用层对外暴露的接口
 
+pub mod unit_of_work;
+
 /// 工作流编排器端口
 pub trait WorkflowOrchestrator: Send + Sync {
     /// 执行工作流
@@ -24,3 +26,7 @@ pub trait UseCaseExecutor: Send + Sync {
         params: serde_json::Value,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>>;
 }
+
+pub use unit_of_work::{
+    UnitOfWork, UnitOfWorkContext, UnitOfWorkFactory, UnitOfWorkManager,
+};

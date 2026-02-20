@@ -61,6 +61,8 @@ impl std::fmt::Display for CircuitState {
 pub struct CircuitBreakerMetrics {
     success_count: AtomicU32,
     failure_count: AtomicU32,
+    /// 连续失败次数（成功后重置）
+    consecutive_failures: AtomicU32,
     state_change_count: AtomicU32,
 }
 
@@ -69,16 +71,21 @@ impl CircuitBreakerMetrics {
         Self {
             success_count: AtomicU32::new(0),
             failure_count: AtomicU32::new(0),
+            consecutive_failures: AtomicU32::new(0),
             state_change_count: AtomicU32::new(0),
         }
     }
 
+    /// 记录成功，同时重置连续失败计数
     pub fn record_success(&self) {
         self.success_count.fetch_add(1, Ordering::Relaxed);
+        self.consecutive_failures.store(0, Ordering::Relaxed);
     }
 
+    /// 记录失败，同时增加连续失败计数
     pub fn record_failure(&self) {
         self.failure_count.fetch_add(1, Ordering::Relaxed);
+        self.consecutive_failures.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_state_change(&self) {
@@ -99,9 +106,12 @@ impl CircuitBreakerMetrics {
 
     /// 获取当前连续失败次数（用于判断是否达到熔断阈值）
     pub fn consecutive_failures(&self) -> u32 {
-        // 简化实现：返回总失败次数
-        // 实际应该记录连续失败
-        self.failure_count.load(Ordering::Relaxed)
+        self.consecutive_failures.load(Ordering::Relaxed)
+    }
+
+    /// 重置连续失败计数
+    pub fn reset_consecutive_failures(&self) {
+        self.consecutive_failures.store(0, Ordering::Relaxed);
     }
 }
 
@@ -318,8 +328,7 @@ impl CircuitBreaker {
 
     /// 重置计数
     async fn reset_counts(&self) {
-        // 注意：这里简化实现，实际应该使用原子操作重置
-        // 由于 AtomicU32 没有直接的 reset 方法，我们在新版本中重新创建
+        self.metrics.reset_consecutive_failures();
     }
 
     /// 手动重置熔断器到关闭状态
@@ -420,5 +429,84 @@ mod tests {
         // 手动重置
         cb.reset().await;
         assert_eq!(cb.current_state().await, CircuitState::Closed);
+    }
+
+    #[tokio::test]
+    async fn test_consecutive_failures_resets_on_success() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 5,
+            success_threshold: 2,
+            timeout: Duration::from_secs(60),
+            half_open_max_calls: 2,
+        };
+        let cb = CircuitBreaker::new("test", config);
+
+        // 连续失败 3 次
+        for _ in 0..3 {
+            let _ = cb
+                .call(|| async {
+                    Err::<i32, Box<dyn std::error::Error + Send + Sync>>("error".into())
+                })
+                .await;
+        }
+
+        // 验证连续失败计数为 3
+        assert_eq!(cb.metrics().consecutive_failures(), 3);
+        assert_eq!(cb.metrics().failure_count(), 3);
+
+        // 成功一次
+        let _ = cb
+            .call(|| async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) })
+            .await;
+
+        // 连续失败计数应该重置为 0，但总失败计数保持不变
+        assert_eq!(cb.metrics().consecutive_failures(), 0);
+        assert_eq!(cb.metrics().failure_count(), 3);
+        assert_eq!(cb.metrics().success_count(), 1);
+
+        // 熔断器应该仍然关闭（因为连续失败未达到阈值）
+        assert_eq!(cb.current_state().await, CircuitState::Closed);
+    }
+
+    #[tokio::test]
+    async fn test_consecutive_failures_triggers_circuit() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 3,
+            success_threshold: 2,
+            timeout: Duration::from_secs(60),
+            half_open_max_calls: 2,
+        };
+        let cb = CircuitBreaker::new("test", config);
+
+        // 失败 2 次
+        for _ in 0..2 {
+            let _ = cb
+                .call(|| async {
+                    Err::<i32, Box<dyn std::error::Error + Send + Sync>>("error".into())
+                })
+                .await;
+        }
+
+        // 连续失败计数为 2，熔断器仍关闭
+        assert_eq!(cb.metrics().consecutive_failures(), 2);
+        assert_eq!(cb.current_state().await, CircuitState::Closed);
+
+        // 成功一次，重置连续失败计数
+        let _ = cb
+            .call(|| async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) })
+            .await;
+        assert_eq!(cb.metrics().consecutive_failures(), 0);
+
+        // 再失败 3 次，触发熔断
+        for _ in 0..3 {
+            let _ = cb
+                .call(|| async {
+                    Err::<i32, Box<dyn std::error::Error + Send + Sync>>("error".into())
+                })
+                .await;
+        }
+
+        // 熔断器应该打开
+        assert!(matches!(cb.current_state().await, CircuitState::Open { .. }));
     }
 }

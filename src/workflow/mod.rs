@@ -25,6 +25,7 @@
 //! 5. Nodes are executed (possibly in parallel) using the tool registry.
 
 pub mod audit;
+pub mod backpressure;
 pub mod circuit_breaker;
 pub mod component;
 pub mod config_validator;
@@ -37,6 +38,7 @@ pub mod error_handler;
 pub mod execution;
 pub mod execution_manager;
 pub mod executor;
+pub mod flow_control;
 pub mod flow_node;
 pub mod metrics;
 pub mod rate_limiter;
@@ -62,6 +64,10 @@ pub mod audit_tests;
 pub use audit::{
     AuditEvent, AuditEventType, AuditLogger, AuditQueryCriteria, AuditReport, AuditSeverity,
     ErrorDetails, ErrorSummary, ExecutionLogEntry, LogLevel,
+};
+pub use backpressure::{
+    BackpressureConfig, BackpressureController, BackpressurePermit, BackpressureState,
+    BackpressureStats, BackpressureStrategy, RequestPriority,
 };
 pub use definition::{
     NodeType, ParameterType, TemplateParameter, WorkflowDefinition, WorkflowEdge, WorkflowNode,
@@ -96,6 +102,7 @@ pub use executor::{
 pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError, CircuitBreakerMetrics, CircuitState};
 pub use config_validator::{ConfigHotReloader, ConfigLoader, ConfigValidator, FileConfigLoader, ValidationReport};
 pub use error_handler::{ErrorClassification, ErrorHandler, ErrorHandlingStrategy, ErrorSeverity, WorkflowErrorClassifier};
+pub use flow_control::FlowControlExecutor;
 pub use metrics::{CompositeMetricsCollector, InMemoryMetricsCollector, MetricsCollector, MetricsSnapshot, PrometheusMetricsCollector, WorkflowStats};
 pub use rate_limiter::{RateLimiter, RateLimiterError, WorkflowRateLimitConfig, WorkflowRateLimiter};
 pub use state::{CheckpointManager, ControlSignals, ExecutionTracker};
