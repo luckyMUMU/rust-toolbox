@@ -32,7 +32,9 @@ pub mod process_pool;
 pub mod python;
 pub mod runtime;
 pub mod types;
-// pub mod wasm;  // Temporarily disabled due to wasmtime/extism dependency issues
+pub mod wasm_sandbox;
+pub mod wasm_limits;
+// pub mod wasm;  // 需要添加 wasmtime/extism 依赖后启用
 
 pub use docker::{
     DockerEnvironment, DockerMount, DockerMountType, DockerNetworkConfig,
@@ -56,7 +58,7 @@ pub use python::{
     PythonEnvironment, PythonPlugin as PythonPluginImpl, PythonPluginBuilder, PythonRuntimeConfig,
 };
 pub use types::{
-    DockerPlugin, // WasmPlugin,  // Temporarily disabled
+    DockerPlugin, // WasmPlugin,  // 需要添加 wasmtime/extism 依赖后启用
     NativePlugin,
     NodeJsPlugin,
     Plugin,
@@ -67,7 +69,15 @@ pub use types::{
     ResourceLimits,
     SecurityPolicy,
 };
-// pub use wasm::{  // Temporarily disabled
+pub use wasm_sandbox::{
+    AuditEntry, AuditEventType, FileSystemPermissions, NetworkPermissions,
+    SandboxLevel, SyscallPermissions, WasmSandbox, WasmSandboxBuilder, WasmSandboxConfig,
+};
+pub use wasm_limits::{
+    ResourceLimiter, ResourceLimiterBuilder, ResourceLimitError, ResourceReport,
+    ResourceUsage, ResourceUsageSnapshot, ResourceUtilization, WasmResourceLimits,
+};
+// pub use wasm::{  // 需要添加 wasmtime/extism 依赖后启用
 //     WasmPlugin as WasmPluginImpl, WasmPluginBuilder, WasmRuntimeConfig,
 //     WasmToolExecutor, WasmToolNode, ExtismToolNode, WasmRuntimeType, ExtismConfig,
 // };

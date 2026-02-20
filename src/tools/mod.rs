@@ -12,10 +12,12 @@
 
 pub mod algo;
 pub mod composable;
+pub mod composition;
 pub mod executor;
 pub mod external;
 pub mod middleware;
 pub mod registry;
+pub mod schema_validator;
 pub mod template;
 pub mod types;
 pub mod version;
@@ -25,6 +27,10 @@ pub mod versioned_registry;
 pub use composable::{
     ComposableToolAdapter, ConditionalTool, ParallelTools, ToolChain,
     ToolComposer, ToolCompositionBuilder,
+};
+pub use composition::{
+    CompositionConfig, CompositionExecutor, CompositionExecutorBuilder, CompositionResult,
+    CompositionStrategy, FailureStrategy, ResultMergeStrategy, ToolExecutionRecord,
 };
 pub use external::{
     DockerExecutor, DockerExecutorConfig, DockerMount,
@@ -40,6 +46,10 @@ pub use middleware::{
     Next, RetryMiddleware, TimeoutMiddleware, TimingMiddleware,
 };
 pub use registry::{ToolRegistryBuilder, ToolRegistry};
+pub use schema_validator::{
+    SchemaErrorType, SchemaRegistry, SchemaValidationError, SchemaValidationResult,
+    SchemaValidator, SchemaValidatorBuilder, SchemaValidatorConfig, ToolSchema,
+};
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use types::{
     CompositionType, ComposedTool, DockerTool, InputSchema, NativeTool, NativeToolBuilder, NodeJsTool, OutputSchema, 

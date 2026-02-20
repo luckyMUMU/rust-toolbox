@@ -9,6 +9,7 @@ pub mod memory;
 pub mod metrics;
 pub mod metrics_registry;
 pub mod profiler;
+pub mod tracing;
 
 pub use cache::*;
 pub use concurrency::*;
@@ -19,6 +20,11 @@ pub use metrics_registry::{
     MetricsRegistry, global_registry,
 };
 pub use profiler::*;
+pub use tracing::{
+    AttributeValue, ExportError, InMemoryExporter, SpanEvent, SpanExporter, SpanGuard,
+    SpanId, SpanKind, SpanLink, SpanStatus, TraceId, Tracer, TracingConfig, TracingContext,
+    TracingSpan,
+};
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

@@ -4,6 +4,7 @@
 //! replacing the scattered state management across DagScheduler and WorkflowExecution.
 
 pub mod checkpoint;
+pub mod checkpoint_recovery;
 
 use crate::core::ExecutionStatus;
 use crate::workflow::execution::NodeExecutionState;
@@ -358,3 +359,7 @@ impl ExecutionStats {
 
 // Re-export checkpoint types
 pub use checkpoint::CheckpointManager;
+pub use checkpoint_recovery::{
+    CheckpointBuilder, CheckpointRecovery, CheckpointStatus, CheckpointType,
+    CheckpointValidation, EnhancedCheckpoint, RecoveryConfig, RecoveryContext, RecoveryStrategy,
+};

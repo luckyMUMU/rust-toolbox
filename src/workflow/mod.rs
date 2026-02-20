@@ -41,6 +41,7 @@ pub mod executor;
 pub mod flow_control;
 pub mod flow_node;
 pub mod metrics;
+pub mod parallel_executor;
 pub mod rate_limiter;
 pub mod result_cache;
 pub mod scheduler;
