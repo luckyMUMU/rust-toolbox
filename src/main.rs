@@ -73,9 +73,9 @@ async fn main() -> Result<()> {
     match fm_registry.register_all_tools() {
         Ok(tools) => {
             for tool in tools {
-                if let Err(e) = tool_registry.register_tool(tool.clone()) {
-                    eprintln!("Failed to register tool {}: {}", tool.name(), e);
-                }
+                let tool_name = tool.name().to_string();
+                tool_registry.register_tool(&tool_name, tool.clone());
+                println!("Registered tool: {}", tool_name);
             }
             println!("Registered file management tools successfully");
         }

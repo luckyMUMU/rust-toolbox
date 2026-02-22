@@ -293,6 +293,12 @@ impl MiddlewareStackBuilder {
         self
     }
 
+    /// Add a middleware (boxed)
+    pub fn with_boxed<M: Middleware + 'static>(mut self, middleware: M) -> Self {
+        self.stack.add(Arc::new(middleware));
+        self
+    }
+
     /// Build the final stack
     pub fn build(self) -> MiddlewareStack {
         self.stack

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// 检查点验证结果
@@ -209,8 +209,8 @@ impl CheckpointRecovery {
             node.id.hash(&mut hasher);
         }
         for edge in &definition.edges {
-            edge.source.hash(&mut hasher);
-            edge.target.hash(&mut hasher);
+            edge.from.hash(&mut hasher);
+            edge.to.hash(&mut hasher);
         }
 
         format!("{:x}", hasher.finish())
@@ -232,7 +232,7 @@ impl CheckpointRecovery {
         context.import_global_slots(checkpoint.global_slots.clone())?;
 
         for (node_id, state) in &checkpoint.node_states {
-            tracker.set_node_state(node_id, state.clone()).await;
+            tracker.set_node_state(node_id, state.clone());
         }
 
         let recovery_context = RecoveryContext {
@@ -332,7 +332,7 @@ impl CheckpointRecovery {
 
         self.state_manager
             .get_cache_backend()
-            .set(&key, value.as_bytes(), Some(86400))
+            .set(&key, value.as_bytes().to_vec(), Some(Duration::from_secs(86400)))
             .await
             .map_err(|e| {
                 WorkflowError::storage(format!("检查点保存失败: {}", e))
@@ -352,16 +352,23 @@ impl CheckpointRecovery {
         workflow_id: Uuid,
         checkpoint_id: &str,
     ) -> Result<Option<EnhancedCheckpoint>> {
-        let key = format!("checkpoint:{}:*:{}", workflow_id, checkpoint_id);
+        // 首先检查内存缓存
+        let checkpoints = self.checkpoints.read().await;
+        if let Some(checkpoint) = checkpoints.get(checkpoint_id) {
+            if checkpoint.workflow_id == workflow_id {
+                return Ok(Some(checkpoint.clone()));
+            }
+        }
+        drop(checkpoints);
+
+        // 如果内存中没有，尝试从存储中加载
+        let key = format!("checkpoint:{}:{}", workflow_id, checkpoint_id);
 
         let value = self
             .state_manager
             .get_cache_backend()
             .get(&key)
-            .await
-            .map_err(|e| {
-                WorkflowError::storage(format!("检查点加载失败: {}", e))
-            })?;
+            .await;
 
         match value {
             Some(data) => {

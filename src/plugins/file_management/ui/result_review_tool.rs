@@ -10,13 +10,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::info;
 
-use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::core::ExecutionContext;
 use crate::plugins::file_management::core::error::FileManagementResult;
 use crate::plugins::file_management::utils::utils::ExperimentalOperation;
 use crate::error::WorkflowError;
 use crate::tools::types::Tool;
-
-use async_trait::async_trait;
 
 /// Tool for reviewing experimental results before execution
 #[derive(Debug, Clone)]

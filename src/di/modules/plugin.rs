@@ -43,24 +43,12 @@ impl AppModule for PluginModule {
     fn configure(&self, container: &DiContainer) {
         let auto_load = self.auto_load_plugins;
         
-        container.register_factory::<dyn PluginManagerService, _>(move || {
-            let tool_registry = container
-                .resolve::<dyn ToolRegistryService>();
-            
-            let manager = if let Some(registry) = tool_registry {
-                let registry_impl = registry
-                    .as_any()
-                    .downcast_ref::<ToolRegistryServiceImpl>()
-                    .expect("Invalid ToolRegistry implementation");
-                PluginManager::with_tool_registry(registry_impl.registry.clone())
-            } else {
-                PluginManager::new()
-            };
-            
+        container.register_factory::<PluginManagerServiceImpl, _>(move || {
+            let manager = PluginManager::new();
             Arc::new(PluginManagerServiceImpl::new(manager, auto_load))
         });
         
-        container.register_factory::<dyn RuntimeManagerService, _>(|| {
+        container.register_factory::<RuntimeManagerServiceImpl, _>(|| {
             Arc::new(RuntimeManagerServiceImpl::new())
         });
     }

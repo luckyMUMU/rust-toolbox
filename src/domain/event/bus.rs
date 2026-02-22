@@ -85,7 +85,7 @@ pub struct DomainEventBus {
     /// 事件存储
     event_store: RwLock<Vec<DomainEvent>>,
     /// 统计信息
-    stats: RwLock<EventBusStats>,
+    stats: Arc<RwLock<EventBusStats>>,
 }
 
 impl DomainEventBus {
@@ -99,7 +99,7 @@ impl DomainEventBus {
             subscribers: RwLock::new(HashMap::new()),
             subscription_counter: Mutex::new(0),
             event_store: RwLock::new(Vec::new()),
-            stats: RwLock::new(EventBusStats::default()),
+            stats: Arc::new(RwLock::new(EventBusStats::default())),
         }
     }
 
@@ -164,17 +164,18 @@ impl DomainEventBus {
         let mut receiver = self.broadcaster.subscribe();
         let stats = Arc::clone(&self.stats);
         let subscriber_name = subscriber.name().to_string();
+        let subscriber_clone = Arc::clone(&subscriber);
         
         tokio::spawn(async move {
             loop {
                 match receiver.recv().await {
                     Ok(event) => {
-                        let event_types = subscriber.event_types();
+                        let event_types = subscriber_clone.event_types();
                         let should_handle = event_types.is_empty()
                             || event_types.iter().any(|t| *t == event.event_type_name());
                         
                         if should_handle {
-                            if let Err(e) = subscriber.handle(&event).await {
+                            if let Err(e) = subscriber_clone.handle(&event).await {
                                 error!(
                                     subscriber = %subscriber_name,
                                     error = %e,

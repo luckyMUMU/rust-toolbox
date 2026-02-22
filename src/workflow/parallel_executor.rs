@@ -9,8 +9,6 @@ use crate::workflow::component::{ComponentOutput, ComponentRegistry, ComponentSt
 use crate::workflow::context::DataContext;
 use crate::workflow::executor::BoxedExecutor;
 use crate::workflow::state::ExecutionTracker;
-use futures::future::{self, Either};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -187,7 +185,7 @@ impl TaskExecutor<ToolOutput> for ToolTaskExecutor {
             .get(task_id)
             .ok_or_else(|| WorkflowError::validation(format!("工具未找到: {}", task_id)))?;
 
-        let input = ToolInput::new(context.get_local_slots().clone());
+        let input = ToolInput::new(serde_json::to_value(context.export_global_slots()).unwrap_or_default());
         tool.execute(input, exec_context.clone()).await
     }
 }
@@ -221,7 +219,7 @@ impl<T: Send + 'static> JoinSetExecutor<T> {
         workflow_id: Uuid,
     ) -> ParallelResult<T>
     where
-        E: TaskExecutor<T> + ?Sized,
+        E: TaskExecutor<T> + ?Sized + 'static,
     {
         let start_time = Instant::now();
         let mut result = ParallelResult::new();
@@ -258,24 +256,27 @@ impl<T: Send + 'static> JoinSetExecutor<T> {
             task_handles.insert(task_id, handle);
 
             if join_set.len() >= self.config.max_concurrency {
-                if let Some((task_id, task_result)) = join_set.join_next().await {
-                    task_handles.remove(&task_id);
-                    match task_result {
-                        Ok((id, Ok(output))) => {
-                            result.add_success(id, output);
-                        }
-                        Ok((id, Err(e))) => {
-                            result.add_failure(id, e);
-                            if self.config.cancel_on_failure {
-                                self.cancel_remaining_tasks(&task_handles);
-                                break;
+                match join_set.join_next().await {
+                    Some(Ok((task_id, task_result))) => {
+                        task_handles.remove(&task_id);
+                        match task_result {
+                            Ok(output) => {
+                                result.add_success(task_id, output);
+                            }
+                            Err(e) => {
+                                result.add_failure(task_id, e);
+                                if self.config.cancel_on_failure {
+                                    self.cancel_remaining_tasks(&task_handles);
+                                    break;
+                                }
                             }
                         }
-                        Err(e) => {
-                            warn!("任务加入失败: {}", e);
-                            result.add_cancelled();
-                        }
                     }
+                    Some(Err(e)) => {
+                        warn!("任务加入失败: {}", e);
+                        result.add_cancelled();
+                    }
+                    None => {}
                 }
             }
         }
@@ -361,14 +362,16 @@ impl WorkflowParallelExecutor {
             .execute_parallel(node_ids.clone(), task_executor, context, workflow_id)
             .await;
 
+        let mut failures_to_add: Vec<(String, WorkflowError)> = Vec::new();
+
         for (task_id, output) in &result.successes {
-            match output.status {
+            match &output.status {
                 ComponentStatus::Success => {
                     tracker.mark_node_completed(task_id, output.result.clone());
                 }
                 ComponentStatus::Failure(msg) => {
-                    tracker.mark_node_failed(task_id, msg);
-                    result.add_failure(task_id.clone(), WorkflowError::execution(msg.clone()));
+                    tracker.mark_node_failed(task_id, msg.clone());
+                    failures_to_add.push((task_id.clone(), WorkflowError::execution(msg.clone())));
                 }
                 ComponentStatus::Skip => {
                     tracker.mark_node_skipped(task_id);
@@ -377,6 +380,10 @@ impl WorkflowParallelExecutor {
                     tracker.mark_node_completed(task_id, output.result.clone());
                 }
             }
+        }
+
+        for (task_id, error) in failures_to_add {
+            result.add_failure(task_id, error);
         }
 
         for (task_id, error) in &result.failures {

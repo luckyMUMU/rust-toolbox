@@ -240,7 +240,7 @@ impl WorkflowError {
     }
 
     /// Create a backpressure error
-    pub fn backpressure<S: Into<String>>(message: S) -> Self {
+    pub fn backpressure<S: Into<String>>(_message: S) -> Self {
         Self::ResourceExhausted
     }
 

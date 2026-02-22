@@ -6,6 +6,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, Semaphore};
 
+/// 获取可用 CPU 数量
+fn available_parallelism() -> usize {
+    std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(4)
+}
+
 /// Concurrency configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConcurrencyConfig {
@@ -40,10 +47,10 @@ pub struct ConcurrencyConfig {
 impl Default for ConcurrencyConfig {
     fn default() -> Self {
         Self {
-            max_concurrent_workflows: num_cpus::get() * 2,
-            max_concurrent_tools: num_cpus::get() * 4,
-            cpu_thread_pool_size: num_cpus::get(),
-            io_thread_pool_size: num_cpus::get() * 2,
+            max_concurrent_workflows: available_parallelism() * 2,
+            max_concurrent_tools: available_parallelism() * 4,
+            cpu_thread_pool_size: available_parallelism(),
+            io_thread_pool_size: available_parallelism() * 2,
             task_queue_size: 10000,
             enable_work_stealing: true,
             load_balancing: LoadBalancingStrategy::RoundRobin,
@@ -77,7 +84,7 @@ impl Default for AdaptiveConcurrencyConfig {
         Self {
             enabled: true,
             min_concurrency: 1,
-            max_concurrency: num_cpus::get() * 8,
+            max_concurrency: available_parallelism() * 8,
             adjustment_interval: Duration::from_secs(30),
             target_latency: Duration::from_millis(100),
             latency_tolerance: 0.2, // 20%

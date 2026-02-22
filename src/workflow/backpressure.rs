@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// 背压策略
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,9 +59,10 @@ impl Default for BackpressureConfig {
 }
 
 /// 背压状态
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum BackpressureState {
     /// 正常状态
+    #[default]
     Normal,
     /// 警告状态（接近阈值）
     Warning,

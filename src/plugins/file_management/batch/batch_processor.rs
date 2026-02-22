@@ -50,9 +50,12 @@ pub struct BatchProcessorConfig {
 impl Default for BatchProcessorConfig {
     fn default() -> Self {
         Self {
-            max_concurrency: num_cpus::get().max(4),
+            max_concurrency: std::thread::available_parallelism()
+                .map(|p| p.get())
+                .unwrap_or(4)
+                .max(4),
             continue_on_error: true,
-            item_timeout: Some(Duration::from_secs(300)), // 5 minutes per item
+            item_timeout: Some(Duration::from_secs(300)),
             progress_interval: Duration::from_secs(5),
             max_batch_size: 1000,
             enable_progress_tracking: true,
@@ -950,7 +953,11 @@ mod tests {
     #[tokio::test]
     async fn test_batch_processor_creation() {
         let processor = BatchProcessor::new();
-        assert_eq!(processor.config.max_concurrency, num_cpus::get().max(4));
+        let expected = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4)
+            .max(4);
+        assert_eq!(processor.config.max_concurrency, expected);
         assert!(processor.config.continue_on_error);
     }
 

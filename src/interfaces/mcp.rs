@@ -424,35 +424,24 @@ impl McpServerInterface for McpServer {
     }
 
     async fn list_plugins(&self) -> Result<Vec<McpPluginInfo>> {
-        // Stub implementation - will be implemented in later tasks
-        println!("MCP plugin list requested");
-
         if let Some(ref plugin_manager) = self.plugin_manager {
-            match plugin_manager.list_plugins() {
-                Ok(plugins) => {
-                    let mcp_plugins: Vec<McpPluginInfo> = plugins
-                        .into_iter()
-                        .map(|plugin| {
-                            McpPluginInfo {
-                                name: plugin.name,
-                                version: plugin.version,
-                                plugin_type: format!("{:?}", plugin.plugin_type),
-                                description: plugin.description,
-                                author: plugin.author,
-                                status: "loaded".to_string(), // Simplified status
-                                tools_count: 0,               // Would need to query plugin tools
-                            }
-                        })
-                        .collect();
-                    Ok(mcp_plugins)
-                }
-                Err(e) => {
-                    println!("Failed to list plugins: {}", e);
-                    Ok(Vec::new())
-                }
-            }
+            let plugins = plugin_manager.list_plugins();
+            let mcp_plugins: Vec<McpPluginInfo> = plugins
+                .into_iter()
+                .map(|plugin| {
+                    McpPluginInfo {
+                        name: plugin.name,
+                        version: plugin.version,
+                        plugin_type: format!("{:?}", plugin.plugin_type),
+                        description: plugin.description,
+                        author: plugin.author,
+                        status: "loaded".to_string(),
+                        tools_count: 0,
+                    }
+                })
+                .collect();
+            Ok(mcp_plugins)
         } else {
-            println!("Plugin manager not available");
             Ok(Vec::new())
         }
     }
@@ -490,35 +479,24 @@ impl McpServerInterface for McpServer {
     }
 
     async fn get_plugin_info(&self, plugin_name: &str) -> Result<McpPluginInfo> {
-        // Stub implementation - will be implemented in later tasks
-        println!("MCP plugin info requested for: {}", plugin_name);
-
         if let Some(ref plugin_manager) = self.plugin_manager {
-            match plugin_manager.list_plugins() {
-                Ok(plugins) => {
-                    if let Some(plugin) = plugins.iter().find(|p| p.name == plugin_name) {
-                        Ok(McpPluginInfo {
-                            name: plugin.name.clone(),
-                            version: plugin.version.clone(),
-                            plugin_type: format!("{:?}", plugin.plugin_type),
-                            description: plugin.description.clone(),
-                            author: plugin.author.clone(),
-                            status: "loaded".to_string(),
-                            tools_count: 0, // Would need to query plugin tools
-                        })
-                    } else {
-                        Err(crate::WorkflowError::NotFound {
-                            resource: format!("plugin '{}'", plugin_name),
-                        })
-                    }
-                }
-                Err(e) => {
-                    println!("Failed to get plugin info: {}", e);
-                    Err(e)
-                }
+            let plugins = plugin_manager.list_plugins();
+            if let Some(plugin) = plugins.iter().find(|p| p.name == plugin_name) {
+                Ok(McpPluginInfo {
+                    name: plugin.name.clone(),
+                    version: plugin.version.clone(),
+                    plugin_type: format!("{:?}", plugin.plugin_type),
+                    description: plugin.description.clone(),
+                    author: plugin.author.clone(),
+                    status: "loaded".to_string(),
+                    tools_count: 0,
+                })
+            } else {
+                Err(crate::WorkflowError::NotFound {
+                    resource: format!("plugin '{}'", plugin_name),
+                })
             }
         } else {
-            println!("Plugin manager not available");
             Err(crate::WorkflowError::workflow_execution("Plugin manager not available"))
         }
     }

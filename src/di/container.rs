@@ -65,12 +65,10 @@ impl DiContainer {
         F: Fn(&DiContainer) -> Arc<T> + 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
-        let container_ptr = Arc::new(()) as Arc<()>;
-        let weak_ptr = Arc::downgrade(&container_ptr);
         
         let mut factories = self.factories.write().unwrap();
         factories.insert(type_id, Box::new(move || {
-            factory as Arc<dyn Any + Send + Sync>
+            factory(&DiContainer::new()) as Arc<dyn Any + Send + Sync>
         }));
     }
 

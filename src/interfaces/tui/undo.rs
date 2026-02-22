@@ -670,8 +670,10 @@ impl SystemInfo {
             terminal: std::env::var("TERM").ok(),
             shell: std::env::var("SHELL").ok(),
             locale: std::env::var("LANG").ok(),
-            memory_total: 0, // Would need sysinfo crate
-            cpu_count: num_cpus::get() as u32,
+            memory_total: 0,
+            cpu_count: std::thread::available_parallelism()
+                .map(|p| p.get() as u32)
+                .unwrap_or(4),
         }
     }
 }

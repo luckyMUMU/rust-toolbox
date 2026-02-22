@@ -3,8 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::types::{Tool, DockerTool, ToolInput, ToolOutput};
-use async_trait::async_trait;
+use crate::tools::types::{Tool, DockerTool};
 use bollard::container::{
     Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
     WaitContainerOptions,

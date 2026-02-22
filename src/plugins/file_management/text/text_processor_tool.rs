@@ -3,20 +3,16 @@
 //! This module provides a workflow tool for text processing operations including
 //! normalization, Chinese text processing, and pinyin conversion.
 
-use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::core::PluginInfo;
 use crate::plugins::file_management::core::error::FileManagementResult;
 use crate::plugins::file_management::utils::utils::{
     ChineseTextType, MixedTextResult, PinyinResult, PinyinStyle, TextNormalizationConfig,
     TextProcessor,
 };
-use crate::error::{Result, WorkflowError};
-use crate::tools::types::Tool;
-use async_trait::async_trait;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Text processing operations
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

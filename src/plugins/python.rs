@@ -3,8 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::types::{Tool, PythonTool, ToolInput, ToolOutput};
-use async_trait::async_trait;
+use crate::tools::types::Tool;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

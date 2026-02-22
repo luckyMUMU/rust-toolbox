@@ -7,7 +7,7 @@ use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
 use serde_json::Value;
 use std::process::Stdio;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tracing::{debug, error, info};
@@ -164,7 +164,7 @@ impl ExternalExecutor for DockerExecutor {
         let start = Instant::now();
         
         info!(
-            workflow_id = ?ctx.workflow_id(),
+            workflow_id = ?ctx.workflow_id,
             image = %self.docker_config.image,
             command = %command,
             "执行 Docker 容器"

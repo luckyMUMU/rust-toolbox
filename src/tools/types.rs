@@ -892,7 +892,7 @@ pub trait ToolOutputConvert: Sized {
 }
 
 /// Input schema for tool parameters
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InputSchema {
     /// Type name
     pub type_name: String,
@@ -903,7 +903,7 @@ pub struct InputSchema {
 }
 
 /// Output schema for tool results
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct OutputSchema {
     /// Type name
     pub type_name: String,

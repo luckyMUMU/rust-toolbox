@@ -86,20 +86,23 @@ impl Default for FileManagementPerformanceConfig {
     fn default() -> Self {
         Self {
             enable_memory_optimization: true,
-            memory_pool_size_mb: 256, // 256MB memory pool
+            memory_pool_size_mb: 256,
             enable_streaming: true,
-            io_buffer_size_kb: 64, // 64KB I/O buffer
+            io_buffer_size_kb: 64,
             enable_concurrent_operations: true,
-            max_concurrent_operations: num_cpus::get().max(4),
+            max_concurrent_operations: std::thread::available_parallelism()
+                .map(|p| p.get())
+                .unwrap_or(4)
+                .max(4),
             enable_caching: true,
-            cache_size_mb: 128,        // 128MB cache
-            cache_ttl_seconds: 300,    // 5 minutes
-            enable_compression: false, // Disabled by default for performance
-            compression_level: 6,      // Balanced compression
+            cache_size_mb: 128,
+            cache_ttl_seconds: 300,
+            enable_compression: false,
+            compression_level: 6,
             enable_lazy_loading: true,
             lazy_loading_batch_size: 100,
             enable_resource_monitoring: true,
-            memory_cleanup_threshold: 0.8, // 80%
+            memory_cleanup_threshold: 0.8,
             enable_metrics_collection: true,
         }
     }
@@ -108,7 +111,10 @@ impl Default for FileManagementPerformanceConfig {
 impl Default for FileManagementConfig {
     fn default() -> Self {
         Self {
-            max_threads: num_cpus::get().max(4),
+            max_threads: std::thread::available_parallelism()
+                .map(|p| p.get())
+                .unwrap_or(4)
+                .max(4),
             temp_directory: std::env::temp_dir().join("workflow-toolkit-file-mgmt"),
             default_encoding: "utf-8".to_string(),
             enable_chinese_processing: true,

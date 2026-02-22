@@ -338,18 +338,19 @@ impl ResourceLimiter {
     /// 获取资源使用报告
     pub fn report(&self) -> ResourceReport {
         let snapshot = self.usage.snapshot();
+        let snapshot_for_utilization = snapshot.clone();
         ResourceReport {
             limits: self.limits.clone(),
             usage: snapshot,
             utilization: ResourceUtilization {
                 memory_percent: if self.limits.max_memory > 0 {
-                    (snapshot.memory_used as f64 / self.limits.max_memory as f64) * 100.0
+                    (snapshot_for_utilization.memory_used as f64 / self.limits.max_memory as f64) * 100.0
                 } else {
                     0.0
                 },
                 fuel_percent: if let Some(max_fuel) = self.limits.max_fuel {
                     if max_fuel > 0 {
-                        (snapshot.fuel_used as f64 / max_fuel as f64) * 100.0
+                        (snapshot_for_utilization.fuel_used as f64 / max_fuel as f64) * 100.0
                     } else {
                         0.0
                     }
@@ -357,7 +358,7 @@ impl ResourceLimiter {
                     0.0
                 },
                 time_percent: if self.limits.max_execution_time.as_millis() > 0 {
-                    (snapshot.execution_time_ms as f64 / self.limits.max_execution_time.as_millis() as f64) * 100.0
+                    (snapshot_for_utilization.execution_time_ms as f64 / self.limits.max_execution_time.as_millis() as f64) * 100.0
                 } else {
                     0.0
                 },

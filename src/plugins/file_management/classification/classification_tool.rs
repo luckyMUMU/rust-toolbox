@@ -4,20 +4,16 @@
 //! and text processing with scoring algorithms and decision making.
 
 use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
-use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::file_management::core::error::{FileManagementError, FileManagementResult};
 use crate::plugins::file_management::ui::human_decision_tool::HumanDecisionResult;
 use crate::plugins::file_management::utils::utils::{
     HumanDecisionContext, HumanDecisionType, TextNormalizationConfig, TextProcessor,
 };
-// use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
-use async_trait::async_trait;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::path::Path;
 use tracing::{debug, info, warn};
 
 fn default_score_weight() -> f64 {

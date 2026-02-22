@@ -181,9 +181,9 @@ pub struct PluginProcessPool {
     /// 配置
     config: ProcessPoolConfig,
     /// 进程映射
-    processes: RwLock<HashMap<String, Arc<Mutex<ManagedProcess>>>>,
+    processes: Arc<RwLock<HashMap<String, Arc<Mutex<ManagedProcess>>>>>,
     /// 空闲进程队列
-    idle_queue: Mutex<Vec<String>>,
+    idle_queue: Arc<Mutex<Vec<String>>>,
     /// 并发控制信号量
     semaphore: Arc<Semaphore>,
     /// 统计信息
@@ -213,8 +213,8 @@ impl PluginProcessPool {
         let semaphore = Arc::new(Semaphore::new(config.max_processes));
         Self {
             config,
-            processes: RwLock::new(HashMap::new()),
-            idle_queue: Mutex::new(Vec::new()),
+            processes: Arc::new(RwLock::new(HashMap::new())),
+            idle_queue: Arc::new(Mutex::new(Vec::new())),
             semaphore,
             stats: PoolStatsInner::default(),
             shutdown: AtomicBool::new(false),
@@ -405,6 +405,7 @@ impl PluginProcessPool {
     async fn start_health_check_task(&self) {
         let processes = Arc::clone(&self.processes);
         let interval = self.config.health_check_interval;
+        let memory_limit = self.config.memory_limit;
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_clone = shutdown.clone();
         
@@ -418,15 +419,14 @@ impl PluginProcessPool {
                 for (name, process) in procs.iter() {
                     let p = process.lock().await;
                     
-                    if let ProcessState::Busy { started_at } = &p.info.state {
-                        if let Some(start) = started_at.parse::<Instant>().ok() {
-                            if start.elapsed() > Duration::from_secs(600) {
-                                warn!("进程 {} 执行超时", name);
-                            }
+                    if let ProcessState::Busy { task_id: _ } = &p.info.state {
+                        let elapsed = p.info.last_activity.elapsed();
+                        if elapsed > Duration::from_secs(600) {
+                            warn!("进程 {} 执行超时: {:?}", name, elapsed);
                         }
                     }
                     
-                    if p.info.resource_usage.memory_bytes > self.config.memory_limit.unwrap_or(u64::MAX) {
+                    if p.info.resource_usage.memory_bytes > memory_limit.unwrap_or(u64::MAX) {
                         warn!("进程 {} 内存超限: {} bytes", name, p.info.resource_usage.memory_bytes);
                     }
                 }
@@ -438,7 +438,8 @@ impl PluginProcessPool {
     async fn start_cleanup_task(&self) {
         let processes = Arc::clone(&self.processes);
         let idle_queue = Arc::clone(&self.idle_queue);
-        let config = self.config.clone();
+        let idle_timeout = self.config.idle_timeout;
+        let max_lifetime = self.config.max_lifetime;
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_clone = shutdown.clone();
         
@@ -453,7 +454,10 @@ impl PluginProcessPool {
                 
                 for (name, process) in procs.iter() {
                     let p = process.lock().await;
-                    if p.is_expired(&config) && p.info.state == ProcessState::Idle {
+                    let is_expired = p.info.created_at.elapsed() > max_lifetime
+                        || (p.info.state == ProcessState::Idle
+                            && p.info.last_activity.elapsed() > idle_timeout);
+                    if is_expired && p.info.state == ProcessState::Idle {
                         to_remove.push(name.clone());
                     }
                 }
@@ -526,9 +530,9 @@ impl PluginProcessPool {
     /// 获取进程信息
     pub async fn get_process_info(&self, name: &str) -> Option<ProcessInfo> {
         let processes = self.processes.read().await;
-        processes.get(name).map(|p| {
+        if let Some(p) = processes.get(name) {
             let process = p.lock().await;
-            ProcessInfo {
+            Some(ProcessInfo {
                 pid: process.info.pid,
                 state: process.info.state.clone(),
                 created_at: process.info.created_at,
@@ -536,8 +540,10 @@ impl PluginProcessPool {
                 tasks_executed: process.info.tasks_executed,
                 restart_count: process.info.restart_count,
                 resource_usage: process.info.resource_usage.clone(),
-            }
-        })
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -553,17 +559,10 @@ impl ProcessGuard<'_> {
     pub fn name(&self) -> &str {
         &self.process_name
     }
-}
 
-impl Drop for ProcessGuard<'_> {
-    fn drop(&mut self) {
-        let name = self.process_name.clone();
-        let pool = self.pool as *const PluginProcessPool;
-        
-        tokio::spawn(async move {
-            let pool = unsafe { &*pool };
-            pool.release_process(&name).await;
-        });
+    /// 手动释放进程
+    pub async fn release(self) {
+        self.pool.release_process(&self.process_name).await;
     }
 }
 

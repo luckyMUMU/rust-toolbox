@@ -4,7 +4,7 @@
 
 use std::future::Future;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 /// 错误分类
 #[derive(Clone, Debug, PartialEq)]

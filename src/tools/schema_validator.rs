@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Schema 验证配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,7 +179,7 @@ impl SchemaValidator {
 
     /// 将 InputSchema 转换为 JSON Schema Value
     fn input_schema_to_value(schema: &InputSchema) -> Value {
-        let mut properties = schema.properties.clone();
+        let properties = schema.properties.clone();
         
         let mut schema_value = serde_json::json!({
             "type": "object",
@@ -300,25 +300,10 @@ impl SchemaValidator {
 
     /// 转换 jsonschema 验证错误
     fn convert_validation_error(&self, error: &JsonValidationError) -> SchemaValidationError {
-        let path = error.instance_path().to_string();
+        let path = error.instance_path.to_string();
         let message = error.to_string();
         
         let error_type = match error {
-            JsonValidationError::Type { .. } => SchemaErrorType::TypeMismatch,
-            JsonValidationError::Required { .. } => SchemaErrorType::RequiredMissing,
-            JsonValidationError::Minimum { .. } | JsonValidationError::Maximum { .. } 
-            | JsonValidationError::ExclusiveMinimum { .. } | JsonValidationError::ExclusiveMaximum { .. } => {
-                SchemaErrorType::ValueOutOfRange
-            }
-            JsonValidationError::Pattern { .. } => SchemaErrorType::PatternMismatch,
-            JsonValidationError::MinLength { .. } | JsonValidationError::MaxLength { .. } => {
-                SchemaErrorType::LengthExceeded
-            }
-            JsonValidationError::Enum { .. } => SchemaErrorType::EnumMismatch,
-            JsonValidationError::AdditionalProperties { .. } => SchemaErrorType::AdditionalProperty,
-            JsonValidationError::Required { .. } => SchemaErrorType::RequiredMissing,
-            JsonValidationError::Dependencies { .. } => SchemaErrorType::DependencyMissing,
-            JsonValidationError::Format { .. } => SchemaErrorType::FormatError,
             _ => SchemaErrorType::Other,
         };
 
@@ -326,7 +311,7 @@ impl SchemaValidator {
             path: if path.is_empty() { "/".to_string() } else { path },
             message,
             error_type,
-            actual_value: Some(error.instance().clone()),
+            actual_value: Some(error.instance.clone().into_owned()),
             expected_value: None,
         }
     }

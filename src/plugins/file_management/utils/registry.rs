@@ -1,33 +1,30 @@
 //! Tool registration framework for file management plugin
 
-use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
+use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::file_management::classification::classification_flow::{
-    AmbiguityDetectorTool, AutomatonBuilderTool, DirectoryScannerTool, ExperimentalCheckTool,
-    FolderNamePreprocessorTool, ParallelMatcherTool, ReportGeneratorTool, ResultMergerTool,
-    RuleLoaderTool, RulePreprocessorTool, ScoreCalculatorTool,
+    FolderNamePreprocessorTool, RulePreprocessorTool,
 };
 use crate::plugins::file_management::classification::classification_tool::ClassificationTool;
 use crate::plugins::file_management::batch::batch_processor_tool::BatchProcessorTool;
 use crate::plugins::file_management::ui::{
     batch_confirmation_tool::BatchConfirmationTool,
-    human_decision_tool::create_human_decision_tool,
     result_confirmation_tool::ResultConfirmationTool,
     result_review_tool::ResultReviewTool,
 };
 use crate::plugins::file_management::plugin::FileManagementConfig;
+use crate::plugins::file_management::utils::utils::FolderMergerConfig;
 use crate::plugins::file_management::text::text_processor_tool::TextProcessorTool;
 use crate::plugins::file_management::utils::utils::{
-    ConflictResolution, DuplicateHandling, FileOperationManager, FileOperationType,
-    FolderMerger, FolderMergerConfig, MergeStrategy,
+    ConflictResolution, DuplicateHandling, FileOperationType,
+    MergeStrategy,
 };
 use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
 use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Registry for file management tools
 pub struct FileManagementToolRegistry {

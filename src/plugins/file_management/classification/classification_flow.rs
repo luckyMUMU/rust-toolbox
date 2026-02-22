@@ -3,19 +3,11 @@
 //! This module implements specific single-function tools for the 13-step
 //! folder classification workflow.
 
-use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig};
-use super::classification_tool::ClassificationRules;
-use crate::core::{ExecutionContext, ToolInfo};
-use crate::error::{Result, WorkflowError};
+use crate::core::ToolInfo;
 use crate::plugins::file_management::utils::utils::{TextNormalizationConfig, TextProcessor};
-// use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
-use async_trait::async_trait;
 use chrono::Utc;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use tracing::info;
 
 // Helper to create ToolInfo
 fn create_tool_info(name: &str, description: &str) -> ToolInfo {

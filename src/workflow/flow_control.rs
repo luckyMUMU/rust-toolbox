@@ -2,7 +2,6 @@
 //!
 //! 实现 Switch 和 Loop 节点的执行逻辑
 
-use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
 use crate::workflow::context::DataContext;
 use crate::workflow::el_expression::{ExpressionContext, ExpressionEngine};
@@ -10,7 +9,6 @@ use crate::workflow::flow_node::FlowNode;
 use crate::workflow::state::ExecutionTracker;
 use serde_json::Value;
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, info, warn};
 
 /// 最大循环迭代次数
@@ -44,15 +42,18 @@ impl FlowControlExecutor {
     /// 执行 Switch 节点
     ///
     /// 根据条件表达式选择执行分支
-    pub async fn execute_switch(
+    pub async fn execute_switch<F>(
         &self,
         condition: &str,
         cases: &[(String, FlowNode)],
         default: &FlowNode,
         context: &mut DataContext,
         tracker: Arc<ExecutionTracker>,
-        execute_fn: impl Fn(&FlowNode, &mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'_, Result<()>> + Send + Sync + 'static,
-    ) -> Result<()> {
+        execute_fn: F,
+    ) -> Result<()>
+    where
+        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + 'static,
+    {
         info!(
             condition = %condition,
             case_count = cases.len(),
@@ -94,14 +95,17 @@ impl FlowControlExecutor {
     /// 执行 Loop 节点
     ///
     /// 根据条件循环执行节点体
-    pub async fn execute_loop(
+    pub async fn execute_loop<F>(
         &self,
         condition: &str,
         body: &FlowNode,
         context: &mut DataContext,
         tracker: Arc<ExecutionTracker>,
-        execute_fn: impl Fn(&FlowNode, &mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'_, Result<()>> + Send + Sync + Clone + 'static,
-    ) -> Result<()> {
+        execute_fn: F,
+    ) -> Result<()>
+    where
+        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + Clone + 'static,
+    {
         info!(
             condition = %condition,
             max_iterations = self.max_iterations,
@@ -156,7 +160,7 @@ impl FlowControlExecutor {
     /// 执行 ForEach 循环
     ///
     /// 遍历数组执行节点体
-    pub async fn execute_foreach(
+    pub async fn execute_foreach<F>(
         &self,
         items_expr: &str,
         item_var: &str,
@@ -164,8 +168,11 @@ impl FlowControlExecutor {
         body: &FlowNode,
         context: &mut DataContext,
         tracker: Arc<ExecutionTracker>,
-        execute_fn: impl Fn(&FlowNode, &mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'_, Result<()>> + Send + Sync + Clone + 'static,
-    ) -> Result<()> {
+        execute_fn: F,
+    ) -> Result<()>
+    where
+        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + Clone + 'static,
+    {
         info!(
             items_expr = %items_expr,
             item_var = %item_var,
@@ -190,6 +197,8 @@ impl FlowControlExecutor {
             "ForEach 开始遍历"
         );
 
+        let total_items = items_array.len();
+
         for (index, item) in items_array.into_iter().enumerate() {
             if index as u32 >= self.max_iterations {
                 warn!(
@@ -203,10 +212,10 @@ impl FlowControlExecutor {
                 )));
             }
 
-            context.set(item_var, item.clone());
+            context.set_global(item_var, item.clone())?;
             
             if let Some(idx_var) = index_var {
-                context.set(idx_var, Value::Number(index as i64.into()));
+                context.set_global(idx_var, Value::Number((index as i64).into()))?;
             }
 
             debug!(
@@ -219,7 +228,7 @@ impl FlowControlExecutor {
         }
 
         info!(
-            total_iterations = items_array.len(),
+            total_iterations = total_items,
             "ForEach 执行完成"
         );
 
@@ -229,14 +238,17 @@ impl FlowControlExecutor {
     /// 执行 While 循环
     ///
     /// 当条件为真时持续执行
-    pub async fn execute_while(
+    pub async fn execute_while<F>(
         &self,
         condition: &str,
         body: &FlowNode,
         context: &mut DataContext,
         tracker: Arc<ExecutionTracker>,
-        execute_fn: impl Fn(&FlowNode, &mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'_, Result<()>> + Send + Sync + Clone + 'static,
-    ) -> Result<()> {
+        execute_fn: F,
+    ) -> Result<()>
+    where
+        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + Clone + 'static,
+    {
         self.execute_loop(condition, body, context, tracker, execute_fn).await
     }
 

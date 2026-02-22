@@ -4,14 +4,14 @@
 
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
-use crate::tools::types::{Tool, ToolInput, ToolOutput};
+use crate::tools::types::{Tool, ToolInput};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 /// 组合执行策略
 #[derive(Debug, Clone, Serialize, Deserialize)]

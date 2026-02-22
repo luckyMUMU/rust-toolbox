@@ -1,12 +1,12 @@
 //! Plugin integration utilities for workflow-toolkit
 
 use crate::core::PluginInfo;
-use crate::error::{Result, WorkflowError};
+use crate::error::Result;
 use crate::plugins::manager::PluginManager;
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
 use crate::tools::registry::ToolRegistry;
 use crate::tools::types::{Tool, ToolId};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tracing::info;
 
 /// Integrated plugin and tool management system
@@ -15,13 +15,13 @@ use tracing::info;
 /// workflow-toolkit tool registry, satisfying requirements 7.1 and 7.2.
 pub struct IntegratedPluginSystem {
     plugin_manager: PluginManager,
-    tool_registry: Arc<RwLock<ToolRegistry>>,
+    tool_registry: Arc<ToolRegistry>,
 }
 
 impl IntegratedPluginSystem {
     /// Create a new integrated plugin system
     pub fn new() -> Self {
-        let tool_registry = Arc::new(RwLock::new(ToolRegistry::new()));
+        let tool_registry = Arc::new(ToolRegistry::new());
         let plugin_manager = PluginManager::with_tool_registry(tool_registry.clone());
 
         Self {
@@ -31,7 +31,7 @@ impl IntegratedPluginSystem {
     }
 
     /// Create a new integrated plugin system with existing tool registry
-    pub fn with_tool_registry(tool_registry: Arc<RwLock<ToolRegistry>>) -> Self {
+    pub fn with_tool_registry(tool_registry: Arc<ToolRegistry>) -> Self {
         let plugin_manager = PluginManager::with_tool_registry(tool_registry.clone());
 
         Self {
@@ -79,111 +79,47 @@ impl IntegratedPluginSystem {
     }
 
     /// Get the tool registry
-    pub fn tool_registry(&self) -> Arc<RwLock<ToolRegistry>> {
+    pub fn tool_registry(&self) -> Arc<ToolRegistry> {
         self.tool_registry.clone()
     }
 
     /// List all available tools (from all plugins and direct registrations)
     pub fn list_all_tools(&self) -> Result<Vec<crate::core::ToolInfo>> {
-        let registry = self
-            .tool_registry
-            .read()
-            .map_err(|_| WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire read lock on tool registry".to_string(),
-            })?;
-
-        Ok(registry.list_tools())
-    }
-
-    /// Execute a tool by name (satisfies requirement 7.2 - standard parameter system)
-    pub async fn execute_tool(
-        &self,
-        name: &str,
-        params: serde_json::Value,
-        context: crate::core::ExecutionContext,
-    ) -> Result<serde_json::Value> {
-        // Get tool first to avoid holding lock across await
-        let tool = {
-            let registry = self
-                .tool_registry
-                .read()
-                .map_err(|_| WorkflowError::ConcurrentAccess {
-                    message: "Failed to acquire read lock on tool registry".to_string(),
-                })?;
-            
-            registry.get_tool(name).ok_or_else(|| WorkflowError::NotFound {
-                resource: format!("tool '{}'", name),
-            })?
-        };
-
-        let input = crate::tools::types::ToolInput::new(params);
-        let output = tool.execute(input, context).await?;
-        Ok(output.result)
+        Ok(self.tool_registry.list_tools())
     }
 
     /// Validate tool parameters (satisfies requirement 7.2 - standard parameter system)
     pub fn validate_tool_params(&self, name: &str, params: &serde_json::Value) -> Result<()> {
-        let registry = self
-            .tool_registry
-            .read()
-            .map_err(|_| WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire read lock on tool registry".to_string(),
-            })?;
-
-        registry.validate_tool_params(name, params)
+        self.tool_registry.validate_tool_params(name, params)
     }
 
     /// Get plugin status
     pub fn get_plugin_status(&self, name: &str) -> Result<Option<PluginStatus>> {
-        self.plugin_manager.get_plugin_status(name)
+        Ok(self.plugin_manager.get_plugin_status(name))
     }
 
     /// List all loaded plugins
     pub fn list_plugins(&self) -> Result<Vec<PluginInfo>> {
-        self.plugin_manager.list_plugins()
+        Ok(self.plugin_manager.list_plugins())
     }
 
     /// Get tool count from the integrated registry
     pub fn tool_count(&self) -> Result<usize> {
-        let registry = self
-            .tool_registry
-            .read()
-            .map_err(|_| WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire read lock on tool registry".to_string(),
-            })?;
-
-        Ok(registry.tool_count())
+        Ok(self.tool_registry.tool_count())
     }
 
     /// Check if a tool exists in the integrated registry
     pub fn has_tool(&self, name: &str) -> Result<bool> {
-        let registry = self
-            .tool_registry
-            .read()
-            .map_err(|_| WorkflowError::ConcurrentAccess {
-                message: "Failed to acquire read lock on tool registry".to_string(),
-            })?;
-
-        Ok(registry.has_tool(name))
+        Ok(self.tool_registry.has_tool(name))
     }
 
     /// Shutdown all plugins and clear the tool registry
     pub fn shutdown_all(&mut self) -> Result<()> {
         info!("Shutting down integrated plugin system");
 
-        // Shutdown all plugins (this will unregister their tools)
         self.plugin_manager.shutdown_all()?;
 
-        // Clear any remaining tools from the registry
-        {
-            let mut registry =
-                self.tool_registry
-                    .write()
-                    .map_err(|_| WorkflowError::ConcurrentAccess {
-                        message: "Failed to acquire write lock on tool registry".to_string(),
-                    })?;
-            registry.clear();
-        }
+        self.tool_registry.clear();
 
         info!("Integrated plugin system shut down successfully");
         Ok(())
@@ -191,27 +127,13 @@ impl IntegratedPluginSystem {
 
     /// Register a tool directly with the tool registry (for non-plugin tools)
     pub fn register_tool(&mut self, name: &str, tool: Tool) -> Result<ToolId> {
-        let registry =
-            self.tool_registry
-                .write()
-                .map_err(|_| WorkflowError::ConcurrentAccess {
-                    message: "Failed to acquire write lock on tool registry".to_string(),
-                })?;
-
-        let id = registry.register(name, tool);
+        let id = self.tool_registry.register(name, tool);
         Ok(id)
     }
 
     /// Unregister a tool directly from the tool registry
     pub fn unregister_tool(&mut self, name: &str) -> Result<Option<Tool>> {
-        let registry =
-            self.tool_registry
-                .write()
-                .map_err(|_| WorkflowError::ConcurrentAccess {
-                    message: "Failed to acquire write lock on tool registry".to_string(),
-                })?;
-
-        Ok(registry.remove(name))
+        Ok(self.tool_registry.remove(name))
     }
 }
 
@@ -233,7 +155,7 @@ impl IntegratedPluginSystemBuilder {
         }
     }
 
-    pub fn with_tool_registry(tool_registry: Arc<RwLock<ToolRegistry>>) -> Self {
+    pub fn with_tool_registry(tool_registry: Arc<ToolRegistry>) -> Self {
         Self {
             system: IntegratedPluginSystem::with_tool_registry(tool_registry),
         }

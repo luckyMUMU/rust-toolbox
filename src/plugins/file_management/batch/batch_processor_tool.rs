@@ -11,7 +11,7 @@ use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
 use crate::plugins::file_management::plugin::FileManagementConfig;
 use crate::error::{Result, WorkflowError};
 use crate::performance::concurrency::ConcurrencyManager;
-use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
+use crate::tools::types::{Tool, NativeToolBuilder, ToolOutput};
 use crate::tools::registry::ToolRegistry;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -433,11 +433,16 @@ impl BatchProcessorExecutor {
     /// Convert parameters to batch processor configuration
     fn create_batch_config(&self, params: &BatchProcessorParams) -> BatchProcessorConfig {
         BatchProcessorConfig {
-            max_concurrency: params.max_concurrency.unwrap_or(num_cpus::get().max(4)),
+            max_concurrency: params.max_concurrency.unwrap_or_else(|| {
+                std::thread::available_parallelism()
+                    .map(|p| p.get())
+                    .unwrap_or(4)
+                    .max(4)
+            }),
             continue_on_error: params.continue_on_error.unwrap_or(true),
             item_timeout: params.item_timeout_seconds.map(Duration::from_secs),
             progress_interval: Duration::from_secs(params.progress_interval_seconds.unwrap_or(5)),
-            max_batch_size: 10000, // Hard limit for safety
+            max_batch_size: 10000,
             enable_progress_tracking: params.enable_progress_tracking.unwrap_or(true),
             retry_failed_items: params.retry_failed_items.unwrap_or(false),
             max_retries: params.max_retries.unwrap_or(2),

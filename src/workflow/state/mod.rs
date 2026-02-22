@@ -226,6 +226,11 @@ impl ExecutionTracker {
         self.node_states.get(node_id).map(|s| s.clone())
     }
 
+    /// Set the state of a specific node
+    pub fn set_node_state(&self, node_id: &str, state: NodeExecutionState) {
+        self.node_states.insert(node_id.to_string(), state);
+    }
+
     /// Get all node states
     pub fn get_all_node_states(&self) -> std::collections::HashMap<String, NodeExecutionState> {
         self.node_states

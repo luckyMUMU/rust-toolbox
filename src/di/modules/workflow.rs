@@ -3,11 +3,68 @@
 //! 注册工作流引擎及相关服务
 
 use crate::di::{AppModule, DiContainer};
+use crate::storage::backends::SimpleMemoryCache;
 use crate::storage::StateManager;
 use crate::tools::registry::ToolRegistry;
 use crate::workflow::engine::RefactoredWorkflowEngine;
 use crate::workflow::AuditLogger;
 use std::sync::Arc;
+
+/// 内存存储后端（用于 DI 模块）
+struct InMemoryStorage {
+    data: std::sync::RwLock<std::collections::HashMap<String, Vec<u8>>>,
+}
+
+impl InMemoryStorage {
+    fn new() -> Self {
+        Self {
+            data: std::sync::RwLock::new(std::collections::HashMap::new()),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::storage::StorageBackend for InMemoryStorage {
+    async fn save(&self, key: &str, value: &[u8]) -> crate::error::Result<()> {
+        let mut data = self.data.write().unwrap();
+        data.insert(key.to_string(), value.to_vec());
+        Ok(())
+    }
+
+    async fn load(&self, key: &str) -> crate::error::Result<Option<Vec<u8>>> {
+        let data = self.data.read().unwrap();
+        Ok(data.get(key).cloned())
+    }
+
+    async fn delete(&self, key: &str) -> crate::error::Result<()> {
+        let mut data = self.data.write().unwrap();
+        data.remove(key);
+        Ok(())
+    }
+
+    async fn exists(&self, key: &str) -> crate::error::Result<bool> {
+        let data = self.data.read().unwrap();
+        Ok(data.contains_key(key))
+    }
+
+    async fn list_keys(&self, prefix: &str) -> crate::error::Result<Vec<String>> {
+        let data = self.data.read().unwrap();
+        Ok(data.keys().filter(|k| k.starts_with(prefix)).cloned().collect())
+    }
+
+    async fn batch_save(&self, items: Vec<(String, Vec<u8>)>) -> crate::error::Result<()> {
+        let mut data = self.data.write().unwrap();
+        for (key, value) in items {
+            data.insert(key, value);
+        }
+        Ok(())
+    }
+
+    async fn batch_load(&self, keys: Vec<String>) -> crate::error::Result<Vec<Option<Vec<u8>>>> {
+        let data = self.data.read().unwrap();
+        Ok(keys.iter().map(|k| data.get(k).cloned()).collect())
+    }
+}
 
 /// 工作流模块
 ///
@@ -45,13 +102,11 @@ impl AppModule for WorkflowModule {
     fn configure(&self, container: &DiContainer) {
         let max_parallel = self.max_parallel_workflows;
         
-        container.register_factory::<dyn WorkflowEngineService, _>(move || {
-            let state_manager = container
-                .resolve::<dyn StateManagerService>()
-                .expect("StateManager not registered");
-            let tool_registry = container
-                .resolve::<dyn ToolRegistryService>()
-                .expect("ToolRegistry not registered");
+        container.register_factory::<WorkflowEngineServiceImpl, _>(move || {
+            let storage = Arc::new(InMemoryStorage::new());
+            let cache = Arc::new(SimpleMemoryCache::new());
+            let state_manager = Arc::new(StateManager::new(storage, cache));
+            let tool_registry = Arc::new(ToolRegistry::new());
             
             let engine = RefactoredWorkflowEngine::new(
                 state_manager,
@@ -62,10 +117,10 @@ impl AppModule for WorkflowModule {
             Arc::new(WorkflowEngineServiceImpl::new(engine))
         });
         
-        container.register_factory::<dyn AuditLogService, _>(|| {
-            let state_manager = container
-                .resolve::<dyn StateManagerService>()
-                .expect("StateManager not registered");
+        container.register_factory::<AuditLogServiceImpl, _>(|| {
+            let storage = Arc::new(InMemoryStorage::new());
+            let cache = Arc::new(SimpleMemoryCache::new());
+            let state_manager = Arc::new(StateManager::new(storage, cache));
             let logger = AuditLogger::new(state_manager, false, 30);
             Arc::new(AuditLogServiceImpl::new(logger))
         });

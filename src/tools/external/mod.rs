@@ -11,7 +11,7 @@ pub mod docker;
 
 pub use python::PythonExecutor;
 pub use nodejs::NodeJsExecutor;
-pub use docker::DockerExecutor;
+pub use docker::{DockerExecutor, DockerExecutorConfig, DockerMount};
 
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
@@ -113,7 +113,7 @@ pub trait ExternalExecutor: Send + Sync {
 }
 
 /// 执行器类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExecutorType {
     Python,
     NodeJs,

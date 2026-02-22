@@ -5,10 +5,9 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use tracing::{debug, info};
 
 /// 指标类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

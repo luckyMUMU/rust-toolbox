@@ -10,7 +10,7 @@ use crate::tools::{
     Tool, ToolInput, ToolOutput, ToolRegistry,
 };
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 /// 工具执行器配置
@@ -58,7 +58,7 @@ pub struct ToolExecutor {
     /// 外部执行器工厂
     executor_factory: ExecutorFactory,
     /// 外部执行器缓存
-    external_executors: HashMap<ExecutorType, Box<dyn ExternalExecutor>>,
+    external_executors: RwLock<HashMap<ExecutorType, Arc<dyn ExternalExecutor>>>,
     /// 配置
     config: ToolExecutorConfig,
 }
@@ -70,7 +70,7 @@ impl ToolExecutor {
             registry,
             middleware_stack: MiddlewareStack::new(),
             executor_factory: ExecutorFactory::default(),
-            external_executors: HashMap::new(),
+            external_executors: RwLock::new(HashMap::new()),
             config: ToolExecutorConfig::default(),
         }
     }
@@ -81,7 +81,7 @@ impl ToolExecutor {
             registry,
             middleware_stack: MiddlewareStack::new(),
             executor_factory: ExecutorFactory::default(),
-            external_executors: HashMap::new(),
+            external_executors: RwLock::new(HashMap::new()),
             config,
         }
     }
@@ -89,7 +89,7 @@ impl ToolExecutor {
     /// 添加中间件
     pub fn with_middleware<M: Middleware + 'static>(mut self, middleware: M) -> Self {
         self.middleware_stack = MiddlewareStackBuilder::new()
-            .with(middleware)
+            .with_boxed(middleware)
             .build();
         self
     }
@@ -99,30 +99,28 @@ impl ToolExecutor {
         let mut builder = MiddlewareStackBuilder::new();
         
         if self.config.enable_metrics {
-            builder = builder.with(crate::tools::MetricsMiddleware::new());
+            builder = builder.with_boxed(crate::tools::MetricsMiddleware::new());
         }
         
         if self.config.enable_circuit_breaker {
-            builder = builder.with(crate::tools::CircuitBreakerMiddleware::new(
+            builder = builder.with_boxed(crate::tools::CircuitBreakerMiddleware::new(
                 self.config.circuit_breaker_threshold,
                 Duration::from_secs(60),
             ));
         }
         
         builder = builder
-            .with(crate::tools::TimeoutMiddleware::new(self.config.default_timeout))
-            .with(crate::tools::RetryMiddleware::new(
-                self.config.max_retries,
-                self.config.retry_delay,
-            ));
+            .with_boxed(crate::tools::TimeoutMiddleware::new(self.config.default_timeout))
+            .with_boxed(crate::tools::RetryMiddleware::new(self.config.max_retries)
+                .with_delay(self.config.retry_delay));
         
         if self.config.enable_cache {
-            builder = builder.with(crate::tools::CacheMiddleware::new(
+            builder = builder.with_boxed(crate::tools::CacheMiddleware::new(
                 self.config.cache_ttl,
             ));
         }
         
-        builder = builder.with(crate::tools::LoggingMiddleware::new());
+        builder = builder.with_boxed(crate::tools::LoggingMiddleware::new());
         
         self.middleware_stack = builder.build();
         self
@@ -149,26 +147,12 @@ impl ToolExecutor {
         input: ToolInput,
         ctx: ExecutionContext,
     ) -> Result<ToolOutput> {
-        let context = crate::tools::MiddlewareContext {
-            tool_name: tool.name().to_string(),
-            tool_kind: tool.kind(),
-            input: input.clone(),
-            execution_context: ctx.clone(),
-        };
+        let metadata = crate::tools::ExecutionMetadata::new(
+            &tool.name(),
+            "1.0.0",
+        );
         
-        let tool_clone = tool.clone();
-        let input_clone = input.clone();
-        let ctx_clone = ctx.clone();
-        
-        self.middleware_stack.execute(context, move || {
-            let tool = tool_clone;
-            let input = input_clone;
-            let ctx = ctx_clone;
-            
-            async move {
-                tool.execute(input, ctx).await
-            }
-        }).await
+        self.middleware_stack.execute(input, metadata, &tool).await
     }
 
     /// 执行外部工具
@@ -180,44 +164,37 @@ impl ToolExecutor {
         input: Option<serde_json::Value>,
         ctx: &ExecutionContext,
     ) -> Result<ExecutionResult> {
-        let executor = self.get_executor(executor_type)?;
+        let executor = self.get_or_create_executor(executor_type)?;
         executor.execute(command, args, input, ctx).await
     }
 
-    /// 获取外部执行器
-    fn get_executor(&self, executor_type: ExecutorType) -> Result<&dyn ExternalExecutor> {
-        Ok(match executor_type {
-            ExecutorType::Python => {
-                self.external_executors
-                    .entry(ExecutorType::Python)
-                    .or_insert_with(|| {
-                        Box::new(crate::tools::PythonExecutor::new(
-                            crate::tools::ExternalExecutorConfig::default(),
-                        ))
-                    })
-                    .as_ref()
+    /// 获取或创建外部执行器
+    fn get_or_create_executor(&self, executor_type: ExecutorType) -> Result<Arc<dyn ExternalExecutor>> {
+        {
+            let executors = self.external_executors.read().unwrap();
+            if let Some(executor) = executors.get(&executor_type) {
+                return Ok(Arc::clone(executor));
             }
-            ExecutorType::NodeJs => {
-                self.external_executors
-                    .entry(ExecutorType::NodeJs)
-                    .or_insert_with(|| {
-                        Box::new(crate::tools::NodeJsExecutor::new(
-                            crate::tools::ExternalExecutorConfig::default(),
-                        ))
-                    })
-                    .as_ref()
-            }
-            ExecutorType::Docker => {
-                self.external_executors
-                    .entry(ExecutorType::Docker)
-                    .or_insert_with(|| {
-                        Box::new(crate::tools::DockerExecutor::new(
-                            crate::tools::ExternalExecutorConfig::default(),
-                        ))
-                    })
-                    .as_ref()
-            }
-        })
+        }
+        
+        let executor: Arc<dyn ExternalExecutor> = match executor_type {
+            ExecutorType::Python => Arc::new(crate::tools::PythonExecutor::new(
+                crate::tools::ExternalExecutorConfig::default(),
+            )),
+            ExecutorType::NodeJs => Arc::new(crate::tools::NodeJsExecutor::new(
+                crate::tools::ExternalExecutorConfig::default(),
+            )),
+            ExecutorType::Docker => Arc::new(crate::tools::DockerExecutor::new(
+                crate::tools::ExternalExecutorConfig::default(),
+            )),
+        };
+        
+        {
+            let mut executors = self.external_executors.write().unwrap();
+            executors.insert(executor_type, Arc::clone(&executor));
+        }
+        
+        Ok(executor)
     }
 
     /// 批量执行工具
@@ -240,7 +217,7 @@ impl ToolExecutor {
     ) -> Vec<Result<ToolOutput>> {
         let futures: Vec<_> = tasks
             .into_iter()
-            .map(|(name, input, ctx)| {
+            .map(|(name, input, _ctx)| {
                 let registry = self.registry.clone();
                 let middleware = self.middleware_stack.clone();
                 
@@ -249,26 +226,12 @@ impl ToolExecutor {
                         .get(name)
                         .ok_or_else(|| WorkflowError::tool_not_found(name))?;
                     
-                    let context = crate::tools::MiddlewareContext {
-                        tool_name: tool.name().to_string(),
-                        tool_kind: tool.kind(),
-                        input: input.clone(),
-                        execution_context: ctx.clone(),
-                    };
+                    let metadata = crate::tools::ExecutionMetadata::new(
+                        &tool.name(),
+                        "1.0.0",
+                    );
                     
-                    let tool_clone = tool.clone();
-                    let input_clone = input.clone();
-                    let ctx_clone = ctx.clone();
-                    
-                    middleware.execute(context, move || {
-                        let tool = tool_clone;
-                        let input = input_clone;
-                        let ctx = ctx_clone;
-                        
-                        async move {
-                            tool.execute(input, ctx).await
-                        }
-                    }).await
+                    middleware.execute(input, metadata, &tool).await
                 }
             })
             .collect();
@@ -296,7 +259,7 @@ impl ToolExecutor {
 pub struct ToolExecutorBuilder {
     registry: Arc<ToolRegistry>,
     config: ToolExecutorConfig,
-    middlewares: Vec<Box<dyn Middleware>>,
+    middlewares: Vec<Arc<dyn Middleware>>,
 }
 
 impl ToolExecutorBuilder {
@@ -317,7 +280,7 @@ impl ToolExecutorBuilder {
 
     /// 添加中间件
     pub fn with_middleware<M: Middleware + 'static>(mut self, middleware: M) -> Self {
-        self.middlewares.push(Box::new(middleware));
+        self.middlewares.push(Arc::new(middleware));
         self
     }
 
@@ -326,14 +289,14 @@ impl ToolExecutorBuilder {
         let mut builder = MiddlewareStackBuilder::new();
         
         for middleware in self.middlewares {
-            builder = builder.with_boxed(middleware);
+            builder = builder.with(middleware);
         }
         
         ToolExecutor {
             registry: self.registry,
             middleware_stack: builder.build(),
             executor_factory: ExecutorFactory::default(),
-            external_executors: HashMap::new(),
+            external_executors: RwLock::new(HashMap::new()),
             config: self.config,
         }
     }

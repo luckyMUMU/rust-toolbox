@@ -21,8 +21,8 @@
 //! ```
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Lit, Meta, Token};
+use quote::quote;
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Lit, Token};
 
 /// Derive macro for ToolInput trait
 ///

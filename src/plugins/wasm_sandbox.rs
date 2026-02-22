@@ -5,7 +5,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 /// 沙箱安全级别
@@ -332,7 +331,7 @@ impl WasmSandbox {
         let allowed = self.config.filesystem.read_paths.iter().any(|p| path.starts_with(p));
         
         if self.config.enable_audit_log {
-            self.log_audit(AuditEventType::FileRead, path.to_string_lossy().to_string(), "read", allowed, None);
+            self.log_audit(AuditEventType::FileRead, path.to_string_lossy().to_string(), "read".to_string(), allowed, None);
         }
 
         if !allowed {
@@ -347,7 +346,7 @@ impl WasmSandbox {
         let allowed = self.config.filesystem.write_paths.iter().any(|p| path.starts_with(p));
         
         if self.config.enable_audit_log {
-            self.log_audit(AuditEventType::FileWrite, path.to_string_lossy().to_string(), "write", allowed, None);
+            self.log_audit(AuditEventType::FileWrite, path.to_string_lossy().to_string(), "write".to_string(), allowed, None);
         }
 
         if !allowed {
@@ -360,7 +359,7 @@ impl WasmSandbox {
     /// 检查网络连接权限
     pub fn check_network_connect(&mut self, host: &str, port: u16) -> bool {
         if !self.config.network.enabled {
-            self.log_audit(AuditEventType::NetworkConnect, format!("{}:{}", host, port), "connect", false, Some("网络访问已禁用".to_string()));
+            self.log_audit(AuditEventType::NetworkConnect, format!("{}:{}", host, port), "connect".to_string(), false, Some("网络访问已禁用".to_string()));
             return false;
         }
 
@@ -375,7 +374,7 @@ impl WasmSandbox {
             self.log_audit(
                 AuditEventType::NetworkConnect, 
                 format!("{}:{}", host, port), 
-                "connect", 
+                "connect".to_string(), 
                 allowed, 
                 if !allowed { Some("主机或端口不在白名单中".to_string()) } else { None }
             );
@@ -393,7 +392,7 @@ impl WasmSandbox {
         let allowed = self.config.allowed_env_vars.contains(var_name);
         
         if self.config.enable_audit_log {
-            self.log_audit(AuditEventType::EnvAccess, var_name.to_string(), "access", allowed, None);
+            self.log_audit(AuditEventType::EnvAccess, var_name.to_string(), "access".to_string(), allowed, None);
         }
 
         allowed

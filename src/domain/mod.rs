@@ -11,7 +11,7 @@ pub use event::{
     EventId, EventMetadata, EventStore, EventSubscriber, InMemoryEventStore, SubscriptionId,
 };
 pub use service::{
-    DomainWorkflowValidator, ExecutionStateCalculator, ExecutionStateResult,
-    NodeStateStats, ProgressDetails, ValidationError, ValidationResult, ValidationRule,
+    DomainWorkflowValidator, DomainValidationResult, ExecutionStateCalculator, ExecutionStateResult,
+    NodeStateStats, ProgressDetails, ValidationError, ValidationRule,
     ValidationWarning,
 };

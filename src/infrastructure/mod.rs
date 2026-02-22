@@ -2,10 +2,8 @@
 
 pub mod persistence;
 pub mod plugin;
-pub mod cache;
 pub mod external;
 pub mod config;
 
 pub use persistence::*;
 pub use plugin::*;
-pub use cache::*;

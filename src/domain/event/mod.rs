@@ -6,4 +6,4 @@ pub mod events;
 pub mod bus;
 
 pub use events::{DomainEvent, DomainEventTrait, EventId, EventMetadata};
-pub use bus::{DomainEventBus, EventSubscriber, SubscriptionId};
+pub use bus::{DomainEventBus, EventSubscriber, SubscriptionId, EventBusConfig, EventBusStats, EventStore, InMemoryEventStore};

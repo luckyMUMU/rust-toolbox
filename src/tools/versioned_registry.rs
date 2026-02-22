@@ -2,7 +2,6 @@
 //!
 //! 提供多版本工具的注册和管理能力
 
-use crate::core::ToolInfo;
 use crate::error::{Result, WorkflowError};
 use crate::tools::{
     DependencyResolver, ResolutionResult, Tool, ToolId, ToolMetadata,
@@ -11,7 +10,7 @@ use crate::tools::{
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::info;
 
 /// 版本化工具注册表
 ///
@@ -104,12 +103,12 @@ impl VersionedToolRegistry {
     pub fn unregister(&self, name: &str, version: &Version) -> Option<Tool> {
         let removed = self.tools
             .get_mut(name)
-            .and_then(|versions| versions.remove(version));
+            .and_then(|mut versions| versions.remove(version));
         
         if removed.is_some() {
             self.metadata_cache
                 .get_mut(name)
-                .and_then(|cache| cache.remove(version));
+                .and_then(|mut cache| cache.remove(version));
             
             if let Some(default) = self.default_versions.get(name) {
                 if default.value() == version {
@@ -154,9 +153,9 @@ impl VersionedToolRegistry {
     ) -> Option<Tool> {
         let versions = self.tools.get(name)?;
         
-        let version = match strategy {
+        let version: Version = match strategy {
             VersionSelectionStrategy::Latest => {
-                versions.keys().max()?
+                versions.keys().max()?.clone()
             }
             VersionSelectionStrategy::Default => {
                 self.default_versions.get(name)?.value().clone()
@@ -165,9 +164,9 @@ impl VersionedToolRegistry {
                 if let Some(req) = requirement {
                     versions.keys()
                         .filter(|v| v.satisfies(req))
-                        .max()?
+                        .max()?.clone()
                 } else {
-                    versions.keys().max()?
+                    versions.keys().max()?.clone()
                 }
             }
             VersionSelectionStrategy::Explicit => {
@@ -352,7 +351,7 @@ impl VersionedToolRegistryBuilder {
     }
 
     /// 设置默认版本
-    pub fn set_default(mut self, name: &str, version: &Version) -> Self {
+    pub fn set_default(self, name: &str, version: &Version) -> Self {
         let _ = self.registry.set_default_version(name, version);
         self
     }

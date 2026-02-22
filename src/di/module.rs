@@ -123,7 +123,7 @@ impl ModuleRegistrar {
 
     /// 拓扑排序模块
     fn topological_sort(&self) -> Result<Vec<&str>, ModuleError> {
-        use std::collections::{HashMap, HashSet, VecDeque};
+        use std::collections::{HashMap, VecDeque};
         
         let mut in_degree: HashMap<&str, usize> = HashMap::new();
         let mut graph: HashMap<&str, Vec<&str>> = HashMap::new();

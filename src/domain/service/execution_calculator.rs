@@ -3,7 +3,6 @@
 //! 计算工作流和节点的执行状态
 
 use crate::core::ExecutionStatus;
-use crate::domain::model::workflow::Workflow;
 use crate::workflow::execution::NodeExecutionState;
 use crate::workflow::state::ExecutionStats;
 use chrono::{DateTime, Utc};

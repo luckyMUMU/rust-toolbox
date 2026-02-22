@@ -415,12 +415,11 @@ impl CliApp {
 
                 // Also include tools from plugins
                 if let Some(plugin_manager) = &self.plugin_manager {
-                    if let Ok(plugin_tools) = plugin_manager.get_all_tools() {
-                        for tool in plugin_tools {
-                            // Convert plugin tool to ToolInfo
-                            let tool_info = tool.get_info();
-                            tools.push(tool_info);
-                        }
+                    let plugin_tools = plugin_manager.get_all_tools();
+                    for tool in plugin_tools {
+                        // Convert plugin tool to ToolInfo
+                        let tool_info = tool.get_info();
+                        tools.push(tool_info);
                     }
                 }
 
@@ -485,7 +484,7 @@ impl CliApp {
                     Err(_) => {
                         // Try to find and execute from plugins
                         if let Some(plugin_manager) = &self.plugin_manager {
-                            let plugin_tools = plugin_manager.get_all_tools()?;
+                            let plugin_tools = plugin_manager.get_all_tools();
                             let tool = plugin_tools
                                 .iter()
                                 .find(|t| t.name() == *tool_name)
@@ -524,13 +523,12 @@ impl CliApp {
 
                 // Also check plugin tools
                 if let Some(plugin_manager) = &self.plugin_manager {
-                    if let Ok(plugin_tools) = plugin_manager.get_all_tools() {
-                        for tool in plugin_tools {
-                            if tool.name() == *tool_name {
-                                let tool_info = tool.get_info();
-                                tools.push(tool_info);
-                                break;
-                            }
+                    let plugin_tools = plugin_manager.get_all_tools();
+                    for tool in plugin_tools {
+                        if tool.name() == *tool_name {
+                            let tool_info = tool.get_info();
+                            tools.push(tool_info);
+                            break;
                         }
                     }
                 }
@@ -582,13 +580,12 @@ impl CliApp {
 
                 // Check if plugin already exists
                 if !force {
-                    if let Ok(plugins) = plugin_manager.list_plugins() {
-                        if plugins.iter().any(|p| p.name == plugin_name) {
-                            return Err(crate::WorkflowError::ValidationError(format!(
-                                "Plugin '{}' already exists. Use --force to reinstall.",
-                                plugin_name
-                            )));
-                        }
+                    let plugins = plugin_manager.list_plugins();
+                    if plugins.iter().any(|p| p.name == plugin_name) {
+                        return Err(crate::WorkflowError::ValidationError(format!(
+                            "Plugin '{}' already exists. Use --force to reinstall.",
+                            plugin_name
+                        )));
                     }
                 }
 
@@ -766,7 +763,7 @@ impl CliApp {
                     detailed, plugin_type
                 );
 
-                let plugins = plugin_manager.list_plugins()?;
+                let plugins = plugin_manager.list_plugins();
 
                 // Filter by type if specified
                 let filtered_plugins: Vec<_> = if let Some(ptype) = plugin_type {
@@ -797,7 +794,7 @@ impl CliApp {
                         }
 
                         // Get plugin status
-                        if let Ok(Some(status)) = plugin_manager.get_plugin_status(&plugin.name) {
+                        if let Some(status) = plugin_manager.get_plugin_status(&plugin.name) {
                             println!("  Status: {:?}", status);
                         }
 
@@ -865,7 +862,7 @@ impl CliApp {
                 info!("Uninstalling plugin: {} (force: {})", plugin_name, force);
 
                 // Check if plugin exists
-                let plugins = plugin_manager.list_plugins()?;
+                let plugins = plugin_manager.list_plugins();
                 if !plugins.iter().any(|p| p.name == *plugin_name) {
                     return Err(crate::WorkflowError::NotFound {
                         resource: format!("plugin '{}'", plugin_name),
@@ -917,7 +914,7 @@ impl CliApp {
             PluginAction::Info { plugin_name } => {
                 info!("Getting info for plugin: {}", plugin_name);
 
-                let plugins = plugin_manager.list_plugins()?;
+                let plugins = plugin_manager.list_plugins();
                 let plugin = plugins
                     .iter()
                     .find(|p| p.name == *plugin_name)
@@ -939,7 +936,7 @@ impl CliApp {
                 }
 
                 // Get plugin status
-                if let Ok(Some(status)) = plugin_manager.get_plugin_status(plugin_name) {
+                if let Some(status) = plugin_manager.get_plugin_status(plugin_name) {
                     println!("  Status: {:?}", status);
                 }
 

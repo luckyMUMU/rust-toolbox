@@ -52,7 +52,7 @@ impl AppModule for StorageModule {
         let storage_path = self.storage_path.clone();
         let cache_capacity = self.cache_capacity;
         
-        container.register_factory::<dyn StateManagerService, _>(move || {
+        container.register_factory::<StateManagerServiceImpl, _>(move || {
             let storage = Arc::new(
                 FileStorage::new(&storage_path)
                     .expect("Failed to create file storage")
@@ -63,11 +63,11 @@ impl AppModule for StorageModule {
             Arc::new(StateManagerServiceImpl::new(state_manager))
         });
         
-        container.register_factory::<dyn CacheService, _>(move || {
+        container.register_factory::<CacheServiceImpl, _>(move || {
             Arc::new(CacheServiceImpl::new(cache_capacity))
         });
         
-        container.register_factory::<dyn BackupService, _>(|| {
+        container.register_factory::<BackupServiceImpl, _>(|| {
             Arc::new(BackupServiceImpl::new())
         });
     }
