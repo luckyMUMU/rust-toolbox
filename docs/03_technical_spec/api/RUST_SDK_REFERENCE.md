@@ -1,11 +1,154 @@
 # Rust SDK参考
 
 > **Rust工作流工具包SDK完整参考**  
-> *最后更新：2026-02-26*
+> *最后更新：2026-02-27*
 
 ## 概述
 
 本文档提供Rust工作流工具包的完整API参考，包括核心traits、数据结构和用法示例。
+
+---
+
+## 异步编程指南
+
+### 运行时要求
+
+本 SDK 基于 Tokio 异步运行时，所有异步方法需要在 Tokio 运行时环境中执行。
+
+```rust
+// 推荐方式：使用 #[tokio::main] 宏
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 异步代码
+    Ok(())
+}
+
+// 或者手动创建运行时
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        // 异步代码
+        Ok(())
+    })
+}
+```
+
+### 异步最佳实践
+
+#### 1. 避免阻塞异步执行器
+
+```rust
+// ❌ 错误：阻塞调用
+async fn bad_example() -> Result<()> {
+    std::thread::sleep(Duration::from_secs(1)); // 阻塞整个执行器！
+    Ok(())
+}
+
+// ✅ 正确：使用异步睡眠
+async fn good_example() -> Result<()> {
+    tokio::time::sleep(Duration::from_secs(1)).await; // 不阻塞执行器
+    Ok(())
+}
+```
+
+#### 2. 并发执行多个任务
+
+```rust
+use tokio::join;
+
+// 并发执行多个工作流
+async fn run_parallel_workflows(engine: Arc<DefaultWorkflowEngine>) -> Result<()> {
+    let workflow1 = engine.execute(def1, params1);
+    let workflow2 = engine.execute(def2, params2);
+    let workflow3 = engine.execute(def3, params3);
+    
+    // 使用 join! 宏并发执行
+    let (result1, result2, result3) = join!(workflow1, workflow2, workflow3);
+    
+    Ok(())
+}
+```
+
+#### 3. 使用 tokio::spawn 处理后台任务
+
+```rust
+// 后台执行工作流，不等待结果
+async fn execute_in_background(
+    engine: Arc<DefaultWorkflowEngine>,
+    workflow: WorkflowDefinition,
+) -> Result<()> {
+    tokio::spawn(async move {
+        match engine.execute(workflow, HashMap::new()).await {
+            Ok(execution) => println!("执行完成: {}", execution.id),
+            Err(e) => eprintln!("执行失败: {}", e),
+        }
+    });
+    
+    Ok(())
+}
+```
+
+#### 4. 超时控制
+
+```rust
+use tokio::time::{timeout, Duration};
+
+async fn execute_with_timeout(
+    engine: Arc<DefaultWorkflowEngine>,
+    workflow: WorkflowDefinition,
+) -> Result<WorkflowExecution> {
+    // 设置 30 秒超时
+    match timeout(Duration::from_secs(30), engine.execute(workflow, HashMap::new())).await {
+        Ok(result) => result,
+        Err(_) => Err(WorkflowError::timeout("工作流执行超时")),
+    }
+}
+```
+
+#### 5. 取消执行
+
+```rust
+use tokio_util::sync::CancellationToken;
+
+async fn cancellable_execution(
+    engine: Arc<DefaultWorkflowEngine>,
+    workflow: WorkflowDefinition,
+    cancel_token: CancellationToken,
+) -> Result<WorkflowExecution> {
+    tokio::select! {
+        result = engine.execute(workflow, HashMap::new()) => result,
+        _ = cancel_token.cancelled() => {
+            Err(WorkflowError::cancelled("用户取消"))
+        }
+    }
+}
+```
+
+### 异步错误处理
+
+```rust
+// 使用 ? 运算符传播异步错误
+async fn handle_workflow() -> Result<(), WorkflowError> {
+    let engine = create_engine().await?;
+    let execution = engine.execute(workflow, params).await?;
+    
+    if execution.status != ExecutionStatus::Completed {
+        return Err(WorkflowError::execution_failed("工作流未完成"));
+    }
+    
+    Ok(())
+}
+
+// 使用 map_err 转换错误类型
+async fn convert_errors() -> Result<(), MyError> {
+    engine.execute(workflow, params)
+        .await
+        .map_err(|e| MyError::from(e))?;
+    Ok(())
+}
+```
+
+---
 
 ## 核心API接口
 

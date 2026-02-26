@@ -1,5 +1,10 @@
 # 工具系统 (Tool System)
 
+> **版本**: v1.0  
+> **创建日期**: 2026-01-15  
+> **最后更新**: 2026-02-27  
+> **维护者**: Workflow Toolkit Team
+
 ## 1. 核心定义 (Stable)
 
 ### 1.1 模块职责
@@ -339,4 +344,261 @@ let chain = ToolChain::builder()
     .add(tool_b)
     .map_output("result", "input")
     .build();
+```
+
+---
+
+## 6. 工具开发指南
+
+### 6.1 自定义工具开发规范
+
+#### 工具接口要求
+
+所有自定义工具必须满足以下要求：
+
+1. **实现 ToolNode trait** 或 **包装为 Tool Enum 变体**
+2. **提供完整的 Schema 定义**（输入/输出）
+3. **支持参数验证**
+4. **正确处理错误**
+
+#### 开发原生工具（Native Tool）
+
+```rust
+use workflow_toolkit::{
+    tools::{ToolNode, ToolDefinition, ToolInfo},
+    ExecutionContext, WorkflowError,
+};
+use serde_json::{json, Value};
+use async_trait::async_trait;
+
+/// 自定义计算器工具
+pub struct CalculatorTool {
+    info: ToolInfo,
+}
+
+impl CalculatorTool {
+    pub fn new() -> Self {
+        Self {
+            info: ToolInfo {
+                name: "calculator".to_string(),
+                version: "1.0.0".to_string(),
+                description: "基础数学计算工具".to_string(),
+                parameters_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["add", "subtract", "multiply", "divide"]
+                        },
+                        "a": { "type": "number" },
+                        "b": { "type": "number" }
+                    },
+                    "required": ["operation", "a", "b"]
+                }),
+                return_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "result": { "type": "number" }
+                    }
+                }),
+                category: Some("math".to_string()),
+                tags: vec!["calculation".to_string()],
+                dependencies: vec![],
+                plugin_name: None,
+            },
+        }
+    }
+}
+
+#[async_trait]
+impl ToolNode for CalculatorTool {
+    fn name(&self) -> &str { &self.info.name }
+    fn version(&self) -> &str { &self.info.version }
+    
+    async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value, WorkflowError> {
+        let operation = params["operation"].as_str()
+            .ok_or_else(|| WorkflowError::invalid_input("缺少 operation 参数"))?;
+        let a = params["a"].as_f64()
+            .ok_or_else(|| WorkflowError::invalid_input("缺少 a 参数"))?;
+        let b = params["b"].as_f64()
+            .ok_or_else(|| WorkflowError::invalid_input("缺少 b 参数"))?;
+        
+        let result = match operation {
+            "add" => a + b,
+            "subtract" => a - b,
+            "multiply" => a * b,
+            "divide" => {
+                if b == 0.0 {
+                    return Err(WorkflowError::tool_execution("除零错误"));
+                }
+                a / b
+            }
+            _ => return Err(WorkflowError::invalid_input(&format!("未知操作: {}", operation))),
+        };
+        
+        Ok(json!({ "result": result }))
+    }
+    
+    fn validate_parameters(&self, params: &Value) -> Result<(), WorkflowError> {
+        // 使用 JSON Schema 验证
+        if params["operation"].as_str().is_none() {
+            return Err(WorkflowError::invalid_input("缺少 operation 参数"));
+        }
+        if params["a"].as_f64().is_none() {
+            return Err(WorkflowError::invalid_input("缺少 a 参数或类型错误"));
+        }
+        if params["b"].as_f64().is_none() {
+            return Err(WorkflowError::invalid_input("缺少 b 参数或类型错误"));
+        }
+        Ok(())
+    }
+    
+    fn get_schema(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: self.info.name.clone(),
+            version: self.info.version.clone(),
+            description: self.info.description.clone(),
+            parameters_schema: self.info.parameters_schema.clone(),
+            return_schema: self.info.return_schema.clone(),
+        }
+    }
+    
+    fn get_plugin_info(&self) -> Option<&PluginInfo> { None }
+}
+```
+
+### 6.2 工具注册流程
+
+```rust
+// 方式一：直接注册到注册表
+let mut registry = ToolRegistry::new();
+let calculator = CalculatorTool::new();
+registry.register_tool(Arc::new(calculator))?;
+
+// 方式二：使用 Tool Enum
+let tool = Tool::Native(NativeTool::from_fn("my_tool", |params, ctx| async move {
+    // 工具逻辑
+    Ok(json!({"status": "success"}))
+}));
+registry.register(tool)?;
+```
+
+### 6.3 工具配置规范
+
+```yaml
+# tool-config.yaml
+name: my-custom-tool
+version: 1.0.0
+description: 自定义工具描述
+category: utility
+tags:
+  - custom
+  - utility
+
+# 输入 Schema (JSON Schema 格式)
+input_schema:
+  type: object
+  properties:
+    input_path:
+      type: string
+      description: 输入文件路径
+    output_path:
+      type: string
+      description: 输出文件路径
+  required:
+    - input_path
+
+# 输出 Schema
+output_schema:
+  type: object
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+
+# 执行配置
+execution:
+  timeout_seconds: 30
+  retry_count: 3
+  retry_delay_ms: 1000
+  cache_enabled: true
+  cache_ttl_seconds: 300
+```
+
+### 6.4 工具测试规范
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_calculator_add() {
+        let tool = CalculatorTool::new();
+        let params = json!({"operation": "add", "a": 2, "b": 3});
+        
+        let result = tool.execute(params, ExecutionContext::default()).await.unwrap();
+        
+        assert_eq!(result["result"], 5.0);
+    }
+    
+    #[test]
+    fn test_parameter_validation() {
+        let tool = CalculatorTool::new();
+        
+        // 缺少必需参数
+        let result = tool.validate_parameters(&json!({"a": 1}));
+        assert!(result.is_err());
+        
+        // 参数类型错误
+        let result = tool.validate_parameters(&json!({"operation": "add", "a": "not_a_number", "b": 2}));
+        assert!(result.is_err());
+        
+        // 正确参数
+        let result = tool.validate_parameters(&json!({"operation": "add", "a": 1, "b": 2}));
+        assert!(result.is_ok());
+    }
+    
+    #[tokio::test]
+    async fn test_divide_by_zero() {
+        let tool = CalculatorTool::new();
+        let params = json!({"operation": "divide", "a": 1, "b": 0});
+        
+        let result = tool.execute(params, ExecutionContext::default()).await;
+        assert!(result.is_err());
+    }
+}
+```
+
+### 6.5 工具扩展点
+
+| 扩展点 | 接口 | 用途 |
+|--------|------|------|
+| 自定义执行器 | `AsyncFunctionExecutor` | 包装异步函数为工具 |
+| 中间件 | `Middleware` trait | 添加横切关注点（日志、缓存、重试） |
+| 参数验证器 | `ParameterValidator` trait | 自定义参数验证逻辑 |
+| 结果处理器 | `ResultProcessor` trait | 后处理工具输出 |
+
+### 6.6 工具版本管理
+
+```rust
+/// 工具版本兼容性检查
+pub fn check_compatibility(tool_version: &str, required_version: &str) -> bool {
+    // 使用语义化版本检查
+    let tool_parts: Vec<u32> = tool_version.split('.')
+        .filter_map(|s| s.parse().ok())
+        .collect();
+    let required_parts: Vec<u32> = required_version.split('.')
+        .filter_map(|s| s.parse().ok())
+        .collect();
+    
+    // 主版本号必须匹配
+    if tool_parts.get(0) != required_parts.get(0) {
+        return false;
+    }
+    
+    // 工具次版本号 >= 要求次版本号
+    tool_parts.get(1).unwrap_or(&0) >= required_parts.get(1).unwrap_or(&0)
+}
 ```

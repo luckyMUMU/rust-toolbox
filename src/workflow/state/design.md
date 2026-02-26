@@ -113,10 +113,21 @@ src/workflow/state/
 
 恢复策略枚举：
 
-- `FromFailedNode` - 从失败节点重新执行
-- `FromLastCheckpoint` - 从上一个成功检查点重新执行
-- `FromSpecificNode(String)` - 从指定节点重新执行
-- `Restart` - 完全重新开始
+```rust
+/// 恢复策略
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+pub enum RecoveryStrategy {
+    /// 从失败节点重新执行
+    FromFailedNode,
+    /// 从上一个成功检查点重新执行
+    FromLastCheckpoint,
+    /// 从指定节点重新执行
+    FromSpecificNode(String),
+    /// 完全重新开始
+    Restart,
+}
+```
 
 #### CheckpointType
 
@@ -231,8 +242,12 @@ state 模块依赖:
 ```rust
 pub enum RecoveryStrategy {
     // 现有策略...
+    FromFailedNode,
+    FromLastCheckpoint,
+    FromSpecificNode(String),
+    Restart,
     
-    // 自定义策略
+    // 自定义策略（扩展点）
     Custom(String),  // 自定义恢复逻辑标识
 }
 ```
@@ -259,5 +274,229 @@ pub trait StateObserver: Send + Sync {
     fn on_status_changed(&self, old: ExecutionStatus, new: ExecutionStatus);
     fn on_node_completed(&self, node_id: &str, state: &NodeExecutionState);
     fn on_checkpoint_created(&self, checkpoint: &EnhancedCheckpoint);
+}
+```
+
+---
+
+## 5. 并发模型
+
+### 5.1 并发设计原则
+
+状态管理模块采用以下并发设计原则：
+
+1. **无锁读取**: 使用 `DashMap` 实现高并发读取
+2. **细粒度锁**: 不同数据使用独立的锁，减少竞争
+3. **原子操作**: 状态转换使用原子操作保证一致性
+4. **读写分离**: 读操作不阻塞写操作
+
+### 5.2 数据结构并发特性
+
+```mermaid
+graph TB
+    subgraph "ExecutionTracker 并发结构"
+        ET[ExecutionTracker]
+        
+        subgraph "无锁读取"
+            NS[node_states: DashMap]
+        end
+        
+        subgraph "RwLock 保护"
+            WS[workflow_status: RwLock]
+            CA[completed_at: RwLock]
+            CN[current_node: RwLock]
+            CS[control: RwLock]
+        end
+        
+        subgraph "原子操作"
+            SC[sequence_counter: AtomicU64]
+        end
+        
+        ET --> NS
+        ET --> WS
+        ET --> CA
+        ET --> CN
+        ET --> CS
+        ET --> SC
+    end
+```
+
+### 5.3 并发访问模式
+
+| 操作类型 | 数据结构 | 锁类型 | 说明 |
+|----------|----------|--------|------|
+| 节点状态读取 | `DashMap` | 无锁 | 支持高并发读取 |
+| 节点状态写入 | `DashMap` | 分段锁 | 仅锁定相关分片 |
+| 工作流状态读取 | `RwLock` | 读锁 | 多读者并发 |
+| 工作流状态写入 | `RwLock` | 写锁 | 独占写入 |
+| 序列号递增 | `AtomicU64` | 原子 | 无锁 CAS 操作 |
+| 控制信号读取 | `RwLock` | 读锁 | 高频读取 |
+| 控制信号写入 | `RwLock` | 写锁 | 低频写入 |
+
+### 5.4 线程安全保证
+
+```rust
+impl ExecutionTracker {
+    /// 线程安全的状态转换
+    pub fn transition_status(&self, new_status: ExecutionStatus) -> Result<()> {
+        let mut status = self.workflow_status.write().unwrap();
+        
+        // 验证状态转换合法性
+        match (&*status, &new_status) {
+            (ExecutionStatus::Pending, ExecutionStatus::Running) => {}
+            (ExecutionStatus::Running, ExecutionStatus::Paused) => {}
+            (ExecutionStatus::Running, ExecutionStatus::Completed) => {}
+            (ExecutionStatus::Running, ExecutionStatus::Failed) => {}
+            (ExecutionStatus::Paused, ExecutionStatus::Running) => {}
+            _ => return Err(WorkflowError::invalid_status_transition(
+                format!("{:?} -> {:?}", *status, new_status)
+            )),
+        }
+        
+        *status = new_status;
+        Ok(())
+    }
+    
+    /// 并发安全的节点状态更新
+    pub fn mark_node_completed(&self, node_id: &str, output: Value) -> Result<()> {
+        // DashMap 自动处理并发
+        self.node_states.entry(node_id.to_string()).and_modify(|state| {
+            state.status = NodeExecutionStatus::Completed;
+            state.output = Some(output.clone());
+            state.completed_at = Some(Utc::now());
+        });
+        Ok(())
+    }
+}
+```
+
+### 5.5 死锁预防
+
+#### 锁获取顺序
+
+为避免死锁，所有代码必须按以下顺序获取锁：
+
+1. `workflow_status` (RwLock)
+2. `node_states` (DashMap)
+3. `control` (RwLock)
+4. `completed_at` (RwLock)
+5. `current_node` (RwLock)
+
+```rust
+// ✅ 正确：按顺序获取锁
+fn correct_lock_order(&self) {
+    let status = self.workflow_status.read().unwrap();
+    let node = self.node_states.get("node1");
+    let control = self.control.read().unwrap();
+    // ...
+}
+
+// ❌ 错误：反向获取锁可能导致死锁
+fn incorrect_lock_order(&self) {
+    let control = self.control.read().unwrap();
+    let status = self.workflow_status.read().unwrap(); // 危险！
+    // ...
+}
+```
+
+#### 超时机制
+
+```rust
+use std::sync::RwLock;
+use std::time::Duration;
+
+impl ExecutionTracker {
+    /// 带超时的状态读取
+    pub fn try_get_status(&self, timeout: Duration) -> Option<ExecutionStatus> {
+        // 使用 try_read 避免无限等待
+        match self.workflow_status.try_read() {
+            Ok(guard) => Some(*guard),
+            Err(std::sync::TryLockError::WouldBlock) => {
+                // 等待一段时间后重试
+                std::thread::sleep(Duration::from_millis(10));
+                self.workflow_status.try_read().ok().map(|g| *g)
+            }
+            Err(_) => None,
+        }
+    }
+}
+```
+
+### 5.6 并发性能特性
+
+| 场景 | 预期性能 | 说明 |
+|------|----------|------|
+| 单线程读取 | < 1μs | 无锁 DashMap 读取 |
+| 并发读取 (16线程) | < 2μs | DashMap 分片并行 |
+| 单线程写入 | < 5μs | DashMap 分段锁 |
+| 并发写入 (16线程) | < 20μs | 分片减少竞争 |
+| 状态转换 | < 10μs | RwLock 写锁 |
+
+### 5.7 并发测试策略
+
+```rust
+#[cfg(test)]
+mod concurrency_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::thread;
+    
+    #[test]
+    fn test_concurrent_node_updates() {
+        let tracker = Arc::new(ExecutionTracker::new(
+            Uuid::new_v4(),
+            "test-workflow".to_string(),
+        ));
+        
+        tracker.initialize_nodes(&["node1", "node2", "node3"]);
+        
+        let mut handles = vec![];
+        
+        // 并发更新不同节点
+        for node_id in ["node1", "node2", "node3"] {
+            let tracker_clone = tracker.clone();
+            let node = node_id.to_string();
+            handles.push(thread::spawn(move || {
+                tracker_clone.mark_node_started(&node).unwrap();
+                tracker_clone.mark_node_completed(&node, json!({"result": "ok"})).unwrap();
+            }));
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        // 验证所有节点都正确更新
+        assert!(tracker.is_node_completed("node1"));
+        assert!(tracker.is_node_completed("node2"));
+        assert!(tracker.is_node_completed("node3"));
+    }
+    
+    #[test]
+    fn test_concurrent_status_transitions() {
+        let tracker = Arc::new(ExecutionTracker::new(
+            Uuid::new_v4(),
+            "test-workflow".to_string(),
+        ));
+        
+        let tracker_clone = tracker.clone();
+        
+        // 线程1：尝试暂停
+        let h1 = thread::spawn(move || {
+            tracker_clone.request_pause();
+        });
+        
+        // 线程2：检查状态
+        let tracker_clone2 = tracker.clone();
+        let h2 = thread::spawn(move || {
+            let should_pause = tracker_clone2.should_pause();
+            should_pause
+        });
+        
+        h1.join().unwrap();
+        let result = h2.join().unwrap();
+        
+        assert!(tracker.should_pause());
+    }
 }
 ```

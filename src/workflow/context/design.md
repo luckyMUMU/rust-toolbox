@@ -24,18 +24,33 @@ src/workflow/context/
 #### DataContext
 
 ```rust
+/// 数据上下文
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+/// 
+/// 为组件提供数据传递机制，支持全局共享槽位和节点本地槽位。
+/// 灵感来源于 LiteFlow 的 Slot 概念。
+#[derive(Debug, Clone)]
 pub struct DataContext {
-    global_slots: Arc<DashMap<String, SlotValue>>,  // 全局共享槽位
-    node_slots: HashMap<String, SlotValue>,          // 节点本地槽位
-    parent_chain: Vec<String>,                       // 父节点链（作用域追踪）
-    current_node: Option<String>,                    // 当前节点 ID
+    /// 全局共享槽位（线程安全，使用 DashMap 实现并发安全）
+    global_slots: Arc<DashMap<String, SlotValue>>,
+    
+    /// 节点本地槽位（私有 HashMap，节点隔离）
+    node_slots: HashMap<String, SlotValue>,
+    
+    /// 父节点链（用于嵌套作用域追踪，如循环/条件分支）
+    parent_chain: Vec<String>,
+    
+    /// 当前节点 ID（如果处于节点执行上下文中）
+    current_node: Option<String>,
 }
 ```
 
 **设计要点**：
-- `global_slots` 使用 `Arc<DashMap>` 实现线程安全的全局共享
-- `node_slots` 使用 `HashMap` 实现节点私有的本地存储
-- `parent_chain` 追踪嵌套作用域深度
+- `global_slots` 使用 `Arc<DashMap>` 实现线程安全的全局共享，支持高并发读写
+- `node_slots` 使用 `HashMap` 实现节点私有的本地存储，避免数据污染
+- `parent_chain` 追踪嵌套作用域深度，用于调试和状态追踪
+- `current_node` 标识当前执行的节点，便于上下文感知
 
 #### SlotValue
 

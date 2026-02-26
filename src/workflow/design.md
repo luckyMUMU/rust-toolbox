@@ -1,6 +1,127 @@
 # 工作流引擎 (Workflow Engine)
 
-## 0. 分层定位
+## 0. 架构概览
+
+### 0.0 整体架构图
+
+```mermaid
+graph TB
+    subgraph "接口层 (Interfaces)"
+        CLI[CLI 接口]
+        TUI[TUI 界面]
+        MCP[MCP 服务]
+    end
+    
+    subgraph "应用层 (Application)"
+        WS[WorkflowService]
+        EM[ExecutionManager]
+    end
+    
+    subgraph "领域层 (Domain)"
+        WD[WorkflowDefinition]
+        WE[WorkflowExecution]
+        EC[ExecutionContext]
+    end
+    
+    subgraph "基础设施层 - 工作流引擎"
+        subgraph "核心引擎"
+            Engine[DefaultWorkflowEngine]
+            Scheduler[DagScheduler]
+        end
+        
+        subgraph "组件系统"
+            CR[ComponentRegistry]
+            TC[ToolComponent]
+            CC[ConditionComponent]
+            PC[ParallelComponent]
+        end
+        
+        subgraph "执行器链"
+            BE[BasicExecutor]
+            RE[RetryExecutor]
+            CE[CacheExecutor]
+            AE[AuditExecutor]
+        end
+        
+        subgraph "数据上下文"
+            DC[DataContext]
+            GS[GlobalSlots]
+            NS[NodeSlots]
+        end
+        
+        subgraph "状态管理"
+            SM[StateManager]
+            CP[CheckpointManager]
+        end
+    end
+    
+    subgraph "外部依赖"
+        TR[ToolRegistry]
+        Storage[StorageBackend]
+    end
+    
+    CLI --> WS
+    TUI --> WS
+    MCP --> WS
+    
+    WS --> Engine
+    EM --> Engine
+    
+    Engine --> Scheduler
+    Engine --> CR
+    Engine --> BE
+    
+    CR --> TC
+    CR --> CC
+    CR --> PC
+    
+    BE --> RE --> CE --> AE
+    
+    TC --> DC
+    AE --> SM
+    
+    SM --> CP
+    CP --> Storage
+    
+    TC --> TR
+```
+
+### 0.1 执行流程图
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Engine
+    participant Scheduler
+    participant Executor
+    participant Component
+    participant Context
+    participant State
+    
+    Client->>Engine: execute(definition, params)
+    Engine->>Engine: validate(definition)
+    Engine->>Scheduler: schedule(definition)
+    Scheduler-->>Engine: execution_order
+    
+    loop 每层节点
+        Engine->>Scheduler: get_executable_nodes()
+        Scheduler-->>Engine: nodes[]
+        
+        par 并行执行
+            Engine->>Executor: execute(component, context)
+            Executor->>Component: execute(context, exec_ctx)
+            Component->>Context: read/write slots
+            Component-->>Executor: ComponentOutput
+            Executor-->>Engine: result
+        end
+        
+        Engine->>State: save_checkpoint()
+    end
+    
+    Engine-->>Client: WorkflowExecution
+```
+
+## 0.2 分层定位
 
 本模块属于**基础设施层**实现，提供工作流引擎的具体技术实现。
 
@@ -96,34 +217,50 @@ workflow/
 
 ```rust
 /// 工作流定义
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
 pub struct WorkflowDefinition {
-    pub id: Uuid,
-    pub name: String,
-    pub description: Option<String>,
-    pub nodes: Vec<WorkflowNode>,
-    pub edges: Vec<WorkflowEdge>,
-    pub config: WorkflowConfig,
+    pub name: String,                           // 工作流名称
+    pub version: String,                        // 版本号
+    pub description: Option<String>,            // 描述
+    pub metadata: HashMap<String, Value>,       // 元数据
+    pub nodes: Vec<WorkflowNode>,               // 节点列表
+    pub edges: Vec<WorkflowEdge>,               // 边列表
+    pub global_config: WorkflowConfig,          // 全局配置
 }
 
 /// 工作流节点
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
 pub struct WorkflowNode {
-    pub id: String,
-    pub node_type: NodeType,
-    pub config: NodeConfig,
+    pub id: String,                             // 节点唯一标识
+    pub node_type: NodeType,                    // 节点类型
+    pub tool_name: Option<String>,              // 工具名称（Tool 类型时必需）
+    pub parameters: Value,                      // 执行参数
+    pub retry_policy: Option<RetryPolicy>,      // 重试策略
+    pub timeout: Option<Duration>,              // 超时时间
+    pub metadata: HashMap<String, Value>,       // 节点元数据
+    pub depends_on: Vec<String>,                // 显式依赖（除边之外的依赖）
 }
 
+/// 节点类型枚举
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
 pub enum NodeType {
-    Tool(String),       // 工具节点
-    Parallel,           // 并行节点
-    Condition,          // 条件节点
-    SubWorkflow,        // 子工作流
+    Tool,       // 工具执行节点
+    Condition,  // 条件分支节点
+    Loop,       // 循环节点
+    Parallel,   // 并行执行节点
+    Checkpoint, // 检查点节点（用于状态保存和恢复）
 }
 
 /// 工作流边
 pub struct WorkflowEdge {
-    pub from: String,
-    pub to: String,
-    pub condition: Option<String>,
+    pub from: String,                           // 源节点 ID
+    pub to: String,                             // 目标节点 ID
+    pub condition: Option<String>,              // 条件表达式
+    pub weight: Option<f64>,                    // 边权重
+    pub metadata: HashMap<String, Value>,       // 边元数据
 }
 ```
 
@@ -131,12 +268,25 @@ pub struct WorkflowEdge {
 
 ```rust
 /// 工作流引擎 trait
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+/// 
+/// 职责：定义工作流执行的统一接口
 #[async_trait]
 pub trait WorkflowEngine: Send + Sync {
+    /// 执行工作流定义
+    /// 
+    /// # 参数
+    /// - `definition`: 工作流定义（包含节点、边、配置等）
+    /// - `initial_params`: 初始参数（键值对形式）
+    /// 
+    /// # 返回
+    /// - `Ok(WorkflowExecution)`: 执行结果
+    /// - `Err(WorkflowError)`: 执行错误
     async fn execute(
         &self,
         definition: WorkflowDefinition,
-        params: HashMap<String, Value>,
+        initial_params: HashMap<String, Value>,
     ) -> Result<WorkflowExecution>;
 }
 
@@ -148,10 +298,17 @@ pub struct DefaultWorkflowEngine {
 }
 
 /// 重构版引擎（LiteFlow 风格）
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
 pub struct RefactoredWorkflowEngine {
-    component_registry: Arc<ComponentRegistry>,
-    executor_chain: BoxedExecutor,
-    checkpoint_manager: Arc<CheckpointManager>,
+    state_manager: Arc<StateManager>,           // 状态管理器
+    tool_registry: Arc<ToolRegistry>,           // 工具注册表
+    executor: BoxedExecutor,                    // 执行器链
+    audit_logger: Arc<AuditLogger>,             // 审计日志
+    result_cache: Option<Arc<ResultCache>>,     // 结果缓存（可选）
+    workflow_semaphore: Arc<Semaphore>,         // 并发控制信号量
+    default_max_concurrency: usize,             // 默认最大并发数
+    checkpoint_interval: Duration,              // 检查点间隔
 }
 ```
 
@@ -182,25 +339,70 @@ pub struct SchedulingResult {
 
 ```rust
 /// 组件 trait
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+/// 
+/// 所有工作流节点类型必须实现此 trait。
+/// 遵循单一职责原则，每个组件只处理自己的执行逻辑。
 #[async_trait]
 pub trait Component: Send + Sync {
-    fn get_type(&self) -> ComponentType;
-    async fn execute(&self, ctx: &mut DataContext) -> Result<ComponentOutput>;
+    /// 返回组件唯一标识
+    fn id(&self) -> &str;
+    
+    /// 返回组件类型
+    fn component_type(&self) -> ComponentType;
+    
+    /// 执行组件逻辑
+    /// 
+    /// # 参数
+    /// - `context`: 可变数据上下文，用于读写槽位值
+    /// - `execution_ctx`: 执行上下文，包含工作流元数据
+    /// 
+    /// # 返回
+    /// ComponentOutput 包含执行状态和动态下一节点
+    async fn execute(
+        &self,
+        context: &mut DataContext,
+        execution_ctx: &ExecutionContext,
+    ) -> Result<ComponentOutput>;
+    
+    /// 验证组件配置（可选，默认返回 Ok(())）
+    fn validate(&self) -> Result<()> { Ok(()) }
+    
+    /// 检查组件结果是否可缓存（默认返回 false）
+    fn cacheable(&self) -> bool { false }
+    
+    /// 获取组件描述（用于文档/调试）
+    fn description(&self) -> Option<&str> { None }
 }
 
-/// 组件类型
+/// 组件类型枚举
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
 pub enum ComponentType {
-    Tool,
-    Parallel,
-    Condition,
-    Loop,
+    Tool,       // 工具执行组件 - 执行已注册的工具
+    Condition,  // 条件组件 - 表达式求值用于分支
+    Loop,       // 循环组件 - 集合遍历或条件循环
+    Parallel,   // 并行组件 - 多节点并发执行
+    Switch,     // 多路分支组件 - 基于表达式值的多分支选择
+    Checkpoint, // 检查点组件 - 保存执行状态用于恢复
+}
+
+/// 组件执行状态
+pub enum ComponentStatus {
+    Success,            // 执行成功
+    Failure(String),    // 执行失败，包含错误信息
+    Skip,               // 跳过执行（如条件为 false）
+    Break,              // 跳出循环
+    Continue,           // 继续下一次循环迭代
 }
 
 /// 组件输出
 pub struct ComponentOutput {
-    pub status: ComponentStatus,
-    pub data: Option<Value>,
-    pub next_nodes: Vec<String>,
+    pub status: ComponentStatus,              // 执行状态
+    pub next_nodes: Vec<String>,              // 动态确定的下一节点
+    pub result: Option<Value>,                // 执行结果值
+    pub metadata: HashMap<String, Value>,     // 附加元数据
 }
 
 /// 组件注册表
@@ -216,47 +418,66 @@ pub struct ComponentRegistry {
 /// 
 /// 关系映射：
 /// - Component::execute() → Tool 的业务逻辑执行
-/// - Component::get_type() → ToolInfo::category
+/// - Component::component_type() → ToolInfo::category
 /// - DataContext → ExecutionContext 的包装
 /// 
 /// 架构位置：
 /// - ToolInfo (领域层) → ToolComponentAdapter (基础设施层) → Component trait
 pub trait Component: Send + Sync {
-    fn get_type(&self) -> ComponentType;
-    async fn execute(&self, ctx: &mut DataContext) -> Result<ComponentOutput>;
+    /// 返回组件唯一标识
+    fn id(&self) -> &str;
+    
+    /// 返回组件类型
+    fn component_type(&self) -> ComponentType;
+    
+    /// 执行组件逻辑
+    async fn execute(
+        &self,
+        context: &mut DataContext,
+        execution_ctx: &ExecutionContext,
+    ) -> Result<ComponentOutput>;
 }
 
 /// Component 到 Tool 的适配器
 /// 
 /// 将领域层的 Tool 包装为工作流引擎的 Component
 pub struct ToolComponentAdapter {
-    tool_info: ToolInfo,           // 来自领域层
-    tool_executor: Box<dyn ToolExecutor>, // 工具执行器
+    tool_info: ToolInfo,                       // 来自领域层
+    tool_executor: Box<dyn ToolExecutor>,      // 工具执行器
 }
 
 impl Component for ToolComponentAdapter {
-    fn get_type(&self) -> ComponentType {
+    fn id(&self) -> &str {
+        &self.tool_info.name
+    }
+    
+    fn component_type(&self) -> ComponentType {
         ComponentType::Tool
     }
     
-    async fn execute(&self, ctx: &mut DataContext) -> Result<ComponentOutput> {
+    async fn execute(
+        &self,
+        context: &mut DataContext,
+        execution_ctx: &ExecutionContext,
+    ) -> Result<ComponentOutput> {
         // 1. 从 DataContext 提取 ExecutionContext
-        let execution_context = ctx.to_execution_context();
+        let execution_context = context.to_execution_context();
         
         // 2. 调用工具执行
         let result = self.tool_executor.execute(
             &self.tool_info,
-            ctx.get_input(),
+            context.get_input(),
             &execution_context
         ).await?;
         
         // 3. 将结果写回 DataContext
-        ctx.set_output(result);
+        context.set_output(result.clone());
         
         Ok(ComponentOutput {
             status: ComponentStatus::Success,
-            data: Some(result),
             next_nodes: vec![], // 由调度器决定
+            result: Some(result),
+            metadata: HashMap::new(),
         })
     }
 }
@@ -265,10 +486,10 @@ impl Component for ToolComponentAdapter {
 /// 
 /// DataContext 是 ExecutionContext 的技术包装，添加工作流引擎特定的功能
 pub struct DataContext {
-    execution_context: ExecutionContext,  // 领域层上下文
-    node_inputs: HashMap<String, Value>,  // 当前节点输入
-    node_outputs: HashMap<String, Value>, // 当前节点输出
-    global_variables: HashMap<String, Value>, // 全局变量
+    execution_context: ExecutionContext,       // 领域层上下文
+    node_inputs: HashMap<String, Value>,       // 当前节点输入
+    node_outputs: HashMap<String, Value>,      // 当前节点输出
+    global_variables: HashMap<String, Value>,  // 全局变量
 }
 
 impl DataContext {
@@ -278,8 +499,10 @@ impl DataContext {
             execution_id: self.execution_context.execution_id.clone(),
             workflow_id: self.execution_context.workflow_id,
             user_id: self.execution_context.user_id.clone(),
+            session_id: self.execution_context.session_id.clone(),
             global_variables: self.global_variables.clone(),
             step_results: self.node_outputs.clone(),
+            started_at: self.execution_context.started_at,
         }
     }
     
@@ -299,34 +522,71 @@ impl DataContext {
 
 ```rust
 /// 执行器 trait
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+/// 
+/// 执行器包装组件执行，允许以可组合的方式应用横切关注点。
+/// 采用责任链模式，每个执行器可以：
+/// 1. 执行前置逻辑（如记录开始时间）
+/// 2. 委托给下一个执行器
+/// 3. 执行后置逻辑（如缓存结果、记录日志）
 #[async_trait]
 pub trait Executor: Send + Sync {
-    async fn execute(&self, ctx: ExecutionContext, next: Next<'_>) -> Result<Value>;
+    /// 执行组件
+    /// 
+    /// # 参数
+    /// - `component`: 要执行的组件
+    /// - `context`: 可变数据上下文
+    /// - `execution_ctx`: 执行上下文
+    /// 
+    /// # 返回
+    /// 组件的输出结果
+    async fn execute(
+        &self,
+        component: &dyn Component,
+        context: &mut DataContext,
+        execution_ctx: &ExecutionContext,
+    ) -> Result<ComponentOutput>;
+    
+    /// 获取执行器名称（用于日志/调试）
+    fn name(&self) -> &str { "Executor" }
 }
 
-/// 基础执行器
+/// 基础执行器 - 直接调用组件的 execute 方法
 pub struct BasicExecutor;
 
-/// 重试执行器
+/// 重试执行器 - 支持 Fixed/Linear/Exponential 退避策略
 pub struct RetryExecutor {
-    retry_policy: RetryPolicy,
     inner: BoxedExecutor,
+    max_retries: u32,
+    base_delay: Duration,
 }
 
-/// 缓存执行器
+/// 缓存执行器 - 基于 moka::future::Cache 缓存结果
 pub struct CacheExecutor {
-    cache: Arc<ResultCache>,
     inner: BoxedExecutor,
+    cache: Arc<moka::future::Cache<String, ComponentOutput>>,
 }
 
-/// 审计执行器
+/// 审计执行器 - 记录执行开始/完成/错误事件
 pub struct AuditExecutor {
-    logger: Arc<AuditLogger>,
     inner: BoxedExecutor,
+    logger: Arc<AuditLogger>,
 }
 
 /// 执行器链构建器
-pub struct ExecutorChainBuilder;
+/// 
+/// 示例：
+/// ```ignore
+/// let executor = ExecutorChainBuilder::new()
+///     .with_retry(3, Duration::from_secs(1))
+///     .with_cache(cache)
+///     .with_audit(audit_logger)
+///     .build();
+/// ```
+pub struct ExecutorChainBuilder {
+    executor: BoxedExecutor,
+}
 ```
 
 ### 1.6 并发控制
@@ -452,6 +712,39 @@ pub struct ResourceLimits {
 #### 执行配置与结果
 
 ```rust
+/// 执行状态枚举
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+/// 
+/// 定义工作流和节点的执行状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionStatus {
+    Pending,    // 等待执行
+    Running,    // 执行中
+    Paused,     // 已暂停
+    Completed,  // 已完成
+    Failed,     // 执行失败
+    Cancelled,  // 已取消
+    Timeout,    // 执行超时
+}
+
+impl ExecutionStatus {
+    /// 检查是否为终态
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled | Self::Timeout)
+    }
+    
+    /// 检查是否为成功状态
+    pub fn is_success(&self) -> bool {
+        matches!(self, Self::Completed)
+    }
+    
+    /// 检查是否为失败状态
+    pub fn is_failure(&self) -> bool {
+        matches!(self, Self::Failed | Self::Timeout)
+    }
+}
+
 /// 执行配置
 pub struct ExecutionConfig {
     pub max_concurrent: usize,
@@ -583,13 +876,13 @@ impl CheckpointManager {
     }
     
     /// 确定恢复策略
-    fn determine_resume_strategy(&self, checkpoint: &Checkpoint) -> ResumeStrategy {
+    fn determine_resume_strategy(&self, checkpoint: &Checkpoint) -> RecoveryStrategy {
         if checkpoint.in_progress_nodes.is_empty() {
             // 没有进行中的节点，从下一层开始
-            ResumeStrategy::NextLayer
+            RecoveryStrategy::NextLayer
         } else {
             // 有进行中的节点，需要重试
-            ResumeStrategy::RetryInProgress
+            RecoveryStrategy::RetryInProgress
         }
     }
 }
@@ -641,17 +934,25 @@ pub struct RestoredExecution {
 pub struct ResumePoint {
     pub node_id: Option<String>,
     pub retry_count: u32,
-    pub resume_from: ResumeStrategy,
+    pub resume_from: RecoveryStrategy,
 }
 
 /// 恢复策略
-pub enum ResumeStrategy {
+/// 
+/// 版本: v1.0 | 最后更新: 2026-02-26
+pub enum RecoveryStrategy {
     /// 从下一层开始
     NextLayer,
     /// 重试进行中的节点
     RetryInProgress,
     /// 从特定节点开始
     FromNode(String),
+    /// 从失败节点重新执行
+    FromFailedNode,
+    /// 从上一个成功检查点重新执行
+    FromLastCheckpoint,
+    /// 完全重新开始
+    Restart,
 }
 ```
 

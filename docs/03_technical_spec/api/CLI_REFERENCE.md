@@ -104,6 +104,21 @@ workflow-toolkit workflow resume <工作流ID>
 workflow-toolkit workflow stop <工作流ID> [--force]
 ```
 
+**示例：**
+```bash
+# 暂停正在执行的工作流
+workflow-toolkit workflow pause 1234-5678-abcd
+
+# 恢复暂停的工作流
+workflow-toolkit workflow resume 1234-5678-abcd
+
+# 强制停止工作流（立即终止）
+workflow-toolkit workflow stop 1234-5678-abcd --force
+
+# 正常停止工作流（等待当前节点完成）
+workflow-toolkit workflow stop 1234-5678-abcd
+```
+
 ### `workflow list`
 列出工作流。
 
@@ -115,6 +130,21 @@ workflow-toolkit workflow list [选项]
 - `--status <状态>`：按执行状态过滤（Pending, Running等）
 - `--recent`：仅显示最近的执行
 - `--limit <N>`：最大结果数量（默认：50）
+
+**示例：**
+```bash
+# 列出所有工作流执行记录
+workflow-toolkit workflow list
+
+# 仅显示最近10条记录
+workflow-toolkit workflow list --recent --limit 10
+
+# 筛选正在执行的工作流
+workflow-toolkit workflow list --status Running
+
+# 筛选失败的工作流
+workflow-toolkit workflow list --status Failed --limit 20
+```
 
 ---
 
@@ -210,6 +240,21 @@ workflow-toolkit plugin list [选项]
 - `--detailed`：显示详细信息
 - `--plugin-type <类型>`：按类型过滤
 
+**示例：**
+```bash
+# 列出所有插件
+workflow-toolkit plugin list
+
+# 显示详细信息
+workflow-toolkit plugin list --detailed
+
+# 仅列出 Python 插件
+workflow-toolkit plugin list --plugin-type python
+
+# 以 JSON 格式输出
+workflow-toolkit plugin list --detailed --output json
+```
+
 ### `plugin reload` / `uninstall`
 管理插件生命周期。
 
@@ -218,11 +263,32 @@ workflow-toolkit plugin reload <插件名称>
 workflow-toolkit plugin uninstall <插件名称> [--force]
 ```
 
+**示例：**
+```bash
+# 重新加载插件（更新代码后）
+workflow-toolkit plugin reload my-python-plugin
+
+# 卸载插件
+workflow-toolkit plugin uninstall old-plugin
+
+# 强制卸载（即使有依赖）
+workflow-toolkit plugin uninstall stubborn-plugin --force
+```
+
 ### `plugin info`
 显示插件的详细信息。
 
 ```bash
 workflow-toolkit plugin info <插件名称>
+```
+
+**示例：**
+```bash
+# 查看插件详细信息
+workflow-toolkit plugin info file-management
+
+# 以 YAML 格式输出
+workflow-toolkit plugin info file-management --output yaml
 ```
 
 ---
@@ -261,6 +327,15 @@ workflow-toolkit batch execute batch-jobs.yaml --parallel 8
 workflow-toolkit tui
 ```
 
+**示例：**
+```bash
+# 启动 TUI 界面
+workflow-toolkit tui
+
+# 使用特定配置文件启动
+workflow-toolkit tui --config custom-config.toml
+```
+
 ### `server`
 启动MCP（模型上下文协议）服务器。
 
@@ -272,6 +347,21 @@ workflow-toolkit server [选项]
 - `--http-port <端口>`：HTTP端口（默认：8080）
 - `--ws-port <端口>`：WebSocket端口（默认：8081）
 - `--auth`：启用认证
+
+**示例：**
+```bash
+# 使用默认端口启动服务器
+workflow-toolkit server
+
+# 自定义端口启动
+workflow-toolkit server --http-port 9000 --ws-port 9001
+
+# 启用认证启动
+workflow-toolkit server --auth
+
+# 后台运行（结合 nohup）
+nohup workflow-toolkit server > server.log 2>&1 &
+```
 
 ### `completion`
 生成shell补全脚本。

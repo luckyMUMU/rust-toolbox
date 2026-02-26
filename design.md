@@ -1,5 +1,58 @@
 # Workflow Toolkit 设计文档
 
+> **版本**: v1.0  
+> **最后更新**: 2026-02-27  
+> **维护者**: Workflow Toolkit Team
+
+## 0. 文档目录索引
+
+### 0.1 设计文档结构
+
+```
+design.md (本文档)
+├── src/
+│   ├── domain/design.md           # 领域层设计
+│   │   ├── model/design.md        # 领域模型详情
+│   │   └── port/design.md         # 端口接口详情
+│   ├── application/design.md      # 应用层设计
+│   ├── infrastructure/design.md   # 基础设施层设计
+│   ├── interfaces/design.md       # 接口层设计
+│   ├── workflow/
+│   │   ├── design.md              # 工作流引擎设计
+│   │   ├── component/design.md    # 组件系统设计
+│   │   ├── executor/design.md     # 执行器链设计
+│   │   ├── context/design.md      # 数据上下文设计
+│   │   └── state/design.md        # 状态管理设计
+│   ├── tools/design.md            # 工具系统设计
+│   ├── plugins/
+│   │   ├── design.md              # 插件系统设计
+│   │   └── file_management/design.md
+│   ├── storage/design.md          # 存储系统设计
+│   └── performance/design.md      # 性能模块设计
+└── docs/
+    ├── 01_requirements/           # 需求文档
+    ├── 02_logical_workflow/       # 逻辑工作流
+    ├── 03_technical_spec/         # 技术规格
+    │   ├── interfaces.md          # 接口规范
+    │   └── api/                   # API 参考
+    └── 04_context_reference/      # 上下文参考
+        ├── architecture_decision.md
+        ├── glossary.md
+        └── adr/                   # 架构决策记录
+```
+
+### 0.2 快速导航
+
+| 角色 | 推荐入口 | 说明 |
+|------|----------|------|
+| 新开发者 | [应用层设计](./src/application/design.md) | 理解用例和业务流程 |
+| 架构师 | [本文档](#) + [ADR](./docs/04_context_reference/architecture_decision.md) | 整体架构和技术决策 |
+| 工具开发者 | [工具系统设计](./src/tools/design.md) | 工具开发和扩展 |
+| 插件开发者 | [插件系统设计](./src/plugins/design.md) | 插件开发和集成 |
+| 运维人员 | [基础设施层](./src/infrastructure/design.md) | 部署和配置 |
+
+---
+
 ## 1. 核心定义 (Stable)
 
 ### 1.1 项目概述

@@ -359,45 +359,173 @@ pub struct SecurityPolicy {
 
 ## 6. Error Code Definition（错误码定义）
 
-### 6.1 System Error Codes（系统错误码）
+### 6.1 错误码设计原则
 
-| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
-|--------|------|-----------|
-| `E0001` | 内部系统错误 | 500 |
-| `E0002` | 服务不可用 | 503 |
-| `E0003` | 请求超时 | 408 |
-| `E0004` | 资源耗尽 | 503 |
+**错误码格式**: `E{模块码}{序号}`
+- 模块码: 0=系统, 1=工作流, 2=工具, 3=插件, 4=存储, 5=认证
+- 序号: 两位数字，按顺序递增
 
-### 6.2 Workflow Error Codes（工作流错误码）
+**错误响应格式**:
+```json
+{
+  "code": "E1001",
+  "message": "工作流验证失败",
+  "details": "节点 'node_1' 缺少必需的 tool_name 字段",
+  "timestamp": "2026-02-26T10:30:00Z",
+  "request_id": "req_abc123"
+}
+```
 
-| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
-|--------|------|-----------|
-| `E1001` | 工作流验证失败 | 400 |
-| `E1002` | 工作流未找到 | 404 |
-| `E1003` | 执行失败 | 422 |
-| `E1004` | 执行超时 | 408 |
-| `E1005` | 执行被取消 | 409 |
-| `E1006` | 循环依赖 | 400 |
+### 6.2 System Error Codes（系统错误码）
 
-### 6.3 Tool Error Codes（工具错误码）
+| 错误码 | 名称 | 描述 | HTTP状态码 | 处理建议 |
+|--------|------|------|------------|----------|
+| `E0001` | `InternalError` | 内部系统错误 | 500 | 检查系统日志，联系管理员 |
+| `E0002` | `ServiceUnavailable` | 服务不可用 | 503 | 稍后重试，检查服务状态 |
+| `E0003` | `RequestTimeout` | 请求超时 | 408 | 增加超时时间或优化操作 |
+| `E0004` | `ResourceExhausted` | 资源耗尽 | 503 | 释放资源或扩展容量 |
+| `E0005` | `ConfigurationError` | 配置错误 | 500 | 检查配置文件和环境变量 |
+| `E0006` | `SerializationError` | 序列化错误 | 400 | 检查数据格式 |
+| `E0007` | `ConcurrentAccess` | 并发访问冲突 | 409 | 重试或使用锁机制 |
 
-| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
-|--------|------|-----------|
-| `E2001` | 工具未找到 | 404 |
-| `E2002` | 参数验证失败 | 400 |
-| `E2003` | 执行超时 | 408 |
-| `E2004` | 执行失败 | 422 |
-| `E2005` | 输出验证失败 | 500 |
+### 6.3 Workflow Error Codes（工作流错误码）
 
-### 6.4 Plugin Error Codes（插件错误码）
+| 错误码 | 名称 | 描述 | HTTP状态码 | 处理建议 |
+|--------|------|------|------------|----------|
+| `E1001` | `WorkflowValidation` | 工作流验证失败 | 400 | 检查工作流定义格式 |
+| `E1002` | `WorkflowNotFound` | 工作流未找到 | 404 | 确认工作流ID正确 |
+| `E1003` | `WorkflowExecution` | 执行失败 | 422 | 检查执行日志 |
+| `E1004` | `ExecutionTimeout` | 执行超时 | 408 | 增加超时配置 |
+| `E1005` | `ExecutionCancelled` | 执行被取消 | 409 | 检查取消原因 |
+| `E1006` | `CircularDependency` | 循环依赖 | 400 | 检查节点依赖关系 |
+| `E1007` | `DuplicateNodeId` | 节点ID重复 | 400 | 使用唯一节点ID |
+| `E1008` | `NodeNotFound` | 节点未找到 | 404 | 确认节点ID存在 |
+| `E1009` | `InvalidNodeId` | 无效节点ID | 400 | 使用有效ID格式 |
+| `E1010` | `EmptyWorkflow` | 空工作流 | 400 | 添加至少一个节点 |
+| `E1011` | `InvalidEdge` | 无效边定义 | 400 | 检查边的source/target |
+| `E1012` | `InvalidStateTransition` | 无效状态转换 | 400 | 检查状态机逻辑 |
+| `E1013` | `ParameterResolution` | 参数解析错误 | 400 | 检查参数引用语法 |
+| `E1014` | `ComponentNotFound` | 组件未找到 | 404 | 确认组件已注册 |
 
-| Error Code（错误码） | Description（描述） | HTTP Status Code（HTTP 状态码） |
-|--------|------|-----------|
-| `E3001` | 插件加载失败 | 500 |
-| `E3002` | 插件未找到 | 404 |
-| `E3003` | 依赖安装失败 | 500 |
-| `E3004` | 安全验证失败 | 403 |
-| `E3005` | 插件正在使用 | 409 |
+### 6.4 Tool Error Codes（工具错误码）
+
+| 错误码 | 名称 | 描述 | HTTP状态码 | 处理建议 |
+|--------|------|------|------------|----------|
+| `E2001` | `ToolNotFound` | 工具未找到 | 404 | 确认工具名称正确 |
+| `E2002` | `ToolValidation` | 参数验证失败 | 400 | 检查参数格式和类型 |
+| `E2003` | `ToolTimeout` | 执行超时 | 408 | 增加工具超时配置 |
+| `E2004` | `ToolExecution` | 执行失败 | 422 | 检查工具实现 |
+| `E2005` | `ToolOutputValidation` | 输出验证失败 | 500 | 检查输出Schema |
+| `E2006` | `ToolRegistration` | 工具注册失败 | 500 | 检查工具元数据 |
+| `E2007` | `MissingToolName` | 缺少工具名称 | 400 | 添加tool_name字段 |
+| `E2008` | `ToolNotImplemented` | 工具未实现 | 501 | 等待功能开发 |
+
+### 6.5 Plugin Error Codes（插件错误码）
+
+| 错误码 | 名称 | 描述 | HTTP状态码 | 处理建议 |
+|--------|------|------|------------|----------|
+| `E3001` | `PluginInitialization` | 插件初始化失败 | 500 | 检查插件依赖 |
+| `E3002` | `PluginNotFound` | 插件未找到 | 404 | 确认插件ID正确 |
+| `E3003` | `PluginDependency` | 依赖安装失败 | 500 | 检查网络和依赖源 |
+| `E3004` | `PluginSecurity` | 安全验证失败 | 403 | 检查安全策略配置 |
+| `E3005` | `PluginInUse` | 插件正在使用 | 409 | 先卸载再操作 |
+| `E3006` | `PluginAlreadyLoaded` | 插件已加载 | 409 | 跳过或先卸载 |
+| `E3007` | `PluginConfiguration` | 插件配置错误 | 400 | 检查配置格式 |
+| `E3008` | `PluginRuntime` | 插件运行时错误 | 500 | 检查插件实现 |
+| `E3009` | `PluginPoolExhausted` | 运行时池耗尽 | 503 | 增加池大小 |
+| `E3010` | `PluginResourceLimit` | 资源限制超出 | 503 | 调整资源限制 |
+
+### 6.6 Storage Error Codes（存储错误码）
+
+| 错误码 | 名称 | 描述 | HTTP状态码 | 处理建议 |
+|--------|------|------|------------|----------|
+| `E4001` | `StorageIO` | 存储IO错误 | 500 | 检查磁盘和权限 |
+| `E4002` | `StorageNotFound` | 存储资源未找到 | 404 | 确认路径正确 |
+| `E4003` | `StorageCorrupted` | 数据损坏 | 500 | 从备份恢复 |
+| `E4004` | `StorageBackup` | 备份失败 | 500 | 检查备份路径 |
+| `E4005` | `CheckpointFailed` | 检查点创建失败 | 500 | 检查存储空间 |
+
+### 6.7 Authentication Error Codes（认证错误码）
+
+| 错误码 | 名称 | 描述 | HTTP状态码 | 处理建议 |
+|--------|------|------|------------|----------|
+| `E5001` | `Authentication` | 认证失败 | 401 | 检查凭据 |
+| `E5002` | `PermissionDenied` | 权限不足 | 403 | 联系管理员授权 |
+| `E5003` | `TokenExpired` | 令牌过期 | 401 | 刷新令牌 |
+| `E5004` | `InvalidToken` | 无效令牌 | 401 | 重新登录 |
+
+### 6.8 错误处理最佳实践
+
+#### Rust 代码示例
+
+```rust
+use crate::error::{WorkflowError, CommonError};
+
+// 使用 ? 操作符传播错误
+async fn execute_workflow(def: WorkflowDefinition) -> Result<WorkflowExecution> {
+    // 验证工作流
+    validate_definition(&def)?;
+    
+    // 执行节点
+    for node in &def.nodes {
+        execute_node(node).await?;
+    }
+    
+    Ok(WorkflowExecution::completed())
+}
+
+// 使用 match 处理特定错误
+fn handle_error(error: WorkflowError) -> Response {
+    match error {
+        WorkflowError::WorkflowValidation { message } => {
+            Response::bad_request("E1001", &message)
+        }
+        WorkflowError::NotFound { resource } => {
+            Response::not_found("E0001", &format!("Resource not found: {}", resource))
+        }
+        WorkflowError::Timeout { duration } => {
+            Response::timeout("E0003", &format!("Operation timed out after {:?}", duration))
+        }
+        _ => Response::internal_error("E0001", &error.to_string())
+    }
+}
+
+// 使用 CommonError 统一错误
+fn validate_input(data: &Value) -> std::result::Result<(), CommonError> {
+    if data.get("id").is_none() {
+        return Err(CommonError::validation("input", "missing required field: id"));
+    }
+    Ok(())
+}
+```
+
+#### 错误恢复策略
+
+| 错误类型 | 恢复策略 | 示例 |
+|----------|----------|------|
+| 可重试错误 | 自动重试 + 指数退避 | 网络超时、服务暂时不可用 |
+| 可恢复错误 | 用户干预后继续 | 参数验证失败、权限不足 |
+| 不可恢复错误 | 记录日志 + 终止 | 数据损坏、系统配置错误 |
+
+#### 错误日志规范
+
+```rust
+// 推荐：结构化日志
+tracing::error!(
+    error_code = "E1003",
+    workflow_id = %workflow.id,
+    node_id = %node.id,
+    "Workflow execution failed"
+);
+
+// 推荐：包含上下文
+tracing::warn!(
+    error_code = "E2003",
+    tool_name = %tool_name,
+    timeout_secs = timeout.as_secs(),
+    "Tool execution timed out"
+);
+```
 
 ---
 

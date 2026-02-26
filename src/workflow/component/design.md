@@ -160,3 +160,263 @@ Component trait
 
 - LiteFlow 设计理念: "一切皆组件"
 - 项目 SOP: [AGENT_SOP.md](../../../sop/AGENT_SOP.md)
+
+---
+
+## 5. 组件生命周期
+
+### 5.1 生命周期状态图
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: 组件实例化
+    Created --> Validating: 验证配置
+    Validating --> Ready: 验证通过
+    Validating --> Error: 验证失败
+    Error --> [*]: 销毁
+    
+    Ready --> Executing: 开始执行
+    Executing --> Success: 执行成功
+    Executing --> Failed: 执行失败
+    Executing --> Skipped: 跳过执行
+    
+    Success --> Ready: 可重复执行
+    Failed --> Ready: 可重试
+    Skipped --> Ready: 可重新执行
+    
+    Ready --> Disposed: 销毁
+    Disposed --> [*]
+```
+
+### 5.2 生命周期阶段
+
+| 阶段 | 触发条件 | 可执行操作 | 说明 |
+|------|----------|------------|------|
+| Created | 组件实例化 | - | 组件对象已创建，未初始化 |
+| Validating | 调用 `validate()` | 配置检查 | 验证组件配置是否有效 |
+| Ready | 验证通过 | `execute()` | 组件就绪，可执行 |
+| Executing | 调用 `execute()` | 执行逻辑 | 组件正在执行 |
+| Success | 执行成功 | - | 执行成功完成 |
+| Failed | 执行失败 | - | 执行过程中出错 |
+| Skipped | 条件不满足 | - | 跳过执行（如条件为 false） |
+| Disposed | 显式销毁 | - | 组件已销毁，不可再使用 |
+
+### 5.3 生命周期钩子
+
+```rust
+/// 组件生命周期钩子
+#[async_trait]
+pub trait ComponentLifecycle: Send + Sync {
+    /// 创建后调用
+    async fn on_created(&self, _component: &dyn Component) -> Result<()> {
+        Ok(())
+    }
+    
+    /// 验证前调用
+    async fn on_validating(&self, _component: &dyn Component) -> Result<()> {
+        Ok(())
+    }
+    
+    /// 验证后调用
+    async fn on_validated(&self, _component: &dyn Component, _result: &Result<()>) -> Result<()> {
+        Ok(())
+    }
+    
+    /// 执行前调用
+    async fn on_executing(&self, _component: &dyn Component, _context: &DataContext) -> Result<()> {
+        Ok(())
+    }
+    
+    /// 执行后调用
+    async fn on_executed(
+        &self,
+        _component: &dyn Component,
+        _result: &Result<ComponentOutput>,
+    ) -> Result<()> {
+        Ok(())
+    }
+    
+    /// 销毁前调用
+    async fn on_disposing(&self, _component: &dyn Component) -> Result<()> {
+        Ok(())
+    }
+}
+```
+
+### 5.4 组件生命周期管理器
+
+```rust
+/// 组件生命周期管理器
+pub struct ComponentLifecycleManager {
+    hooks: Vec<Box<dyn ComponentLifecycle>>,
+    states: DashMap<String, ComponentLifecycleState>,
+}
+
+/// 组件生命周期状态
+#[derive(Debug, Clone)]
+pub enum ComponentLifecycleState {
+    Created,
+    Validating,
+    Ready,
+    Executing { started_at: DateTime<Utc> },
+    Success { completed_at: DateTime<Utc> },
+    Failed { error: String, failed_at: DateTime<Utc> },
+    Skipped { reason: String },
+    Disposed,
+}
+
+impl ComponentLifecycleManager {
+    /// 注册生命周期钩子
+    pub fn register_hook(&mut self, hook: Box<dyn ComponentLifecycle>) {
+        self.hooks.push(hook);
+    }
+    
+    /// 触发创建事件
+    pub async fn trigger_created(&self, component: &dyn Component) -> Result<()> {
+        self.states.insert(component.id().to_string(), ComponentLifecycleState::Created);
+        for hook in &self.hooks {
+            hook.on_created(component).await?;
+        }
+        Ok(())
+    }
+    
+    /// 触发验证事件
+    pub async fn trigger_validating(&self, component: &dyn Component) -> Result<()> {
+        self.states.insert(component.id().to_string(), ComponentLifecycleState::Validating);
+        for hook in &self.hooks {
+            hook.on_validating(component).await?;
+        }
+        Ok(())
+    }
+    
+    /// 触发执行事件
+    pub async fn trigger_executing(&self, component: &dyn Component, context: &DataContext) -> Result<()> {
+        self.states.insert(
+            component.id().to_string(),
+            ComponentLifecycleState::Executing { started_at: Utc::now() },
+        );
+        for hook in &self.hooks {
+            hook.on_executing(component, context).await?;
+        }
+        Ok(())
+    }
+    
+    /// 触发执行完成事件
+    pub async fn trigger_executed(
+        &self,
+        component: &dyn Component,
+        result: &Result<ComponentOutput>,
+    ) -> Result<()> {
+        let state = match result {
+            Ok(output) => match output.status {
+                ComponentStatus::Success => ComponentLifecycleState::Success {
+                    completed_at: Utc::now(),
+                },
+                ComponentStatus::Skip => ComponentLifecycleState::Skipped {
+                    reason: "条件不满足".to_string(),
+                },
+                ComponentStatus::Failure(ref err) => ComponentLifecycleState::Failed {
+                    error: err.clone(),
+                    failed_at: Utc::now(),
+                },
+                _ => ComponentLifecycleState::Success { completed_at: Utc::now() },
+            },
+            Err(e) => ComponentLifecycleState::Failed {
+                error: e.to_string(),
+                failed_at: Utc::now(),
+            },
+        };
+        
+        self.states.insert(component.id().to_string(), state);
+        
+        for hook in &self.hooks {
+            hook.on_executed(component, result).await?;
+        }
+        Ok(())
+    }
+    
+    /// 获取组件状态
+    pub fn get_state(&self, component_id: &str) -> Option<ComponentLifecycleState> {
+        self.states.get(component_id).map(|s| s.clone())
+    }
+}
+```
+
+### 5.5 内置生命周期钩子
+
+#### 日志钩子
+
+```rust
+/// 日志记录钩子
+pub struct LoggingLifecycleHook {
+    logger: Logger,
+}
+
+#[async_trait]
+impl ComponentLifecycle for LoggingLifecycleHook {
+    async fn on_executing(&self, component: &dyn Component, _context: &DataContext) -> Result<()> {
+        self.logger.info(&format!(
+            "[{}] 开始执行组件: {}",
+            chrono::Utc::now().format("%H:%M:%S%.3f"),
+            component.id()
+        ));
+        Ok(())
+    }
+    
+    async fn on_executed(&self, component: &dyn Component, result: &Result<ComponentOutput>) -> Result<()> {
+        match result {
+            Ok(output) => {
+                self.logger.info(&format!(
+                    "[{}] 组件执行完成: {} -> {:?}",
+                    chrono::Utc::now().format("%H:%M:%S%.3f"),
+                    component.id(),
+                    output.status
+                ));
+            }
+            Err(e) => {
+                self.logger.error(&format!(
+                    "[{}] 组件执行失败: {} -> {}",
+                    chrono::Utc::now().format("%H:%M:%S%.3f"),
+                    component.id(),
+                    e
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+```
+
+#### 指标收集钩子
+
+```rust
+/// 指标收集钩子
+pub struct MetricsLifecycleHook {
+    metrics: Arc<MetricsCollector>,
+}
+
+#[async_trait]
+impl ComponentLifecycle for MetricsLifecycleHook {
+    async fn on_executing(&self, component: &dyn Component, _context: &DataContext) -> Result<()> {
+        self.metrics.counter("component.executing", 1);
+        self.metrics.gauge("component.current", component.id().to_string());
+        Ok(())
+    }
+    
+    async fn on_executed(&self, component: &dyn Component, result: &Result<ComponentOutput>) -> Result<()> {
+        match result {
+            Ok(_) => self.metrics.counter("component.success", 1),
+            Err(_) => self.metrics.counter("component.failure", 1),
+        }
+        Ok(())
+    }
+}
+```
+
+### 5.6 生命周期最佳实践
+
+1. **验证阶段**: 在 `validate()` 中检查所有配置，避免运行时错误
+2. **执行阶段**: 使用 `ComponentOutput` 正确报告执行状态
+3. **错误处理**: 失败时提供有意义的错误信息
+4. **资源清理**: 在销毁钩子中释放所有资源
+5. **幂等性**: 设计组件支持重复执行
