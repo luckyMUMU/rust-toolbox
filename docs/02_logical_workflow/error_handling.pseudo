@@ -2,7 +2,7 @@
 // Error Handling Flow - Pseudo Code
 //
 // 描述: 系统错误处理的分层策略
-// 版本: v0.1.0
+// 版本: v1.0.0
 // 关联代码: src/error.rs, src/workflow/executor/retry.rs
 
 // ==================== 错误分类 ====================

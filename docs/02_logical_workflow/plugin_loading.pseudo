@@ -2,7 +2,7 @@
 // Plugin Loading Flow - Pseudo Code
 //
 // 描述: 插件从发现到可用的完整加载流程
-// 版本: v0.1.0
+// 版本: v1.0.0
 // 关联代码: src/plugins/manager.rs, src/plugins/runtime.rs
 
 // ==================== 插件加载主流程 ====================

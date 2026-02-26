@@ -2,7 +2,7 @@
 // Workflow Execution Flow - Pseudo Code
 // 
 // 描述: 工作流从提交到完成的完整执行流程
-// 版本: v0.1.0
+// 版本: v1.0.0
 // 关联代码: src/workflow/engine.rs, src/workflow/execution_manager.rs
 
 FUNCTION EXECUTE_WORKFLOW(workflow_definition, initial_params):

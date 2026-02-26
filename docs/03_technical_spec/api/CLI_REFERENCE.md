@@ -1,7 +1,7 @@
 # CLI参考
 
 > **工作流工具包命令行接口完整参考**  
-> *最后更新：2026-01-14*
+> *最后更新：2026-02-26*
 
 ## 概述
 
@@ -64,7 +64,6 @@ workflow-toolkit workflow execute [选项] <工作流名称>
 - `--background`：后台执行
 - `--wait`：等待完成并显示进度
 - `--timeout <秒>`：执行超时时间
-- `--dry-run`：预览而不执行
 
 **示例：**
 ```bash
@@ -73,9 +72,6 @@ workflow-toolkit workflow execute hello-world
 
 # 使用JSON参数执行
 workflow-toolkit workflow execute hello-world --params-json '{"name": "Alice"}' --wait
-
-# 试运行
-workflow-toolkit workflow execute hello-world --dry-run
 ```
 
 ### `workflow status`
@@ -220,6 +216,13 @@ workflow-toolkit plugin list [选项]
 ```bash
 workflow-toolkit plugin reload <插件名称>
 workflow-toolkit plugin uninstall <插件名称> [--force]
+```
+
+### `plugin info`
+显示插件的详细信息。
+
+```bash
+workflow-toolkit plugin info <插件名称>
 ```
 
 ---

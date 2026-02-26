@@ -1,7 +1,7 @@
 # Rust SDK参考
 
 > **Rust工作流工具包SDK完整参考**  
-> *最后更新：2026-01-14*
+> *最后更新：2026-02-26*
 
 ## 概述
 
@@ -19,25 +19,11 @@
 #[async_trait]
 pub trait WorkflowEngine: Send + Sync {
     /// 执行工作流定义
-    async fn execute_workflow(&self, definition: WorkflowDefinition) -> Result<WorkflowExecution>;
-    
-    /// 暂停运行中的工作流
-    async fn pause_workflow(&self, id: WorkflowId) -> Result<()>;
-    
-    /// 恢复暂停的工作流
-    async fn resume_workflow(&self, id: WorkflowId) -> Result<()>;
-    
-    /// 停止运行中的工作流
-    async fn stop_workflow(&self, id: WorkflowId) -> Result<()>;
-    
-    /// 获取工作流状态
-    async fn get_workflow_status(&self, id: WorkflowId) -> Result<WorkflowStatus>;
-    
-    /// 列出所有工作流
-    async fn list_workflows(&self) -> Result<Vec<WorkflowInfo>>;
-    
-    /// 删除工作流
-    async fn delete_workflow(&self, id: WorkflowId) -> Result<()>;
+    async fn execute(
+        &self,
+        definition: WorkflowDefinition,
+        initial_params: HashMap<String, Value>,
+    ) -> Result<WorkflowExecution>;
 }
 ```
 
@@ -69,22 +55,21 @@ pub struct WorkflowNode {
     pub parameters: Value,
     pub retry_policy: Option<RetryPolicy>,
     pub timeout: Option<Duration>,
-    pub condition: Option<String>,
+    pub metadata: HashMap<String, Value>,
+    pub depends_on: Vec<String>,
 }
 ```
 
 ##### NodeType
 
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeType {
     Tool,
     Condition,
     Loop,
     Parallel,
     Checkpoint,
-    Start,
-    End,
 }
 ```
 
@@ -221,16 +206,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         metadata: std::collections::HashMap::new(),
         nodes: vec![
             workflow_toolkit::workflow::WorkflowNode {
-                id: "start".to_string(),
-                node_type: workflow_toolkit::workflow::NodeType::Start,
-                tool_name: None,
-                parameters: json!({}),
-                retry_policy: None,
-                timeout: None,
-                depends_on: Vec::new(),
-                metadata: std::collections::HashMap::new(),
-            },
-            workflow_toolkit::workflow::WorkflowNode {
                 id: "hello".to_string(),
                 node_type: workflow_toolkit::workflow::NodeType::Tool,
                 tool_name: Some("echo".to_string()),
@@ -239,52 +214,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }),
                 retry_policy: None,
                 timeout: Some(std::time::Duration::from_secs(30)),
-                depends_on: vec!["start".to_string()],
                 metadata: std::collections::HashMap::new(),
-            },
-            workflow_toolkit::workflow::WorkflowNode {
-                id: "end".to_string(),
-                node_type: workflow_toolkit::workflow::NodeType::End,
-                tool_name: None,
-                parameters: json!({}),
-                retry_policy: None,
-                timeout: None,
-                depends_on: vec!["hello".to_string()],
-                metadata: std::collections::HashMap::new(),
+                depends_on: Vec::new(),
             },
         ],
-        edges: vec![
-            workflow_toolkit::workflow::WorkflowEdge {
-                from: "start".to_string(),
-                to: "hello".to_string(),
-                condition: None,
-                metadata: std::collections::HashMap::new(),
-            },
-            workflow_toolkit::workflow::WorkflowEdge {
-                from: "hello".to_string(),
-                to: "end".to_string(),
-                condition: None,
-                metadata: std::collections::HashMap::new(),
-            },
-        ],
+        edges: vec![],
         global_config: workflow_toolkit::WorkflowConfig::default(),
     };
     
     // 4. 执行工作流
-    let execution = engine.execute_workflow(workflow).await?;
+    let initial_params = std::collections::HashMap::new();
+    let execution = engine.execute(workflow, initial_params).await?;
     println!("工作流执行ID: {}", execution.id);
-    
-    // 5. 监控状态
-    loop {
-        let status = engine.get_workflow_status(execution.id).await?;
-        println!("当前状态: {:?}", status);
-        
-        if status.is_terminal() {
-            break;
-        }
-        
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
     
     Ok(())
 }
@@ -365,9 +306,6 @@ global_config:
     max_retries: 3
 
 nodes:
-  - id: "start"
-    type: "start"
-    
   - id: "load_data"
     type: "tool"
     tool_name: "data_loader"
@@ -377,7 +315,8 @@ nodes:
     
   - id: "validate_data"
     type: "condition"
-    condition: "${load_data.record_count} > ${threshold}"
+    parameters:
+      condition: "${load_data.record_count} > ${threshold}"
     
   - id: "process_large_dataset"
     type: "tool"
@@ -392,14 +331,8 @@ nodes:
     tool_name: "simple_processor"
     parameters:
       data: "${load_data.output}"
-      
-  - id: "end"
-    type: "end"
 
 edges:
-  - from: "start"
-    to: "load_data"
-    
   - from: "load_data"
     to: "validate_data"
     
@@ -410,10 +343,4 @@ edges:
   - from: "validate_data"
     to: "process_small_dataset"
     condition: "false"
-    
-  - from: "process_large_dataset"
-    to: "end"
-    
-  - from: "process_small_dataset"
-    to: "end"
 ```
