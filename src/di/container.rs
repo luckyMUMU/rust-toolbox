@@ -45,9 +45,10 @@ impl DiContainer {
         T: 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
-        if let Ok(mut singletons) = self.singletons.write() {
-            singletons.insert(type_id, instance);
-        }
+        self.singletons
+            .write()
+            .expect("获取单例写入锁失败，锁可能已被污染")
+            .insert(type_id, instance);
     }
 
     /// 注册工厂方法
@@ -59,12 +60,13 @@ impl DiContainer {
         F: Fn() -> Arc<T> + 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
-        if let Ok(mut factories) = self.factories.write() {
-            factories.insert(
+        self.factories
+            .write()
+            .expect("获取工厂写入锁失败，锁可能已被污染")
+            .insert(
                 type_id,
                 Box::new(move || factory() as Arc<dyn Any + Send + Sync>),
             );
-        }
     }
 
     /// 注册带依赖的工厂方法
@@ -77,12 +79,13 @@ impl DiContainer {
         F: Fn(&DiContainer) -> Arc<T> + 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
-        if let Ok(mut factories) = self.factories_with_deps.write() {
-            factories.insert(
+        self.factories_with_deps
+            .write()
+            .expect("获取带依赖工厂写入锁失败，锁可能已被污染")
+            .insert(
                 type_id,
                 Box::new(move |container| factory(container) as Arc<dyn Any + Send + Sync>),
             );
-        }
     }
 
     /// 解析服务
@@ -99,21 +102,28 @@ impl DiContainer {
         let type_id = TypeId::of::<T>();
 
         // 1. 检查已解析缓存
-        if let Ok(resolved) = self.resolved.read() {
-            if let Some(instance) = resolved.get(&type_id) {
-                return instance.clone().downcast::<T>().ok();
-            }
+        if let Some(instance) = self
+            .resolved
+            .read()
+            .expect("获取已解析缓存读取锁失败，锁可能已被污染")
+            .get(&type_id)
+        {
+            return instance.clone().downcast::<T>().ok();
         }
 
         // 2. 检查单例存储
-        if let Ok(singletons) = self.singletons.read() {
-            if let Some(instance) = singletons.get(&type_id) {
-                // 缓存到已解析
-                if let Ok(mut resolved) = self.resolved.write() {
-                    resolved.insert(type_id, instance.clone());
-                }
-                return instance.clone().downcast::<T>().ok();
-            }
+        if let Some(instance) = self
+            .singletons
+            .read()
+            .expect("获取单例存储读取锁失败，锁可能已被污染")
+            .get(&type_id)
+        {
+            // 缓存到已解析
+            self.resolved
+                .write()
+                .expect("获取已解析缓存写入锁失败，锁可能已被污染")
+                .insert(type_id, instance.clone());
+            return instance.clone().downcast::<T>().ok();
         }
 
         // 3. 检查带依赖的工厂方法
