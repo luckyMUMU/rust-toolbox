@@ -215,3 +215,301 @@ infrastructure/
 | dashmap | 并发 HashMap | 5.x |
 | chrono | 时间处理 | 0.4.x |
 | tracing | 日志追踪 | 0.1.x |
+
+---
+
+## 6. 监控指标与告警
+
+### 6.1 核心监控指标
+
+#### 6.1.1 工作流指标
+
+| 指标名称 | 类型 | 描述 | 标签 |
+|----------|------|------|------|
+| `workflow_executions_total` | Counter | 工作流执行总数 | status, workflow_id |
+| `workflow_execution_duration_seconds` | Histogram | 工作流执行时间 | workflow_id |
+| `workflow_active_count` | Gauge | 当前活跃工作流数 | - |
+| `workflow_node_executions_total` | Counter | 节点执行总数 | status, node_type |
+| `workflow_node_duration_seconds` | Histogram | 节点执行时间 | node_type |
+| `workflow_queue_depth` | Gauge | 工作流队列深度 | priority |
+
+#### 6.1.2 工具指标
+
+| 指标名称 | 类型 | 描述 | 标签 |
+|----------|------|------|------|
+| `tool_executions_total` | Counter | 工具执行总数 | status, tool_name, tool_type |
+| `tool_execution_duration_seconds` | Histogram | 工具执行时间 | tool_name, tool_type |
+| `tool_cache_hits_total` | Counter | 工具缓存命中数 | tool_name |
+| `tool_cache_misses_total` | Counter | 工具缓存未命中数 | tool_name |
+| `tool_registry_size` | Gauge | 工具注册表大小 | - |
+
+#### 6.1.3 插件指标
+
+| 指标名称 | 类型 | 描述 | 标签 |
+|----------|------|------|------|
+| `plugin_loads_total` | Counter | 插件加载总数 | status, plugin_name, plugin_type |
+| `plugin_load_duration_seconds` | Histogram | 插件加载时间 | plugin_type |
+| `plugin_executions_total` | Counter | 插件执行总数 | status, plugin_name |
+| `plugin_process_pool_size` | Gauge | 进程池大小 | plugin_type |
+| `plugin_process_pool_available` | Gauge | 可用进程数 | plugin_type |
+| `plugin_memory_usage_bytes` | Gauge | 插件内存使用 | plugin_name |
+
+#### 6.1.4 存储指标
+
+| 指标名称 | 类型 | 描述 | 标签 |
+|----------|------|------|------|
+| `storage_operations_total` | Counter | 存储操作总数 | operation, backend, status |
+| `storage_operation_duration_seconds` | Histogram | 存储操作时间 | operation, backend |
+| `storage_cache_hits_total` | Counter | 缓存命中数 | backend |
+| `storage_cache_misses_total` | Counter | 缓存未命中数 | backend |
+| `storage_size_bytes` | Gauge | 存储大小 | backend |
+
+#### 6.1.5 系统指标
+
+| 指标名称 | 类型 | 描述 | 标签 |
+|----------|------|------|------|
+| `system_memory_usage_bytes` | Gauge | 内存使用 | type (heap, stack) |
+| `system_cpu_usage_ratio` | Gauge | CPU 使用率 | core |
+| `system_gc_pause_seconds` | Histogram | GC 暂停时间 | - |
+| `system_goroutines_count` | Gauge | 协程数 | - |
+| `system_open_fds` | Gauge | 打开的文件描述符数 | - |
+
+### 6.2 告警规则定义
+
+#### 6.2.1 严重告警（P0）
+
+```yaml
+# alerts-p0.yml
+groups:
+  - name: critical-alerts
+    rules:
+      - alert: WorkflowEngineDown
+        expr: up{job="workflow-engine"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "工作流引擎不可用"
+          description: "工作流引擎实例 {{ $labels.instance }} 已停止响应超过 1 分钟"
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(workflow_executions_total{status="failed"}[5m])) 
+          / sum(rate(workflow_executions_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "工作流错误率过高"
+          description: "工作流失败率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      - alert: MemoryExhaustion
+        expr: system_memory_usage_bytes{type="heap"} / system_memory_limit_bytes > 0.9
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "内存即将耗尽"
+          description: "堆内存使用率超过 90%，当前值: {{ $value | humanizePercentage }}"
+```
+
+#### 6.2.2 重要告警（P1）
+
+```yaml
+# alerts-p1.yml
+groups:
+  - name: important-alerts
+    rules:
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(workflow_execution_duration_seconds_bucket[5m])) by (le)
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "工作流执行延迟过高"
+          description: "P99 延迟超过 30 秒，当前值: {{ $value | humanizeDuration }}"
+
+      - alert: PluginLoadFailure
+        expr: rate(plugin_loads_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "插件加载失败率过高"
+          description: "插件加载失败率: {{ $value }}/s"
+
+      - alert: CacheHitRateLow
+        expr: |
+          sum(rate(storage_cache_hits_total[5m])) 
+          / (sum(rate(storage_cache_hits_total[5m])) + sum(rate(storage_cache_misses_total[5m]))) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "缓存命中率过低"
+          description: "缓存命中率低于 50%，当前值: {{ $value | humanizePercentage }}"
+
+      - alert: ProcessPoolExhausted
+        expr: plugin_process_pool_available / plugin_process_pool_size < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "进程池即将耗尽"
+          description: "可用进程数低于 10%"
+```
+
+#### 6.2.3 一般告警（P2）
+
+```yaml
+# alerts-p2.yml
+groups:
+  - name: general-alerts
+    rules:
+      - alert: HighConcurrency
+        expr: workflow_active_count > 100
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "并发工作流数量较高"
+          description: "当前活跃工作流数: {{ $value }}"
+
+      - alert: SlowStorageOperations
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(storage_operation_duration_seconds_bucket[5m])) by (le, operation)
+          ) > 1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "存储操作延迟较高"
+          description: "{{ $labels.operation }} 操作 P95 延迟超过 1 秒"
+
+      - alert: ToolCacheMissRateHigh
+        expr: |
+          sum(rate(tool_cache_misses_total[5m])) 
+          / sum(rate(tool_executions_total[5m])) > 0.3
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "工具缓存未命中率较高"
+          description: "工具缓存未命中率: {{ $value | humanizePercentage }}"
+```
+
+### 6.3 告警阈值配置
+
+| 指标 | 正常范围 | 警告阈值 | 严重阈值 | 处理建议 |
+|------|----------|----------|----------|----------|
+| 错误率 | < 1% | 1-5% | > 5% | 检查日志、排查错误 |
+| P99 延迟 | < 10s | 10-30s | > 30s | 性能分析、扩容 |
+| 内存使用 | < 70% | 70-85% | > 85% | 内存分析、扩容 |
+| CPU 使用 | < 60% | 60-80% | > 80% | 扩容、优化 |
+| 缓存命中率 | > 80% | 50-80% | < 50% | 调整缓存策略 |
+| 队列深度 | < 100 | 100-500 | > 500 | 扩容、限流 |
+| 进程池可用 | > 30% | 10-30% | < 10% | 扩大进程池 |
+
+### 6.4 监控仪表盘配置
+
+```json
+{
+  "dashboard": {
+    "title": "Workflow Toolkit 监控仪表盘",
+    "panels": [
+      {
+        "title": "工作流执行概览",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(workflow_executions_total[5m]))",
+            "legendFormat": "执行速率"
+          },
+          {
+            "expr": "sum(rate(workflow_executions_total{status=\"failed\"}[5m]))",
+            "legendFormat": "失败速率"
+          }
+        ]
+      },
+      {
+        "title": "执行延迟分布",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "sum(rate(workflow_execution_duration_seconds_bucket[5m])) by (le)",
+            "format": "heatmap"
+          }
+        ]
+      },
+      {
+        "title": "资源使用",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "system_memory_usage_bytes{type=\"heap\"} / system_memory_limit_bytes * 100",
+            "legendFormat": "内存使用 %"
+          },
+          {
+            "expr": "avg(system_cpu_usage_ratio) * 100",
+            "legendFormat": "CPU 使用 %"
+          }
+        ]
+      },
+      {
+        "title": "插件状态",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "plugin_process_pool_size",
+            "format": "table"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 6.5 日志规范
+
+#### 结构化日志格式
+
+```json
+{
+  "timestamp": "2026-02-27T10:30:00.000Z",
+  "level": "INFO",
+  "target": "workflow_engine",
+  "message": "Workflow execution started",
+  "trace_id": "abc123",
+  "span_id": "def456",
+  "fields": {
+    "workflow_id": "wf-001",
+    "execution_id": "exec-001",
+    "node_count": 10
+  }
+}
+```
+
+#### 日志级别使用规范
+
+| 级别 | 使用场景 | 示例 |
+|------|----------|------|
+| ERROR | 需要立即处理的错误 | 工作流执行失败、插件崩溃 |
+| WARN | 需要关注但不需要立即处理 | 重试成功、性能下降 |
+| INFO | 重要的业务事件 | 工作流启动/完成、插件加载 |
+| DEBUG | 调试信息 | 节点执行详情、参数值 |
+| TRACE | 详细追踪 | 函数调用栈、变量状态 |
+
+### 6.6 监控数据保留策略
+
+| 数据类型 | 高精度保留 | 低精度保留 | 说明 |
+|----------|------------|------------|------|
+| 原始指标 | 7 天 | - | 秒级数据 |
+| 聚合指标 | 30 天 | 1 年 | 分钟/小时级聚合 |
+| 日志数据 | 7 天 | 30 天 | 压缩存储 |
+| 追踪数据 | 3 天 | 7 天 | 采样存储 |
+| 告警历史 | 30 天 | 1 年 | 用于趋势分析 |

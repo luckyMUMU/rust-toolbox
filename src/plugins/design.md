@@ -371,6 +371,88 @@ pub struct DockerRuntimeConfig {
 - **理由**: 减少启动开销，提高响应速度
 - **风险**: 内存占用增加
 
+### 2.1.1 设计决策理由详解
+
+#### 决策 1: 为什么选择进程级隔离？
+
+**背景问题**：
+插件通常是第三方代码，可能存在安全风险或稳定性问题，需要隔离执行。
+
+**考虑的选项**：
+
+| 选项 | 隔离强度 | 性能开销 | 实现复杂度 | 安全性 |
+|------|----------|----------|------------|--------|
+| 线程级 | 弱 | 低 | 低 | 低 |
+| **进程级** | 强 | 中 | 中 | **高** |
+| 容器级 | 最强 | 高 | 高 | 最高 |
+| WASM 沙箱 | 强 | 低 | 中 | 高 |
+
+**选择理由**：
+1. **安全性优先**：进程崩溃不会影响主进程
+2. **资源可控**：操作系统级别的资源限制（CPU、内存）
+3. **成熟稳定**：进程隔离是经过验证的技术方案
+4. **跨语言支持**：进程间通信不依赖特定语言运行时
+
+**影响与后果**：
+- 每个插件需要独立的进程启动开销
+- 进程间通信（IPC）有一定延迟
+- 需要进程池来优化启动性能
+
+#### 决策 2: 为什么优先支持 Native/Python/Node.js/Docker？
+
+**背景问题**：
+需要选择支持的插件类型，平衡开发成本、用户需求和生态覆盖。
+
+**考虑的选项**：
+
+| 插件类型 | 开发成本 | 用户需求 | 生态成熟度 | 当前状态 |
+|----------|----------|----------|------------|----------|
+| **Native** | 低 | 高 | 高 | ✅ 已实现 |
+| **Python** | 中 | 最高 | 最高 | ✅ 已实现 |
+| **Node.js** | 中 | 高 | 高 | ✅ 已实现 |
+| **Docker** | 中 | 中 | 高 | ✅ 已实现 |
+| WASM | 高 | 中 | 发展中 | ⚠️ 暂时禁用 |
+| Go | 中 | 低 | 高 | 未计划 |
+
+**选择理由**：
+1. **Python**：数据科学和 AI 领域的主流语言，需求最高
+2. **Node.js**：Web 开发生态丰富，工具链成熟
+3. **Native**：性能最优，适合核心工具
+4. **Docker**：最强隔离，适合不可信代码
+
+**WASM 暂时禁用的原因**：
+- WASM 运行时（如 wasmtime）依赖问题尚未解决
+- WASM 生态仍在发展中，工具链不够成熟
+- 计划在 v2.1 版本中恢复支持
+
+#### 决策 3: 为什么使用进程池管理运行时？
+
+**背景问题**：
+每次插件执行都启动新进程会有显著的开销，影响响应速度。
+
+**考虑的选项**：
+
+| 选项 | 启动延迟 | 内存占用 | 实现复杂度 |
+|------|----------|----------|------------|
+| 按需启动 | 高（秒级） | 低 | 低 |
+| **进程池** | 低（毫秒级） | 中 | 中 |
+| 常驻进程 | 最低 | 高 | 高 |
+
+**选择理由**：
+1. **降低延迟**：预热进程可立即使用，响应时间从秒级降到毫秒级
+2. **资源复用**：进程可复用，减少创建/销毁开销
+3. **弹性伸缩**：根据负载动态调整池大小
+4. **健康检查**：定期检查进程健康状态，自动重启异常进程
+
+**进程池配置示例**：
+```yaml
+pool:
+  min_processes: 2       # 最小进程数
+  max_processes: 10      # 最大进程数
+  idle_timeout_secs: 300 # 空闲超时
+  health_check_interval: 30
+```
+
 ### 2.2 任务清单
 
 - [x] Task 0: 插件管理器基础
@@ -414,6 +496,287 @@ pub struct ResourceUsage {
 - **集成测试（Integration Test）**: 插件加载/执行/卸载完整流程
 - **安全测试（Security Test）**: 沙箱（Sandbox）隔离有效性
 - **性能测试（Performance Test）**: 进程池性能基准
+
+### 2.4.1 测试策略详解
+
+#### 测试金字塔
+
+```
+        /\
+       /E2E\         端到端测试 (10%)
+      /------\
+     /  集成  \       集成测试 (30%)
+    /----------\
+   /    单元    \     单元测试 (60%)
+  /______________\
+```
+
+#### 单元测试策略
+
+**覆盖目标**：
+- 代码覆盖率 > 85%
+- 分支覆盖率 > 80%
+- 安全相关代码覆盖率 100%
+
+**测试范围**：
+
+| 模块 | 测试重点 | 覆盖率要求 |
+|------|----------|------------|
+| PluginManager | 加载/卸载/重载 | 90% |
+| RuntimeManager | 运行时创建/销毁 | 85% |
+| SecurityEnforcer | 权限检查/资源限制 | **100%** |
+| ProcessPool | 进程管理/健康检查 | 85% |
+| PluginLoader | 配置解析/验证 | 85% |
+
+**测试示例**：
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_plugin_load_native() {
+        let manager = PluginManager::new();
+        let config = PluginConfig {
+            name: "test-native".to_string(),
+            plugin_type: PluginType::Native,
+            entry_point: "./test_plugin.so".to_string(),
+            resource_limits: ResourceLimits::default(),
+            security_policy: SecurityPolicy::default(),
+            metadata: HashMap::new(),
+        };
+        
+        let result = manager.load(config).await;
+        assert!(result.is_ok());
+        
+        let plugin = manager.get("test-native");
+        assert!(plugin.is_some());
+    }
+    
+    #[tokio::test]
+    async fn test_plugin_permission_check() {
+        let enforcer = SecurityEnforcer::new(
+            ResourceLimits::default(),
+            ["fs.read", "network.http"].iter().map(|s| s.to_string()).collect(),
+        );
+        
+        // 允许的权限
+        assert!(enforcer.check_permission("fs.read").is_ok());
+        
+        // 禁止的权限
+        assert!(enforcer.check_permission("fs.write").is_err());
+        assert!(enforcer.check_permission("process.spawn").is_err());
+    }
+    
+    #[tokio::test]
+    async fn test_resource_limit_enforcement() {
+        let limits = ResourceLimits {
+            max_memory_mb: 128,
+            max_cpu_percent: 50.0,
+            max_execution_time_secs: 10,
+            ..Default::default()
+        };
+        
+        let enforcer = SecurityEnforcer::new(limits, HashSet::new());
+        
+        // 模拟内存超限
+        let result = enforcer.monitor_resources(12345).await;
+        // 实际测试需要 mock 进程资源使用
+    }
+}
+```
+
+#### 集成测试策略
+
+**测试场景**：
+
+| 场景 | 描述 | 验证点 |
+|------|------|--------|
+| 插件加载 | 加载各类型插件 | 加载成功、状态正确 |
+| 工具执行 | 调用插件工具 | 结果正确、资源释放 |
+| 插件卸载 | 卸载插件 | 资源清理、进程终止 |
+| 插件重载 | 热重载插件 | 无中断、状态保持 |
+| 错误处理 | 插件崩溃 | 隔离有效、主进程正常 |
+| 资源限制 | 超限执行 | 限制生效、优雅终止 |
+
+**测试示例**：
+
+```rust
+#[tokio::test]
+async fn test_plugin_full_lifecycle() {
+    let manager = PluginManager::new();
+    
+    // 加载插件
+    let config = create_test_plugin_config();
+    manager.load(config.clone()).await.unwrap();
+    
+    // 执行工具
+    let result = manager.execute("test-plugin", "test_tool", json!({"input": "test"})).await;
+    assert!(result.is_ok());
+    
+    // 卸载插件
+    manager.unload("test-plugin").await.unwrap();
+    assert!(manager.get("test-plugin").is_none());
+}
+
+#[tokio::test]
+async fn test_plugin_isolation() {
+    let manager = PluginManager::new();
+    
+    // 加载恶意插件
+    let malicious_config = PluginConfig {
+        name: "malicious".to_string(),
+        plugin_type: PluginType::Docker,
+        security_policy: SecurityPolicy {
+            allow_network: false,
+            allow_file_write: vec![],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    
+    manager.load(malicious_config).await.unwrap();
+    
+    // 尝试违规操作
+    let result = manager.execute("malicious", "try_network", json!({})).await;
+    assert!(result.is_err()); // 应该被阻止
+}
+```
+
+#### 安全测试策略
+
+**测试场景**：
+
+| 场景 | 攻击方式 | 预期防护 |
+|------|----------|----------|
+| 文件系统逃逸 | 访问未授权路径 | 路径检查阻止 |
+| 网络攻击 | 尝试外连 | 网络权限阻止 |
+| 资源耗尽 | 消耗大量内存/CPU | 资源限制生效 |
+| 进程注入 | 尝试 fork 子进程 | 进程限制生效 |
+| 权限提升 | 尝试获取更高权限 | 权限检查阻止 |
+
+**安全测试示例**：
+
+```rust
+#[tokio::test]
+async fn test_filesystem_escape_prevention() {
+    let enforcer = SecurityEnforcer::new(
+        ResourceLimits::default(),
+        ["fs.read:/data/input".to_string()].into_iter().collect(),
+    );
+    
+    // 尝试读取未授权路径
+    let result = enforcer.check_file_access("/etc/passwd", FileAccessMode::Read);
+    assert!(result.is_err());
+    
+    // 尝试路径遍历攻击
+    let result = enforcer.check_file_access("/data/input/../../../etc/passwd", FileAccessMode::Read);
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_resource_exhaustion_prevention() {
+    let limits = ResourceLimits {
+        max_memory_mb: 64,
+        max_cpu_percent: 25.0,
+        max_execution_time_secs: 5,
+        ..Default::default()
+    };
+    
+    let enforcer = SecurityEnforcer::new(limits, HashSet::new());
+    
+    // 模拟内存耗尽攻击
+    // 实际测试中会启动一个尝试分配大量内存的插件
+    // 预期：进程被终止，不影响主进程
+}
+```
+
+#### 性能测试策略
+
+**基准测试**：
+
+| 指标 | 目标值 | 测试方法 |
+|------|--------|----------|
+| 插件加载时间 | < 500ms | Criterion 基准测试 |
+| 工具执行延迟 | < 50ms (P99) | 集成测试 |
+| 进程池预热 | < 2s | 性能测试 |
+| 并发执行 | 支持 50 并发 | 压力测试 |
+| 内存占用 | < 200MB/插件 | 内存分析 |
+
+**进程池性能测试**：
+
+```rust
+#[tokio::test]
+async fn test_process_pool_performance() {
+    let pool = ProcessPool::new(RuntimePoolConfig {
+        min_processes: 2,
+        max_processes: 10,
+        idle_timeout_secs: 300,
+    });
+    
+    // 预热
+    pool.warmup().await.unwrap();
+    
+    // 并发执行测试
+    let start = Instant::now();
+    let mut handles = vec![];
+    
+    for i in 0..50 {
+        let pool = pool.clone();
+        handles.push(tokio::spawn(async move {
+            pool.execute(|| async {
+                // 模拟工具执行
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                Ok(json!({"result": i}))
+            }).await
+        }));
+    }
+    
+    let results = futures::future::join_all(handles).await;
+    let elapsed = start.elapsed();
+    
+    // 验证所有执行成功
+    assert!(results.iter().all(|r| r.is_ok()));
+    
+    // 验证延迟
+    assert!(elapsed < Duration::from_secs(5));
+}
+```
+
+#### 测试覆盖率要求
+
+**CI/CD 集成**：
+
+```yaml
+# .github/workflows/plugin-test.yml
+name: Plugin Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        run: |
+          cargo test --package plugins --all-features
+      - name: Security tests
+        run: |
+          cargo test --package plugins --test security
+      - name: Coverage
+        run: |
+          cargo tarpaulin --package plugins --out Xml
+```
+
+**覆盖率阈值**：
+- 总体覆盖率 > 80%
+- 安全相关代码覆盖率 > 95%
+- 核心模块覆盖率 > 85%
 
 ## 3. 状态记录
 

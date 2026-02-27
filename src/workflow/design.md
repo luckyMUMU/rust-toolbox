@@ -698,6 +698,90 @@ pub struct ResourceLimits {
 - **理由**: 支持暂停/恢复，容错能力强
 - **风险**: 性能开销，需要优化保存频率
 
+### 2.1.1 设计决策理由详解
+
+#### 决策 1: 为什么选择 LiteFlow 架构风格？
+
+**背景问题**：
+传统的工作流引擎通常将执行逻辑、调度逻辑和状态管理耦合在一起，导致：
+- 代码难以测试和维护
+- 无法灵活添加横切关注点（如日志、缓存、重试）
+- 扩展新功能需要修改核心代码
+
+**考虑的选项**：
+
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| 单体引擎 | 简单直接 | 难以扩展，耦合度高 |
+| 责任链模式 | 灵活扩展 | 链条管理复杂 |
+| **LiteFlow 组件+执行器链** | 高扩展性，关注点分离 | 学习成本较高 |
+| Actor 模型 | 高并发 | 过于复杂，不适合此场景 |
+
+**选择理由**：
+1. **关注点分离**：组件专注于业务逻辑，执行器处理横切关注点
+2. **开闭原则**：新增功能只需添加执行器，无需修改现有代码
+3. **可测试性**：组件和执行器可独立测试
+4. **复用性**：执行器可跨组件复用（如 RetryExecutor 适用于所有组件）
+
+**影响与后果**：
+- 团队需要理解组件和执行器链的概念
+- 调试时需要追踪执行器链的调用过程
+- 性能开销可控（执行器链为内存操作）
+
+#### 决策 2: 为什么使用拓扑排序 + 分层执行？
+
+**背景问题**：
+工作流节点之间存在依赖关系，需要确定执行顺序，同时最大化并行度。
+
+**考虑的选项**：
+
+| 选项 | 并行度 | 复杂度 | 适用场景 |
+|------|--------|--------|----------|
+| 线性执行 | 无并行 | 低 | 简单流程 |
+| **拓扑排序 + 分层** | 高 | 中 | **DAG 工作流** |
+| 优先级队列 | 中 | 高 | 动态优先级 |
+| 数据驱动调度 | 最高 | 最高 | 复杂依赖 |
+
+**选择理由**：
+1. **最大化并行度**：同一层的节点无依赖，可并行执行
+2. **正确性保证**：拓扑排序确保依赖顺序正确
+3. **可预测性**：执行顺序确定，便于调试和测试
+4. **资源控制**：通过 `max_concurrent` 限制并发数
+
+**实现细节**：
+```
+分层执行示例：
+Layer 0: [A]           ← 入口节点
+Layer 1: [B, C]        ← A 完成后并行执行
+Layer 2: [D]           ← B、C 都完成后执行
+Layer 3: [E]           ← D 完成后执行
+```
+
+#### 决策 3: 为什么选择检查点 + 增量保存？
+
+**背景问题**：
+长时间运行的工作流需要支持暂停/恢复，系统故障时需要能够恢复执行。
+
+**考虑的选项**：
+
+| 选项 | 恢复粒度 | 性能开销 | 实现复杂度 |
+|------|----------|----------|------------|
+| 全量快照 | 整体 | 高 | 低 |
+| **检查点 + 增量** | 节点级 | 中 | 中 |
+| 事件溯源 | 操作级 | 低 | 高 |
+| 无持久化 | - | 无 | - |
+
+**选择理由**：
+1. **平衡性能与可靠性**：增量保存减少 IO 开销
+2. **精确恢复**：可从任意检查点恢复执行
+3. **支持暂停/恢复**：用户可主动暂停工作流
+4. **故障恢复**：系统崩溃后可恢复执行
+
+**增量保存策略**：
+- 每完成一个节点保存一次状态
+- 仅保存变更部分（节点结果、上下文更新）
+- 定期压缩历史检查点
+
 ### 2.2 任务清单
 
 - [x] Task 0: 基础引擎框架
@@ -962,6 +1046,240 @@ pub enum RecoveryStrategy {
 - **集成测试（Integration Test）**: 完整工作流执行测试
 - **性能测试（Performance Test）**: 大规模 DAG 执行性能
 - **容错测试（Fault Tolerance Test）**: 检查点恢复、失败重试
+
+### 2.4.1 测试策略详解
+
+#### 测试金字塔
+
+```
+        /\
+       /E2E\         端到端测试 (10%)
+      /------\
+     /  集成  \       集成测试 (30%)
+    /----------\
+   /    单元    \     单元测试 (60%)
+  /______________\
+```
+
+#### 单元测试策略
+
+**覆盖目标**：
+- 代码覆盖率 > 85%
+- 分支覆盖率 > 80%
+- 关键路径覆盖率 100%
+
+**测试范围**：
+
+| 模块 | 测试重点 | 覆盖率要求 |
+|------|----------|------------|
+| DagScheduler | 拓扑排序、依赖解析 | 90% |
+| Component | execute 方法、参数验证 | 85% |
+| Executor | 执行器链逻辑、错误处理 | 85% |
+| CheckpointManager | 检查点保存/恢复 | 90% |
+| StateManager | 状态转换、一致性 | 85% |
+
+**测试示例**：
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_dag_scheduler_simple() {
+        let scheduler = DagScheduler::new(4);
+        let mut definition = WorkflowDefinition::new("test".to_string(), "1.0.0");
+        
+        // 创建简单 DAG: A -> B -> C
+        definition.add_node(WorkflowNode::new("A", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("B", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("C", NodeType::Tool));
+        definition.add_edge(WorkflowEdge::new("A", "B"));
+        definition.add_edge(WorkflowEdge::new("B", "C"));
+        
+        let result = scheduler.schedule(&definition).unwrap();
+        
+        assert_eq!(result.execution_order, vec![
+            vec!["A".to_string()],
+            vec!["B".to_string()],
+            vec!["C".to_string()],
+        ]);
+    }
+    
+    #[tokio::test]
+    async fn test_dag_scheduler_parallel() {
+        let scheduler = DagScheduler::new(4);
+        let mut definition = WorkflowDefinition::new("test".to_string(), "1.0.0");
+        
+        // 创建并行 DAG: A -> [B, C] -> D
+        definition.add_node(WorkflowNode::new("A", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("B", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("C", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("D", NodeType::Tool));
+        definition.add_edge(WorkflowEdge::new("A", "B"));
+        definition.add_edge(WorkflowEdge::new("A", "C"));
+        definition.add_edge(WorkflowEdge::new("B", "D"));
+        definition.add_edge(WorkflowEdge::new("C", "D"));
+        
+        let result = scheduler.schedule(&definition).unwrap();
+        
+        assert_eq!(result.execution_order, vec![
+            vec!["A".to_string()],
+            vec!["B".to_string(), "C".to_string()],
+            vec!["D".to_string()],
+        ]);
+    }
+    
+    #[tokio::test]
+    async fn test_dag_scheduler_cyclic() {
+        let scheduler = DagScheduler::new(4);
+        let mut definition = WorkflowDefinition::new("test".to_string(), "1.0.0");
+        
+        // 创建循环: A -> B -> C -> A
+        definition.add_node(WorkflowNode::new("A", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("B", NodeType::Tool));
+        definition.add_node(WorkflowNode::new("C", NodeType::Tool));
+        definition.add_edge(WorkflowEdge::new("A", "B"));
+        definition.add_edge(WorkflowEdge::new("B", "C"));
+        definition.add_edge(WorkflowEdge::new("C", "A"));
+        
+        let result = scheduler.schedule(&definition);
+        assert!(result.is_err());
+    }
+    
+    #[tokio::test]
+    async fn test_executor_chain() {
+        let component = MockComponent::new();
+        let executor = ExecutorChainBuilder::new()
+            .with_retry(3, Duration::from_millis(10))
+            .with_cache(Arc::new(MemoryCache::new()))
+            .build();
+        
+        let mut context = DataContext::new();
+        let execution_ctx = ExecutionContext::new("test-exec".to_string());
+        
+        let result = executor.execute(&component, &mut context, &execution_ctx).await;
+        assert!(result.is_ok());
+    }
+}
+```
+
+#### 集成测试策略
+
+**测试场景**：
+
+| 场景 | 描述 | 验证点 |
+|------|------|--------|
+| 简单工作流 | 线性执行 5 个节点 | 顺序正确、结果正确 |
+| 并行工作流 | 并行执行 10 个节点 | 并发控制、无竞态 |
+| 条件分支 | 根据条件选择路径 | 分支逻辑正确 |
+| 循环执行 | 循环 100 次 | 循环终止、资源释放 |
+| 暂停恢复 | 中途暂停后恢复 | 状态一致性 |
+| 错误重试 | 失败后重试 3 次 | 重试逻辑生效 |
+| 超时处理 | 节点执行超时 | 超时机制生效 |
+
+**测试示例**：
+
+```rust
+#[tokio::test]
+async fn test_workflow_execution_simple() {
+    let engine = DefaultWorkflowEngine::new();
+    let mut definition = WorkflowDefinition::new("test".to_string(), "1.0.0");
+    
+    // 创建简单工作流
+    definition.add_node(WorkflowNode::new("A", NodeType::Tool));
+    definition.add_node(WorkflowNode::new("B", NodeType::Tool));
+    definition.add_edge(WorkflowEdge::new("A", "B"));
+    
+    let result = engine.execute(definition, HashMap::new()).await.unwrap();
+    
+    assert_eq!(result.status, ExecutionStatus::Completed);
+    assert!(result.completed_at.is_some());
+}
+
+#[tokio::test]
+async fn test_workflow_pause_resume() {
+    let engine = DefaultWorkflowEngine::new();
+    let mut definition = WorkflowDefinition::new("test".to_string(), "1.0.0");
+    
+    // 创建长时间工作流
+    for i in 0..10 {
+        definition.add_node(WorkflowNode::new(&format!("node_{}", i), NodeType::Tool));
+    }
+    
+    let execution = engine.execute(definition, HashMap::new()).await.unwrap();
+    
+    // 暂停执行
+    engine.pause(&execution.id).await.unwrap();
+    assert_eq!(execution.status, ExecutionStatus::Paused);
+    
+    // 恢复执行
+    let resumed = engine.resume(&execution.id).await.unwrap();
+    assert_eq!(resumed.status, ExecutionStatus::Running);
+}
+```
+
+#### 性能测试策略
+
+**基准测试**：
+
+| 指标 | 目标值 | 测试方法 |
+|------|--------|----------|
+| 单节点执行延迟 | < 10ms (P99) | Criterion 基准测试 |
+| 100 节点工作流 | < 1s | 集成测试 |
+| 1000 节点工作流 | < 10s | 集成测试 |
+| 内存占用 | < 100MB | 性能分析 |
+| 并发执行 | 支持 100 并发 | 压力测试 |
+
+**测试工具**：
+- `criterion` - Rust 基准测试框架
+- `flamegraph` - 火焰图生成
+- `heaptrack` - 内存分析
+
+#### 容错测试策略
+
+**测试场景**：
+
+| 场景 | 模拟方式 | 预期行为 |
+|------|----------|----------|
+| 节点失败 | Mock 返回错误 | 重试或失败 |
+| 网络超时 | 延迟响应 | 超时机制生效 |
+| 进程崩溃 | Kill 进程 | 检查点恢复 |
+| 磁盘满 | 模拟 IO 错误 | 优雅降级 |
+| 内存不足 | 限制内存 | OOM 处理 |
+
+#### 测试覆盖率要求
+
+**CI/CD 集成**：
+
+```yaml
+# .github/workflows/test.yml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Run tests
+        run: |
+          cargo test --all-features
+          cargo test --all-features --release
+      - name: Coverage
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v2
+```
+
+**覆盖率阈值**：
+- 总体覆盖率 > 80%
+- 核心模块覆盖率 > 85%
+- 关键路径覆盖率 > 95%
 
 ### 2.5 架构完善任务
 

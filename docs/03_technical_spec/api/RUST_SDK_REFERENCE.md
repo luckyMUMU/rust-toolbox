@@ -487,3 +487,257 @@ edges:
     to: "process_small_dataset"
     condition: "false"
 ```
+
+---
+
+## 迁移指南
+
+### 版本兼容性策略
+
+本项目遵循语义化版本控制（Semantic Versioning）：
+
+- **主版本号（Major）**：不兼容的 API 变更
+- **次版本号（Minor）**：向后兼容的功能新增
+- **修订号（Patch）**：向后兼容的问题修复
+
+### 从 v1.x 迁移到 v2.x
+
+#### 重大变更概览
+
+| 变更项 | v1.x | v2.x | 迁移难度 |
+|--------|------|------|----------|
+| 工具系统架构 | Trait-based | Enum-based | 中 |
+| WorkflowEngine 接口 | 同步方法 | 异步方法 | 低 |
+| 错误处理 | 自定义枚举 | thiserror | 低 |
+| 配置格式 | TOML only | TOML/YAML/JSON | 低 |
+
+#### 1. 工具系统迁移
+
+**v1.x 代码**：
+
+```rust
+// 旧版 trait-based 工具
+use workflow_toolkit::tools::Tool;
+
+struct MyTool;
+
+#[async_trait]
+impl Tool for MyTool {
+    async fn execute(&self, input: Value) -> Result<Value> {
+        Ok(json!({"result": "success"}))
+    }
+}
+
+// 注册
+let tool: Box<dyn Tool> = Box::new(MyTool);
+registry.register("my_tool", tool)?;
+```
+
+**v2.x 代码**：
+
+```rust
+// 新版 Enum-based 工具
+use workflow_toolkit::tools::{Tool, NativeTool, ToolInput, ToolOutput};
+
+let tool = Tool::Native(NativeTool::from_fn("my_tool", |input: ToolInput| async move {
+    Ok(ToolOutput::new(json!({"result": "success"})))
+}));
+
+// 注册
+registry.register(tool)?;
+```
+
+**迁移步骤**：
+
+1. 将 `impl Tool` 改为使用 `NativeTool::from_fn` 包装
+2. 更新输入参数类型从 `Value` 到 `ToolInput`
+3. 更新返回类型从 `Result<Value>` 到 `Result<ToolOutput>`
+4. 更新注册调用方式
+
+#### 2. WorkflowEngine 接口迁移
+
+**v1.x 代码**：
+
+```rust
+// 旧版同步接口
+let result = engine.execute(workflow)?;
+```
+
+**v2.x 代码**：
+
+```rust
+// 新版异步接口
+let result = engine.execute(workflow, params).await?;
+```
+
+**迁移步骤**：
+
+1. 在调用处添加 `.await`
+2. 确保调用函数是 `async fn`
+3. 添加 `initial_params` 参数（可传空 HashMap）
+
+#### 3. 错误处理迁移
+
+**v1.x 代码**：
+
+```rust
+// 旧版错误枚举
+#[derive(Debug)]
+pub enum WorkflowError {
+    NotFound(String),
+    ExecutionFailed(String),
+    // ...
+}
+```
+
+**v2.x 代码**：
+
+```rust
+// 新版 thiserror 错误
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum WorkflowError {
+    #[error("资源未找到: {0}")]
+    NotFound(String),
+    
+    #[error("执行失败: {0}")]
+    ExecutionFailed(String),
+    
+    // ...
+}
+```
+
+**迁移步骤**：
+
+1. 添加 `thiserror` 依赖到 `Cargo.toml`
+2. 为错误枚举添加 `#[derive(Error)]`
+3. 为每个变体添加 `#[error("...")]` 属性
+4. 更新错误创建方式
+
+#### 4. 配置格式迁移
+
+**v1.x 代码**：
+
+```rust
+// 仅支持 TOML
+let config = Config::from_toml_file("config.toml")?;
+```
+
+**v2.x 代码**：
+
+```rust
+// 支持多种格式
+let config = Config::from_file("config.toml")?;  // 自动检测格式
+let config = Config::from_file("config.yaml")?;
+let config = Config::from_file("config.json")?;
+```
+
+**迁移步骤**：
+
+1. 将 `from_toml_file` 改为 `from_file`
+2. 可选择迁移到 YAML 格式以获得更好的可读性
+
+### 废弃 API 清单
+
+以下 API 已废弃，将在下一个主版本中移除：
+
+| 废弃 API | 替代方案 | 废弃版本 | 移除版本 |
+|----------|----------|----------|----------|
+| `Tool::execute(&self, Value)` | `Tool::execute(&self, ToolInput)` | v1.5.0 | v2.0.0 |
+| `WorkflowEngine::execute_sync` | `WorkflowEngine::execute` | v1.8.0 | v2.0.0 |
+| `Config::from_toml_file` | `Config::from_file` | v1.9.0 | v2.0.0 |
+| `ToolRegistry::register_boxed` | `ToolRegistry::register` | v1.9.0 | v2.0.0 |
+
+### 迁移检查清单
+
+在升级版本时，请按以下清单检查：
+
+- [ ] 更新 `Cargo.toml` 中的版本号
+- [ ] 运行 `cargo check` 检查编译错误
+- [ ] 更新工具注册代码（如使用旧版 trait）
+- [ ] 添加 `.await` 到异步调用（如使用同步接口）
+- [ ] 更新错误处理代码（如自定义错误类型）
+- [ ] 运行测试套件确保功能正常
+- [ ] 检查废弃 API 警告并更新
+
+### 迁移脚本
+
+以下脚本可帮助自动化部分迁移工作：
+
+```bash
+#!/bin/bash
+# migrate-v1-to-v2.sh
+
+# 1. 更新 Cargo.toml 版本
+sed -i 's/workflow-toolkit = "1\..*"/workflow-toolkit = "2.0.0"/' Cargo.toml
+
+# 2. 替换废弃方法名
+find src -name "*.rs" -exec sed -i \
+    -e 's/from_toml_file/from_file/g' \
+    -e 's/register_boxed/register/g' \
+    -e 's/execute_sync/execute/g' \
+    {} \;
+
+# 3. 运行编译检查
+cargo check 2>&1 | tee migration-errors.log
+
+echo "迁移完成，请检查 migration-errors.log 中的错误"
+```
+
+### 常见迁移问题
+
+#### Q1: 编译错误 "trait bound not satisfied"
+
+**原因**：新版工具系统使用 Enum 而非 trait object。
+
+**解决方案**：
+```rust
+// 错误
+fn my_function(tool: Box<dyn Tool>) { ... }
+
+// 正确
+fn my_function(tool: Tool) { ... }
+```
+
+#### Q2: 运行时错误 "future cannot be sent between threads safely"
+
+**原因**：异步函数中使用了非 Send 类型。
+
+**解决方案**：
+```rust
+// 确保所有跨 await 的变量都是 Send
+async fn my_function() -> Result<()> {
+    let data = Arc::new(Mutex::new(vec![])); // Send
+    // ... 跨 await 使用 data
+    Ok(())
+}
+```
+
+#### Q3: 配置文件解析错误
+
+**原因**：配置格式变更。
+
+**解决方案**：
+```yaml
+# 新版配置格式示例
+version: "2.0"
+engine:
+  max_concurrent: 10
+  timeout_seconds: 300
+  
+tools:
+  - name: my_tool
+    type: native
+    config:
+      # 工具特定配置
+```
+
+### 获取迁移帮助
+
+如果在迁移过程中遇到问题：
+
+1. 查阅 [CHANGELOG.md](../../../CHANGELOG.md) 了解详细变更
+2. 在 GitHub Issues 中搜索类似问题
+3. 提交新 Issue 并标注 `[migration]` 标签
+4. 加入社区讨论群获取实时帮助

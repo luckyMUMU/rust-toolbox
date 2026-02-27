@@ -257,6 +257,133 @@ pub struct TemplateContext {
 - **理由**: 统一接口，支持嵌套组合
 - **风险**: 调试复杂度增加
 
+### 2.1.1 设计决策理由详解
+
+#### 决策 1: 为什么从 Trait 重构为 Enum？
+
+**背景问题**：
+原有的 trait-based 架构存在性能和序列化问题：
+- 动态分发（vtable）有运行时开销
+- `Box<dyn Tool>` 难以序列化和反序列化
+- 类型信息在运行时丢失
+
+**考虑的选项**：
+
+| 选项 | 性能 | 序列化 | 类型安全 | 扩展性 |
+|------|------|--------|----------|--------|
+| Trait (dyn) | 中 | 困难 | 弱 | 高 |
+| **Enum** | **高** | **简单** | **强** | 中 |
+| Generic | 最高 | 中 | 最强 | 低 |
+
+**选择理由**：
+1. **性能优化**：Enum 匹配是编译时确定的，无虚表调用开销
+2. **序列化友好**：Enum 可直接使用 serde 序列化
+3. **类型安全**：编译器可检查所有变体的处理
+4. **代码简洁**：不需要 `Box<dyn Trait>` 包装
+
+**性能对比**：
+```rust
+// Trait-based: 动态分发
+let tool: Box<dyn Tool> = get_tool();
+tool.execute(input).await?;  // 虚表调用
+
+// Enum-based: 静态分发
+let tool: Tool = get_tool();
+match &tool {
+    Tool::Native(t) => t.execute(input).await?,
+    Tool::Python(t) => t.execute(input).await?,
+    // 编译器可内联优化
+}
+```
+
+**权衡与限制**：
+- 新增工具类型需要修改 Enum 定义
+- Enum 变体数量不宜过多（建议 < 10 个）
+- 可通过 `#[non_exhaustive]` 保持 API 兼容性
+
+#### 决策 2: 为什么采用洋葱模型中间件？
+
+**背景问题**：
+工具执行需要处理多种横切关注点（日志、缓存、重试、超时），直接在执行代码中处理会导致：
+- 代码重复
+- 关注点耦合
+- 难以统一管理
+
+**考虑的选项**：
+
+| 选项 | 灵活性 | 复用性 | 实现复杂度 |
+|------|--------|--------|------------|
+| 直接编码 | 低 | 无 | 低 |
+| 装饰器模式 | 中 | 中 | 中 |
+| **洋葱中间件** | **高** | **高** | 中 |
+| AOP 框架 | 最高 | 最高 | 高 |
+
+**选择理由**：
+1. **关注点分离**：每个中间件专注一个功能
+2. **可组合**：中间件可任意组合和排序
+3. **请求/响应拦截**：可在执行前后添加逻辑
+4. **生态成熟**：参考 Tower middleware 设计
+
+**洋葱模型示意**：
+```
+请求 → [日志] → [缓存] → [重试] → [工具执行] → [重试] → [缓存] → [日志] → 响应
+        ↓         ↓         ↓           ↑         ↑         ↑         ↑
+      记录开始  检查缓存  准备重试     执行     处理重试  更新缓存  记录结束
+```
+
+**中间件执行流程**：
+```rust
+// 中间件链执行示例
+async fn execute_with_middleware(&self, input: ToolInput) -> Result<ToolOutput> {
+    let stack = MiddlewareStack::new()
+        .with(LoggingMiddleware::new())
+        .with(CacheMiddleware::new(cache))
+        .with(RetryMiddleware::new(3));
+    
+    stack.execute(input, |input| self.inner_execute(input)).await
+}
+```
+
+#### 决策 3: 为什么组合工具也是 Tool 变体？
+
+**背景问题**：
+需要支持工具的组合（顺序执行、并行执行、条件执行），如何设计组合工具的类型？
+
+**考虑的选项**：
+
+| 选项 | 类型统一 | 嵌套组合 | 接口一致性 |
+|------|----------|----------|------------|
+| 独立类型 | 否 | 复杂 | 不一致 |
+| **Tool 变体** | **是** | **简单** | **一致** |
+| 包装器 | 部分 | 中 | 中 |
+
+**选择理由**：
+1. **统一接口**：所有工具（包括组合）都通过 `Tool::execute` 调用
+2. **嵌套组合**：组合工具可以包含其他组合工具，支持复杂编排
+3. **透明性**：调用方无需关心是单个工具还是组合工具
+4. **递归处理**：中间件对组合工具同样生效
+
+**组合工具示例**：
+```rust
+// 顺序组合
+let pipeline = Tool::Composed(ComposedTool {
+    composition_type: CompositionType::Sequence,
+    tools: vec![tool_a_id, tool_b_id, tool_c_id],
+});
+
+// 并行组合
+let parallel = Tool::Composed(ComposedTool {
+    composition_type: CompositionType::Parallel,
+    tools: vec![tool_x_id, tool_y_id],
+});
+
+// 嵌套组合：顺序执行中包含并行
+let nested = Tool::Composed(ComposedTool {
+    composition_type: CompositionType::Sequence,
+    tools: vec![pipeline_id, parallel_id],
+});
+```
+
 ### 2.2 任务清单
 
 - [x] Task 0: 渐进式重构（修复旧逻辑/格式）
