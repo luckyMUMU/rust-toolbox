@@ -52,7 +52,14 @@ impl FlowControlExecutor {
         execute_fn: F,
     ) -> Result<()>
     where
-        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + 'static,
+        F: for<'a> Fn(
+                &'a FlowNode,
+                &'a mut DataContext,
+                Arc<ExecutionTracker>,
+            ) -> futures::future::BoxFuture<'a, Result<()>>
+            + Send
+            + Sync
+            + 'static,
     {
         info!(
             condition = %condition,
@@ -61,10 +68,10 @@ impl FlowControlExecutor {
         );
 
         let expr_context = self.build_expression_context(context);
-        
+
         let condition_value = self.expr_engine.evaluate(condition, &expr_context)?;
         let condition_str = value_to_string(&condition_value);
-        
+
         debug!(
             condition = %condition,
             evaluated_value = %condition_str,
@@ -104,7 +111,15 @@ impl FlowControlExecutor {
         execute_fn: F,
     ) -> Result<()>
     where
-        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + Clone + 'static,
+        F: for<'a> Fn(
+                &'a FlowNode,
+                &'a mut DataContext,
+                Arc<ExecutionTracker>,
+            ) -> futures::future::BoxFuture<'a, Result<()>>
+            + Send
+            + Sync
+            + Clone
+            + 'static,
     {
         info!(
             condition = %condition,
@@ -113,7 +128,7 @@ impl FlowControlExecutor {
         );
 
         let mut iteration = 0u32;
-        
+
         loop {
             if iteration >= self.max_iterations {
                 warn!(
@@ -128,13 +143,12 @@ impl FlowControlExecutor {
             }
 
             let expr_context = self.build_expression_context(context);
-            let should_continue = self.expr_engine.evaluate_condition(condition, &expr_context)?;
+            let should_continue = self
+                .expr_engine
+                .evaluate_condition(condition, &expr_context)?;
 
             if !should_continue {
-                info!(
-                    iterations = iteration,
-                    "Loop 条件不满足，退出循环"
-                );
+                info!(iterations = iteration, "Loop 条件不满足，退出循环");
                 break;
             }
 
@@ -145,14 +159,11 @@ impl FlowControlExecutor {
             );
 
             execute_fn(body, context, tracker.clone()).await?;
-            
+
             iteration += 1;
         }
 
-        info!(
-            total_iterations = iteration,
-            "Loop 执行完成"
-        );
+        info!(total_iterations = iteration, "Loop 执行完成");
 
         Ok(())
     }
@@ -171,7 +182,15 @@ impl FlowControlExecutor {
         execute_fn: F,
     ) -> Result<()>
     where
-        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + Clone + 'static,
+        F: for<'a> Fn(
+                &'a FlowNode,
+                &'a mut DataContext,
+                Arc<ExecutionTracker>,
+            ) -> futures::future::BoxFuture<'a, Result<()>>
+            + Send
+            + Sync
+            + Clone
+            + 'static,
     {
         info!(
             items_expr = %items_expr,
@@ -192,10 +211,7 @@ impl FlowControlExecutor {
             }
         };
 
-        info!(
-            item_count = items_array.len(),
-            "ForEach 开始遍历"
-        );
+        info!(item_count = items_array.len(), "ForEach 开始遍历");
 
         let total_items = items_array.len();
 
@@ -213,7 +229,7 @@ impl FlowControlExecutor {
             }
 
             context.set_global(item_var, item.clone())?;
-            
+
             if let Some(idx_var) = index_var {
                 context.set_global(idx_var, Value::Number((index as i64).into()))?;
             }
@@ -227,10 +243,7 @@ impl FlowControlExecutor {
             execute_fn(body, context, tracker.clone()).await?;
         }
 
-        info!(
-            total_iterations = total_items,
-            "ForEach 执行完成"
-        );
+        info!(total_iterations = total_items, "ForEach 执行完成");
 
         Ok(())
     }
@@ -247,19 +260,28 @@ impl FlowControlExecutor {
         execute_fn: F,
     ) -> Result<()>
     where
-        F: for<'a> Fn(&'a FlowNode, &'a mut DataContext, Arc<ExecutionTracker>) -> futures::future::BoxFuture<'a, Result<()>> + Send + Sync + Clone + 'static,
+        F: for<'a> Fn(
+                &'a FlowNode,
+                &'a mut DataContext,
+                Arc<ExecutionTracker>,
+            ) -> futures::future::BoxFuture<'a, Result<()>>
+            + Send
+            + Sync
+            + Clone
+            + 'static,
     {
-        self.execute_loop(condition, body, context, tracker, execute_fn).await
+        self.execute_loop(condition, body, context, tracker, execute_fn)
+            .await
     }
 
     /// 构建表达式上下文
     fn build_expression_context(&self, data_context: &DataContext) -> ExpressionContext {
         let mut expr_context = ExpressionContext::new();
-        
+
         for (key, value) in data_context.all_variables() {
             expr_context.set(&key, value.clone());
         }
-        
+
         expr_context
     }
 
@@ -268,12 +290,12 @@ impl FlowControlExecutor {
         if case_pattern == "*" {
             return true;
         }
-        
+
         let case_value = match serde_json::from_str::<Value>(case_pattern) {
             Ok(v) => v,
             Err(_) => Value::String(case_pattern.to_string()),
         };
-        
+
         &case_value == value
     }
 }
@@ -315,7 +337,7 @@ mod tests {
     #[test]
     fn test_match_case() {
         let executor = FlowControlExecutor::new();
-        
+
         assert!(executor.match_case("*", &Value::String("anything".to_string())));
         assert!(executor.match_case("test", &Value::String("test".to_string())));
         assert!(!executor.match_case("test", &Value::String("other".to_string())));

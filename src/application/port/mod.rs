@@ -27,6 +27,4 @@ pub trait UseCaseExecutor: Send + Sync {
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>>;
 }
 
-pub use unit_of_work::{
-    UnitOfWork, UnitOfWorkContext, UnitOfWorkFactory, UnitOfWorkManager,
-};
+pub use unit_of_work::{UnitOfWork, UnitOfWorkContext, UnitOfWorkFactory, UnitOfWorkManager};

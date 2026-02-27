@@ -164,8 +164,7 @@ pub struct KeybindingsConfig {
 }
 
 /// User preferences
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserPreferences {
     pub last_used_view: Option<String>,
     pub window_size: Option<(u16, u16)>,
@@ -185,7 +184,6 @@ pub struct NotificationSettings {
     pub sound_enabled: bool,
     pub priority_filter: String,
 }
-
 
 impl Default for InterfaceConfig {
     fn default() -> Self {
@@ -290,7 +288,6 @@ impl Default for KeybindingsConfig {
         }
     }
 }
-
 
 impl Default for NotificationSettings {
     fn default() -> Self {

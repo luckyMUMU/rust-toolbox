@@ -253,7 +253,6 @@ pub enum ErrorSeverity {
     Critical,
 }
 
-
 impl ErrorContext {
     /// Create a new error context
     pub fn new() -> Self {

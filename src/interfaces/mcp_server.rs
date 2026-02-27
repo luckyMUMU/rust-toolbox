@@ -68,7 +68,10 @@ impl std::fmt::Debug for WorkflowMcpServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WorkflowMcpServer")
             .field("config", &self.config)
-            .field("tools_count", &self.tools.read().map(|t| t.len()).unwrap_or(0))
+            .field(
+                "tools_count",
+                &self.tools.read().map(|t| t.len()).unwrap_or(0),
+            )
             .finish_non_exhaustive()
     }
 }
@@ -114,11 +117,12 @@ impl WorkflowMcpServer {
             tool,
         };
 
-        let mut tools = self.tools.write().map_err(|e| {
-            WorkflowError::ConcurrentAccess {
+        let mut tools = self
+            .tools
+            .write()
+            .map_err(|e| WorkflowError::ConcurrentAccess {
                 message: format!("Failed to lock tools: {}", e),
-            }
-        })?;
+            })?;
 
         tools.insert(name.clone(), registered_tool);
         info!("Registered MCP tool: {}", name);
@@ -147,11 +151,11 @@ impl WorkflowMcpServer {
     /// Start the MCP server with stdio transport
     pub async fn start_stdio(self) -> Result<()> {
         info!("Starting MCP server with stdio transport");
-        
+
         let stdin = std::io::stdin();
         let stdout = std::io::stdout();
         let mut stdout_lock = stdout.lock();
-        
+
         // Send initialization message
         let init_response = serde_json::json!({
             "jsonrpc": "2.0",
@@ -168,9 +172,9 @@ impl WorkflowMcpServer {
                 }
             }
         });
-        
+
         Self::send_message(&mut stdout_lock, &init_response)?;
-        
+
         // Process incoming messages
         for line in stdin.lock().lines() {
             match line {
@@ -178,7 +182,7 @@ impl WorkflowMcpServer {
                     if line.trim().is_empty() {
                         continue;
                     }
-                    
+
                     match self.handle_request(&line).await {
                         Ok(response) => {
                             if let Err(e) = Self::send_message(&mut stdout_lock, &response) {
@@ -205,10 +209,10 @@ impl WorkflowMcpServer {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Send a JSON-RPC message
     fn send_message(writer: &mut dyn Write, message: &Value) -> Result<()> {
         let msg_str = serde_json::to_string(message)?;
@@ -221,20 +225,21 @@ impl WorkflowMcpServer {
     async fn handle_request(&self, request_str: &str) -> Result<Value> {
         let request: JsonRpcRequest = serde_json::from_str(request_str)
             .map_err(|e| WorkflowError::workflow_execution(format!("Invalid JSON: {}", e)))?;
-        
+
         debug!("Received request: method={}", request.method);
-        
+
         let result = match request.method.as_str() {
             "initialize" => self.handle_initialize(),
             "tools/list" => self.handle_list_tools(),
             "tools/call" => self.handle_call_tool(request.params).await,
             "resources/list" => self.handle_list_resources(),
             "resources/read" => self.handle_read_resource(request.params),
-            _ => Err(WorkflowError::workflow_execution(
-                format!("Unknown method: {}", request.method)
-            )),
+            _ => Err(WorkflowError::workflow_execution(format!(
+                "Unknown method: {}",
+                request.method
+            ))),
         };
-        
+
         match result {
             Ok(result) => Ok(serde_json::json!({
                 "jsonrpc": "2.0",
@@ -269,12 +274,13 @@ impl WorkflowMcpServer {
 
     /// Handle tools/list request
     fn handle_list_tools(&self) -> Result<Value> {
-        let tools = self.tools.read().map_err(|e| {
-            WorkflowError::ConcurrentAccess {
+        let tools = self
+            .tools
+            .read()
+            .map_err(|e| WorkflowError::ConcurrentAccess {
                 message: format!("Failed to lock tools: {}", e),
-            }
-        })?;
-        
+            })?;
+
         let tool_list: Vec<Value> = tools
             .values()
             .map(|tool| {
@@ -285,7 +291,7 @@ impl WorkflowMcpServer {
                 })
             })
             .collect();
-        
+
         Ok(serde_json::json!({
             "tools": tool_list
         }))
@@ -293,27 +299,26 @@ impl WorkflowMcpServer {
 
     /// Handle tools/call request
     async fn handle_call_tool(&self, params: Option<Value>) -> Result<Value> {
-        let params = params.ok_or_else(|| {
-            WorkflowError::workflow_execution("Missing params".to_string())
-        })?;
-        
+        let params = params
+            .ok_or_else(|| WorkflowError::workflow_execution("Missing params".to_string()))?;
+
         let tool_name = params
             .get("name")
             .and_then(|v| v.as_str())
             .ok_or_else(|| WorkflowError::workflow_execution("Missing tool name".to_string()))?;
-        
+
         let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-        
+
         info!("Executing tool: {} with args: {:?}", tool_name, arguments);
-        
+
         // Find the tool
         let tool = self.get_tool(tool_name).ok_or_else(|| {
             WorkflowError::workflow_execution(format!("Tool '{}' not found", tool_name))
         })?;
-        
+
         // Create execution context
         let exec_context = ExecutionContext::new();
-        
+
         // Execute the tool
         match tool.tool.execute(arguments, exec_context).await {
             Ok(result) => {
@@ -352,31 +357,30 @@ impl WorkflowMcpServer {
 
     /// Handle resources/read request
     fn handle_read_resource(&self, params: Option<Value>) -> Result<Value> {
-        let params = params.ok_or_else(|| {
-            WorkflowError::workflow_execution("Missing params".to_string())
-        })?;
-        
+        let params = params
+            .ok_or_else(|| WorkflowError::workflow_execution("Missing params".to_string()))?;
+
         let uri = params
             .get("uri")
             .and_then(|v| v.as_str())
             .ok_or_else(|| WorkflowError::workflow_execution("Missing URI".to_string()))?;
-        
+
         debug!("Reading resource: {}", uri);
-        
+
         // Parse URI: flow://{trace_id}/context/{key}
         if let Some(resource_path) = uri.strip_prefix("flow://") {
             let parts: Vec<&str> = resource_path.split('/').collect();
-            
+
             if parts.len() >= 2 {
                 let _trace_id = parts[0];
                 let resource_type = parts[1];
-                
+
                 let content = match resource_type {
                     "context" => format!("Context data for trace {}", _trace_id),
                     "logs" => format!("Logs for trace {}", _trace_id),
                     _ => format!("Unknown resource type: {}", resource_type),
                 };
-                
+
                 return Ok(serde_json::json!({
                     "contents": [
                         {
@@ -388,7 +392,7 @@ impl WorkflowMcpServer {
                 }));
             }
         }
-        
+
         Err(WorkflowError::workflow_execution(format!(
             "Invalid resource URI: {}",
             uri

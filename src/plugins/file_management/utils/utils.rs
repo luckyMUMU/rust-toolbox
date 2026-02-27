@@ -1821,10 +1821,8 @@ impl TextProcessor {
 
             // Generate additional variants for different styles
             if style == &PinyinStyle::Normal {
-                variants
-                    .extend(self.generate_pinyin_with_style(text, &PinyinStyle::WithoutTone));
-                variants
-                    .extend(self.generate_pinyin_with_style(text, &PinyinStyle::FirstLetter));
+                variants.extend(self.generate_pinyin_with_style(text, &PinyinStyle::WithoutTone));
+                variants.extend(self.generate_pinyin_with_style(text, &PinyinStyle::FirstLetter));
             }
         } else {
             variants.push(text.to_string());

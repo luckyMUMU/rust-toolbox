@@ -73,7 +73,10 @@ impl PluginManager {
 
         plugin.initialize(config.clone()).map_err(|e| {
             error!("Failed to initialize plugin {}: {}", plugin_name, e);
-            WorkflowError::plugin(format!("Failed to initialize plugin {}: {}", plugin_name, e))
+            WorkflowError::plugin(format!(
+                "Failed to initialize plugin {}: {}",
+                plugin_name, e
+            ))
         })?;
 
         self.register_plugin_tools(&plugin_name, &*plugin)?;
@@ -186,10 +189,7 @@ impl PluginManager {
 
     /// Get all tools from all loaded plugins
     pub fn get_all_tools(&self) -> Vec<crate::tools::types::Tool> {
-        self.plugins
-            .iter()
-            .flat_map(|p| p.get_tools())
-            .collect()
+        self.plugins.iter().flat_map(|p| p.get_tools()).collect()
     }
 
     /// Get tools from a specific plugin

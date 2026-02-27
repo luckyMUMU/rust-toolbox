@@ -3,7 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo, PluginType, ToolInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus};
-use crate::tools::types::{Tool, DockerTool};
+use crate::tools::types::{DockerTool, Tool};
 use bollard::container::{
     Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
     WaitContainerOptions,
@@ -932,7 +932,7 @@ impl DockerPlugin {
         tool_config: DockerToolConfig,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements};
+        use crate::tools::types::{ResourceRequirements, ToolId, ToolKind, ToolMetadata};
 
         let docker_tool = DockerTool {
             id: ToolId::new(),
@@ -962,7 +962,7 @@ impl DockerPlugin {
         tool_config: DockerToolConfig,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements};
+        use crate::tools::types::{ResourceRequirements, ToolId, ToolKind, ToolMetadata};
 
         let docker_tool = DockerTool {
             id: ToolId::new(),

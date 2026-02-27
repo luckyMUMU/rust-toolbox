@@ -108,10 +108,7 @@ impl Profiler {
 
         // Store samples
         if !session.samples.is_empty() {
-            let mut component_samples = self
-                .samples
-                .entry(session.component.clone())
-                .or_default();
+            let mut component_samples = self.samples.entry(session.component.clone()).or_default();
             component_samples.extend(session.samples.clone());
 
             // Limit sample count

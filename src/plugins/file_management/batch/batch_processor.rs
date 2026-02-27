@@ -571,18 +571,16 @@ impl BatchProcessor {
         timeout: Option<Duration>,
     ) -> Result<Value> {
         use crate::tools::types::ToolInput;
-        
+
         let input = ToolInput::new(item.parameters.clone());
         if let Some(timeout_duration) = timeout {
-            tokio::time::timeout(
-                timeout_duration,
-                tool.execute(input, context.clone()),
-            )
-            .await
-            .map_err(|_| WorkflowError::tool("Item execution timed out"))?
-            .map(|output| output.result)
+            tokio::time::timeout(timeout_duration, tool.execute(input, context.clone()))
+                .await
+                .map_err(|_| WorkflowError::tool("Item execution timed out"))?
+                .map(|output| output.result)
         } else {
-            tool.execute(input, context.clone()).await
+            tool.execute(input, context.clone())
+                .await
                 .map(|output| output.result)
         }
     }

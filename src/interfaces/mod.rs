@@ -17,5 +17,5 @@ mod mcp_test;
 pub use cli::CliInterface;
 pub use mcp::McpServer;
 #[cfg(feature = "mcp")]
-pub use mcp_server::{WorkflowMcpServer, WorkflowMcpServerBuilder, McpServerConfig};
+pub use mcp_server::{McpServerConfig, WorkflowMcpServer, WorkflowMcpServerBuilder};
 pub use tui::{LayoutManager, MainTuiInterface, Theme, ThemeManager, Widget, WidgetRegistry};

@@ -416,10 +416,14 @@ impl UndoManager {
             } else {
                 // Put it back if it can't be undone
                 undo_stack.push_back(entry);
-                Err(WorkflowError::ValidationError("Operation cannot be undone".to_string()))
+                Err(WorkflowError::ValidationError(
+                    "Operation cannot be undone".to_string(),
+                ))
             }
         } else {
-            Err(WorkflowError::ValidationError("No operations to undo".to_string()))
+            Err(WorkflowError::ValidationError(
+                "No operations to undo".to_string(),
+            ))
         }
     }
 
@@ -450,10 +454,14 @@ impl UndoManager {
             } else {
                 // Put it back if it can't be redone
                 redo_stack.push_back(entry);
-                Err(WorkflowError::ValidationError("Operation cannot be redone".to_string()))
+                Err(WorkflowError::ValidationError(
+                    "Operation cannot be redone".to_string(),
+                ))
             }
         } else {
-            Err(WorkflowError::ValidationError("No operations to redo".to_string()))
+            Err(WorkflowError::ValidationError(
+                "No operations to redo".to_string(),
+            ))
         }
     }
 

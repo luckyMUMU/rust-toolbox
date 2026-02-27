@@ -5,9 +5,7 @@
 
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
-use crate::tools::types::{
-    Tool, ToolId, ToolInput, ToolKind, ToolMetadata, ToolOutput,
-};
+use crate::tools::types::{Tool, ToolId, ToolInput, ToolKind, ToolMetadata, ToolOutput};
 use crate::tools::version::Version;
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -79,7 +77,10 @@ impl ToolRegistry {
         self.metadata_cache.insert(id, Arc::new(metadata.clone()));
 
         // Update version tracking
-        self.versions.entry(id).or_insert_with(Vec::new).push(metadata.version.parse().unwrap_or(Version::new(0, 1, 0)));
+        self.versions
+            .entry(id)
+            .or_insert_with(Vec::new)
+            .push(metadata.version.parse().unwrap_or(Version::new(0, 1, 0)));
 
         // Update category index
         if let Some(category) = &metadata.info.category {
@@ -135,11 +136,11 @@ impl ToolRegistry {
     /// Remove a tool by name
     pub fn remove(&self, name: &str) -> Option<Tool> {
         let id = self.name_index.remove(name)?.1;
-        
+
         // Remove from all indexes
         self.metadata_cache.remove(&id);
         self.versions.remove(&id);
-        
+
         // Remove from category index
         if let Some(metadata) = self.metadata_cache.get(&id) {
             if let Some(category) = &metadata.info.category {
@@ -148,7 +149,7 @@ impl ToolRegistry {
                 }
             }
         }
-        
+
         // Remove from tag index
         if let Some(metadata) = self.metadata_cache.get(&id) {
             for tag in &metadata.info.tags {
@@ -157,7 +158,7 @@ impl ToolRegistry {
                 }
             }
         }
-        
+
         info!(tool_id = %id, tool_name = %name, "Tool removed");
         self.tools.remove(&id).map(|r| r.1)
     }
@@ -173,7 +174,7 @@ impl ToolRegistry {
     }
 
     /// List all tools with their metadata
-    /// 
+    ///
     /// Returns a vector of ToolInfo for all registered tools
     pub fn list_tools(&self) -> Vec<crate::core::ToolInfo> {
         self.metadata_cache
@@ -216,11 +217,7 @@ impl ToolRegistry {
     pub fn get_by_category(&self, category: &str) -> Vec<Tool> {
         self.category_index
             .get(category)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|&id| self.get_by_id(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|&id| self.get_by_id(id)).collect())
             .unwrap_or_default()
     }
 
@@ -228,11 +225,7 @@ impl ToolRegistry {
     pub fn get_by_tag(&self, tag: &str) -> Vec<Tool> {
         self.tag_index
             .get(tag)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|&id| self.get_by_id(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|&id| self.get_by_id(id)).collect())
             .unwrap_or_default()
     }
 
@@ -257,7 +250,7 @@ impl ToolRegistry {
         let tool = self
             .get(name)
             .ok_or_else(|| WorkflowError::tool_not_found(name))?;
-        
+
         tool.execute(input, ctx).await
     }
 
@@ -271,7 +264,7 @@ impl ToolRegistry {
         let tool = self
             .get_by_id(id)
             .ok_or_else(|| WorkflowError::tool_not_found(&format!("{}", id)))?;
-        
+
         tool.execute(input, ctx).await
     }
 
@@ -299,24 +292,26 @@ impl ToolRegistry {
     /// For backward compatibility with old API
     pub fn validate_tool_params(&self, name: &str, params: &serde_json::Value) -> Result<()> {
         // Get tool metadata and validate parameters against schema
-        let metadata = self.get_metadata(name)
+        let metadata = self
+            .get_metadata(name)
             .ok_or_else(|| WorkflowError::tool_not_found(name))?;
-        
+
         // Basic validation - check if required parameters are present
         if let Some(schema) = &metadata.input_schema {
             if let Some(required) = schema.get("required").and_then(|r| r.as_array()) {
                 for req in required {
                     if let Some(req_str) = req.as_str() {
                         if params.get(req_str).is_none() {
-                            return Err(WorkflowError::validation(
-                                format!("Missing required parameter: {}", req_str)
-                            ));
+                            return Err(WorkflowError::validation(format!(
+                                "Missing required parameter: {}",
+                                req_str
+                            )));
                         }
                     }
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -349,10 +344,10 @@ impl ToolRegistry {
     /// Check for version conflicts
     pub fn check_version_conflicts(&self) -> Vec<String> {
         let mut conflicts = Vec::new();
-        
+
         // Group tools by name base (without version)
         let mut name_groups: HashMap<String, Vec<(ToolId, Version)>> = HashMap::new();
-        
+
         for entry in self.versions.iter() {
             let id = *entry.key();
             if let Some(metadata) = self.metadata_cache.get(&id) {
@@ -365,7 +360,7 @@ impl ToolRegistry {
                 }
             }
         }
-        
+
         // Check for conflicts within groups
         for (name, versions) in name_groups {
             if versions.len() > 1 {
@@ -374,19 +369,17 @@ impl ToolRegistry {
                     for j in (i + 1)..versions.len() {
                         let v1 = &versions[i].1;
                         let v2 = &versions[j].1;
-                        
+
                         // Major version must match for compatibility
                         if v1.major != v2.major {
-                            conflicts.push(format!(
-                                "{}: incompatible versions {} and {}",
-                                name, v1, v2
-                            ));
+                            conflicts
+                                .push(format!("{}: incompatible versions {} and {}", name, v1, v2));
                         }
                     }
                 }
             }
         }
-        
+
         conflicts
     }
 }
@@ -428,8 +421,6 @@ impl Default for ToolRegistryBuilder {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -464,9 +455,7 @@ mod tests {
         let native_tool = NativeTool::new(
             ToolId::new(),
             Arc::new(metadata),
-            |_input, _ctx| async move {
-                Ok(ToolOutput::success(serde_json::json!({"status": "ok"})))
-            },
+            |_input, _ctx| async move { Ok(ToolOutput::success(serde_json::json!({"status": "ok"}))) },
         );
 
         Tool::Native(Arc::new(native_tool))
@@ -476,9 +465,9 @@ mod tests {
     fn test_register_and_get() {
         let registry = ToolRegistry::new();
         let tool = create_test_tool("test_tool");
-        
+
         let id = registry.register("test_tool", tool.clone());
-        
+
         assert!(registry.contains("test_tool"));
         assert_eq!(registry.get("test_tool").unwrap().kind(), ToolKind::Native);
         assert_eq!(registry.get_by_id(id).unwrap().kind(), ToolKind::Native);
@@ -488,10 +477,10 @@ mod tests {
     fn test_remove() {
         let registry = ToolRegistry::new();
         let tool = create_test_tool("test_tool");
-        
+
         registry.register("test_tool", tool);
         assert!(registry.contains("test_tool"));
-        
+
         registry.remove("test_tool");
         assert!(!registry.contains("test_tool"));
     }
@@ -499,14 +488,14 @@ mod tests {
     #[test]
     fn test_find_by_pattern() {
         let registry = ToolRegistry::new();
-        
+
         registry.register("file_copy", create_test_tool("file_copy"));
         registry.register("file_move", create_test_tool("file_move"));
         registry.register("http_get", create_test_tool("http_get"));
-        
+
         let file_tools = registry.find_by_pattern("file");
         assert_eq!(file_tools.len(), 2);
-        
+
         let http_tools = registry.find_by_pattern("http");
         assert_eq!(http_tools.len(), 1);
     }
@@ -514,10 +503,10 @@ mod tests {
     #[test]
     fn test_get_by_category() {
         let registry = ToolRegistry::new();
-        
+
         registry.register("tool1", create_test_tool("tool1"));
         registry.register("tool2", create_test_tool("tool2"));
-        
+
         let tools = registry.get_by_category("test");
         assert_eq!(tools.len(), 2);
     }
@@ -528,7 +517,7 @@ mod tests {
             .register("tool1", create_test_tool("tool1"))
             .register("tool2", create_test_tool("tool2"))
             .build();
-        
+
         assert_eq!(registry.len(), 2);
     }
 }

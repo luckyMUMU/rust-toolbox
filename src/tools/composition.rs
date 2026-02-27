@@ -101,9 +101,7 @@ pub enum ResultMergeStrategy {
     /// 取最后一个结果
     LastResult,
     /// 自定义合并函数名
-    Custom {
-        function_name: String,
-    },
+    Custom { function_name: String },
 }
 
 impl Default for ResultMergeStrategy {
@@ -203,36 +201,44 @@ impl CompositionExecutor {
         let mut order = 0u32;
 
         let (pass_full_output, field_mapping) = match &self.config.strategy {
-            CompositionStrategy::Chain { pass_full_output, field_mapping } => {
-                (*pass_full_output, field_mapping.clone())
-            }
+            CompositionStrategy::Chain {
+                pass_full_output,
+                field_mapping,
+            } => (*pass_full_output, field_mapping.clone()),
             _ => (true, HashMap::new()),
         };
 
         for (tool_name, tool) in tools {
             order += 1;
             let tool_start = Instant::now();
-            
+
             if self.config.verbose_logging {
                 debug!("执行链式工具 [{}]: {}", order, tool_name);
             }
 
             let input_snapshot = current_input.params.clone();
-            
+
             match tool.execute(current_input.clone(), context.clone()).await {
                 Ok(output) => {
                     let duration = tool_start.elapsed();
-                    
-                    tool_results.insert(tool_name.clone(), ToolExecutionRecord {
-                        tool_name: tool_name.clone(),
-                        order,
-                        input: input_snapshot,
-                        output: Some(output.result.clone()),
-                        duration,
-                        success: output.success,
-                        error: if !output.success { Some("工具执行失败".to_string()) } else { None },
-                        retry_count: 0,
-                    });
+
+                    tool_results.insert(
+                        tool_name.clone(),
+                        ToolExecutionRecord {
+                            tool_name: tool_name.clone(),
+                            order,
+                            input: input_snapshot,
+                            output: Some(output.result.clone()),
+                            duration,
+                            success: output.success,
+                            error: if !output.success {
+                                Some("工具执行失败".to_string())
+                            } else {
+                                None
+                            },
+                            retry_count: 0,
+                        },
+                    );
 
                     if output.success {
                         current_input = if pass_full_output {
@@ -252,16 +258,19 @@ impl CompositionExecutor {
                 }
                 Err(e) => {
                     let duration = tool_start.elapsed();
-                    tool_results.insert(tool_name.clone(), ToolExecutionRecord {
-                        tool_name: tool_name.clone(),
-                        order,
-                        input: input_snapshot,
-                        output: None,
-                        duration,
-                        success: false,
-                        error: Some(e.to_string()),
-                        retry_count: 0,
-                    });
+                    tool_results.insert(
+                        tool_name.clone(),
+                        ToolExecutionRecord {
+                            tool_name: tool_name.clone(),
+                            order,
+                            input: input_snapshot,
+                            output: None,
+                            duration,
+                            success: false,
+                            error: Some(e.to_string()),
+                            retry_count: 0,
+                        },
+                    );
 
                     return Ok(CompositionResult {
                         output: Value::Null,
@@ -293,9 +302,10 @@ impl CompositionExecutor {
     ) -> Result<CompositionResult> {
         let start_time = Instant::now();
         let (max_concurrency, failure_strategy) = match &self.config.strategy {
-            CompositionStrategy::Parallel { max_concurrency, failure_strategy } => {
-                (*max_concurrency, *failure_strategy)
-            }
+            CompositionStrategy::Parallel {
+                max_concurrency,
+                failure_strategy,
+            } => (*max_concurrency, *failure_strategy),
             _ => (4, FailureStrategy::FailFast),
         };
 
@@ -326,7 +336,11 @@ impl CompositionExecutor {
                         output: Some(output.result.clone()),
                         duration,
                         success: output.success,
-                        error: if !output.success { Some("工具执行失败".to_string()) } else { None },
+                        error: if !output.success {
+                            Some("工具执行失败".to_string())
+                        } else {
+                            None
+                        },
                         retry_count: 0,
                     },
                     Err(e) => ToolExecutionRecord {
@@ -375,7 +389,11 @@ impl CompositionExecutor {
             tool_results: results,
             total_duration: start_time.elapsed(),
             success,
-            error: if !success { Some("部分工具执行失败".to_string()) } else { None },
+            error: if !success {
+                Some("部分工具执行失败".to_string())
+            } else {
+                None
+            },
         })
     }
 
@@ -391,9 +409,10 @@ impl CompositionExecutor {
         let mut tool_results: HashMap<String, ToolExecutionRecord> = HashMap::new();
 
         let (condition_expr, default_branch) = match &self.config.strategy {
-            CompositionStrategy::Conditional { condition, default_branch } => {
-                (condition.clone(), default_branch.clone())
-            }
+            CompositionStrategy::Conditional {
+                condition,
+                default_branch,
+            } => (condition.clone(), default_branch.clone()),
             _ => (String::new(), None),
         };
 
@@ -410,16 +429,19 @@ impl CompositionExecutor {
 
             match tool.execute(input, context).await {
                 Ok(output) => {
-                    tool_results.insert(tool_name.clone(), ToolExecutionRecord {
-                        tool_name,
-                        order: 1,
-                        input: input_snapshot,
-                        output: Some(output.result.clone()),
-                        duration: tool_start.elapsed(),
-                        success: output.success,
-                        error: None,
-                        retry_count: 0,
-                    });
+                    tool_results.insert(
+                        tool_name.clone(),
+                        ToolExecutionRecord {
+                            tool_name,
+                            order: 1,
+                            input: input_snapshot,
+                            output: Some(output.result.clone()),
+                            duration: tool_start.elapsed(),
+                            success: output.success,
+                            error: None,
+                            retry_count: 0,
+                        },
+                    );
 
                     Ok(CompositionResult {
                         output: output.result,
@@ -430,16 +452,19 @@ impl CompositionExecutor {
                     })
                 }
                 Err(e) => {
-                    tool_results.insert(tool_name.clone(), ToolExecutionRecord {
-                        tool_name,
-                        order: 1,
-                        input: input_snapshot,
-                        output: None,
-                        duration: tool_start.elapsed(),
-                        success: false,
-                        error: Some(e.to_string()),
-                        retry_count: 0,
-                    });
+                    tool_results.insert(
+                        tool_name.clone(),
+                        ToolExecutionRecord {
+                            tool_name,
+                            order: 1,
+                            input: input_snapshot,
+                            output: None,
+                            duration: tool_start.elapsed(),
+                            success: false,
+                            error: Some(e.to_string()),
+                            retry_count: 0,
+                        },
+                    );
 
                     Ok(CompositionResult {
                         output: Value::Null,
@@ -451,7 +476,10 @@ impl CompositionExecutor {
                 }
             }
         } else {
-            Err(WorkflowError::validation(format!("未找到条件分支: {}", selected_branch)))
+            Err(WorkflowError::validation(format!(
+                "未找到条件分支: {}",
+                selected_branch
+            )))
         }
     }
 
@@ -467,9 +495,11 @@ impl CompositionExecutor {
         let mut tool_results: HashMap<String, ToolExecutionRecord> = HashMap::new();
 
         let (max_retries, retry_delay_ms, backoff_factor) = match &self.config.strategy {
-            CompositionStrategy::Retry { max_retries, retry_delay_ms, backoff_factor } => {
-                (*max_retries, *retry_delay_ms, *backoff_factor)
-            }
+            CompositionStrategy::Retry {
+                max_retries,
+                retry_delay_ms,
+                backoff_factor,
+            } => (*max_retries, *retry_delay_ms, *backoff_factor),
             _ => (3, 1000, 2.0),
         };
 
@@ -482,16 +512,19 @@ impl CompositionExecutor {
 
             match tool.execute(input.clone(), context.clone()).await {
                 Ok(output) if output.success => {
-                    tool_results.insert(tool_name.to_string(), ToolExecutionRecord {
-                        tool_name: tool_name.to_string(),
-                        order: 1,
-                        input: input_snapshot,
-                        output: Some(output.result.clone()),
-                        duration: tool_start.elapsed(),
-                        success: true,
-                        error: None,
-                        retry_count,
-                    });
+                    tool_results.insert(
+                        tool_name.to_string(),
+                        ToolExecutionRecord {
+                            tool_name: tool_name.to_string(),
+                            order: 1,
+                            input: input_snapshot,
+                            output: Some(output.result.clone()),
+                            duration: tool_start.elapsed(),
+                            success: true,
+                            error: None,
+                            retry_count,
+                        },
+                    );
 
                     return Ok(CompositionResult {
                         output: output.result,
@@ -502,18 +535,24 @@ impl CompositionExecutor {
                     });
                 }
                 Ok(output) => {
-                    warn!("工具 {} 执行失败，重试 {}/{}", tool_name, retry_count, max_retries);
+                    warn!(
+                        "工具 {} 执行失败，重试 {}/{}",
+                        tool_name, retry_count, max_retries
+                    );
                     if retry_count >= max_retries {
-                        tool_results.insert(tool_name.to_string(), ToolExecutionRecord {
-                            tool_name: tool_name.to_string(),
-                            order: 1,
-                            input: input_snapshot,
-                            output: Some(output.result),
-                            duration: tool_start.elapsed(),
-                            success: false,
-                            error: Some("达到最大重试次数".to_string()),
-                            retry_count,
-                        });
+                        tool_results.insert(
+                            tool_name.to_string(),
+                            ToolExecutionRecord {
+                                tool_name: tool_name.to_string(),
+                                order: 1,
+                                input: input_snapshot,
+                                output: Some(output.result),
+                                duration: tool_start.elapsed(),
+                                success: false,
+                                error: Some("达到最大重试次数".to_string()),
+                                retry_count,
+                            },
+                        );
 
                         return Ok(CompositionResult {
                             output: Value::Null,
@@ -525,18 +564,24 @@ impl CompositionExecutor {
                     }
                 }
                 Err(e) => {
-                    warn!("工具 {} 执行错误: {}，重试 {}/{}", tool_name, e, retry_count, max_retries);
+                    warn!(
+                        "工具 {} 执行错误: {}，重试 {}/{}",
+                        tool_name, e, retry_count, max_retries
+                    );
                     if retry_count >= max_retries {
-                        tool_results.insert(tool_name.to_string(), ToolExecutionRecord {
-                            tool_name: tool_name.to_string(),
-                            order: 1,
-                            input: input_snapshot,
-                            output: None,
-                            duration: tool_start.elapsed(),
-                            success: false,
-                            error: Some(e.to_string()),
-                            retry_count,
-                        });
+                        tool_results.insert(
+                            tool_name.to_string(),
+                            ToolExecutionRecord {
+                                tool_name: tool_name.to_string(),
+                                order: 1,
+                                input: input_snapshot,
+                                output: None,
+                                duration: tool_start.elapsed(),
+                                success: false,
+                                error: Some(e.to_string()),
+                                retry_count,
+                            },
+                        );
 
                         return Ok(CompositionResult {
                             output: Value::Null,
@@ -562,7 +607,7 @@ impl CompositionExecutor {
         }
 
         let mut new_params = serde_json::Map::new();
-        
+
         if let Some(obj) = output.as_object() {
             for (key, value) in obj {
                 let new_key = mapping.get(key).cloned().unwrap_or_else(|| key.clone());
@@ -580,7 +625,10 @@ impl CompositionExecutor {
                 let mut merged = serde_json::Map::new();
                 for (tool_name, record) in results {
                     if let Some(output) = &record.output {
-                        let field_name = field_names.get(tool_name).cloned().unwrap_or_else(|| tool_name.clone());
+                        let field_name = field_names
+                            .get(tool_name)
+                            .cloned()
+                            .unwrap_or_else(|| tool_name.clone());
                         merged.insert(field_name, output.clone());
                     }
                 }
@@ -605,7 +653,7 @@ impl CompositionExecutor {
             ResultMergeStrategy::FirstSuccess => {
                 let mut sorted: Vec<_> = results.iter().collect();
                 sorted.sort_by_key(|(_, r)| r.order);
-                
+
                 for (_, record) in sorted {
                     if record.success {
                         if let Some(output) = &record.output {
@@ -618,7 +666,7 @@ impl CompositionExecutor {
             ResultMergeStrategy::LastResult => {
                 let mut sorted: Vec<_> = results.iter().collect();
                 sorted.sort_by_key(|(_, r)| r.order);
-                
+
                 if let Some((_, record)) = sorted.last() {
                     if let Some(output) = &record.output {
                         return Ok(output.clone());
@@ -626,12 +674,9 @@ impl CompositionExecutor {
                 }
                 Ok(Value::Null)
             }
-            ResultMergeStrategy::Custom { function_name } => {
-                Err(WorkflowError::validation(format!(
-                    "自定义合并函数 '{}' 尚未实现",
-                    function_name
-                )))
-            }
+            ResultMergeStrategy::Custom { function_name } => Err(WorkflowError::validation(
+                format!("自定义合并函数 '{}' 尚未实现", function_name),
+            )),
         }
     }
 
@@ -698,7 +743,10 @@ mod tests {
     fn test_composition_config_default() {
         let config = CompositionConfig::default();
         assert!(matches!(config.strategy, CompositionStrategy::Chain { .. }));
-        assert!(matches!(config.merge_strategy, ResultMergeStrategy::MergeObject { .. }));
+        assert!(matches!(
+            config.merge_strategy,
+            ResultMergeStrategy::MergeObject { .. }
+        ));
     }
 
     #[test]
@@ -708,12 +756,17 @@ mod tests {
                 max_concurrency: 8,
                 failure_strategy: FailureStrategy::ContinueOnFailure,
             })
-            .merge_strategy(ResultMergeStrategy::MergeArray { include_tool_names: true })
+            .merge_strategy(ResultMergeStrategy::MergeArray {
+                include_tool_names: true,
+            })
             .timeout(Duration::from_secs(60))
             .verbose(true)
             .build();
 
-        assert!(matches!(executor.config().strategy, CompositionStrategy::Parallel { .. }));
+        assert!(matches!(
+            executor.config().strategy,
+            CompositionStrategy::Parallel { .. }
+        ));
     }
 
     #[test]

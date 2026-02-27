@@ -8,11 +8,11 @@ use super::{
     progress_tracker::{ProgressEvent, ProgressTracker, ProgressTrackerConfig},
 };
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
-use crate::plugins::file_management::plugin::FileManagementConfig;
 use crate::error::{Result, WorkflowError};
 use crate::performance::concurrency::ConcurrencyManager;
-use crate::tools::types::{Tool, NativeToolBuilder, ToolOutput};
+use crate::plugins::file_management::plugin::FileManagementConfig;
 use crate::tools::registry::ToolRegistry;
+use crate::tools::types::{NativeToolBuilder, Tool, ToolOutput};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -89,7 +89,6 @@ pub enum BatchProcessingMode {
     /// Adaptive processing based on system load
     Adaptive,
 }
-
 
 /// Result of batch processing
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -484,13 +483,13 @@ impl BatchProcessorExecutor {
     /// Create a mock tool registry for testing
     /// In a real implementation, this would be injected
     fn create_mock_registry(&self) -> Arc<ToolRegistry> {
+        use crate::core::ExecutionContext;
         use crate::tools::registry::ToolRegistry;
         use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
-        use crate::core::ExecutionContext;
         use serde_json::json;
-        
+
         let registry = ToolRegistry::new();
-        
+
         // Add mock tools
         for tool_name in ["test-tool", "echo-tool", "slow-tool"] {
             let name = tool_name.to_string();
@@ -506,7 +505,7 @@ impl BatchProcessorExecutor {
                             _ => tokio::time::Duration::from_millis(10),
                         };
                         tokio::time::sleep(delay).await;
-                        
+
                         Ok(ToolOutput::success(json!({
                             "tool": name,
                             "input": input.params,
@@ -516,13 +515,13 @@ impl BatchProcessorExecutor {
                     }
                 })
                 .build();
-                
+
             if let Ok(native_tool) = native_tool {
                 let tool = Tool::Native(Arc::new(native_tool));
                 registry.register(tool_name, tool);
             }
         }
-        
+
         Arc::new(registry)
     }
 
@@ -924,13 +923,13 @@ impl MockToolRegistry {
     }
 
     fn add_mock_tool(&mut self, name: &str) {
-        use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
         use crate::core::ExecutionContext;
+        use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
         use serde_json::json;
-        
+
         let name = name.to_string();
         let tool_name = name.clone();
-        
+
         let native_tool = NativeToolBuilder::new()
             .name(&name)
             .version("1.0.0")
@@ -944,7 +943,7 @@ impl MockToolRegistry {
                         _ => tokio::time::Duration::from_millis(10),
                     };
                     tokio::time::sleep(delay).await;
-                    
+
                     Ok(ToolOutput::success(json!({
                         "tool": tool_name,
                         "input": input.params,
@@ -954,7 +953,7 @@ impl MockToolRegistry {
                 }
             })
             .build();
-            
+
         if let Ok(native_tool) = native_tool {
             let tool = Tool::Native(Arc::new(native_tool));
             self.tools.insert(name.to_string(), tool);

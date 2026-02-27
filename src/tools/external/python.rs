@@ -38,24 +38,24 @@ impl PythonExecutor {
     /// 构建执行命令
     fn build_command(&self, script: &str, args: &[String]) -> Command {
         let mut cmd = Command::new(&self.python_path);
-        
+
         cmd.arg(script);
         for arg in args {
             cmd.arg(arg);
         }
-        
+
         if let Some(ref wd) = self.config.working_directory {
             cmd.current_dir(wd);
         }
-        
+
         for (key, value) in &self.config.environment {
             cmd.env(key, value);
         }
-        
+
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        
+
         cmd
     }
 }
@@ -70,71 +70,73 @@ impl ExternalExecutor for PythonExecutor {
         ctx: &ExecutionContext,
     ) -> Result<ExecutionResult> {
         let start = Instant::now();
-        
+
         info!(
             workflow_id = ?ctx.workflow_id,
             script = %script,
             "执行 Python 脚本"
         );
-        
+
         let mut cmd = self.build_command(script, args);
-        
+
         let mut child = cmd.spawn().map_err(|e| {
             error!("启动 Python 进程失败: {}", e);
             WorkflowError::execution(format!("启动 Python 进程失败: {}", e))
         })?;
-        
+
         if let Some(input_value) = input {
             let input_str = serde_json::to_string(&input_value)
                 .map_err(|e| WorkflowError::execution(format!("序列化输入失败: {}", e)))?;
-            
+
             if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(input_str.as_bytes()).await.map_err(|e| {
-                    WorkflowError::execution(format!("写入输入失败: {}", e))
-                })?;
+                stdin
+                    .write_all(input_str.as_bytes())
+                    .await
+                    .map_err(|e| WorkflowError::execution(format!("写入输入失败: {}", e)))?;
             }
         }
-        
+
         let timeout_duration = self.config.timeout;
-        let result = tokio::time::timeout(
-            timeout_duration,
-            async {
-                let mut stdout = String::new();
-                let mut stderr = String::new();
-                
-                if let Some(mut stdout_handle) = child.stdout.take() {
-                    stdout_handle.read_to_string(&mut stdout).await.map_err(|e| {
-                        WorkflowError::execution(format!("读取标准输出失败: {}", e))
-                    })?;
-                }
-                
-                if let Some(mut stderr_handle) = child.stderr.take() {
-                    stderr_handle.read_to_string(&mut stderr).await.map_err(|e| {
-                        WorkflowError::execution(format!("读取标准错误失败: {}", e))
-                    })?;
-                }
-                
-                let status = child.wait().await.map_err(|e| {
-                    WorkflowError::execution(format!("等待进程结束失败: {}", e))
-                })?;
-                
-                Ok::<_, WorkflowError>((stdout, stderr, status.code().unwrap_or(-1)))
+        let result = tokio::time::timeout(timeout_duration, async {
+            let mut stdout = String::new();
+            let mut stderr = String::new();
+
+            if let Some(mut stdout_handle) = child.stdout.take() {
+                stdout_handle
+                    .read_to_string(&mut stdout)
+                    .await
+                    .map_err(|e| WorkflowError::execution(format!("读取标准输出失败: {}", e)))?;
             }
-        ).await;
-        
+
+            if let Some(mut stderr_handle) = child.stderr.take() {
+                stderr_handle
+                    .read_to_string(&mut stderr)
+                    .await
+                    .map_err(|e| WorkflowError::execution(format!("读取标准错误失败: {}", e)))?;
+            }
+
+            let status = child
+                .wait()
+                .await
+                .map_err(|e| WorkflowError::execution(format!("等待进程结束失败: {}", e)))?;
+
+            Ok::<_, WorkflowError>((stdout, stderr, status.code().unwrap_or(-1)))
+        })
+        .await;
+
         let duration = start.elapsed();
-        
+
         match result {
             Ok(Ok((stdout, stderr, exit_code))) => {
                 let success = exit_code == 0;
-                
+
                 debug!(
                     script = %script,
                     exit_code = exit_code,
                     duration_ms = duration.as_millis(),
                     "Python 脚本执行完成"
                 );
-                
+
                 Ok(ExecutionResult {
                     stdout,
                     stderr,
@@ -163,7 +165,7 @@ impl ExternalExecutor for PythonExecutor {
             .arg("--version")
             .output()
             .await;
-        
+
         output.is_ok()
     }
 
@@ -173,7 +175,7 @@ impl ExternalExecutor for PythonExecutor {
             .output()
             .await
             .ok()?;
-        
+
         let version_str = String::from_utf8_lossy(&output.stdout);
         Some(version_str.trim().to_string())
     }

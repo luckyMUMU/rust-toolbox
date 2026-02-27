@@ -90,24 +90,36 @@ pub use scheduler::{DagScheduler, ExecutionStats, NodeExecutionInfo, SchedulingR
 pub use validator::{ValidationResult, WorkflowValidator};
 
 // New architecture exports (LiteFlow-inspired)
+pub use circuit_breaker::{
+    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError, CircuitBreakerMetrics, CircuitState,
+};
 pub use component::{
     Component, ComponentOutput, ComponentRegistry, ComponentStatus, ComponentType,
     ParallelComponent, ToolComponent, WaitStrategy,
 };
+pub use config_validator::{
+    ConfigHotReloader, ConfigLoader, ConfigValidator, FileConfigLoader, ValidationReport,
+};
 pub use context::{DataContext, SlotValue};
 pub use converter::WorkflowConverter;
+pub use error_handler::{
+    ErrorClassification, ErrorHandler, ErrorHandlingStrategy, ErrorSeverity,
+    WorkflowErrorClassifier,
+};
 pub use executor::{
     AuditExecutor, BasicExecutor, BoxedExecutor, CacheExecutor, Executor, ExecutorChainBuilder,
     RetryExecutor,
 };
-pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError, CircuitBreakerMetrics, CircuitState};
-pub use config_validator::{ConfigHotReloader, ConfigLoader, ConfigValidator, FileConfigLoader, ValidationReport};
-pub use error_handler::{ErrorClassification, ErrorHandler, ErrorHandlingStrategy, ErrorSeverity, WorkflowErrorClassifier};
 pub use flow_control::FlowControlExecutor;
-pub use metrics::{CompositeMetricsCollector, InMemoryMetricsCollector, MetricsCollector, MetricsSnapshot, PrometheusMetricsCollector, WorkflowStats};
-pub use rate_limiter::{RateLimiter, RateLimiterError, WorkflowRateLimitConfig, WorkflowRateLimiter};
+pub use metrics::{
+    CompositeMetricsCollector, InMemoryMetricsCollector, MetricsCollector, MetricsSnapshot,
+    PrometheusMetricsCollector, WorkflowStats,
+};
+pub use rate_limiter::{
+    RateLimiter, RateLimiterError, WorkflowRateLimitConfig, WorkflowRateLimiter,
+};
 pub use state::{CheckpointManager, ControlSignals, ExecutionTracker};
 
 // Refactored engine (now default)
-pub use engine::{RefactoredWorkflowEngine, DefaultWorkflowEngine};
+pub use engine::{DefaultWorkflowEngine, RefactoredWorkflowEngine};
 pub use flow_node::FlowNode;

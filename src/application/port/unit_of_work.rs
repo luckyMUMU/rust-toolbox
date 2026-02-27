@@ -14,19 +14,19 @@ use tracing::{debug, error, info};
 pub trait UnitOfWork: Send + Sync {
     /// 提交事务
     async fn commit(&mut self) -> Result<()>;
-    
+
     /// 回滚事务
     async fn rollback(&mut self) -> Result<()>;
-    
+
     /// 添加待发布事件
     fn add_event(&mut self, event: DomainEvent);
-    
+
     /// 获取待发布事件
     fn get_events(&self) -> &VecDeque<DomainEvent>;
-    
+
     /// 清空待发布事件
     fn clear_events(&mut self);
-    
+
     /// 是否有变更
     fn has_changes(&self) -> bool;
 }
@@ -69,17 +69,17 @@ impl UnitOfWork for UnitOfWorkContext {
         if self.committed {
             return Err(WorkflowError::execution("事务已提交，不能重复提交"));
         }
-        
+
         if self.rolled_back {
             return Err(WorkflowError::execution("事务已回滚，不能提交"));
         }
-        
+
         info!(
             transaction_id = %self.transaction_id,
             event_count = self.pending_events.len(),
             "提交事务"
         );
-        
+
         while let Some(event) = self.pending_events.pop_front() {
             if let Err(e) = self.event_bus.publish(event).await {
                 error!(
@@ -89,9 +89,9 @@ impl UnitOfWork for UnitOfWorkContext {
                 );
             }
         }
-        
+
         self.committed = true;
-        
+
         debug!(transaction_id = %self.transaction_id, "事务提交完成");
         Ok(())
     }
@@ -100,20 +100,20 @@ impl UnitOfWork for UnitOfWorkContext {
         if self.committed {
             return Err(WorkflowError::execution("事务已提交，不能回滚"));
         }
-        
+
         if self.rolled_back {
             return Err(WorkflowError::execution("事务已回滚，不能重复回滚"));
         }
-        
+
         info!(
             transaction_id = %self.transaction_id,
             event_count = self.pending_events.len(),
             "回滚事务"
         );
-        
+
         self.pending_events.clear();
         self.rolled_back = true;
-        
+
         debug!(transaction_id = %self.transaction_id, "事务回滚完成");
         Ok(())
     }
@@ -168,15 +168,19 @@ impl UnitOfWorkManager {
     /// 执行事务
     pub async fn execute<F, T>(&self, operation: F) -> Result<T>
     where
-        F: FnOnce(&mut UnitOfWorkContext) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + Send,
+        F: FnOnce(
+                &mut UnitOfWorkContext,
+            )
+                -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>
+            + Send,
         T: Send,
     {
         let mut uow = self.factory.create();
-        
+
         debug!(transaction_id = %uow.transaction_id(), "开始事务");
-        
+
         let result = operation(&mut uow).await;
-        
+
         match result {
             Ok(value) => {
                 uow.commit().await?;
@@ -192,30 +196,31 @@ impl UnitOfWorkManager {
     }
 
     /// 执行事务（带重试）
-    pub async fn execute_with_retry<F, T>(
-        &self,
-        max_retries: u32,
-        operation: F,
-    ) -> Result<T>
+    pub async fn execute_with_retry<F, T>(&self, max_retries: u32, operation: F) -> Result<T>
     where
-        F: Fn(&mut UnitOfWorkContext) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>> + Send + Sync,
+        F: Fn(
+                &mut UnitOfWorkContext,
+            )
+                -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>
+            + Send
+            + Sync,
         T: Send,
     {
         let mut attempts = 0;
         let mut last_error = None;
-        
+
         while attempts < max_retries {
             attempts += 1;
-            
+
             let mut uow = self.factory.create();
-            
+
             debug!(
                 transaction_id = %uow.transaction_id(),
                 attempt = attempts,
                 max_retries = max_retries,
                 "开始事务（带重试）"
             );
-            
+
             match operation(&mut uow).await {
                 Ok(value) => {
                     uow.commit().await?;
@@ -229,7 +234,7 @@ impl UnitOfWorkManager {
                 }
             }
         }
-        
+
         Err(last_error.unwrap_or_else(|| WorkflowError::execution("事务执行失败")))
     }
 }
@@ -237,8 +242,8 @@ impl UnitOfWorkManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::event::{EventBusConfig, EventMetadata};
     use crate::domain::event::events::WorkflowCreatedEvent;
+    use crate::domain::event::{EventBusConfig, EventMetadata};
 
     fn create_test_event() -> DomainEvent {
         DomainEvent::WorkflowCreated(WorkflowCreatedEvent {
@@ -253,7 +258,7 @@ mod tests {
     async fn test_unit_of_work_creation() {
         let event_bus = Arc::new(DomainEventBus::with_defaults());
         let mut uow = UnitOfWorkContext::new(event_bus);
-        
+
         assert!(!uow.has_changes());
         assert!(uow.get_events().is_empty());
     }
@@ -262,9 +267,9 @@ mod tests {
     async fn test_add_event() {
         let event_bus = Arc::new(DomainEventBus::with_defaults());
         let mut uow = UnitOfWorkContext::new(event_bus);
-        
+
         uow.add_event(create_test_event());
-        
+
         assert!(uow.has_changes());
         assert_eq!(uow.get_events().len(), 1);
     }
@@ -273,10 +278,10 @@ mod tests {
     async fn test_commit() {
         let event_bus = Arc::new(DomainEventBus::with_defaults());
         let mut uow = UnitOfWorkContext::new(Arc::clone(&event_bus));
-        
+
         uow.add_event(create_test_event());
         uow.commit().await.unwrap();
-        
+
         assert!(uow.get_events().is_empty());
     }
 
@@ -284,10 +289,10 @@ mod tests {
     async fn test_rollback() {
         let event_bus = Arc::new(DomainEventBus::with_defaults());
         let mut uow = UnitOfWorkContext::new(event_bus);
-        
+
         uow.add_event(create_test_event());
         uow.rollback().await.unwrap();
-        
+
         assert!(!uow.has_changes());
         assert!(uow.get_events().is_empty());
     }
@@ -296,14 +301,16 @@ mod tests {
     async fn test_unit_of_work_manager() {
         let event_bus = Arc::new(DomainEventBus::with_defaults());
         let manager = UnitOfWorkManager::new(event_bus);
-        
-        let result = manager.execute(|uow| {
-            Box::pin(async move {
-                uow.add_event(create_test_event());
-                Ok(42)
+
+        let result = manager
+            .execute(|uow| {
+                Box::pin(async move {
+                    uow.add_event(create_test_event());
+                    Ok(42)
+                })
             })
-        }).await;
-        
+            .await;
+
         assert_eq!(result.unwrap(), 42);
     }
 }

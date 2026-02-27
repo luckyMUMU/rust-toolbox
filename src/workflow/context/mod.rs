@@ -259,15 +259,16 @@ impl DataContext {
 
     /// 获取所有变量（全局和节点本地）
     pub fn all_variables(&self) -> Vec<(String, Value)> {
-        let mut result: Vec<(String, Value)> = self.global_slots
+        let mut result: Vec<(String, Value)> = self
+            .global_slots
             .iter()
             .map(|entry| (entry.key().clone(), entry.value().value().clone()))
             .collect();
-        
+
         for (key, value) in &self.node_slots {
             result.push((key.clone(), value.value().clone()));
         }
-        
+
         result
     }
 }

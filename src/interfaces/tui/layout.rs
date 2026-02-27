@@ -376,7 +376,6 @@ pub enum AnimationState {
     FadingOut { progress: f64 },
 }
 
-
 /// Layout priority manager for handling widget priorities and space allocation
 #[derive(Debug, Clone)]
 pub struct LayoutPriorityManager {
@@ -592,8 +591,7 @@ pub struct LayoutConfigManager {
 }
 
 /// Configuration file format
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ConfigFormat {
     /// JSON format
     #[default]
@@ -603,7 +601,6 @@ pub enum ConfigFormat {
     /// TOML format
     Toml,
 }
-
 
 impl ConfigFormat {
     /// Get file extension for the format

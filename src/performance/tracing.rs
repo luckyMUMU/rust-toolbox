@@ -485,9 +485,9 @@ impl TracingSpan {
     /// 结束 Span
     pub fn end(&mut self) {
         self.end_time = Some(Utc::now());
-        self.duration = self.end_time.and_then(|end| {
-            (end - self.start_time).to_std().ok()
-        });
+        self.duration = self
+            .end_time
+            .and_then(|end| (end - self.start_time).to_std().ok());
     }
 
     /// 获取追踪上下文

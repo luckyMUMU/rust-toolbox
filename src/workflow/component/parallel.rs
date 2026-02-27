@@ -22,7 +22,6 @@ pub enum WaitStrategy {
     WaitN(usize),
 }
 
-
 /// Parallel component that executes multiple nodes concurrently.
 ///
 /// This component signals to the workflow engine which nodes should be

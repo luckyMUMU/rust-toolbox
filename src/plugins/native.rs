@@ -3,7 +3,7 @@
 use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, SecurityPolicy};
-use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
+use crate::tools::types::{NativeToolBuilder, Tool, ToolInput, ToolOutput};
 use libloading::{Library, Symbol};
 use serde_json::Value;
 use std::ffi::{CStr, CString};
@@ -69,7 +69,12 @@ impl NativePlugin {
             )));
         }
 
-        // Load the library
+        // SAFETY: Library loading is inherently unsafe as it involves loading
+        // arbitrary code from disk. We mitigate risks by:
+        // 1. Verifying the library file exists before loading
+        // 2. Verifying required symbols exist after loading
+        // 3. The library is expected to follow our plugin API contract
+        // 4. Security policy validation is performed during initialization
         let library = unsafe {
             Library::new(&self.library_path).map_err(|e| {
                 WorkflowError::plugin(format!(
@@ -101,6 +106,9 @@ impl NativePlugin {
         ];
 
         for symbol_name in &required_symbols {
+            // SAFETY: We are only checking if the symbol exists, not calling it.
+            // The library lifetime is tied to the NativePlugin struct, and we
+            // verify all symbols before any actual function calls.
             unsafe {
                 let _: Symbol<unsafe extern "C" fn()> =
                     library.get(symbol_name.as_bytes()).map_err(|e| {
@@ -126,7 +134,9 @@ impl NativePlugin {
             .as_ref()
             .ok_or_else(|| WorkflowError::plugin("Library not loaded".to_string()))?;
 
-        // Get the init function
+        // SAFETY: We have verified the symbol exists in verify_symbols().
+        // The init function is expected to return a valid plugin handle or null.
+        // We check for null return value before using the handle.
         let init_fn: Symbol<PluginInitFn> = unsafe {
             library.get(b"plugin_init").map_err(|e| {
                 WorkflowError::plugin(format!("Failed to get plugin_init symbol: {}", e))
@@ -142,7 +152,9 @@ impl NativePlugin {
             WorkflowError::plugin(format!("Failed to create C string from config: {}", e))
         })?;
 
-        // Call the init function
+        // SAFETY: The init function is called with a valid C string pointer.
+        // The config_cstr lifetime extends until this function returns.
+        // We verify the returned handle is non-null before storing it.
         let plugin_handle = unsafe { init_fn(config_cstr.as_ptr()) };
 
         if plugin_handle.is_null() {
@@ -167,14 +179,16 @@ impl NativePlugin {
             .plugin_handle
             .ok_or_else(|| WorkflowError::plugin("Plugin not initialized".to_string()))?;
 
-        // Get the get_tools function
+        // SAFETY: We have verified the symbol exists and the plugin handle is valid.
+        // The get_tools function returns a linked list of tool descriptors.
         let get_tools_fn: Symbol<PluginGetToolsFn> = unsafe {
             library.get(b"plugin_get_tools").map_err(|e| {
                 WorkflowError::plugin(format!("Failed to get plugin_get_tools symbol: {}", e))
             })?
         };
 
-        // Call the get_tools function
+        // SAFETY: plugin_handle was validated during initialization.
+        // The returned pointer may be null if no tools are available.
         let tools_ptr = unsafe { get_tools_fn(plugin_handle) };
 
         if tools_ptr.is_null() {
@@ -185,9 +199,12 @@ impl NativePlugin {
         // Parse the tool descriptors
         let mut current_tool = tools_ptr;
         while !current_tool.is_null() {
+            // SAFETY: We verify current_tool is non-null before dereferencing.
+            // The tool descriptor is expected to be a valid C struct.
             let tool_descriptor = unsafe { &*current_tool };
 
-            // Convert C strings to Rust strings
+            // SAFETY: CStr::from_ptr reads until null terminator.
+            // We validate the UTF-8 conversion before using the string.
             let name = unsafe {
                 CStr::from_ptr(tool_descriptor.name)
                     .to_str()
@@ -212,6 +229,8 @@ impl NativePlugin {
             let parameters_schema: Value = if tool_descriptor.parameters_schema.is_null() {
                 Value::Null
             } else {
+                // SAFETY: We check for null before calling CStr::from_ptr.
+                // The schema string is expected to be valid UTF-8 JSON.
                 let schema_str = unsafe {
                     CStr::from_ptr(tool_descriptor.parameters_schema)
                         .to_str()
@@ -225,6 +244,8 @@ impl NativePlugin {
             let return_schema: Value = if tool_descriptor.return_schema.is_null() {
                 Value::Null
             } else {
+                // SAFETY: We check for null before calling CStr::from_ptr.
+                // The schema string is expected to be valid UTF-8 JSON.
                 let schema_str = unsafe {
                     CStr::from_ptr(tool_descriptor.return_schema)
                         .to_str()
@@ -256,14 +277,17 @@ impl NativePlugin {
                     async move {
                         // 使用 spawn_blocking 来执行非线程安全的库加载
                         let result = tokio::task::spawn_blocking(move || {
-                            // 加载动态库
+                            // SAFETY: Library loading is performed in a blocking task
+                            // to avoid blocking the async runtime. The library path
+                            // has been validated during plugin initialization.
                             let library = unsafe {
                                 Library::new(&library_path).map_err(|e| {
                                     WorkflowError::tool(format!("加载库失败: {}", e))
                                 })?
                             };
 
-                            // 获取执行函数
+                            // SAFETY: We have verified this symbol exists during plugin loading.
+                            // The symbol is obtained from a valid library instance.
                             let execute_fn: Symbol<PluginExecuteToolFn> = unsafe {
                                 library.get(b"plugin_execute_tool").map_err(|e| {
                                     WorkflowError::tool(format!("获取执行函数失败: {}", e))
@@ -271,8 +295,10 @@ impl NativePlugin {
                             };
 
                             // 序列化参数和上下文
-                            let params_json = serde_json::to_string(&input.params)
-                                .map_err(|e| WorkflowError::tool(format!("序列化参数失败: {}", e)))?;
+                            let params_json =
+                                serde_json::to_string(&input.params).map_err(|e| {
+                                    WorkflowError::tool(format!("序列化参数失败: {}", e))
+                                })?;
 
                             let tool_name_cstr = CString::new(tool_name.clone()).map_err(|e| {
                                 WorkflowError::tool(format!("创建C字符串失败: {}", e))
@@ -287,9 +313,13 @@ impl NativePlugin {
                             })?;
 
                             // 将 usize 转回指针
+                            // SAFETY: The plugin_handle was originally a valid pointer from
+                            // plugin_init. Converting back from usize is safe as long as the
+                            // plugin is still loaded and initialized.
                             let plugin_handle = plugin_handle_usize as *mut c_void;
 
-                            // 调用执行函数
+                            // SAFETY: All C string pointers are valid and the plugin handle
+                            // was validated during initialization. We check for null result.
                             let result_ptr = unsafe {
                                 execute_fn(
                                     plugin_handle,
@@ -303,18 +333,22 @@ impl NativePlugin {
                                 return Err(WorkflowError::tool("工具执行返回空结果".to_string()));
                             }
 
-                            // 转换结果回 Rust
+                            // SAFETY: We verified result_ptr is non-null. CStr::from_ptr
+                            // reads until null terminator and we validate UTF-8 conversion.
                             let result_str = unsafe {
-                                CStr::from_ptr(result_ptr)
-                                    .to_str()
-                                    .map_err(|e| WorkflowError::tool(format!("无效的结果字符串: {}", e)))?
+                                CStr::from_ptr(result_ptr).to_str().map_err(|e| {
+                                    WorkflowError::tool(format!("无效的结果字符串: {}", e))
+                                })?
                             };
 
-                            let result: Value = serde_json::from_str(result_str)
-                                .map_err(|e| WorkflowError::tool(format!("反序列化结果失败: {}", e)))?;
+                            let result: Value = serde_json::from_str(result_str).map_err(|e| {
+                                WorkflowError::tool(format!("反序列化结果失败: {}", e))
+                            })?;
 
                             Ok::<_, WorkflowError>(result)
-                        }).await.map_err(|e| WorkflowError::tool(format!("任务执行失败: {}", e)))?;
+                        })
+                        .await
+                        .map_err(|e| WorkflowError::tool(format!("任务执行失败: {}", e)))?;
 
                         match result {
                             Ok(value) => Ok(ToolOutput::success(value)),
@@ -340,14 +374,16 @@ impl NativePlugin {
     /// Shutdown the native plugin
     fn shutdown_native_plugin(&mut self) -> Result<()> {
         if let (Some(library), Some(plugin_handle)) = (&self.library, self.plugin_handle) {
-            // Get the shutdown function
+            // SAFETY: We have verified the symbol exists and the plugin handle is valid.
+            // This is the final cleanup call before the plugin is unloaded.
             let shutdown_fn: Symbol<PluginShutdownFn> = unsafe {
                 library.get(b"plugin_shutdown").map_err(|e| {
                     WorkflowError::plugin(format!("Failed to get plugin_shutdown symbol: {}", e))
                 })?
             };
 
-            // Call the shutdown function
+            // SAFETY: plugin_handle was validated during initialization.
+            // After this call, the handle is no longer valid.
             unsafe { shutdown_fn(plugin_handle) };
 
             self.plugin_handle = None;

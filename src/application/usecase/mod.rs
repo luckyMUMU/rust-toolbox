@@ -33,7 +33,10 @@ impl ExecuteWorkflowUseCase {
         info!("用例: 执行工作流 {}", definition.name);
 
         // 调用应用服务执行
-        let execution = self.workflow_service.execute_workflow(definition, params).await?;
+        let execution = self
+            .workflow_service
+            .execute_workflow(definition, params)
+            .await?;
 
         info!("用例完成: 工作流执行完成, execution_id={}", execution.id);
         Ok(execution)

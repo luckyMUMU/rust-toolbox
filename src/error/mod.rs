@@ -17,9 +17,7 @@
 
 pub mod common;
 
-pub use common::{
-    CommonError,
-};
+pub use common::CommonError;
 
 use thiserror::Error;
 

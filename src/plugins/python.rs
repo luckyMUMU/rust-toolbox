@@ -519,7 +519,9 @@ impl PythonPlugin {
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, PythonTool};
+        use crate::tools::types::{
+            PythonTool, ResourceRequirements, ToolId, ToolKind, ToolMetadata,
+        };
 
         let environment = self.environment.lock().await;
         let python_path = environment.python_executable().to_path_buf();
@@ -553,7 +555,9 @@ impl PythonPlugin {
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, PythonTool};
+        use crate::tools::types::{
+            PythonTool, ResourceRequirements, ToolId, ToolKind, ToolMetadata,
+        };
 
         let environment = self.environment.lock().await;
         let python_path = environment.python_executable().to_path_buf();

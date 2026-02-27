@@ -57,10 +57,7 @@ impl std::fmt::Display for ErrorSeverity {
 #[derive(Clone, Debug)]
 pub enum ErrorHandlingStrategy {
     /// 立即重试
-    ImmediateRetry {
-        max_attempts: u32,
-        delay: Duration,
-    },
+    ImmediateRetry { max_attempts: u32, delay: Duration },
     /// 指数退避重试
     ExponentialBackoff {
         max_attempts: u32,
@@ -74,9 +71,7 @@ pub enum ErrorHandlingStrategy {
         recovery_time: Duration,
     },
     /// 降级（使用备用方案）
-    Fallback {
-        fallback_value: Option<String>,
-    },
+    Fallback { fallback_value: Option<String> },
     /// 快速失败
     FailFast,
     /// 忽略错误继续
@@ -121,7 +116,10 @@ impl ErrorHandler {
         Fut: Future<Output = Result<T, E>>,
     {
         match &self.strategy {
-            ErrorHandlingStrategy::ImmediateRetry { max_attempts, delay } => {
+            ErrorHandlingStrategy::ImmediateRetry {
+                max_attempts,
+                delay,
+            } => {
                 self.retry_immediate(operation, *max_attempts, *delay, error_classifier)
                     .await
             }
@@ -231,11 +229,9 @@ impl ErrorHandler {
                         tokio::time::sleep(current_delay).await;
 
                         // 计算下一次延迟
-                        let next_delay_secs =
-                            current_delay.as_secs_f64() * multiplier;
-                        current_delay = Duration::from_secs_f64(
-                            next_delay_secs.min(max_delay.as_secs_f64()),
-                        );
+                        let next_delay_secs = current_delay.as_secs_f64() * multiplier;
+                        current_delay =
+                            Duration::from_secs_f64(next_delay_secs.min(max_delay.as_secs_f64()));
                     }
                 }
             }
@@ -363,7 +359,12 @@ mod tests {
                         Ok(42)
                     }
                 },
-                |e| WorkflowErrorClassifier::classify(&std::io::Error::new(std::io::ErrorKind::Other, e)),
+                |e| {
+                    WorkflowErrorClassifier::classify(&std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e,
+                    ))
+                },
             )
             .await;
 
@@ -382,7 +383,12 @@ mod tests {
         let result = handler
             .execute(
                 || async { Err::<i32, String>("persistent error".to_string()) },
-                |e| WorkflowErrorClassifier::classify(&std::io::Error::new(std::io::ErrorKind::Other, e)),
+                |e| {
+                    WorkflowErrorClassifier::classify(&std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e,
+                    ))
+                },
             )
             .await;
 
@@ -413,7 +419,12 @@ mod tests {
                         Ok(42)
                     }
                 },
-                |e| WorkflowErrorClassifier::classify(&std::io::Error::new(std::io::ErrorKind::Other, e)),
+                |e| {
+                    WorkflowErrorClassifier::classify(&std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e,
+                    ))
+                },
             )
             .await;
 
@@ -430,11 +441,15 @@ mod tests {
         let classification = WorkflowErrorClassifier::classify(&timeout_error);
 
         assert!(
-            matches!(classification, ErrorClassification::NetworkError { timeout: true, .. }),
+            matches!(
+                classification,
+                ErrorClassification::NetworkError { timeout: true, .. }
+            ),
             "Expected NetworkError with timeout"
         );
 
-        let validation_error = std::io::Error::new(std::io::ErrorKind::InvalidInput, "validation failed");
+        let validation_error =
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "validation failed");
         let classification = WorkflowErrorClassifier::classify(&validation_error);
 
         assert!(

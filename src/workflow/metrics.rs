@@ -2,11 +2,11 @@
 //!
 //! 提供工作流执行的指标收集和报告功能
 
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 use tracing::{debug, trace};
 
@@ -89,7 +89,11 @@ impl InMemoryMetricsCollector {
             let count = d.len() as u64;
             WorkflowStats {
                 total_executions: count,
-                average_duration: if count > 0 { total / count as u32 } else { Duration::from_secs(0) },
+                average_duration: if count > 0 {
+                    total / count as u32
+                } else {
+                    Duration::from_secs(0)
+                },
                 min_duration: d.iter().min().copied().unwrap_or(Duration::from_secs(0)),
                 max_duration: d.iter().max().copied().unwrap_or(Duration::from_secs(0)),
             }
@@ -145,16 +149,18 @@ impl MetricsCollector for InMemoryMetricsCollector {
     }
 
     fn record_node_duration(&self, node_type: &str, duration: Duration) {
-        trace!("Recording node duration for '{}': {:?}", node_type, duration);
+        trace!(
+            "Recording node duration for '{}': {:?}",
+            node_type,
+            duration
+        );
 
         let durations = self.node_durations.clone();
         let node_type = node_type.to_string();
 
         tokio::spawn(async move {
             let mut map = durations.write().await;
-            map.entry(node_type)
-                .or_insert_with(Vec::new)
-                .push(duration);
+            map.entry(node_type).or_insert_with(Vec::new).push(duration);
         });
     }
 

@@ -11,9 +11,9 @@ use std::path::PathBuf;
 use tracing::info;
 
 use crate::core::ExecutionContext;
+use crate::error::WorkflowError;
 use crate::plugins::file_management::core::error::FileManagementResult;
 use crate::plugins::file_management::utils::utils::ExperimentalOperation;
-use crate::error::WorkflowError;
 use crate::tools::types::Tool;
 
 /// Tool for reviewing experimental results before execution
@@ -664,10 +664,10 @@ impl ResultReviewTool {
 
 /// Create a result review tool with default configuration
 pub fn create_result_review_tool() -> Tool {
-    use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
     use crate::core::ExecutionContext;
+    use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
     use std::sync::Arc;
-    
+
     let native_tool = NativeToolBuilder::new()
         .name("result-reviewer")
         .version("1.0.0")
@@ -679,22 +679,25 @@ pub fn create_result_review_tool() -> Tool {
             let tool = ResultReviewTool::with_default_config();
             let params: ResultReviewParams = serde_json::from_value(input.params)
                 .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-            let result = tool.process_review(&params, &ctx)
+            let result = tool
+                .process_review(&params, &ctx)
                 .map_err(|e| WorkflowError::tool(format!("Review failed: {}", e)))?;
-            Ok(ToolOutput::success(serde_json::to_value(result).unwrap_or_default()))
+            Ok(ToolOutput::success(
+                serde_json::to_value(result).unwrap_or_default(),
+            ))
         })
         .build()
         .expect("Failed to build result review tool");
-    
+
     Tool::Native(Arc::new(native_tool))
 }
 
 /// Create a result review tool with custom configuration
 pub fn create_result_review_tool_with_config(config: ResultReviewConfig) -> Tool {
-    use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
     use crate::core::ExecutionContext;
+    use crate::tools::types::{NativeToolBuilder, ToolInput, ToolOutput};
     use std::sync::Arc;
-    
+
     let native_tool = NativeToolBuilder::new()
         .name("result-reviewer")
         .version("1.0.0")
@@ -708,14 +711,17 @@ pub fn create_result_review_tool_with_config(config: ResultReviewConfig) -> Tool
                 let tool = ResultReviewTool::new(config);
                 let params: ResultReviewParams = serde_json::from_value(input.params)
                     .map_err(|e| WorkflowError::validation(format!("Invalid parameters: {}", e)))?;
-                let result = tool.process_review(&params, &ctx)
+                let result = tool
+                    .process_review(&params, &ctx)
                     .map_err(|e| WorkflowError::tool(format!("Review failed: {}", e)))?;
-                Ok(ToolOutput::success(serde_json::to_value(result).unwrap_or_default()))
+                Ok(ToolOutput::success(
+                    serde_json::to_value(result).unwrap_or_default(),
+                ))
             }
         })
         .build()
         .expect("Failed to build result review tool");
-    
+
     Tool::Native(Arc::new(native_tool))
 }
 

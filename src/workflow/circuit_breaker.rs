@@ -2,11 +2,11 @@
 //!
 //! 提供熔断保护机制，防止级联故障
 
+use chrono::{DateTime, Utc};
 use std::future::Future;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
@@ -158,7 +158,10 @@ impl CircuitBreaker {
     /// 创建新的熔断器
     pub fn new(name: impl Into<String>, config: CircuitBreakerConfig) -> Self {
         let name = name.into();
-        info!("Creating circuit breaker '{}' with config: {:?}", name, config);
+        info!(
+            "Creating circuit breaker '{}' with config: {:?}",
+            name, config
+        );
 
         Self {
             config,
@@ -334,7 +337,10 @@ impl CircuitBreaker {
     /// 手动重置熔断器到关闭状态
     pub async fn reset(&self) {
         let mut state = self.state.write().await;
-        info!("Manually resetting circuit breaker '{}' to Closed", self.name);
+        info!(
+            "Manually resetting circuit breaker '{}' to Closed",
+            self.name
+        );
         *state = CircuitState::Closed;
         self.metrics.record_state_change();
     }
@@ -372,7 +378,9 @@ mod tests {
         assert_eq!(cb.current_state().await, CircuitState::Closed);
 
         // 成功执行应该正常工作
-        let result = cb.call(|| async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) }).await;
+        let result = cb
+            .call(|| async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) })
+            .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
     }
@@ -391,19 +399,22 @@ mod tests {
         for _ in 0..3 {
             let result = cb
                 .call(|| async {
-                    Err::<i32, Box<dyn std::error::Error + Send + Sync>>(
-                        "test error".into(),
-                    )
+                    Err::<i32, Box<dyn std::error::Error + Send + Sync>>("test error".into())
                 })
                 .await;
             assert!(result.is_err());
         }
 
         // 熔断器应该打开
-        assert!(matches!(cb.current_state().await, CircuitState::Open { .. }));
+        assert!(matches!(
+            cb.current_state().await,
+            CircuitState::Open { .. }
+        ));
 
         // 再次请求应该被拒绝
-        let result = cb.call(|| async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) }).await;
+        let result = cb
+            .call(|| async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) })
+            .await;
         assert!(matches!(result, Err(CircuitBreakerError::CircuitOpen)));
     }
 
@@ -419,12 +430,13 @@ mod tests {
 
         // 触发熔断
         let _ = cb
-            .call(|| async {
-                Err::<i32, Box<dyn std::error::Error + Send + Sync>>("error".into())
-            })
+            .call(|| async { Err::<i32, Box<dyn std::error::Error + Send + Sync>>("error".into()) })
             .await;
 
-        assert!(matches!(cb.current_state().await, CircuitState::Open { .. }));
+        assert!(matches!(
+            cb.current_state().await,
+            CircuitState::Open { .. }
+        ));
 
         // 手动重置
         cb.reset().await;
@@ -507,6 +519,9 @@ mod tests {
         }
 
         // 熔断器应该打开
-        assert!(matches!(cb.current_state().await, CircuitState::Open { .. }));
+        assert!(matches!(
+            cb.current_state().await,
+            CircuitState::Open { .. }
+        ));
     }
 }

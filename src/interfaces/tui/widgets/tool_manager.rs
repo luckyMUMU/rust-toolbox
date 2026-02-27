@@ -170,9 +170,11 @@ impl ToolManagerWidget {
 
     fn matches_filter(&self, tool: &ToolInfo, filter_set: &FilterSet) -> bool {
         if let Some(cat_filter) = &filter_set.category_filter {
-            if !tool.category.as_ref().is_some_and(|cat| {
-                cat.to_lowercase().contains(&cat_filter.to_lowercase())
-            }) {
+            if !tool
+                .category
+                .as_ref()
+                .is_some_and(|cat| cat.to_lowercase().contains(&cat_filter.to_lowercase()))
+            {
                 return false;
             }
         }

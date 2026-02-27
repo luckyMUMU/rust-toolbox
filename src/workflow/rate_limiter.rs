@@ -400,7 +400,9 @@ mod tests {
         limiter.acquire(1.0).await.unwrap();
 
         // 使用超时模式，超时 50ms
-        let result = limiter.acquire_with_timeout(1.0, Duration::from_millis(50)).await;
+        let result = limiter
+            .acquire_with_timeout(1.0, Duration::from_millis(50))
+            .await;
 
         // 应该超时（需要 1000ms 才能产生 1 个令牌）
         assert!(matches!(result, Err(RateLimiterError::WaitTimeout)));

@@ -65,15 +65,13 @@ pub struct TextProcessorParams {
 }
 
 /// Output format options
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum TextOutputFormat {
     #[default]
-    Simple,     // Just the processed text
+    Simple, // Just the processed text
     Detailed,   // Include metadata and variants
     Structured, // Full structured result
 }
-
 
 /// Text processor tool result
 #[derive(Debug, Clone, Serialize, Deserialize)]

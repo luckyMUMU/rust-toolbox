@@ -4,8 +4,8 @@
 
 use crate::di::{AppModule, DiContainer};
 use crate::storage::{FileStorage, SimpleMemoryCache, StateManager};
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// 存储模块
 ///
@@ -51,25 +51,21 @@ impl AppModule for StorageModule {
     fn configure(&self, container: &DiContainer) {
         let storage_path = self.storage_path.clone();
         let cache_capacity = self.cache_capacity;
-        
+
         container.register_factory::<StateManagerServiceImpl, _>(move || {
-            let storage = Arc::new(
-                FileStorage::new(&storage_path)
-                    .expect("Failed to create file storage")
-            );
+            let storage =
+                Arc::new(FileStorage::new(&storage_path).expect("Failed to create file storage"));
             let cache = Arc::new(SimpleMemoryCache::new());
             let state_manager = Arc::new(StateManager::new(storage, cache));
-            
+
             Arc::new(StateManagerServiceImpl::new(state_manager))
         });
-        
+
         container.register_factory::<CacheServiceImpl, _>(move || {
             Arc::new(CacheServiceImpl::new(cache_capacity))
         });
-        
-        container.register_factory::<BackupServiceImpl, _>(|| {
-            Arc::new(BackupServiceImpl::new())
-        });
+
+        container.register_factory::<BackupServiceImpl, _>(|| Arc::new(BackupServiceImpl::new()));
     }
 }
 
@@ -100,7 +96,7 @@ impl StateManagerService for StateManagerServiceImpl {
 pub trait CacheService: Send + Sync {
     /// 获取缓存容量
     fn capacity(&self) -> usize;
-    
+
     /// 清空缓存
     fn clear(&self);
 }
@@ -120,9 +116,8 @@ impl CacheService for CacheServiceImpl {
     fn capacity(&self) -> usize {
         self.capacity
     }
-    
-    fn clear(&self) {
-    }
+
+    fn clear(&self) {}
 }
 
 /// 备份服务 trait
@@ -180,7 +175,7 @@ mod tests {
         let module = StorageModule::new()
             .with_storage_path(PathBuf::from("/tmp/storage"))
             .with_cache_capacity(2000);
-        
+
         assert_eq!(module.storage_path, PathBuf::from("/tmp/storage"));
         assert_eq!(module.cache_capacity, 2000);
     }

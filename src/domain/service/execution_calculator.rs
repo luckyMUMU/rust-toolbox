@@ -227,11 +227,9 @@ impl ExecutionStateCalculator {
             }
 
             if let Some(started_at) = state.started_at {
-                let duration = state.completed_at.map(|c| {
-                    (c - started_at)
-                        .to_std()
-                        .unwrap_or(Duration::ZERO)
-                });
+                let duration = state
+                    .completed_at
+                    .map(|c| (c - started_at).to_std().unwrap_or(Duration::ZERO));
 
                 timeline.push(ExecutionTimelineEntry {
                     node_id: node_id.clone(),
@@ -296,10 +294,7 @@ impl ExecutionStateCalculator {
     }
 
     /// 计算执行健康度
-    pub fn calculate_health_score(
-        &self,
-        node_states: &HashMap<String, NodeExecutionState>,
-    ) -> f64 {
+    pub fn calculate_health_score(&self, node_states: &HashMap<String, NodeExecutionState>) -> f64 {
         let stats = self.calculate_stats(node_states);
 
         if stats.total == 0 {
@@ -330,9 +325,7 @@ impl ExecutionStateCalculator {
 
         for (node_id, state) in node_states {
             if let (Some(started), Some(completed)) = (state.started_at, state.completed_at) {
-                let duration = (completed - started)
-                    .to_std()
-                    .unwrap_or(Duration::ZERO);
+                let duration = (completed - started).to_std().unwrap_or(Duration::ZERO);
 
                 if duration > avg_duration * 2 {
                     bottlenecks.push(node_id.clone());
@@ -353,9 +346,7 @@ impl ExecutionStateCalculator {
 
         for state in node_states.values() {
             if let (Some(started), Some(completed)) = (state.started_at, state.completed_at) {
-                let duration = (completed - started)
-                    .to_std()
-                    .unwrap_or(Duration::ZERO);
+                let duration = (completed - started).to_std().unwrap_or(Duration::ZERO);
                 total += duration;
                 count += 1;
             }

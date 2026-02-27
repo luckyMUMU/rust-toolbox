@@ -493,7 +493,8 @@ impl CliApp {
                                 })?;
 
                             // Execute tool with timeout if specified
-                            let tool_input = crate::tools::types::ToolInput::new(tool_params.clone());
+                            let tool_input =
+                                crate::tools::types::ToolInput::new(tool_params.clone());
                             if let Some(timeout_secs) = timeout {
                                 debug!("Tool execution timeout set to {} seconds", timeout_secs);
                                 // TODO: Implement timeout wrapper
@@ -1086,17 +1087,13 @@ impl CliApp {
             let allowed_origins = std::env::var("WORKFLOW_TOOLKIT_ALLOWED_ORIGINS")
                 .ok()
                 .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
-                .unwrap_or_else(|| {
-                    vec!["localhost".to_string(), "127.0.0.1".to_string()]
-                });
+                .unwrap_or_else(|| vec!["localhost".to_string(), "127.0.0.1".to_string()]);
 
             // Get CORS origins from environment variable
             let cors_origins = std::env::var("WORKFLOW_TOOLKIT_CORS_ORIGINS")
                 .ok()
                 .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
-                .unwrap_or_else(|| {
-                    vec!["localhost".to_string(), "127.0.0.1".to_string()]
-                });
+                .unwrap_or_else(|| vec!["localhost".to_string(), "127.0.0.1".to_string()]);
 
             let config = McpServerConfig {
                 http_port,
@@ -1182,12 +1179,13 @@ impl CliApp {
         &self,
         path: &PathBuf,
     ) -> Result<crate::workflow::WorkflowDefinition> {
-
         if !path.exists() {
             return Err(CliError::FileNotFound(path.clone()).into());
         }
 
-        let content = tokio::fs::read_to_string(path).await.map_err(CliError::IoError)?;
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .map_err(CliError::IoError)?;
 
         debug!("Loaded file content: {}", content);
 
@@ -1278,9 +1276,7 @@ impl CliApp {
             return Err(CliError::FileNotFound(path.clone()).into());
         }
 
-        let content = fs::read_to_string(path)
-            .await
-            .map_err(CliError::IoError)?;
+        let content = fs::read_to_string(path).await.map_err(CliError::IoError)?;
 
         // Try to parse as YAML first, then JSON
         if let Ok(config) = serde_yaml::from_str::<BatchConfig>(&content) {
@@ -1531,8 +1527,7 @@ impl CliApp {
             .map_err(CliError::IoError)?;
 
         // Save results as JSON
-        let results_json =
-            serde_json::to_string_pretty(results).map_err(CliError::JsonError)?;
+        let results_json = serde_json::to_string_pretty(results).map_err(CliError::JsonError)?;
 
         let results_file = output_dir.join("batch_results.json");
         fs::write(&results_file, results_json)
@@ -1541,8 +1536,7 @@ impl CliApp {
 
         // Save summary
         let summary = BatchSummary::from_results(results);
-        let summary_json =
-            serde_json::to_string_pretty(&summary).map_err(CliError::JsonError)?;
+        let summary_json = serde_json::to_string_pretty(&summary).map_err(CliError::JsonError)?;
 
         let summary_file = output_dir.join("batch_summary.json");
         fs::write(&summary_file, summary_json)

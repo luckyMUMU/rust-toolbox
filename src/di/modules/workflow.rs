@@ -49,7 +49,11 @@ impl crate::storage::StorageBackend for InMemoryStorage {
 
     async fn list_keys(&self, prefix: &str) -> crate::error::Result<Vec<String>> {
         let data = self.data.read().unwrap();
-        Ok(data.keys().filter(|k| k.starts_with(prefix)).cloned().collect())
+        Ok(data
+            .keys()
+            .filter(|k| k.starts_with(prefix))
+            .cloned()
+            .collect())
     }
 
     async fn batch_save(&self, items: Vec<(String, Vec<u8>)>) -> crate::error::Result<()> {
@@ -101,22 +105,18 @@ impl AppModule for WorkflowModule {
 
     fn configure(&self, container: &DiContainer) {
         let max_parallel = self.max_parallel_workflows;
-        
+
         container.register_factory::<WorkflowEngineServiceImpl, _>(move || {
             let storage = Arc::new(InMemoryStorage::new());
             let cache = Arc::new(SimpleMemoryCache::new());
             let state_manager = Arc::new(StateManager::new(storage, cache));
             let tool_registry = Arc::new(ToolRegistry::new());
-            
-            let engine = RefactoredWorkflowEngine::new(
-                state_manager,
-                tool_registry,
-                max_parallel,
-            );
-            
+
+            let engine = RefactoredWorkflowEngine::new(state_manager, tool_registry, max_parallel);
+
             Arc::new(WorkflowEngineServiceImpl::new(engine))
         });
-        
+
         container.register_factory::<AuditLogServiceImpl, _>(|| {
             let storage = Arc::new(InMemoryStorage::new());
             let cache = Arc::new(SimpleMemoryCache::new());
@@ -207,8 +207,7 @@ mod tests {
 
     #[test]
     fn test_workflow_module_with_config() {
-        let module = WorkflowModule::new()
-            .with_max_parallel_workflows(8);
+        let module = WorkflowModule::new().with_max_parallel_workflows(8);
         assert_eq!(module.max_parallel_workflows, 8);
     }
 }

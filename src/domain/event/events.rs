@@ -290,7 +290,7 @@ mod tests {
         let metadata = EventMetadata::new("Workflow", "wf-123", "WorkflowCreated")
             .with_version(2)
             .with_correlation("corr-456");
-        
+
         assert_eq!(metadata.aggregate_type, "Workflow");
         assert_eq!(metadata.aggregate_id, "wf-123");
         assert_eq!(metadata.event_type, "WorkflowCreated");
@@ -306,7 +306,7 @@ mod tests {
             workflow_name: "test-workflow".to_string(),
             workflow_version: "1.0.0".to_string(),
         };
-        
+
         assert_eq!(event.workflow_id, "wf-123");
         assert_eq!(event.workflow_name, "test-workflow");
     }

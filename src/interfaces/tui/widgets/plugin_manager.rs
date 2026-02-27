@@ -208,8 +208,7 @@ impl Default for PluginFilter {
 }
 
 /// Plugin sort order
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum PluginSortOrder {
     #[default]
     NameAsc,
@@ -221,7 +220,6 @@ pub enum PluginSortOrder {
     LastUpdatedAsc,
     LastUpdatedDesc,
 }
-
 
 /// Plugin Manager Widget implementation
 pub struct PluginManagerWidget {
@@ -421,9 +419,11 @@ impl PluginManagerWidget {
                 .description
                 .as_ref()
                 .is_some_and(|desc| desc.to_lowercase().contains(&search_lower));
-            let matches_author = plugin.info.author.as_ref().is_some_and(|author| {
-                author.to_lowercase().contains(&search_lower)
-            });
+            let matches_author = plugin
+                .info
+                .author
+                .as_ref()
+                .is_some_and(|author| author.to_lowercase().contains(&search_lower));
 
             if !matches_name && !matches_description && !matches_author {
                 return false;
@@ -444,9 +444,10 @@ impl PluginManagerWidget {
             && !matches!(
                 plugin.status,
                 PluginStatus::Ready | PluginStatus::Running | PluginStatus::Error
-            ) {
-                return false;
-            }
+            )
+        {
+            return false;
+        }
 
         true
     }
@@ -1710,10 +1711,7 @@ impl PluginManagerWidget {
             .iter()
             .filter(|plugin| {
                 let category_match = category.is_none_or(|cat| {
-                    plugin
-                        .metadata
-                        .get("category")
-                        .and_then(|v| v.as_str()) == Some(cat)
+                    plugin.metadata.get("category").and_then(|v| v.as_str()) == Some(cat)
                 });
 
                 let type_match = plugin_type

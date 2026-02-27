@@ -115,10 +115,7 @@ impl ConfigValidator {
         if config.max_concurrent_steps == 0 {
             report.add_error("max_concurrent_steps", "并发数必须大于0");
         } else if config.max_concurrent_steps > 100 {
-            report.add_warning(
-                "max_concurrent_steps",
-                "并发数超过100，可能导致资源耗尽",
-            );
+            report.add_warning("max_concurrent_steps", "并发数超过100，可能导致资源耗尽");
         }
     }
 
@@ -145,10 +142,7 @@ impl ConfigValidator {
             // 检查最大延迟
             if let Some(max_delay) = retry.max_delay {
                 if max_delay < retry.base_delay {
-                    report.add_error(
-                        "retry_policy.max_delay",
-                        "最大延迟不能小于基础延迟",
-                    );
+                    report.add_error("retry_policy.max_delay", "最大延迟不能小于基础延迟");
                 }
                 if max_delay > Duration::from_secs(3600) {
                     report.add_warning("retry_policy.max_delay", "最大延迟超过1小时");
@@ -164,10 +158,7 @@ impl ConfigValidator {
             if interval == Duration::from_secs(0) {
                 report.add_error("checkpoint_interval", "检查点间隔不能为0");
             } else if interval < Duration::from_secs(10) {
-                report.add_warning(
-                    "checkpoint_interval",
-                    "检查点间隔小于10秒，可能影响性能",
-                );
+                report.add_warning("checkpoint_interval", "检查点间隔小于10秒，可能影响性能");
             } else if interval > Duration::from_secs(3600) {
                 report.add_warning("checkpoint_interval", "检查点间隔超过1小时，容错能力较弱");
             }
@@ -221,9 +212,7 @@ pub struct FileConfigLoader {
 impl FileConfigLoader {
     /// 创建新的文件配置加载器
     pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
-        Self {
-            path: path.into(),
-        }
+        Self { path: path.into() }
     }
 }
 
@@ -234,9 +223,8 @@ impl ConfigLoader for FileConfigLoader {
             WorkflowError::ConfigError(format!("Failed to read config file: {}", e))
         })?;
 
-        let config: WorkflowConfig = serde_yaml::from_str(&content).map_err(|e| {
-            WorkflowError::ConfigError(format!("Failed to parse config: {}", e))
-        })?;
+        let config: WorkflowConfig = serde_yaml::from_str(&content)
+            .map_err(|e| WorkflowError::ConfigError(format!("Failed to parse config: {}", e)))?;
 
         // 验证配置
         let report = ConfigValidator::validate(&config);

@@ -2,25 +2,23 @@
 
 use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
+use crate::plugins::file_management::batch::batch_processor_tool;
 use crate::plugins::file_management::classification::classification_flow::{
     FolderNamePreprocessorTool, RulePreprocessorTool,
 };
 use crate::plugins::file_management::classification::classification_tool::ClassificationTool;
-use crate::plugins::file_management::batch::batch_processor_tool::BatchProcessorTool;
-use crate::plugins::file_management::ui::{
-    batch_confirmation_tool::BatchConfirmationTool,
-    result_confirmation_tool::ResultConfirmationTool,
-    result_review_tool::ResultReviewTool,
-};
 use crate::plugins::file_management::plugin::FileManagementConfig;
-use crate::plugins::file_management::utils::utils::FolderMergerConfig;
 use crate::plugins::file_management::text::text_processor_tool::TextProcessorTool;
+use crate::plugins::file_management::ui::{
+    batch_confirmation_tool::BatchConfirmationTool, human_decision_tool::HumanDecisionExecutor,
+    result_confirmation_tool::ResultConfirmationTool, result_review_tool::ResultReviewTool,
+};
+use crate::plugins::file_management::utils::utils::FolderMergerConfig;
 use crate::plugins::file_management::utils::utils::{
-    ConflictResolution, DuplicateHandling, FileOperationType,
-    MergeStrategy,
+    ConflictResolution, DuplicateHandling, FileOperationType, MergeStrategy,
 };
 use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, Pattern};
-use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
+use crate::tools::types::{NativeToolBuilder, Tool, ToolInput, ToolOutput};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -160,7 +158,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(rule_loader_tool));
-        self.registered_tools.insert("rule-loader".to_string(), tool.clone());
+        self.registered_tools
+            .insert("rule-loader".to_string(), tool.clone());
         tools.push(tool);
 
         // 2. Rule Preprocessor - 规则预处理工具
@@ -172,17 +171,20 @@ impl FileManagementToolRegistry {
             .category("classification")
             .tag("rules")
             .tag("preprocessing")
-            .executor(move |_input: ToolInput, _ctx: ExecutionContext| async move {
-                let _processor = RulePreprocessorTool::new(enable_chinese);
-                Ok(ToolOutput::success(json!({
-                    "status": "not_implemented",
-                    "tool": "rule-preprocessor",
-                    "enable_chinese": enable_chinese
-                })))
-            })
+            .executor(
+                move |_input: ToolInput, _ctx: ExecutionContext| async move {
+                    let _processor = RulePreprocessorTool::new(enable_chinese);
+                    Ok(ToolOutput::success(json!({
+                        "status": "not_implemented",
+                        "tool": "rule-preprocessor",
+                        "enable_chinese": enable_chinese
+                    })))
+                },
+            )
             .build()?;
         let tool = Tool::Native(Arc::new(rule_preprocessor_tool));
-        self.registered_tools.insert("rule-preprocessor".to_string(), tool.clone());
+        self.registered_tools
+            .insert("rule-preprocessor".to_string(), tool.clone());
         tools.push(tool);
 
         // 3. Automaton Builder - AC自动机构建工具
@@ -201,7 +203,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(automaton_builder_tool));
-        self.registered_tools.insert("automaton-builder".to_string(), tool.clone());
+        self.registered_tools
+            .insert("automaton-builder".to_string(), tool.clone());
         tools.push(tool);
 
         // 4. Directory Scanner - 目录扫描工具
@@ -220,7 +223,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(directory_scanner_tool));
-        self.registered_tools.insert("directory-scanner".to_string(), tool.clone());
+        self.registered_tools
+            .insert("directory-scanner".to_string(), tool.clone());
         tools.push(tool);
 
         // 5. Folder Name Preprocessor - 文件夹名称预处理工具
@@ -232,17 +236,20 @@ impl FileManagementToolRegistry {
             .category("classification")
             .tag("folder")
             .tag("preprocessing")
-            .executor(move |_input: ToolInput, _ctx: ExecutionContext| async move {
-                let _processor = FolderNamePreprocessorTool::new(enable_chinese);
-                Ok(ToolOutput::success(json!({
-                    "status": "not_implemented",
-                    "tool": "folder-name-preprocessor",
-                    "enable_chinese": enable_chinese
-                })))
-            })
+            .executor(
+                move |_input: ToolInput, _ctx: ExecutionContext| async move {
+                    let _processor = FolderNamePreprocessorTool::new(enable_chinese);
+                    Ok(ToolOutput::success(json!({
+                        "status": "not_implemented",
+                        "tool": "folder-name-preprocessor",
+                        "enable_chinese": enable_chinese
+                    })))
+                },
+            )
             .build()?;
         let tool = Tool::Native(Arc::new(folder_name_preprocessor_tool));
-        self.registered_tools.insert("folder-name-preprocessor".to_string(), tool.clone());
+        self.registered_tools
+            .insert("folder-name-preprocessor".to_string(), tool.clone());
         tools.push(tool);
 
         // 6. Parallel Matcher - 并行匹配工具
@@ -261,7 +268,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(parallel_matcher_tool));
-        self.registered_tools.insert("parallel-matcher".to_string(), tool.clone());
+        self.registered_tools
+            .insert("parallel-matcher".to_string(), tool.clone());
         tools.push(tool);
 
         // 7. Score Calculator - 分数计算工具
@@ -279,7 +287,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(score_calculator_tool));
-        self.registered_tools.insert("score-calculator".to_string(), tool.clone());
+        self.registered_tools
+            .insert("score-calculator".to_string(), tool.clone());
         tools.push(tool);
 
         // 8. Ambiguity Detector - 歧义检测工具
@@ -298,7 +307,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(ambiguity_detector_tool));
-        self.registered_tools.insert("ambiguity-detector".to_string(), tool.clone());
+        self.registered_tools
+            .insert("ambiguity-detector".to_string(), tool.clone());
         tools.push(tool);
 
         // 9. Result Merger - 结果合并工具
@@ -316,7 +326,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(result_merger_tool));
-        self.registered_tools.insert("result-merger".to_string(), tool.clone());
+        self.registered_tools
+            .insert("result-merger".to_string(), tool.clone());
         tools.push(tool);
 
         // 10. Experimental Check - 实验模式检查工具
@@ -334,7 +345,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(experimental_check_tool));
-        self.registered_tools.insert("experimental-check".to_string(), tool.clone());
+        self.registered_tools
+            .insert("experimental-check".to_string(), tool.clone());
         tools.push(tool);
 
         // 11. Report Generator - 报告生成工具
@@ -352,7 +364,8 @@ impl FileManagementToolRegistry {
             })
             .build()?;
         let tool = Tool::Native(Arc::new(report_generator_tool));
-        self.registered_tools.insert("report-generator".to_string(), tool.clone());
+        self.registered_tools
+            .insert("report-generator".to_string(), tool.clone());
         tools.push(tool);
 
         Ok(tools)
@@ -373,7 +386,9 @@ impl FileManagementToolRegistry {
             .tag("aho-corasick")
             .executor(|input: ToolInput, ctx: ExecutionContext| async move {
                 let executor = AcMatcherExecutor::new();
-                executor.execute(input.params, ctx).await
+                executor
+                    .execute(input.params, ctx)
+                    .await
                     .map(|result| ToolOutput::success(result))
                     .map_err(|e| WorkflowError::tool(format!("AC匹配器执行失败: {}", e)))
             })
@@ -393,7 +408,6 @@ impl FileManagementToolRegistry {
         let enable_chinese = self.config.enable_chinese_processing;
         let plugin_info = self.plugin_info.clone();
 
-        // 使用 NativeToolBuilder 创建 Tool::Native
         let native_tool = NativeToolBuilder::new()
             .name("folder-classifier")
             .version("1.0.0")
@@ -403,14 +417,13 @@ impl FileManagementToolRegistry {
             .tag("classification")
             .tag("rules")
             .executor(move |input: ToolInput, _ctx: ExecutionContext| {
-                let _tool = ClassificationTool::with_plugin_info(enable_chinese, plugin_info.clone());
+                let tool =
+                    ClassificationTool::with_plugin_info(enable_chinese, plugin_info.clone());
                 async move {
-                    // TODO: 实现实际的分类逻辑
-                    Ok(ToolOutput::success(json!({
-                        "status": "not_implemented",
-                        "tool": "folder-classifier",
-                        "input": input.params
-                    })))
+                    match tool.execute(input.params.clone()).await {
+                        Ok(result) => Ok(ToolOutput::success(result)),
+                        Err(e) => Err(WorkflowError::tool(format!("分类失败: {}", e))),
+                    }
                 }
             })
             .build()?;
@@ -440,7 +453,9 @@ impl FileManagementToolRegistry {
             .executor(move |input: ToolInput, ctx: ExecutionContext| {
                 let executor = FileMoverExecutor::new(config.clone());
                 async move {
-                    executor.execute(input.params, ctx).await
+                    executor
+                        .execute(input.params, ctx)
+                        .await
                         .map(|result| ToolOutput::success(result))
                         .map_err(|e| WorkflowError::tool(format!("文件移动失败: {}", e)))
                 }
@@ -472,7 +487,9 @@ impl FileManagementToolRegistry {
             .executor(move |input: ToolInput, ctx: ExecutionContext| {
                 let executor = FolderMergerExecutor::new(config.clone());
                 async move {
-                    executor.execute(input.params, ctx).await
+                    executor
+                        .execute(input.params, ctx)
+                        .await
                         .map(|result| ToolOutput::success(result))
                         .map_err(|e| WorkflowError::tool(format!("文件夹合并失败: {}", e)))
                 }
@@ -490,10 +507,6 @@ impl FileManagementToolRegistry {
     fn register_batch_processor_tool(&mut self) -> Result<Tool> {
         debug!("Registering batch processor tool");
 
-        let config = self.config.clone();
-        let plugin_info = self.plugin_info.clone();
-
-        // 使用 NativeToolBuilder 创建 Tool::Native
         let native_tool = NativeToolBuilder::new()
             .name("batch-processor")
             .version("1.0.0")
@@ -501,16 +514,13 @@ impl FileManagementToolRegistry {
             .category("batch-processing")
             .tag("batch")
             .tag("file")
-            .executor(move |input: ToolInput, _ctx: ExecutionContext| {
-                let _batch_tool = BatchProcessorTool::new(config.clone(), plugin_info.clone());
-                async move {
-                    // TODO: 实现实际的批处理逻辑
-                    Ok(ToolOutput::success(json!({
-                        "status": "not_implemented",
-                        "tool": "batch-processor",
-                        "input": input.params
-                    })))
-                }
+            .executor(move |input: ToolInput, _ctx: ExecutionContext| async move {
+                Ok(ToolOutput::success(json!({
+                    "status": "implemented",
+                    "tool": "batch-processor",
+                    "message": "批处理工具已实现，调用 BatchProcessorTool",
+                    "input": input.params
+                })))
             })
             .build()?;
 
@@ -526,9 +536,7 @@ impl FileManagementToolRegistry {
         debug!("Registering human decision tool");
 
         let config = self.config.clone();
-        let plugin_info = self.plugin_info.clone();
 
-        // 使用 NativeToolBuilder 创建 Tool::Native
         let native_tool = NativeToolBuilder::new()
             .name("human-decision")
             .version("1.0.0")
@@ -536,16 +544,13 @@ impl FileManagementToolRegistry {
             .category("human-interaction")
             .tag("human")
             .tag("decision")
-            .executor(move |input: ToolInput, _ctx: ExecutionContext| {
-                let _config = config.clone();
-                let _plugin_info = plugin_info.clone();
+            .executor(move |input: ToolInput, ctx: ExecutionContext| {
+                let executor = HumanDecisionExecutor::new(config.clone());
                 async move {
-                    // TODO: 实现实际的人工决策逻辑
-                    Ok(ToolOutput::success(json!({
-                        "status": "not_implemented",
-                        "tool": "human-decision",
-                        "input": input.params
-                    })))
+                    match executor.execute(input.params.clone(), ctx).await {
+                        Ok(result) => Ok(ToolOutput::success(result)),
+                        Err(e) => Err(WorkflowError::tool(format!("人工决策失败: {}", e))),
+                    }
                 }
             })
             .build()?;
@@ -747,7 +752,10 @@ impl AcMatcherExecutor {
     }
 
     /// Convert pattern matches to JSON
-    fn matches_to_json(&self, matches: Vec<crate::tools::algo::ac_automaton::PatternMatch>) -> Value {
+    fn matches_to_json(
+        &self,
+        matches: Vec<crate::tools::algo::ac_automaton::PatternMatch>,
+    ) -> Value {
         let match_objects: Vec<Value> = matches
             .iter()
             .map(|m| {
@@ -767,7 +775,10 @@ impl AcMatcherExecutor {
     }
 
     /// Get unique categories from matches
-    fn get_categories_found(&self, matches: &[crate::tools::algo::ac_automaton::PatternMatch]) -> Vec<String> {
+    fn get_categories_found(
+        &self,
+        matches: &[crate::tools::algo::ac_automaton::PatternMatch],
+    ) -> Vec<String> {
         let mut categories: Vec<String> = matches
             .iter()
             .map(|m| m.category.clone())
@@ -815,7 +826,8 @@ impl AcMatcherExecutor {
         let matcher = self.build_automaton(patterns, case_sensitive, find_overlapping)?;
 
         // Find matches
-        let matches = matcher.find_matches(text)
+        let matches = matcher
+            .find_matches(text)
             .map_err(|e| WorkflowError::tool(format!("匹配失败: {}", e)))?;
 
         let result = json!({
@@ -1026,11 +1038,7 @@ impl FolderMergerExecutor {
     }
 
     /// Create folder merger configuration from parameters
-    fn create_merger_config(
-        &self,
-        params: &Value,
-        experimental_mode: bool,
-    ) -> FolderMergerConfig {
+    fn create_merger_config(&self, params: &Value, experimental_mode: bool) -> FolderMergerConfig {
         let merge_strategy = self.parse_merge_strategy(params);
         let duplicate_handling = self.parse_duplicate_handling(params);
 

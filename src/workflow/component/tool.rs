@@ -34,7 +34,7 @@ impl ToolComponent {
     pub fn new(
         id: impl Into<String>,
         tool_name: impl Into<String>,
-tool_registry: Arc<ToolRegistry>,
+        tool_registry: Arc<ToolRegistry>,
         default_params: Value,
     ) -> Self {
         // Initialize template engine
@@ -194,7 +194,7 @@ mod tests {
     fn create_test_registry() -> Arc<dyn crate::tools::ToolRegistry> {
         use crate::tools::registry::ToolRegistry;
         use crate::tools::types::{NativeToolBuilder, Tool};
-        
+
         let registry = ToolRegistry::new();
 
         // Register a simple echo tool for testing
@@ -202,7 +202,9 @@ mod tests {
             .name("echo")
             .version("1.0.0")
             .description("Echo tool for testing")
-            .executor(|input, _ctx| async move { Ok(crate::tools::types::ToolOutput::success(input.params)) })
+            .executor(|input, _ctx| async move {
+                Ok(crate::tools::types::ToolOutput::success(input.params))
+            })
             .build()
             .unwrap();
 

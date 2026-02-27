@@ -17,17 +17,17 @@
 //! cargo run --example composable_tool_example
 //! ```
 
+use async_trait::async_trait;
+use chrono::Utc;
+use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::Arc;
 use workflow_toolkit::core::{ExecutionContext, ToolInfo};
 use workflow_toolkit::error::Result;
 use workflow_toolkit::tools::composable::{
-    ComposableTool, ToolChain, ConditionalTool, ParallelTools, ToolComposer,
+    ComposableTool, ConditionalTool, ParallelTools, ToolChain, ToolComposer,
 };
 use workflow_toolkit::tools::ToolNode;
-use async_trait::async_trait;
-use serde_json::{json, Value};
-use chrono::Utc;
-use std::collections::HashMap;
 
 /// Example atomic tool: File scanner
 struct FileScanner {
@@ -43,35 +43,33 @@ impl FileScanner {
 #[async_trait]
 impl ToolNode for FileScanner {
     async fn execute(&self, _params: Value, _context: ExecutionContext) -> Result<Value> {
-        println!("📁 Scanning for files with extensions: {:?}", self.extensions);
-        
+        println!(
+            "📁 Scanning for files with extensions: {:?}",
+            self.extensions
+        );
+
         // Simulate file scanning
-        let files = vec![
-            "document1.pdf",
-            "image1.jpg",
-            "data1.json",
-            "report1.pdf",
-        ];
-        
+        let files = vec!["document1.pdf", "image1.jpg", "data1.json", "report1.pdf"];
+
         Ok(json!({
             "files": files,
             "count": files.len(),
             "extensions": self.extensions
         }))
     }
-    
+
     fn name(&self) -> &str {
         "file-scanner"
     }
-    
+
     fn version(&self) -> &str {
         "1.0.0"
     }
-    
+
     fn description(&self) -> String {
         format!("Scan files with extensions: {:?}", self.extensions)
     }
-    
+
     fn definition(&self) -> ToolInfo {
         ToolInfo {
             name: self.name().to_string(),
@@ -91,11 +89,11 @@ impl ToolNode for FileScanner {
             updated_at: Utc::now(),
         }
     }
-    
+
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
-    
+
     fn get_info(&self) -> ToolInfo {
         self.definition()
     }
@@ -107,13 +105,14 @@ struct ContentAnalyzer;
 #[async_trait]
 impl ToolNode for ContentAnalyzer {
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let files = params.get("files")
+        let files = params
+            .get("files")
             .and_then(|f| f.as_array())
             .map(|arr| arr.len())
             .unwrap_or(0);
-        
+
         println!("🔍 Analyzing content of {} files", files);
-        
+
         // Simulate content analysis
         let analysis = json!({
             "total_files": files,
@@ -122,22 +121,22 @@ impl ToolNode for ContentAnalyzer {
             "json_count": 1,
             "average_size": "2.5MB"
         });
-        
+
         Ok(analysis)
     }
-    
+
     fn name(&self) -> &str {
         "content-analyzer"
     }
-    
+
     fn version(&self) -> &str {
         "1.0.0"
     }
-    
+
     fn description(&self) -> String {
         "Analyze file content and metadata".to_string()
     }
-    
+
     fn definition(&self) -> ToolInfo {
         ToolInfo {
             name: self.name().to_string(),
@@ -159,11 +158,11 @@ impl ToolNode for ContentAnalyzer {
             updated_at: Utc::now(),
         }
     }
-    
+
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
-    
+
     fn get_info(&self) -> ToolInfo {
         self.definition()
     }
@@ -183,39 +182,45 @@ impl ConfidenceScorer {
 #[async_trait]
 impl ToolNode for ConfidenceScorer {
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
-        let total_files = params.get("total_files")
+        let total_files = params
+            .get("total_files")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
-        
+
         // Calculate confidence based on file types
         let confidence = if total_files > 0 {
             0.85 // Simulated confidence
         } else {
             0.0
         };
-        
-        println!("📊 Calculated confidence: {:.2} (threshold: {:.2})", 
-                 confidence, self.threshold);
-        
+
+        println!(
+            "📊 Calculated confidence: {:.2} (threshold: {:.2})",
+            confidence, self.threshold
+        );
+
         Ok(json!({
             "confidence": confidence,
             "threshold": self.threshold,
             "is_high_confidence": confidence >= self.threshold
         }))
     }
-    
+
     fn name(&self) -> &str {
         "confidence-scorer"
     }
-    
+
     fn version(&self) -> &str {
         "1.0.0"
     }
-    
+
     fn description(&self) -> String {
-        format!("Score classification confidence (threshold: {})", self.threshold)
+        format!(
+            "Score classification confidence (threshold: {})",
+            self.threshold
+        )
     }
-    
+
     fn definition(&self) -> ToolInfo {
         ToolInfo {
             name: self.name().to_string(),
@@ -237,11 +242,11 @@ impl ToolNode for ConfidenceScorer {
             updated_at: Utc::now(),
         }
     }
-    
+
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
-    
+
     fn get_info(&self) -> ToolInfo {
         self.definition()
     }
@@ -254,26 +259,26 @@ struct HighConfidenceProcessor;
 impl ToolNode for HighConfidenceProcessor {
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         println!("✅ Processing with high confidence strategy");
-        
+
         Ok(json!({
             "strategy": "high_confidence",
             "processed": true,
             "auto_classified": params.get("total_files").unwrap_or(&json!(0))
         }))
     }
-    
+
     fn name(&self) -> &str {
         "high-confidence-processor"
     }
-    
+
     fn version(&self) -> &str {
         "1.0.0"
     }
-    
+
     fn description(&self) -> String {
         "Process files with high confidence auto-classification".to_string()
     }
-    
+
     fn definition(&self) -> ToolInfo {
         ToolInfo {
             name: self.name().to_string(),
@@ -293,11 +298,11 @@ impl ToolNode for HighConfidenceProcessor {
             updated_at: Utc::now(),
         }
     }
-    
+
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
-    
+
     fn get_info(&self) -> ToolInfo {
         self.definition()
     }
@@ -310,7 +315,7 @@ struct LowConfidenceProcessor;
 impl ToolNode for LowConfidenceProcessor {
     async fn execute(&self, params: Value, _context: ExecutionContext) -> Result<Value> {
         println!("⚠️ Processing with low confidence strategy (needs review)");
-        
+
         Ok(json!({
             "strategy": "low_confidence",
             "processed": true,
@@ -318,19 +323,19 @@ impl ToolNode for LowConfidenceProcessor {
             "pending_count": params.get("total_files").unwrap_or(&json!(0))
         }))
     }
-    
+
     fn name(&self) -> &str {
         "low-confidence-processor"
     }
-    
+
     fn version(&self) -> &str {
         "1.0.0"
     }
-    
+
     fn description(&self) -> String {
         "Process files with low confidence (requires human review)".to_string()
     }
-    
+
     fn definition(&self) -> ToolInfo {
         ToolInfo {
             name: self.name().to_string(),
@@ -350,11 +355,11 @@ impl ToolNode for LowConfidenceProcessor {
             updated_at: Utc::now(),
         }
     }
-    
+
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
-    
+
     fn get_info(&self) -> ToolInfo {
         self.definition()
     }
@@ -375,28 +380,28 @@ impl FileProcessor {
 impl ToolNode for FileProcessor {
     async fn execute(&self, _params: Value, _context: ExecutionContext) -> Result<Value> {
         println!("🔧 Processor '{}' executing...", self.name);
-        
+
         // Simulate processing
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
+
         Ok(json!({
             "processor": self.name,
             "status": "completed"
         }))
     }
-    
+
     fn name(&self) -> &str {
         &self.name
     }
-    
+
     fn version(&self) -> &str {
         "1.0.0"
     }
-    
+
     fn description(&self) -> String {
         format!("File processor: {}", self.name)
     }
-    
+
     fn definition(&self) -> ToolInfo {
         ToolInfo {
             name: self.name().to_string(),
@@ -416,11 +421,11 @@ impl ToolNode for FileProcessor {
             updated_at: Utc::now(),
         }
     }
-    
+
     fn validate_parameters(&self, _params: &Value) -> Result<()> {
         Ok(())
     }
-    
+
     fn get_info(&self) -> ToolInfo {
         self.definition()
     }
@@ -440,41 +445,46 @@ async fn main() -> Result<()> {
     // ============================================================
     println!("\n📋 Example 1: Tool Chain (Sequential Execution)");
     println!("─────────────────────────────────────────────────────────────");
-    
+
     let scanner = Arc::new(FileScanner::new(vec!["pdf".to_string(), "jpg".to_string()]));
     let analyzer = Arc::new(ContentAnalyzer);
     let scorer = Arc::new(ConfidenceScorer::new(0.8));
-    
+
     let chain = ToolChain::new("scan-analyze-score", "Scan, analyze, and score files")
         .add_step("scan", scanner)
         .add_step("analyze", analyzer)
         .add_step("score", scorer);
-    
+
     let result = chain.execute(json!({}), context.clone()).await?;
-    println!("\nChain result:\n{}", serde_json::to_string_pretty(&result)?);
+    println!(
+        "\nChain result:\n{}",
+        serde_json::to_string_pretty(&result)?
+    );
 
     // ============================================================
     // Example 2: Tool Composer with Registration
     // ============================================================
     println!("\n\n📋 Example 2: Tool Composer with Registration");
     println!("─────────────────────────────────────────────────────────────");
-    
-    let composer = ToolComposer::new()
-        .register(
-            "file_pipeline",
-            Arc::new(
-                ToolChain::new("file_pipeline", "Complete file processing pipeline")
-                    .add_step("scan", Arc::new(FileScanner::new(vec!["pdf".to_string()])))
-                    .add_step("analyze", Arc::new(ContentAnalyzer))
-            )
-        );
-    
+
+    let composer = ToolComposer::new().register(
+        "file_pipeline",
+        Arc::new(
+            ToolChain::new("file_pipeline", "Complete file processing pipeline")
+                .add_step("scan", Arc::new(FileScanner::new(vec!["pdf".to_string()])))
+                .add_step("analyze", Arc::new(ContentAnalyzer)),
+        ),
+    );
+
     println!("Registered tools: {:?}", composer.list_tools());
-    
+
     // Execute the composed tool
     if let Some(tool) = composer.get_tool("file_pipeline") {
         let result = tool.execute(json!({}), context.clone()).await?;
-        println!("\nPipeline result:\n{}", serde_json::to_string_pretty(&result)?);
+        println!(
+            "\nPipeline result:\n{}",
+            serde_json::to_string_pretty(&result)?
+        );
     }
 
     // ============================================================
@@ -482,64 +492,91 @@ async fn main() -> Result<()> {
     // ============================================================
     println!("\n\n📋 Example 3: Conditional Tool (Branching Logic)");
     println!("─────────────────────────────────────────────────────────────");
-    
+
     let conditional = ConditionalTool::new(
         "smart-processor",
         "Process based on confidence score",
-        "is_high_confidence",  // Note: without ${} prefix for simple variable lookup
+        "is_high_confidence", // Note: without ${} prefix for simple variable lookup
         Arc::new(HighConfidenceProcessor),
     )
     .with_else_branch(Arc::new(LowConfidenceProcessor));
-    
+
     // Test with high confidence
     println!("\n--- Testing with high confidence ---");
-    let high_conf_result = conditional.execute(
-        json!({ "is_high_confidence": true, "total_files": 10 }),
-        context.clone()
-    ).await?;
-    println!("Result:\n{}", serde_json::to_string_pretty(&high_conf_result)?);
-    
+    let high_conf_result = conditional
+        .execute(
+            json!({ "is_high_confidence": true, "total_files": 10 }),
+            context.clone(),
+        )
+        .await?;
+    println!(
+        "Result:\n{}",
+        serde_json::to_string_pretty(&high_conf_result)?
+    );
+
     // Test with low confidence
     println!("\n--- Testing with low confidence ---");
-    let low_conf_result = conditional.execute(
-        json!({ "is_high_confidence": false, "total_files": 5 }),
-        context.clone()
-    ).await?;
-    println!("Result:\n{}", serde_json::to_string_pretty(&low_conf_result)?);
+    let low_conf_result = conditional
+        .execute(
+            json!({ "is_high_confidence": false, "total_files": 5 }),
+            context.clone(),
+        )
+        .await?;
+    println!(
+        "Result:\n{}",
+        serde_json::to_string_pretty(&low_conf_result)?
+    );
 
     // ============================================================
     // Example 4: Parallel Tools
     // ============================================================
     println!("\n\n📋 Example 4: Parallel Tools (Concurrent Execution)");
     println!("─────────────────────────────────────────────────────────────");
-    
+
     let parallel = ParallelTools::new("parallel-processors", "Run multiple processors in parallel")
-        .with_tool("pdf-processor", Arc::new(FileProcessor::new("pdf-processor")))
-        .with_tool("image-processor", Arc::new(FileProcessor::new("image-processor")))
-        .with_tool("text-processor", Arc::new(FileProcessor::new("text-processor")))
+        .with_tool(
+            "pdf-processor",
+            Arc::new(FileProcessor::new("pdf-processor")),
+        )
+        .with_tool(
+            "image-processor",
+            Arc::new(FileProcessor::new("image-processor")),
+        )
+        .with_tool(
+            "text-processor",
+            Arc::new(FileProcessor::new("text-processor")),
+        )
         .with_max_concurrency(3);
-    
+
     let start = std::time::Instant::now();
     let parallel_result = parallel.execute(json!({}), context.clone()).await?;
     let elapsed = start.elapsed();
-    
+
     println!("\nParallel execution completed in {:?}", elapsed);
-    println!("Result:\n{}", serde_json::to_string_pretty(&parallel_result)?);
+    println!(
+        "Result:\n{}",
+        serde_json::to_string_pretty(&parallel_result)?
+    );
 
     // ============================================================
     // Example 5: Complex Composition
     // ============================================================
     println!("\n\n📋 Example 5: Complex Composition");
     println!("─────────────────────────────────────────────────────────────");
-    
+
     let complex_composer = ToolComposer::new()
         // Chain for initial processing
         .register(
             "initial_scan",
             Arc::new(
-                ToolChain::new("initial_scan", "Initial file scanning")
-                    .add_step("scanner", Arc::new(FileScanner::new(vec!["pdf".to_string(), "json".to_string()])))
-            )
+                ToolChain::new("initial_scan", "Initial file scanning").add_step(
+                    "scanner",
+                    Arc::new(FileScanner::new(vec![
+                        "pdf".to_string(),
+                        "json".to_string(),
+                    ])),
+                ),
+            ),
         )
         // Conditional processing based on results
         .register(
@@ -548,24 +585,33 @@ async fn main() -> Result<()> {
                 ConditionalTool::new(
                     "smart_classifier",
                     "Classify based on confidence",
-                    "confidence > 0.7",  // Comparison expression
+                    "confidence > 0.7", // Comparison expression
                     Arc::new(HighConfidenceProcessor),
                 )
-                .with_else_branch(Arc::new(LowConfidenceProcessor))
-            )
+                .with_else_branch(Arc::new(LowConfidenceProcessor)),
+            ),
         )
         // Parallel processing for different file types
         .register(
             "multi_processor",
             Arc::new(
-                ParallelTools::new("multi_processor", "Process different file types in parallel")
-                    .with_tool("processor_a", Arc::new(FileProcessor::new("pdf-extractor")))
-                    .with_tool("processor_b", Arc::new(FileProcessor::new("metadata-analyzer")))
-                    .with_tool("processor_c", Arc::new(FileProcessor::new("content-classifier")))
-                    .with_max_concurrency(3)
-            )
+                ParallelTools::new(
+                    "multi_processor",
+                    "Process different file types in parallel",
+                )
+                .with_tool("processor_a", Arc::new(FileProcessor::new("pdf-extractor")))
+                .with_tool(
+                    "processor_b",
+                    Arc::new(FileProcessor::new("metadata-analyzer")),
+                )
+                .with_tool(
+                    "processor_c",
+                    Arc::new(FileProcessor::new("content-classifier")),
+                )
+                .with_max_concurrency(3),
+            ),
         );
-    
+
     println!("\nComplex composition registered tools:");
     for (name, desc) in complex_composer.list_tools() {
         println!("  - {}: {}", name, desc);
@@ -577,13 +623,15 @@ async fn main() -> Result<()> {
         let result = tool.execute(json!({}), context.clone()).await?;
         println!("Result:\n{}", serde_json::to_string_pretty(&result)?);
     }
-    
+
     println!("\n--- Executing smart_classifier (high confidence) ---");
     if let Some(tool) = complex_composer.get_tool("smart_classifier") {
-        let result = tool.execute(json!({ "confidence": 0.85 }), context.clone()).await?;
+        let result = tool
+            .execute(json!({ "confidence": 0.85 }), context.clone())
+            .await?;
         println!("Result:\n{}", serde_json::to_string_pretty(&result)?);
     }
-    
+
     println!("\n--- Executing multi_processor ---");
     if let Some(tool) = complex_composer.get_tool("multi_processor") {
         let start = std::time::Instant::now();
@@ -599,18 +647,18 @@ async fn main() -> Result<()> {
     println!("\n\n╔════════════════════════════════════════════════════════════╗");
     println!("║     Examples Completed Successfully!                       ║");
     println!("╚════════════════════════════════════════════════════════════╝");
-    
+
     println!("\n📚 Key Concepts Demonstrated:");
     println!("  1. ToolChain - Sequential execution of multiple tools");
     println!("  2. ConditionalTool - Branching logic based on conditions");
     println!("  3. ParallelTools - Concurrent execution with semaphore control");
     println!("  4. ToolComposer - Registration and management of composable tools");
-    
+
     println!("\n🔧 Custom Tool Implementation:");
     println!("  - Implement ToolNode trait for atomic tools");
     println!("  - Use Arc<dyn ToolNode> for tool references");
     println!("  - Support JSON parameters and results");
-    
+
     println!("\n📊 Performance Features:");
     println!("  - Configurable concurrency limits");
     println!("  - Async/await throughout");

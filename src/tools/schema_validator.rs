@@ -52,7 +52,11 @@ pub struct SchemaValidationError {
 
 impl std::fmt::Display for SchemaValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Schema 验证错误 [{}]: {} - {}", self.path, self.error_type, self.message)
+        write!(
+            f,
+            "Schema 验证错误 [{}]: {} - {}",
+            self.path, self.error_type, self.message
+        )
     }
 }
 
@@ -180,7 +184,7 @@ impl SchemaValidator {
     /// 将 InputSchema 转换为 JSON Schema Value
     fn input_schema_to_value(schema: &InputSchema) -> Value {
         let properties = schema.properties.clone();
-        
+
         let mut schema_value = serde_json::json!({
             "type": "object",
             "properties": properties,
@@ -188,7 +192,11 @@ impl SchemaValidator {
 
         if !schema.required.is_empty() {
             schema_value["required"] = Value::Array(
-                schema.required.iter().map(|s| Value::String(s.clone())).collect()
+                schema
+                    .required
+                    .iter()
+                    .map(|s| Value::String(s.clone()))
+                    .collect(),
             );
         }
 
@@ -202,7 +210,7 @@ impl SchemaValidator {
     /// 将 OutputSchema 转换为 JSON Schema Value
     fn output_schema_to_value(schema: &OutputSchema) -> Value {
         let properties = schema.properties.clone();
-        
+
         let mut schema_value = serde_json::json!({
             "type": "object",
             "properties": properties,
@@ -221,16 +229,16 @@ impl SchemaValidator {
             return Ok(Arc::clone(cached));
         }
 
-        let compiled = JSONSchema::compile(&schema_value).map_err(|e| {
-            WorkflowError::validation(format!("Schema 编译失败 '{}': {}", name, e))
-        })?;
+        let compiled = JSONSchema::compile(&schema_value)
+            .map_err(|e| WorkflowError::validation(format!("Schema 编译失败 '{}': {}", name, e)))?;
 
         let compiled_schema = Arc::new(CompiledSchema {
             schema: compiled,
             raw_schema: schema_value,
         });
 
-        self.compiled_schemas.insert(name.to_string(), Arc::clone(&compiled_schema));
+        self.compiled_schemas
+            .insert(name.to_string(), Arc::clone(&compiled_schema));
         debug!("Schema '{}' 编译成功", name);
         Ok(compiled_schema)
     }
@@ -244,7 +252,7 @@ impl SchemaValidator {
     ) -> Result<SchemaValidationResult> {
         let schema_name = format!("{}_input", tool_name);
         let schema_value = Self::input_schema_to_value(schema);
-        
+
         let compiled = self.compile_schema(&schema_name, schema_value)?;
         self.validate_value(&compiled, &input.params)
     }
@@ -258,7 +266,7 @@ impl SchemaValidator {
     ) -> Result<SchemaValidationResult> {
         let schema_name = format!("{}_output", tool_name);
         let schema_value = Self::output_schema_to_value(schema);
-        
+
         let compiled = self.compile_schema(&schema_name, schema_value)?;
         self.validate_value(&compiled, &output.result)
     }
@@ -270,29 +278,30 @@ impl SchemaValidator {
         value: &Value,
     ) -> Result<SchemaValidationResult> {
         let result = compiled.schema.validate(value);
-        
+
         match result {
             Ok(_) => {
                 debug!("Schema 验证通过");
                 Ok(SchemaValidationResult::valid())
             }
             Err(errors) => {
-                let schema_errors: Vec<SchemaValidationError> = errors
-                    .map(|e| self.convert_validation_error(&e))
-                    .collect();
-                
+                let schema_errors: Vec<SchemaValidationError> =
+                    errors.map(|e| self.convert_validation_error(&e)).collect();
+
                 if self.config.collect_all_errors {
                     Ok(SchemaValidationResult::invalid(schema_errors))
                 } else if let Some(first_error) = schema_errors.into_iter().next() {
                     Ok(SchemaValidationResult::invalid(vec![first_error]))
                 } else {
-                    Ok(SchemaValidationResult::invalid(vec![SchemaValidationError {
-                        path: "/".to_string(),
-                        message: "未知验证错误".to_string(),
-                        error_type: SchemaErrorType::Other,
-                        actual_value: None,
-                        expected_value: None,
-                    }]))
+                    Ok(SchemaValidationResult::invalid(vec![
+                        SchemaValidationError {
+                            path: "/".to_string(),
+                            message: "未知验证错误".to_string(),
+                            error_type: SchemaErrorType::Other,
+                            actual_value: None,
+                            expected_value: None,
+                        },
+                    ]))
                 }
             }
         }
@@ -302,13 +311,17 @@ impl SchemaValidator {
     fn convert_validation_error(&self, error: &JsonValidationError) -> SchemaValidationError {
         let path = error.instance_path.to_string();
         let message = error.to_string();
-        
+
         let error_type = match error {
             _ => SchemaErrorType::Other,
         };
 
         SchemaValidationError {
-            path: if path.is_empty() { "/".to_string() } else { path },
+            path: if path.is_empty() {
+                "/".to_string()
+            } else {
+                path
+            },
             message,
             error_type,
             actual_value: Some(error.instance.clone().into_owned()),
@@ -412,26 +425,35 @@ impl ToolSchema {
     /// 从 JSON Schema 创建
     pub fn from_json(name: String, input: Value, output: Value) -> Self {
         let input_schema = InputSchema {
-            type_name: input.get("title")
+            type_name: input
+                .get("title")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
-            properties: input.get("properties")
+            properties: input
+                .get("properties")
                 .and_then(|v| v.as_object())
                 .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                 .unwrap_or_default(),
-            required: input.get("required")
+            required: input
+                .get("required")
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default(),
         };
 
         let output_schema = OutputSchema {
-            type_name: output.get("title")
+            type_name: output
+                .get("title")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
-            properties: output.get("properties")
+            properties: output
+                .get("properties")
                 .and_then(|v| v.as_object())
                 .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                 .unwrap_or_default(),
@@ -480,21 +502,31 @@ impl SchemaRegistry {
     }
 
     /// 验证工具输入
-    pub fn validate_input(&mut self, tool_name: &str, input: &ToolInput) -> Result<SchemaValidationResult> {
+    pub fn validate_input(
+        &mut self,
+        tool_name: &str,
+        input: &ToolInput,
+    ) -> Result<SchemaValidationResult> {
         let schema = self.schemas.get(tool_name).ok_or_else(|| {
             WorkflowError::validation(format!("工具 Schema 未找到: {}", tool_name))
         })?;
-        
-        self.validator.validate_input(tool_name, &schema.input_schema, input)
+
+        self.validator
+            .validate_input(tool_name, &schema.input_schema, input)
     }
 
     /// 验证工具输出
-    pub fn validate_output(&mut self, tool_name: &str, output: &ToolOutput) -> Result<SchemaValidationResult> {
+    pub fn validate_output(
+        &mut self,
+        tool_name: &str,
+        output: &ToolOutput,
+    ) -> Result<SchemaValidationResult> {
         let schema = self.schemas.get(tool_name).ok_or_else(|| {
             WorkflowError::validation(format!("工具 Schema 未找到: {}", tool_name))
         })?;
-        
-        self.validator.validate_output(tool_name, &schema.output_schema, output)
+
+        self.validator
+            .validate_output(tool_name, &schema.output_schema, output)
     }
 
     /// 注销工具 Schema
@@ -535,7 +567,10 @@ mod tests {
             properties: {
                 let mut props = HashMap::new();
                 props.insert("name".to_string(), json!({"type": "string"}));
-                props.insert("count".to_string(), json!({"type": "integer", "minimum": 0}));
+                props.insert(
+                    "count".to_string(),
+                    json!({"type": "integer", "minimum": 0}),
+                );
                 props
             },
             required: vec!["name".to_string()],
@@ -566,7 +601,9 @@ mod tests {
         let schema = create_test_input_schema();
         let input = ToolInput::new(json!({"name": "test", "count": 5}));
 
-        let result = validator.validate_input("test_tool", &schema, &input).unwrap();
+        let result = validator
+            .validate_input("test_tool", &schema, &input)
+            .unwrap();
         assert!(result.is_valid);
     }
 
@@ -576,9 +613,14 @@ mod tests {
         let schema = create_test_input_schema();
         let input = ToolInput::new(json!({"count": 5}));
 
-        let result = validator.validate_input("test_tool", &schema, &input).unwrap();
+        let result = validator
+            .validate_input("test_tool", &schema, &input)
+            .unwrap();
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| matches!(e.error_type, SchemaErrorType::RequiredMissing)));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error_type, SchemaErrorType::RequiredMissing)));
     }
 
     #[test]
@@ -587,21 +629,26 @@ mod tests {
         let schema = create_test_input_schema();
         let input = ToolInput::new(json!({"name": "test", "count": "not_a_number"}));
 
-        let result = validator.validate_input("test_tool", &schema, &input).unwrap();
+        let result = validator
+            .validate_input("test_tool", &schema, &input)
+            .unwrap();
         assert!(!result.is_valid);
-        assert!(result.errors.iter().any(|e| matches!(e.error_type, SchemaErrorType::TypeMismatch)));
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error_type, SchemaErrorType::TypeMismatch)));
     }
 
     #[test]
     fn test_schema_registry() {
         let mut registry = SchemaRegistry::new();
-        
+
         let schema = ToolSchema::new(
             "test_tool".to_string(),
             create_test_input_schema(),
             create_test_output_schema(),
         );
-        
+
         registry.register(schema);
         assert_eq!(registry.len(), 1);
         assert!(registry.get("test_tool").is_some());

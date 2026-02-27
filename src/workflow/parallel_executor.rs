@@ -185,7 +185,8 @@ impl TaskExecutor<ToolOutput> for ToolTaskExecutor {
             .get(task_id)
             .ok_or_else(|| WorkflowError::validation(format!("工具未找到: {}", task_id)))?;
 
-        let input = ToolInput::new(serde_json::to_value(context.export_global_slots()).unwrap_or_default());
+        let input =
+            ToolInput::new(serde_json::to_value(context.export_global_slots()).unwrap_or_default());
         tool.execute(input, exec_context.clone()).await
     }
 }
@@ -452,26 +453,24 @@ impl WorkflowParallelExecutor {
 
         while let Some(task_result) = join_set.join_next().await {
             match task_result {
-                Ok((task_id, Ok(output))) => {
-                    match output.status {
-                        ComponentStatus::Success => {
-                            tracker.mark_node_completed(&task_id, output.result.clone());
-                            result.add_success(task_id, output);
-                        }
-                        ComponentStatus::Failure(msg) => {
-                            tracker.mark_node_failed(&task_id, &msg);
-                            result.add_failure(task_id, WorkflowError::execution(msg));
-                        }
-                        ComponentStatus::Skip => {
-                            tracker.mark_node_skipped(&task_id);
-                            result.add_success(task_id, output);
-                        }
-                        ComponentStatus::Break | ComponentStatus::Continue => {
-                            tracker.mark_node_completed(&task_id, output.result.clone());
-                            result.add_success(task_id, output);
-                        }
+                Ok((task_id, Ok(output))) => match output.status {
+                    ComponentStatus::Success => {
+                        tracker.mark_node_completed(&task_id, output.result.clone());
+                        result.add_success(task_id, output);
                     }
-                }
+                    ComponentStatus::Failure(msg) => {
+                        tracker.mark_node_failed(&task_id, &msg);
+                        result.add_failure(task_id, WorkflowError::execution(msg));
+                    }
+                    ComponentStatus::Skip => {
+                        tracker.mark_node_skipped(&task_id);
+                        result.add_success(task_id, output);
+                    }
+                    ComponentStatus::Break | ComponentStatus::Continue => {
+                        tracker.mark_node_completed(&task_id, output.result.clone());
+                        result.add_success(task_id, output);
+                    }
+                },
                 Ok((task_id, Err(e))) => {
                     if matches!(e, WorkflowError::ExecutionCancelled) {
                         result.add_cancelled();

@@ -145,7 +145,7 @@ impl BackpressureController {
     /// 创建新的背压控制器
     pub fn new(config: BackpressureConfig) -> Self {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent));
-        
+
         Self {
             semaphore,
             queue_size: AtomicUsize::new(0),
@@ -173,7 +173,10 @@ impl BackpressureController {
     }
 
     /// 使用指定优先级获取执行许可
-    pub async fn acquire_with_priority(&self, priority: RequestPriority) -> Result<BackpressurePermit> {
+    pub async fn acquire_with_priority(
+        &self,
+        priority: RequestPriority,
+    ) -> Result<BackpressurePermit> {
         if !self.enabled.load(Ordering::Relaxed) {
             return Ok(BackpressurePermit {
                 controller: self,
@@ -182,9 +185,9 @@ impl BackpressureController {
         }
 
         self.total_requests.fetch_add(1, Ordering::Relaxed);
-        
+
         let current_state = self.get_state();
-        
+
         if current_state == BackpressureState::Rejecting {
             self.rejected_requests.fetch_add(1, Ordering::Relaxed);
             return Err(WorkflowError::ResourceExhausted);
@@ -196,33 +199,30 @@ impl BackpressureController {
                     self.rejected_requests.fetch_add(1, Ordering::Relaxed);
                     return Err(WorkflowError::ResourceExhausted);
                 }
-                
-                let permit = self.semaphore.try_acquire()
-                    .map_err(|_| {
-                        self.rejected_requests.fetch_add(1, Ordering::Relaxed);
-                        WorkflowError::ResourceExhausted
-                    })?;
-                
+
+                let permit = self.semaphore.try_acquire().map_err(|_| {
+                    self.rejected_requests.fetch_add(1, Ordering::Relaxed);
+                    WorkflowError::ResourceExhausted
+                })?;
+
                 self.concurrent_count.fetch_add(1, Ordering::Relaxed);
                 self.update_state();
-                
+
                 Ok(BackpressurePermit {
                     controller: self,
                     _permit: Some(permit),
                 })
             }
-            
+
             BackpressureStrategy::Wait => {
-                let result = tokio::time::timeout(
-                    self.config.wait_timeout,
-                    self.semaphore.acquire()
-                ).await;
-                
+                let result =
+                    tokio::time::timeout(self.config.wait_timeout, self.semaphore.acquire()).await;
+
                 match result {
                     Ok(Ok(permit)) => {
                         self.concurrent_count.fetch_add(1, Ordering::Relaxed);
                         self.update_state();
-                        
+
                         Ok(BackpressurePermit {
                             controller: self,
                             _permit: Some(permit),
@@ -241,24 +241,27 @@ impl BackpressureController {
                     }
                 }
             }
-            
+
             BackpressureStrategy::DropOldest => {
                 self.enqueue_request(priority).await?;
                 self.try_acquire_with_drop_oldest().await
             }
-            
+
             BackpressureStrategy::DropNewest => {
                 if current_state == BackpressureState::Active {
                     self.dropped_requests.fetch_add(1, Ordering::Relaxed);
                     return Err(WorkflowError::ResourceExhausted);
                 }
-                
-                let permit = self.semaphore.acquire().await
+
+                let permit = self
+                    .semaphore
+                    .acquire()
+                    .await
                     .map_err(|_| WorkflowError::ResourceExhausted)?;
-                
+
                 self.concurrent_count.fetch_add(1, Ordering::Relaxed);
                 self.update_state();
-                
+
                 Ok(BackpressurePermit {
                     controller: self,
                     _permit: Some(permit),
@@ -277,16 +280,15 @@ impl BackpressureController {
         }
 
         self.total_requests.fetch_add(1, Ordering::Relaxed);
-        
-        let permit = self.semaphore.try_acquire()
-            .map_err(|_| {
-                self.rejected_requests.fetch_add(1, Ordering::Relaxed);
-                WorkflowError::ResourceExhausted
-            })?;
-        
+
+        let permit = self.semaphore.try_acquire().map_err(|_| {
+            self.rejected_requests.fetch_add(1, Ordering::Relaxed);
+            WorkflowError::ResourceExhausted
+        })?;
+
         self.concurrent_count.fetch_add(1, Ordering::Relaxed);
         self.update_state();
-        
+
         Ok(BackpressurePermit {
             controller: self,
             _permit: Some(permit),
@@ -302,47 +304,44 @@ impl BackpressureController {
     /// 入队请求
     async fn enqueue_request(&self, priority: RequestPriority) -> Result<()> {
         let mut queue = self.queue.lock().await;
-        
+
         if queue.len() >= self.config.max_queue_size {
             return Err(WorkflowError::ResourceExhausted);
         }
-        
+
         let request_id = self.request_id_counter.fetch_add(1, Ordering::Relaxed);
-        
+
         queue.push(QueuedRequest {
             priority,
             timestamp: Instant::now(),
             id: request_id,
         });
-        
+
         queue.sort_by(|a, b| b.priority.cmp(&a.priority));
-        
+
         self.queue_size.store(queue.len(), Ordering::Relaxed);
-        
+
         Ok(())
     }
 
     /// 尝试获取并丢弃最旧请求
     async fn try_acquire_with_drop_oldest(&self) -> Result<BackpressurePermit> {
         let mut queue = self.queue.lock().await;
-        
+
         while queue.len() > self.config.max_queue_size {
             queue.pop();
             self.dropped_requests.fetch_add(1, Ordering::Relaxed);
         }
-        
+
         drop(queue);
-        
-        let result = tokio::time::timeout(
-            self.config.wait_timeout,
-            self.semaphore.acquire()
-        ).await;
-        
+
+        let result = tokio::time::timeout(self.config.wait_timeout, self.semaphore.acquire()).await;
+
         match result {
             Ok(Ok(permit)) => {
                 self.concurrent_count.fetch_add(1, Ordering::Relaxed);
                 self.update_state();
-                
+
                 Ok(BackpressurePermit {
                     controller: self,
                     _permit: Some(permit),
@@ -359,7 +358,7 @@ impl BackpressureController {
     fn update_state(&self) {
         let concurrent = self.concurrent_count.load(Ordering::Relaxed);
         let ratio = concurrent as f32 / self.config.max_concurrent as f32;
-        
+
         let new_state = if ratio >= 1.0 {
             BackpressureState::Rejecting
         } else if ratio >= self.config.high_watermark {
@@ -369,9 +368,9 @@ impl BackpressureController {
         } else {
             BackpressureState::Normal
         };
-        
+
         self.state.store(new_state as u8, Ordering::Relaxed);
-        
+
         if new_state != BackpressureState::Normal {
             debug!(
                 state = ?new_state,
@@ -472,15 +471,15 @@ mod tests {
             ..Default::default()
         };
         let controller = BackpressureController::new(config);
-        
+
         {
             let _permit1 = controller.acquire().await.unwrap();
             let _permit2 = controller.acquire().await.unwrap();
-            
+
             let stats = controller.stats();
             assert_eq!(stats.current_concurrent, 2);
         }
-        
+
         let stats = controller.stats();
         assert_eq!(stats.current_concurrent, 0);
     }
@@ -494,10 +493,10 @@ mod tests {
     #[tokio::test]
     async fn test_enable_disable() {
         let controller = BackpressureController::with_defaults();
-        
+
         controller.disable();
         assert!(!controller.is_enabled());
-        
+
         controller.enable();
         assert!(controller.is_enabled());
     }

@@ -188,10 +188,7 @@ impl MemoryPool {
 
         // Only keep buffer if we have space
         if self.current_size + size <= self.max_size {
-            self.buffers
-                .entry(size)
-                .or_default()
-                .push(buffer);
+            self.buffers.entry(size).or_default().push(buffer);
             self.current_size += size;
         }
     }

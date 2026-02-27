@@ -3,7 +3,6 @@
 //! This module provides intelligent folder classification using AC automaton
 //! and text processing with scoring algorithms and decision making.
 
-use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
 use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
 use crate::plugins::file_management::core::error::{FileManagementError, FileManagementResult};
@@ -11,6 +10,7 @@ use crate::plugins::file_management::ui::human_decision_tool::HumanDecisionResul
 use crate::plugins::file_management::utils::utils::{
     HumanDecisionContext, HumanDecisionType, TextNormalizationConfig, TextProcessor,
 };
+use crate::tools::algo::ac_automaton::{AhoCorasickMatcher, AutomatonConfig, PatternMatch};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -611,16 +611,21 @@ pub struct ClassificationParams {
     pub output_format: Option<ClassificationOutputFormat>,
 }
 
-/// Output format options
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
-pub enum ClassificationOutputFormat {
-    Simple,   // Just category and confidence
-    #[default]
-    Detailed, // Include candidates and metadata
-    Full,     // Complete result with all details
+impl ClassificationParams {
+    pub fn from_json(params: Value) -> FileManagementResult<Self> {
+        serde_json::from_value(params)
+            .map_err(|e| FileManagementError::validation(format!("解析分类参数失败: {}", e)))
+    }
 }
 
+/// Output format options
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ClassificationOutputFormat {
+    Simple, // Just category and confidence
+    #[default]
+    Detailed, // Include candidates and metadata
+    Full,   // Complete result with all details
+}
 
 /// Classification Tool implementation
 pub struct ClassificationTool {
@@ -877,6 +882,58 @@ impl ClassificationTool {
                 serde_json::to_value(result).unwrap_or_else(|_| json!({}))
             }
         }
+    }
+
+    /// Execute classification with input parameters
+    pub async fn execute(&self, params: Value) -> FileManagementResult<Value> {
+        let classify_params = ClassificationParams::from_json(params)?;
+
+        let rules = self.load_classification_rules(&classify_params.classification_rules)?;
+        let automaton = self.engine.build_automaton(&rules)?;
+
+        let result =
+            self.engine
+                .classify_folder(&classify_params.folder_path, &automaton, &rules)?;
+
+        let needs_human = self.engine.needs_human_decision(&result);
+        let output_format = classify_params
+            .output_format
+            .unwrap_or(ClassificationOutputFormat::Detailed);
+
+        if needs_human
+            && classify_params.enable_user_interaction
+            && !classify_params.experimental_mode
+        {
+            let decision_context = self.engine.create_human_decision_context(&result);
+            let decision_params = serde_json::to_value(decision_context).map_err(|e| {
+                FileManagementError::classification(format!("序列化决策上下文失败: {}", e))
+            })?;
+
+            let decision_result = self
+                .invoke_human_decision(decision_params, &ExecutionContext::default())
+                .await
+                .map_err(|e| FileManagementError::classification(format!("人工决策失败: {}", e)))?;
+
+            let human_decision: HumanDecisionResult = serde_json::from_value(decision_result)
+                .map_err(|e| {
+                    FileManagementError::validation(format!("解析人工决策结果失败: {}", e))
+                })?;
+
+            let updated_result = self.apply_human_decision(&result, &human_decision)?;
+            return Ok(self.format_result(updated_result, &output_format));
+        }
+
+        if needs_human && classify_params.experimental_mode {
+            let mut updated_result = result.clone();
+            if let Some(first_candidate) = result.candidates.first() {
+                updated_result.category = Some(first_candidate.category.clone());
+                updated_result.score = first_candidate.score;
+                updated_result.status = ClassificationStatus::Classified;
+            }
+            return Ok(self.format_result(updated_result, &output_format));
+        }
+
+        Ok(self.format_result(result, &output_format))
     }
 }
 

@@ -150,10 +150,7 @@ impl MemoryManager {
 
     /// Record memory usage for a component
     pub async fn record_usage(&self, component: &str, usage: MemoryUsage) {
-        let mut history = self
-            .usage_history
-            .entry(component.to_string())
-            .or_default();
+        let mut history = self.usage_history.entry(component.to_string()).or_default();
         history.push(usage.clone());
 
         // Keep only recent history (last 1000 entries)

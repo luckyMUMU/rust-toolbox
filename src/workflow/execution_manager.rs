@@ -118,7 +118,10 @@ pub struct DefaultExecutionManager {
 
 impl DefaultExecutionManager {
     /// Create a new execution manager
-    pub fn new(engine: Arc<crate::workflow::engine::RefactoredWorkflowEngine>, concurrency_config: ConcurrencyConfig) -> Self {
+    pub fn new(
+        engine: Arc<crate::workflow::engine::RefactoredWorkflowEngine>,
+        concurrency_config: ConcurrencyConfig,
+    ) -> Self {
         let execution_semaphore =
             Arc::new(Semaphore::new(concurrency_config.max_concurrent_workflows));
         let task_queue = Arc::new(RwLock::new(VecDeque::new()));
@@ -505,7 +508,7 @@ impl ExecutionManager for DefaultExecutionManager {
 
 #[cfg(test)]
 mod tests {
-use super::*;
+    use super::*;
     use crate::storage::{SimpleMemoryCache, StateManager, StorageBackend};
     use crate::tools::ToolRegistry;
     use crate::workflow::engine::DefaultWorkflowEngine;

@@ -2,12 +2,12 @@
 //!
 //! 提供统一的指标收集和 Prometheus 格式导出
 
+use dashmap::DashMap;
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use dashmap::DashMap;
-use parking_lot::RwLock;
 
 /// 指标类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,11 +88,16 @@ impl Counter {
         if self.labels.is_empty() {
             format!(" {}", self.value.load(Ordering::Relaxed))
         } else {
-            let labels: Vec<String> = self.labels
+            let labels: Vec<String> = self
+                .labels
                 .iter()
                 .map(|(k, v)| format!("{}=\"{}\"", k, v))
                 .collect();
-            format!("{{{}}} {}", labels.join(","), self.value.load(Ordering::Relaxed))
+            format!(
+                "{{{}}} {}",
+                labels.join(","),
+                self.value.load(Ordering::Relaxed)
+            )
         }
     }
 }
@@ -174,7 +179,8 @@ impl Gauge {
         if self.labels.is_empty() {
             format!(" {}", self.get())
         } else {
-            let labels: Vec<String> = self.labels
+            let labels: Vec<String> = self
+                .labels
                 .iter()
                 .map(|(k, v)| format!("{}=\"{}\"", k, v))
                 .collect();
@@ -204,9 +210,13 @@ pub struct Histogram {
 impl Histogram {
     /// 创建新的直方图（使用默认桶）
     pub fn new(name: &str, help: &str) -> Self {
-        Self::with_buckets(name, help, vec![
-            0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
-        ])
+        Self::with_buckets(
+            name,
+            help,
+            vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ],
+        )
     }
 
     /// 使用自定义桶创建直方图
@@ -218,7 +228,7 @@ impl Histogram {
                 count: 0,
             })
             .collect();
-        
+
         Self {
             name: name.to_string(),
             help: help.to_string(),
@@ -232,12 +242,12 @@ impl Histogram {
     /// 观察一个值
     pub fn observe(&self, value: f64) {
         self.count.fetch_add(1, Ordering::Relaxed);
-        
+
         {
             let mut sum = self.sum.write();
             *sum += value;
         }
-        
+
         {
             let mut buckets = self.buckets.write();
             for bucket in buckets.iter_mut() {
@@ -284,12 +294,12 @@ impl Histogram {
     /// 导出为 Prometheus 格式
     pub fn to_prometheus(&self) -> String {
         let mut output = String::new();
-        
+
         output.push_str(&format!("# HELP {} {}\n", self.name, self.help));
         output.push_str(&format!("# TYPE {} histogram\n", self.name));
-        
+
         let (sum, count, buckets) = self.get_stats();
-        
+
         let mut cumulative = 0u64;
         for bucket in &buckets {
             cumulative += bucket.count;
@@ -299,11 +309,11 @@ impl Histogram {
                 self.name, le, cumulative
             ));
         }
-        
+
         output.push_str(&format!("{}_bucket{{le=\"+Inf\"}} {}\n", self.name, count));
         output.push_str(&format!("{}_sum {}\n", self.name, sum));
         output.push_str(&format!("{}_count {}\n", self.name, count));
-        
+
         output
     }
 }
@@ -367,12 +377,7 @@ impl MetricsRegistry {
     }
 
     /// 注册带标签的仪表盘
-    pub fn register_gauge_with_labels(
-        &self,
-        name: &str,
-        help: &str,
-        labels: Labels,
-    ) -> Arc<Gauge> {
+    pub fn register_gauge_with_labels(&self, name: &str, help: &str, labels: Labels) -> Arc<Gauge> {
         let full_name = format!("{}_{}", self.namespace, name);
         let gauge = Arc::new(Gauge::with_labels(&full_name, help, labels));
         self.gauges.insert(full_name, Arc::clone(&gauge));
@@ -415,25 +420,27 @@ impl MetricsRegistry {
     /// 获取直方图
     pub fn get_histogram(&self, name: &str) -> Option<Arc<Histogram>> {
         let full_name = format!("{}_{}", self.namespace, name);
-        self.histograms.get(&full_name).map(|h| Arc::clone(h.value()))
+        self.histograms
+            .get(&full_name)
+            .map(|h| Arc::clone(h.value()))
     }
 
     /// 导出所有指标为 Prometheus 格式
     pub fn export_prometheus(&self) -> String {
         let mut output = String::new();
-        
+
         for entry in self.counters.iter() {
             output.push_str(&entry.value().to_prometheus());
         }
-        
+
         for entry in self.gauges.iter() {
             output.push_str(&entry.value().to_prometheus());
         }
-        
+
         for entry in self.histograms.iter() {
             output.push_str(&entry.value().to_prometheus());
         }
-        
+
         output
     }
 
@@ -473,24 +480,24 @@ mod tests {
     #[test]
     fn test_counter() {
         let counter = Counter::new("test_counter", "Test counter");
-        
+
         counter.inc();
         counter.inc();
         counter.add(5);
-        
+
         assert_eq!(counter.get(), 7);
     }
 
     #[test]
     fn test_gauge() {
         let gauge = Gauge::new("test_gauge", "Test gauge");
-        
+
         gauge.set(10.0);
         assert_eq!(gauge.get(), 10.0);
-        
+
         gauge.inc();
         assert_eq!(gauge.get(), 11.0);
-        
+
         gauge.dec();
         assert_eq!(gauge.get(), 10.0);
     }
@@ -498,11 +505,11 @@ mod tests {
     #[test]
     fn test_histogram() {
         let histogram = Histogram::new("test_histogram", "Test histogram");
-        
+
         histogram.observe(0.1);
         histogram.observe(0.5);
         histogram.observe(1.0);
-        
+
         let (sum, count, _) = histogram.get_stats();
         assert_eq!(count, 3);
         assert!((sum - 1.6).abs() < 0.001);
@@ -511,28 +518,28 @@ mod tests {
     #[test]
     fn test_metrics_registry() {
         let registry = MetricsRegistry::new();
-        
+
         let counter = registry.register_counter("requests", "Total requests");
         counter.inc();
-        
+
         let gauge = registry.register_gauge("active_connections", "Active connections");
         gauge.set(5.0);
-        
+
         let histogram = registry.register_histogram("request_duration", "Request duration");
         histogram.observe(0.1);
-        
+
         assert_eq!(registry.metric_count(), 3);
     }
 
     #[test]
     fn test_prometheus_export() {
         let registry = MetricsRegistry::new();
-        
+
         let counter = registry.register_counter("requests", "Total requests");
         counter.inc();
-        
+
         let output = registry.export_prometheus();
-        
+
         assert!(output.contains("workflow_toolkit_requests"));
         assert!(output.contains("Total requests"));
     }

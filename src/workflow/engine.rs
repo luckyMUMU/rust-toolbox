@@ -18,13 +18,13 @@
 //!     └── DagScheduler (determines execution order)
 //! ```
 
-use async_trait::async_trait;
 use crate::core::{ExecutionContext, ExecutionStatus};
 use crate::error::{Result, WorkflowError};
 use crate::storage::StateManager;
 use crate::tools::ToolRegistry;
 use crate::workflow::component::{ComponentOutput, ComponentRegistry, ComponentStatus};
 use crate::workflow::context::DataContext;
+use crate::workflow::el_expression::{ExpressionContext, ExpressionEngine};
 use crate::workflow::executor::{BoxedExecutor, ExecutorChainBuilder};
 use crate::workflow::flow_node::FlowNode;
 use crate::workflow::scheduler::DagScheduler;
@@ -32,6 +32,7 @@ use crate::workflow::state::{CheckpointManager, ExecutionTracker};
 use crate::workflow::{
     AuditLogger, CacheConfig, ResultCache, WorkflowDefinition, WorkflowExecution,
 };
+use async_trait::async_trait;
 use chrono::Utc;
 use futures::future::join_all;
 use serde_json::Value;
@@ -42,9 +43,9 @@ use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 #[cfg(test)]
-use crate::workflow::WorkflowNode;
-#[cfg(test)]
 use crate::core::{RetryPolicy, RetryStrategy};
+#[cfg(test)]
+use crate::workflow::WorkflowNode;
 #[cfg(test)]
 use tokio::sync::RwLock;
 
@@ -221,7 +222,8 @@ impl RefactoredWorkflowEngine {
             tracker: tracker.clone(),
         };
 
-        let result = self.execute_workflow_loop(loop_ctx, &mut context, &mut scheduler, checkpoint_manager)
+        let result = self
+            .execute_workflow_loop(loop_ctx, &mut context, &mut scheduler, checkpoint_manager)
             .await;
 
         // Build final execution result
@@ -494,8 +496,17 @@ impl RefactoredWorkflowEngine {
 
     /// Stop a running workflow by workflow_id (compatibility method).
     pub async fn stop_workflow_by_id(&self, workflow_id: Uuid) -> Result<()> {
-        // TODO: Implement actual workflow stopping by ID
-        tracing::info!(workflow_id = %workflow_id, "Stop workflow by ID requested (not yet implemented)");
+        tracing::info!(workflow_id = %workflow_id, "Stop workflow by ID requested");
+
+        match self.state_manager.delete_workflow_state(workflow_id).await {
+            Ok(_) => {
+                tracing::info!(workflow_id = %workflow_id, "工作流已停止并从状态管理器中移除");
+            }
+            Err(e) => {
+                tracing::warn!(workflow_id = %workflow_id, error = %e, "停止工作流时出错");
+            }
+        }
+
         Ok(())
     }
 
@@ -579,13 +590,93 @@ impl RefactoredWorkflowEngine {
                 }
                 Ok(())
             }
-            // TODO: Implement Switch and Loop
-            _ => Ok(()),
+            FlowNode::Switch {
+                condition,
+                cases,
+                default,
+            } => {
+                let el = ExpressionEngine::new();
+
+                let mut expr_context = ExpressionContext::new();
+
+                for (key, value) in context.all_variables() {
+                    expr_context.set(&key, value);
+                }
+
+                let matched = el
+                    .evaluate_condition(condition, &expr_context)
+                    .map_err(|e| WorkflowError::execution(format!("条件求值失败: {}", e)))?;
+
+                let matched_key = matched.to_string();
+                let mut executed = false;
+                let tracker_for_default = tracker.clone();
+
+                for (case_key, case_node) in cases {
+                    if *case_key == matched_key || case_key == "*" {
+                        Box::pin(self.execute_flow(case_node, context, tracker)).await?;
+                        executed = true;
+                        break;
+                    }
+                }
+
+                if !executed {
+                    Box::pin(self.execute_flow(default, context, tracker_for_default)).await?;
+                }
+
+                Ok(())
+            }
+            FlowNode::Loop { condition, body } => {
+                let el = ExpressionEngine::new();
+                let mut iterations = 0;
+                let limit = 100;
+
+                let mut expr_context = ExpressionContext::new();
+
+                for (key, value) in context.all_variables() {
+                    expr_context.set(&key, value);
+                }
+
+                loop {
+                    if iterations >= limit {
+                        tracing::warn!(
+                            workflow_id = %tracker.workflow_id(),
+                            iterations = iterations,
+                            limit = limit,
+                            "循环达到最大迭代次数限制"
+                        );
+                        break;
+                    }
+
+                    let should_continue =
+                        el.evaluate_condition(condition, &expr_context)
+                            .map_err(|e| {
+                                WorkflowError::execution(format!("循环条件求值失败: {}", e))
+                            })?;
+
+                    if !should_continue {
+                        break;
+                    }
+
+                    Box::pin(self.execute_flow(body, context, tracker.clone())).await?;
+                    iterations += 1;
+                }
+
+                tracing::debug!(
+                    workflow_id = %tracker.workflow_id(),
+                    iterations = iterations,
+                    "循环执行完成"
+                );
+
+                Ok(())
+            }
         }
     }
 
     /// Execute workflow (alias for compatibility)
-    pub async fn execute_workflow(&self, definition: WorkflowDefinition) -> Result<WorkflowExecution> {
+    pub async fn execute_workflow(
+        &self,
+        definition: WorkflowDefinition,
+    ) -> Result<WorkflowExecution> {
         self.execute(definition, HashMap::new()).await
     }
 
@@ -640,7 +731,7 @@ mod tests {
 
         use crate::tools::registry::ToolRegistry;
         use crate::tools::types::{NativeToolBuilder, Tool};
-        
+
         let tool_registry = ToolRegistry::new();
 
         // Register a simple echo tool
@@ -648,7 +739,9 @@ mod tests {
             .name("echo")
             .version("1.0.0")
             .description("Echo tool")
-            .executor(|input, _ctx| async move { Ok(crate::tools::types::ToolOutput::success(input.params)) })
+            .executor(|input, _ctx| async move {
+                Ok(crate::tools::types::ToolOutput::success(input.params))
+            })
             .build()
             .unwrap();
 

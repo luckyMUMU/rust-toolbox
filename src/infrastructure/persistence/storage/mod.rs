@@ -1,7 +1,7 @@
 //! 存储后端实现
 
-use async_trait::async_trait;
 use crate::error::Result;
+use async_trait::async_trait;
 
 /// 存储后端trait - 基础设施层实现领域层端口
 #[async_trait]

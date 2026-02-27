@@ -90,7 +90,10 @@ impl std::fmt::Debug for MiddlewareContext {
         f.debug_struct("MiddlewareContext")
             .field("input", &self.input)
             .field("metadata", &self.metadata)
-            .field("custom_data", &format!("DashMap with {} entries", self.custom_data.len()))
+            .field(
+                "custom_data",
+                &format!("DashMap with {} entries", self.custom_data.len()),
+            )
             .finish()
     }
 }
@@ -164,7 +167,8 @@ impl<'a> Next<'a> {
             // End of chain, execute the tool
             let input = ctx.input.clone();
             let tool = self.tool.clone();
-            tool.execute(input, crate::core::ExecutionContext::new()).await
+            tool.execute(input, crate::core::ExecutionContext::new())
+                .await
         }
     }
 }
@@ -252,7 +256,9 @@ impl MiddlewareStack {
     ) -> Result<ToolOutput> {
         if self.middlewares.is_empty() {
             // No middleware, execute directly
-            return tool.execute(input, crate::core::ExecutionContext::new()).await;
+            return tool
+                .execute(input, crate::core::ExecutionContext::new())
+                .await;
         }
 
         let mut ctx = MiddlewareContext::new(input, metadata);
@@ -361,10 +367,7 @@ impl Middleware for LoggingMiddleware {
         match &result {
             Ok(output) => {
                 if self.log_completion {
-                    info!(
-                        "Tool {} completed successfully in {:?}",
-                        tool_name, elapsed
-                    );
+                    info!("Tool {} completed successfully in {:?}", tool_name, elapsed);
                     debug!("Output: {:?}", output);
                 }
             }
@@ -495,10 +498,7 @@ impl Middleware for RetryMiddleware {
             match next.run(ctx).await {
                 Ok(output) => {
                     if attempt > 0 {
-                        info!(
-                            "Tool {} succeeded after {} retries",
-                            tool_name, attempt
-                        );
+                        info!("Tool {} succeeded after {} retries", tool_name, attempt);
                     }
                     return Ok(output);
                 }
@@ -518,8 +518,13 @@ impl Middleware for RetryMiddleware {
             }
         }
 
-        Err(WorkflowError::WorkflowExecution { 
-            message: last_error_msg.unwrap_or_else(|| format!("Tool {} failed after {} retries", tool_name, self.max_retries)),
+        Err(WorkflowError::WorkflowExecution {
+            message: last_error_msg.unwrap_or_else(|| {
+                format!(
+                    "Tool {} failed after {} retries",
+                    tool_name, self.max_retries
+                )
+            }),
         })
     }
 
@@ -561,10 +566,7 @@ impl Middleware for TimeoutMiddleware {
         match tokio::time::timeout(self.timeout, next.run(ctx)).await {
             Ok(result) => result,
             Err(_) => Err(WorkflowError::WorkflowExecution {
-                message: format!(
-                    "Tool {} timed out after {:?}",
-                    tool_name, self.timeout
-                ),
+                message: format!("Tool {} timed out after {:?}", tool_name, self.timeout),
             }),
         }
     }
@@ -616,13 +618,15 @@ impl CircuitBreakerMiddleware {
 
     /// Record a success
     fn record_success(&self) {
-        self.failure_count.store(0, std::sync::atomic::Ordering::SeqCst);
+        self.failure_count
+            .store(0, std::sync::atomic::Ordering::SeqCst);
         *self.last_failure.lock().unwrap() = None;
     }
 
     /// Record a failure
     fn record_failure(&self) {
-        self.failure_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.failure_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         *self.last_failure.lock().unwrap() = Some(Instant::now());
     }
 }
@@ -773,8 +777,8 @@ mod tests {
 
     fn create_test_tool() -> Tool {
         // Create a simple native tool for testing
-        use crate::tools::types::NativeToolBuilder;
         use crate::core::ExecutionContext;
+        use crate::tools::types::NativeToolBuilder;
         use std::sync::Arc;
 
         NativeToolBuilder::new()

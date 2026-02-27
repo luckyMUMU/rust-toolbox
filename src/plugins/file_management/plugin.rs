@@ -1,12 +1,16 @@
 //! File Management Plugin implementation
 
 use crate::core::{PluginInfo, PluginType};
-use crate::plugins::file_management::core::error::{FileManagementError, FileManagementResult};
-use crate::plugins::file_management::core::error_recovery::{ErrorRecoveryManager, RecoveryConfig, RecoveryStats};
-use crate::plugins::file_management::utils::monitoring::{FileManagementMonitor, MonitoringConfig, MonitoringStats};
-use crate::plugins::file_management::utils::registry::FileManagementToolRegistry;
 use crate::error::{Result, WorkflowError};
 use crate::performance::{PerformanceConfig, PerformanceManager};
+use crate::plugins::file_management::core::error::{FileManagementError, FileManagementResult};
+use crate::plugins::file_management::core::error_recovery::{
+    ErrorRecoveryManager, RecoveryConfig, RecoveryStats,
+};
+use crate::plugins::file_management::utils::monitoring::{
+    FileManagementMonitor, MonitoringConfig, MonitoringStats,
+};
+use crate::plugins::file_management::utils::registry::FileManagementToolRegistry;
 use crate::plugins::types::{Plugin, PluginConfig, PluginStatus, ResourceLimits, SecurityPolicy};
 use crate::tools::registry::ToolRegistry;
 use crate::tools::types::Tool;
@@ -209,7 +213,10 @@ impl FileManagementPlugin {
             // For now, we'll log the registration attempt
             for tool in tools {
                 let metadata = tool.metadata();
-                debug!("Would register tool '{}' with main registry", metadata.info.name);
+                debug!(
+                    "Would register tool '{}' with main registry",
+                    metadata.info.name
+                );
             }
 
             info!("File management tools registered with main tool registry");
@@ -231,7 +238,10 @@ impl FileManagementPlugin {
             // Note: Same limitation as above - we need a mutable reference
             for tool in tools {
                 let metadata = tool.metadata();
-                debug!("Would unregister tool '{}' from main registry", metadata.info.name);
+                debug!(
+                    "Would unregister tool '{}' from main registry",
+                    metadata.info.name
+                );
             }
 
             info!("File management tools unregistered from main tool registry");
@@ -253,8 +263,7 @@ impl FileManagementPlugin {
         );
 
         // Create tool registry
-        let mut registry =
-            FileManagementToolRegistry::new(config.clone(), self.info.clone());
+        let mut registry = FileManagementToolRegistry::new(config.clone(), self.info.clone());
 
         // Register all tools
         let tools = registry.register_all_tools()?;

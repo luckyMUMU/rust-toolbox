@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn test_fn_provider() {
         let provider = FnProvider::new(|| Arc::new(TestService { value: 42 }));
-        
+
         let instance = provider.provide();
         assert_eq!(instance.value, 42);
     }
@@ -88,10 +88,10 @@ mod tests {
     fn test_singleton_provider() {
         let instance = Arc::new(TestService { value: 100 });
         let provider = SingletonProvider::new(instance);
-        
+
         let first = provider.provide();
         let second = provider.provide();
-        
+
         assert!(Arc::ptr_eq(&first, &second));
     }
 }

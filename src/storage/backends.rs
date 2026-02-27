@@ -195,18 +195,31 @@ impl StorageBackend for FileStorage {
     }
 
     async fn batch_save(&self, items: Vec<(String, Vec<u8>)>) -> Result<()> {
-        for (key, value) in items {
-            self.save(&key, &value).await?;
+        use futures::future::join_all;
+
+        let futures: Vec<_> = items
+            .iter()
+            .map(|(key, value)| self.save(key, value))
+            .collect();
+
+        let results = join_all(futures).await;
+        for result in results {
+            result?;
         }
         Ok(())
     }
 
     async fn batch_load(&self, keys: Vec<String>) -> Result<Vec<Option<Vec<u8>>>> {
-        let mut results = Vec::new();
-        for key in keys {
-            results.push(self.load(&key).await?);
+        use futures::future::join_all;
+
+        let futures: Vec<_> = keys.iter().map(|key| self.load(key)).collect();
+
+        let results = join_all(futures).await;
+        let mut final_results = Vec::new();
+        for result in results {
+            final_results.push(result?);
         }
-        Ok(results)
+        Ok(final_results)
     }
 }
 

@@ -4,10 +4,12 @@
 //! in file management workflows. It supports timeouts, default choices, and experimental mode.
 
 use crate::core::{ExecutionContext, PluginInfo, ToolInfo};
-use crate::plugins::file_management::plugin::FileManagementConfig;
-use crate::plugins::file_management::utils::utils::{HumanDecisionContext, HumanDecisionOption, HumanDecisionType};
 use crate::error::{Result, WorkflowError};
-use crate::tools::types::{Tool, NativeToolBuilder, ToolInput, ToolOutput};
+use crate::plugins::file_management::plugin::FileManagementConfig;
+use crate::plugins::file_management::utils::utils::{
+    HumanDecisionContext, HumanDecisionOption, HumanDecisionType,
+};
+use crate::tools::types::{NativeToolBuilder, Tool, ToolInput, ToolOutput};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -134,6 +136,56 @@ impl HumanDecisionExecutor {
         }
 
         Ok(context)
+    }
+
+    /// Execute human decision with parameters
+    pub async fn execute(&self, params: Value, _ctx: ExecutionContext) -> Result<Value> {
+        let decision_params: HumanDecisionParams = serde_json::from_value(params)
+            .map_err(|e| WorkflowError::tool(format!("解析决策参数失败: {}", e)))?;
+
+        let context = self.create_decision_context(&decision_params)?;
+
+        if decision_params.experimental_mode {
+            return self.execute_experimental(&context, decision_params.default_choice);
+        }
+
+        let result = self
+            .present_decision_to_user(&context, decision_params.default_choice)
+            .await?;
+        serde_json::to_value(result)
+            .map_err(|e| WorkflowError::tool(format!("序列化决策结果失败: {}", e)))
+    }
+
+    /// Execute in experimental mode (auto-select)
+    fn execute_experimental(
+        &self,
+        context: &HumanDecisionContext,
+        default_choice: Option<usize>,
+    ) -> Result<Value> {
+        let selected = default_choice
+            .and_then(|i| context.options.get(i))
+            .or_else(|| context.options.iter().find(|o| o.recommended))
+            .or_else(|| context.options.first());
+
+        let result = match selected {
+            Some(option) => HumanDecisionResult {
+                selected_option: option.id.clone(),
+                decision_time_ms: 0,
+                was_timeout: false,
+                user_input: Some("auto-selected in experimental mode".to_string()),
+                experimental_mode: true,
+            },
+            None => HumanDecisionResult {
+                selected_option: "skip".to_string(),
+                decision_time_ms: 0,
+                was_timeout: false,
+                user_input: Some("no options available - skipped".to_string()),
+                experimental_mode: true,
+            },
+        };
+
+        serde_json::to_value(result)
+            .map_err(|e| WorkflowError::tool(format!("序列化决策结果失败: {}", e)))
     }
 
     /// Present decision to user and get input
@@ -527,7 +579,9 @@ pub fn create_human_decision_tool(
                 let result = if params.experimental_mode {
                     executor.simulate_decision(&decision_context)?
                 } else {
-                    executor.present_decision_to_user(&decision_context, default_choice).await?
+                    executor
+                        .present_decision_to_user(&decision_context, default_choice)
+                        .await?
                 };
 
                 // 返回结果

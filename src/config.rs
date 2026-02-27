@@ -160,7 +160,6 @@ pub enum LogOutput {
     Both,
 }
 
-
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
@@ -272,7 +271,8 @@ impl ConfigManager {
 
     /// Get current configuration
     pub fn get_config(&self) -> Result<Config> {
-        self.config.read()
+        self.config
+            .read()
             .map(|cfg| cfg.clone())
             .map_err(|_| WorkflowError::concurrency("Config RwLock poisoned"))
     }
@@ -284,9 +284,13 @@ impl ConfigManager {
 
     /// Update configuration with priority handling
     pub fn update_config(&self, new_config: Config, source: ConfigSource) -> Result<()> {
-        let mut config = self.config.write()
+        let mut config = self
+            .config
+            .write()
             .map_err(|_| WorkflowError::concurrency("Config RwLock poisoned during update"))?;
-        let mut sources = self.sources.write()
+        let mut sources = self
+            .sources
+            .write()
             .map_err(|_| WorkflowError::concurrency("Sources RwLock poisoned during update"))?;
 
         // Add or update source
@@ -405,9 +409,8 @@ impl ConfigManager {
         let current_config = self.get_config()?;
         let config_value =
             serde_json::to_value(&current_config).map_err(|e| WorkflowError::Generic(e.into()))?;
-        builder = builder.add_source(
-            config::Config::try_from(&config_value).map_err(WorkflowError::Config)?,
-        );
+        builder = builder
+            .add_source(config::Config::try_from(&config_value).map_err(WorkflowError::Config)?);
 
         // Add environment variables with prefix "WORKFLOW_TOOLKIT_"
         builder = builder.add_source(
@@ -485,7 +488,8 @@ impl ConfigManager {
 
     /// Get configuration sources with their priorities
     pub fn get_sources(&self) -> Result<Vec<ConfigSource>> {
-        self.sources.read()
+        self.sources
+            .read()
             .map(|srcs| srcs.clone())
             .map_err(|_| WorkflowError::concurrency("Sources RwLock poisoned"))
     }
@@ -678,9 +682,7 @@ impl Config {
 
         let config = builder.build().map_err(WorkflowError::Config)?;
 
-        config
-            .try_deserialize()
-            .map_err(WorkflowError::Config)
+        config.try_deserialize().map_err(WorkflowError::Config)
     }
 
     /// Validate the configuration
@@ -811,7 +813,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_hot_reload() -> Result<()> {
-        let temp_dir = TempDir::new().map_err(|e| WorkflowError::storage(format!("Failed to create temporary directory: {}", e)))?;
+        let temp_dir = TempDir::new().map_err(|e| {
+            WorkflowError::storage(format!("Failed to create temporary directory: {}", e))
+        })?;
         let config_file = temp_dir.path().join("test_config.toml");
 
         // Create initial config file
@@ -823,7 +827,9 @@ ws_port = 8081
 [logging]
 level = "info"
 "#;
-        std::fs::write(&config_file, initial_config).map_err(|e| WorkflowError::storage(format!("Failed to write initial config: {}", e)))?;
+        std::fs::write(&config_file, initial_config).map_err(|e| {
+            WorkflowError::storage(format!("Failed to write initial config: {}", e))
+        })?;
 
         // Load config with hot reload
         let manager = Config::load_from_path_with_priority(&config_file)?;
@@ -846,7 +852,9 @@ ws_port = 8081
 [logging]
 level = "debug"
 "#;
-        std::fs::write(&config_file, updated_config).map_err(|e| WorkflowError::storage(format!("Failed to write updated config: {}", e)))?;
+        std::fs::write(&config_file, updated_config).map_err(|e| {
+            WorkflowError::storage(format!("Failed to write updated config: {}", e))
+        })?;
 
         // Wait for hot reload to detect the change
         sleep(std::time::Duration::from_secs(6)).await;
@@ -872,8 +880,7 @@ level = "debug"
         };
 
         let new_config = Config::default();
-        manager
-            .update_config(new_config, source.clone())?;
+        manager.update_config(new_config, source.clone())?;
 
         let sources = manager.get_sources()?;
         assert_eq!(sources.len(), 1);
@@ -899,8 +906,7 @@ level = "debug"
             timestamp: std::time::SystemTime::now(),
         };
 
-        manager
-            .update_config(new_config, source)?;
+        manager.update_config(new_config, source)?;
 
         // Check if watch receiver gets the update
         if watch_receiver.changed().await.is_ok() {

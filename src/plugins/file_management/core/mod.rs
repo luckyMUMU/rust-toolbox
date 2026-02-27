@@ -7,5 +7,10 @@ pub mod error_recovery;
 pub mod types;
 
 // Re-export core components
-pub use error::{ErrorContext, ErrorSeverity, FileManagementError, FileManagementResult, RecoverySuggestion};
-pub use error_recovery::{ErrorRecoveryManager, RecoveryAttempt, RecoveryConfig, RecoverySession, RecoveryStats, RecoveryStrategy};
+pub use error::{
+    ErrorContext, ErrorSeverity, FileManagementError, FileManagementResult, RecoverySuggestion,
+};
+pub use error_recovery::{
+    ErrorRecoveryManager, RecoveryAttempt, RecoveryConfig, RecoverySession, RecoveryStats,
+    RecoveryStrategy,
+};

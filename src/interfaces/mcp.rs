@@ -428,16 +428,14 @@ impl McpServerInterface for McpServer {
             let plugins = plugin_manager.list_plugins();
             let mcp_plugins: Vec<McpPluginInfo> = plugins
                 .into_iter()
-                .map(|plugin| {
-                    McpPluginInfo {
-                        name: plugin.name,
-                        version: plugin.version,
-                        plugin_type: format!("{:?}", plugin.plugin_type),
-                        description: plugin.description,
-                        author: plugin.author,
-                        status: "loaded".to_string(),
-                        tools_count: 0,
-                    }
+                .map(|plugin| McpPluginInfo {
+                    name: plugin.name,
+                    version: plugin.version,
+                    plugin_type: format!("{:?}", plugin.plugin_type),
+                    description: plugin.description,
+                    author: plugin.author,
+                    status: "loaded".to_string(),
+                    tools_count: 0,
                 })
                 .collect();
             Ok(mcp_plugins)
@@ -497,7 +495,9 @@ impl McpServerInterface for McpServer {
                 })
             }
         } else {
-            Err(crate::WorkflowError::workflow_execution("Plugin manager not available"))
+            Err(crate::WorkflowError::workflow_execution(
+                "Plugin manager not available",
+            ))
         }
     }
 

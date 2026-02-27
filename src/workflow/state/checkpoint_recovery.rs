@@ -248,10 +248,7 @@ impl CheckpointRecovery {
     }
 
     /// 确定恢复起始点
-    pub fn determine_recovery_start(
-        &self,
-        checkpoint: &EnhancedCheckpoint,
-    ) -> Result<Vec<String>> {
+    pub fn determine_recovery_start(&self, checkpoint: &EnhancedCheckpoint) -> Result<Vec<String>> {
         match &self.config.strategy {
             RecoveryStrategy::FromFailedNode => {
                 let failed_nodes: Vec<_> = checkpoint
@@ -301,17 +298,12 @@ impl CheckpointRecovery {
                     )))
                 }
             }
-            RecoveryStrategy::Restart => {
-                Ok(checkpoint.node_states.keys().cloned().collect())
-            }
+            RecoveryStrategy::Restart => Ok(checkpoint.node_states.keys().cloned().collect()),
         }
     }
 
     /// 保存检查点
-    pub async fn save_checkpoint(
-        &self,
-        checkpoint: EnhancedCheckpoint,
-    ) -> Result<()> {
+    pub async fn save_checkpoint(&self, checkpoint: EnhancedCheckpoint) -> Result<()> {
         let checkpoint_id = checkpoint.id.clone();
         debug!(
             checkpoint_id = %checkpoint_id,
@@ -321,22 +313,21 @@ impl CheckpointRecovery {
 
         let key = format!(
             "checkpoint:{}:{}:{}",
-            checkpoint.workflow_id,
-            checkpoint.sequence,
-            checkpoint_id
+            checkpoint.workflow_id, checkpoint.sequence, checkpoint_id
         );
 
-        let value = serde_json::to_string(&checkpoint).map_err(|e| {
-            WorkflowError::serialization(format!("检查点序列化失败: {}", e))
-        })?;
+        let value = serde_json::to_string(&checkpoint)
+            .map_err(|e| WorkflowError::serialization(format!("检查点序列化失败: {}", e)))?;
 
         self.state_manager
             .get_cache_backend()
-            .set(&key, value.as_bytes().to_vec(), Some(Duration::from_secs(86400)))
+            .set(
+                &key,
+                value.as_bytes().to_vec(),
+                Some(Duration::from_secs(86400)),
+            )
             .await
-            .map_err(|e| {
-                WorkflowError::storage(format!("检查点保存失败: {}", e))
-            })?;
+            .map_err(|e| WorkflowError::storage(format!("检查点保存失败: {}", e)))?;
 
         self.checkpoints
             .write()
@@ -364,17 +355,14 @@ impl CheckpointRecovery {
         // 如果内存中没有，尝试从存储中加载
         let key = format!("checkpoint:{}:{}", workflow_id, checkpoint_id);
 
-        let value = self
-            .state_manager
-            .get_cache_backend()
-            .get(&key)
-            .await;
+        let value = self.state_manager.get_cache_backend().get(&key).await;
 
         match value {
             Some(data) => {
-                let checkpoint: EnhancedCheckpoint = serde_json::from_slice(&data).map_err(|e| {
-                    WorkflowError::serialization(format!("检查点反序列化失败: {}", e))
-                })?;
+                let checkpoint: EnhancedCheckpoint =
+                    serde_json::from_slice(&data).map_err(|e| {
+                        WorkflowError::serialization(format!("检查点反序列化失败: {}", e))
+                    })?;
                 Ok(Some(checkpoint))
             }
             None => Ok(None),
@@ -397,10 +385,7 @@ impl CheckpointRecovery {
     }
 
     /// 列出工作流的所有检查点
-    pub async fn list_checkpoints(
-        &self,
-        workflow_id: Uuid,
-    ) -> Vec<EnhancedCheckpoint> {
+    pub async fn list_checkpoints(&self, workflow_id: Uuid) -> Vec<EnhancedCheckpoint> {
         let checkpoints = self.checkpoints.read().await;
         checkpoints
             .values()
@@ -429,11 +414,7 @@ impl CheckpointRecovery {
         let mut sorted: Vec<_> = workflow_checkpoints.into_iter().collect();
         sorted.sort_by_key(|c| std::cmp::Reverse(c.sequence));
 
-        let to_remove: Vec<_> = sorted
-            .into_iter()
-            .skip(keep_count)
-            .map(|c| c.id)
-            .collect();
+        let to_remove: Vec<_> = sorted.into_iter().skip(keep_count).map(|c| c.id).collect();
 
         let removed_count = to_remove.len();
         for id in to_remove {
@@ -450,10 +431,7 @@ impl CheckpointRecovery {
     }
 
     /// 标记检查点为已恢复
-    pub async fn mark_checkpoint_restored(
-        &self,
-        checkpoint_id: &str,
-    ) -> Result<()> {
+    pub async fn mark_checkpoint_restored(&self, checkpoint_id: &str) -> Result<()> {
         let mut checkpoints = self.checkpoints.write().await;
         if let Some(checkpoint) = checkpoints.get_mut(checkpoint_id) {
             checkpoint.status = CheckpointStatus::Restored;
@@ -535,7 +513,8 @@ impl CheckpointBuilder {
 
     /// 构建检查点
     pub fn build(self) -> EnhancedCheckpoint {
-        static SEQUENCE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        static SEQUENCE_COUNTER: std::sync::atomic::AtomicU64 =
+            std::sync::atomic::AtomicU64::new(1);
 
         EnhancedCheckpoint {
             id: Uuid::new_v4().to_string(),
@@ -581,12 +560,8 @@ mod tests {
 
     #[test]
     fn test_checkpoint_validation() {
-        let checkpoint = CheckpointBuilder::new(
-            Uuid::new_v4(),
-            "test".to_string(),
-            "hash".to_string(),
-        )
-        .build();
+        let checkpoint =
+            CheckpointBuilder::new(Uuid::new_v4(), "test".to_string(), "hash".to_string()).build();
 
         let recovery = CheckpointRecovery::default_recovery(Arc::new(StateManager::default()));
         let validation = recovery.validate_checkpoint(&checkpoint, None);
@@ -620,13 +595,10 @@ mod tests {
             },
         );
 
-        let checkpoint = CheckpointBuilder::new(
-            Uuid::new_v4(),
-            "test".to_string(),
-            "hash".to_string(),
-        )
-        .with_node_states(node_states)
-        .build();
+        let checkpoint =
+            CheckpointBuilder::new(Uuid::new_v4(), "test".to_string(), "hash".to_string())
+                .with_node_states(node_states)
+                .build();
 
         let recovery = CheckpointRecovery::default_recovery(Arc::new(StateManager::default()));
         let start_nodes = recovery.determine_recovery_start(&checkpoint).unwrap();

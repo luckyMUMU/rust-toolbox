@@ -170,14 +170,13 @@ mod tests {
 
         // Test memory cache
         let cache = SimpleMemoryCache::new();
-        cache
-            .set("test_key", b"test_value".to_vec(), None)
-            .await?;
+        cache.set("test_key", b"test_value".to_vec(), None).await?;
         let value = cache.get("test_key").await;
         assert_eq!(value, Some(b"test_value".to_vec()));
 
         // Test file storage
-        let temp_dir = TempDir::new().map_err(|e| WorkflowError::storage(format!("Failed to create temp dir: {}", e)))?;
+        let temp_dir = TempDir::new()
+            .map_err(|e| WorkflowError::storage(format!("Failed to create temp dir: {}", e)))?;
         let storage = FileStorage::new(temp_dir.path())?;
         storage.save("test_key", b"test_value").await?;
         let value = storage.load("test_key").await?;

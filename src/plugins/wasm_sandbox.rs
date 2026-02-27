@@ -328,10 +328,21 @@ impl WasmSandbox {
 
     /// 检查文件读取权限
     pub fn check_file_read(&mut self, path: &PathBuf) -> bool {
-        let allowed = self.config.filesystem.read_paths.iter().any(|p| path.starts_with(p));
-        
+        let allowed = self
+            .config
+            .filesystem
+            .read_paths
+            .iter()
+            .any(|p| path.starts_with(p));
+
         if self.config.enable_audit_log {
-            self.log_audit(AuditEventType::FileRead, path.to_string_lossy().to_string(), "read".to_string(), allowed, None);
+            self.log_audit(
+                AuditEventType::FileRead,
+                path.to_string_lossy().to_string(),
+                "read".to_string(),
+                allowed,
+                None,
+            );
         }
 
         if !allowed {
@@ -343,10 +354,21 @@ impl WasmSandbox {
 
     /// 检查文件写入权限
     pub fn check_file_write(&mut self, path: &PathBuf) -> bool {
-        let allowed = self.config.filesystem.write_paths.iter().any(|p| path.starts_with(p));
-        
+        let allowed = self
+            .config
+            .filesystem
+            .write_paths
+            .iter()
+            .any(|p| path.starts_with(p));
+
         if self.config.enable_audit_log {
-            self.log_audit(AuditEventType::FileWrite, path.to_string_lossy().to_string(), "write".to_string(), allowed, None);
+            self.log_audit(
+                AuditEventType::FileWrite,
+                path.to_string_lossy().to_string(),
+                "write".to_string(),
+                allowed,
+                None,
+            );
         }
 
         if !allowed {
@@ -359,24 +381,34 @@ impl WasmSandbox {
     /// 检查网络连接权限
     pub fn check_network_connect(&mut self, host: &str, port: u16) -> bool {
         if !self.config.network.enabled {
-            self.log_audit(AuditEventType::NetworkConnect, format!("{}:{}", host, port), "connect".to_string(), false, Some("网络访问已禁用".to_string()));
+            self.log_audit(
+                AuditEventType::NetworkConnect,
+                format!("{}:{}", host, port),
+                "connect".to_string(),
+                false,
+                Some("网络访问已禁用".to_string()),
+            );
             return false;
         }
 
-        let host_allowed = self.config.network.allowed_hosts.is_empty() 
+        let host_allowed = self.config.network.allowed_hosts.is_empty()
             || self.config.network.allowed_hosts.contains(host);
-        let port_allowed = self.config.network.allowed_ports.is_empty() 
+        let port_allowed = self.config.network.allowed_ports.is_empty()
             || self.config.network.allowed_ports.contains(&port);
 
         let allowed = host_allowed && port_allowed;
-        
+
         if self.config.enable_audit_log {
             self.log_audit(
-                AuditEventType::NetworkConnect, 
-                format!("{}:{}", host, port), 
-                "connect".to_string(), 
-                allowed, 
-                if !allowed { Some("主机或端口不在白名单中".to_string()) } else { None }
+                AuditEventType::NetworkConnect,
+                format!("{}:{}", host, port),
+                "connect".to_string(),
+                allowed,
+                if !allowed {
+                    Some("主机或端口不在白名单中".to_string())
+                } else {
+                    None
+                },
             );
         }
 
@@ -390,9 +422,15 @@ impl WasmSandbox {
     /// 检查环境变量访问权限
     pub fn check_env_access(&mut self, var_name: &str) -> bool {
         let allowed = self.config.allowed_env_vars.contains(var_name);
-        
+
         if self.config.enable_audit_log {
-            self.log_audit(AuditEventType::EnvAccess, var_name.to_string(), "access".to_string(), allowed, None);
+            self.log_audit(
+                AuditEventType::EnvAccess,
+                var_name.to_string(),
+                "access".to_string(),
+                allowed,
+                None,
+            );
         }
 
         allowed
@@ -404,7 +442,14 @@ impl WasmSandbox {
     }
 
     /// 记录审计日志
-    fn log_audit(&mut self, event_type: AuditEventType, resource: String, action: String, allowed: bool, reason: Option<String>) {
+    fn log_audit(
+        &mut self,
+        event_type: AuditEventType,
+        resource: String,
+        action: String,
+        allowed: bool,
+        reason: Option<String>,
+    ) {
         let entry = AuditEntry {
             timestamp: chrono::Utc::now(),
             event_type,
@@ -534,7 +579,7 @@ mod tests {
     #[test]
     fn test_sandbox_file_check() {
         let mut sandbox = WasmSandbox::new(WasmSandboxConfig::basic());
-        
+
         assert!(sandbox.check_file_read(&PathBuf::from("/tmp/test.txt")));
         assert!(!sandbox.check_file_read(&PathBuf::from("/etc/passwd")));
     }

@@ -4,8 +4,8 @@
 
 use crate::error::{Result, WorkflowError};
 use crate::tools::{
-    DependencyResolver, ResolutionResult, Tool, ToolId, ToolMetadata,
-    ToolVersion, Version, VersionConflict, VersionRequirement,
+    DependencyResolver, ResolutionResult, Tool, ToolId, ToolMetadata, ToolVersion, Version,
+    VersionConflict, VersionRequirement,
 };
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -74,61 +74,64 @@ impl VersionedToolRegistry {
     pub fn register(&self, name: &str, version: &Version, tool: Tool) -> Result<ToolId> {
         let id = ToolId::new();
         let metadata = tool.metadata();
-        
+
         self.tools
             .entry(name.to_string())
             .or_default()
             .insert(version.clone(), tool);
-        
+
         self.metadata_cache
             .entry(name.to_string())
             .or_default()
             .insert(version.clone(), Arc::new(metadata));
-        
+
         if !self.default_versions.contains_key(name) {
-            self.default_versions.insert(name.to_string(), version.clone());
+            self.default_versions
+                .insert(name.to_string(), version.clone());
         }
-        
+
         info!(
             tool_name = %name,
             version = %version,
             tool_id = %id,
             "注册工具版本"
         );
-        
+
         Ok(id)
     }
 
     /// 注销工具版本
     pub fn unregister(&self, name: &str, version: &Version) -> Option<Tool> {
-        let removed = self.tools
+        let removed = self
+            .tools
             .get_mut(name)
             .and_then(|mut versions| versions.remove(version));
-        
+
         if removed.is_some() {
             self.metadata_cache
                 .get_mut(name)
                 .and_then(|mut cache| cache.remove(version));
-            
+
             if let Some(default) = self.default_versions.get(name) {
                 if default.value() == version {
                     self.default_versions.remove(name);
-                    
+
                     if let Some(versions) = self.tools.get(name) {
                         if let Some(latest) = versions.keys().max() {
-                            self.default_versions.insert(name.to_string(), latest.clone());
+                            self.default_versions
+                                .insert(name.to_string(), latest.clone());
                         }
                     }
                 }
             }
-            
+
             info!(
                 tool_name = %name,
                 version = %version,
                 "注销工具版本"
             );
         }
-        
+
         removed
     }
 
@@ -152,19 +155,13 @@ impl VersionedToolRegistry {
         requirement: Option<&VersionRequirement>,
     ) -> Option<Tool> {
         let versions = self.tools.get(name)?;
-        
+
         let version: Version = match strategy {
-            VersionSelectionStrategy::Latest => {
-                versions.keys().max()?.clone()
-            }
-            VersionSelectionStrategy::Default => {
-                self.default_versions.get(name)?.value().clone()
-            }
+            VersionSelectionStrategy::Latest => versions.keys().max()?.clone(),
+            VersionSelectionStrategy::Default => self.default_versions.get(name)?.value().clone(),
             VersionSelectionStrategy::Compatible => {
                 if let Some(req) = requirement {
-                    versions.keys()
-                        .filter(|v| v.satisfies(req))
-                        .max()?.clone()
+                    versions.keys().filter(|v| v.satisfies(req)).max()?.clone()
                 } else {
                     versions.keys().max()?.clone()
                 }
@@ -173,20 +170,26 @@ impl VersionedToolRegistry {
                 return None;
             }
         };
-        
+
         versions.get(&version).cloned()
     }
 
     /// 设置默认版本
     pub fn set_default_version(&self, name: &str, version: &Version) -> Result<()> {
-        if !self.tools.get(name).map(|v| v.contains_key(version)).unwrap_or(false) {
+        if !self
+            .tools
+            .get(name)
+            .map(|v| v.contains_key(version))
+            .unwrap_or(false)
+        {
             return Err(WorkflowError::not_found(format!(
                 "工具 {} 版本 {} 不存在",
                 name, version
             )));
         }
-        
-        self.default_versions.insert(name.to_string(), version.clone());
+
+        self.default_versions
+            .insert(name.to_string(), version.clone());
         info!(tool_name = %name, version = %version, "设置默认版本");
         Ok(())
     }
@@ -250,18 +253,18 @@ impl VersionedToolRegistry {
     /// 检查版本冲突
     pub fn check_conflicts(&self) -> Vec<VersionConflict> {
         let mut conflicts = Vec::new();
-        
+
         for entry in self.tools.iter() {
             let name = entry.key();
             let versions = entry.value();
-            
+
             let version_list: Vec<_> = versions.keys().collect();
-            
+
             for i in 0..version_list.len() {
                 for j in (i + 1)..version_list.len() {
                     let v1 = version_list[i];
                     let v2 = version_list[j];
-                    
+
                     if v1.major != v2.major {
                         conflicts.push(VersionConflict {
                             tool_name: name.clone(),
@@ -276,7 +279,7 @@ impl VersionedToolRegistry {
                 }
             }
         }
-        
+
         conflicts
     }
 
@@ -286,17 +289,17 @@ impl VersionedToolRegistry {
         requirements: Vec<crate::core::version::ToolDependency>,
     ) -> Result<ResolutionResult> {
         let mut resolver = DependencyResolver::new();
-        
+
         for entry in self.tools.iter() {
             let name = entry.key();
             let versions = entry.value();
-            
+
             for version in versions.keys() {
                 let tool_version = ToolVersion::new(name.clone(), version.clone());
                 resolver.add_tool_version(tool_version);
             }
         }
-        
+
         resolver.resolve_dependencies(requirements)
     }
 
@@ -371,8 +374,8 @@ impl Default for VersionedToolRegistryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::{NativeTool, NativeToolBuilder, ToolKind, ResourceRequirements};
     use crate::core::ToolInfo;
+    use crate::tools::{NativeTool, NativeToolBuilder, ResourceRequirements, ToolKind};
 
     fn create_test_tool(name: &str, version: &str) -> Tool {
         let metadata = ToolMetadata {
@@ -402,7 +405,9 @@ mod tests {
             ToolId::new(),
             Arc::new(metadata),
             |_input, _ctx| async move {
-                Ok(crate::tools::ToolOutput::success(serde_json::json!({"status": "ok"})))
+                Ok(crate::tools::ToolOutput::success(
+                    serde_json::json!({"status": "ok"}),
+                ))
             },
         );
 
@@ -412,13 +417,17 @@ mod tests {
     #[test]
     fn test_register_multiple_versions() {
         let registry = VersionedToolRegistry::new();
-        
+
         let v1 = Version::new(1, 0, 0);
         let v2 = Version::new(2, 0, 0);
-        
-        registry.register("test_tool", &v1, create_test_tool("test_tool", "1.0.0")).unwrap();
-        registry.register("test_tool", &v2, create_test_tool("test_tool", "2.0.0")).unwrap();
-        
+
+        registry
+            .register("test_tool", &v1, create_test_tool("test_tool", "1.0.0"))
+            .unwrap();
+        registry
+            .register("test_tool", &v2, create_test_tool("test_tool", "2.0.0"))
+            .unwrap();
+
         let versions = registry.list_versions("test_tool");
         assert_eq!(versions.len(), 2);
     }
@@ -426,13 +435,17 @@ mod tests {
     #[test]
     fn test_get_latest_version() {
         let registry = VersionedToolRegistry::new();
-        
+
         let v1 = Version::new(1, 0, 0);
         let v2 = Version::new(2, 0, 0);
-        
-        registry.register("test_tool", &v1, create_test_tool("test_tool", "1.0.0")).unwrap();
-        registry.register("test_tool", &v2, create_test_tool("test_tool", "2.0.0")).unwrap();
-        
+
+        registry
+            .register("test_tool", &v1, create_test_tool("test_tool", "1.0.0"))
+            .unwrap();
+        registry
+            .register("test_tool", &v2, create_test_tool("test_tool", "2.0.0"))
+            .unwrap();
+
         let tool = registry.get("test_tool");
         assert!(tool.is_some());
     }
@@ -440,15 +453,19 @@ mod tests {
     #[test]
     fn test_set_default_version() {
         let registry = VersionedToolRegistry::new();
-        
+
         let v1 = Version::new(1, 0, 0);
         let v2 = Version::new(2, 0, 0);
-        
-        registry.register("test_tool", &v1, create_test_tool("test_tool", "1.0.0")).unwrap();
-        registry.register("test_tool", &v2, create_test_tool("test_tool", "2.0.0")).unwrap();
-        
+
+        registry
+            .register("test_tool", &v1, create_test_tool("test_tool", "1.0.0"))
+            .unwrap();
+        registry
+            .register("test_tool", &v2, create_test_tool("test_tool", "2.0.0"))
+            .unwrap();
+
         registry.set_default_version("test_tool", &v1).unwrap();
-        
+
         let default = registry.get_default_version("test_tool");
         assert_eq!(default, Some(v1));
     }
@@ -462,16 +479,20 @@ mod tests {
     #[test]
     fn test_unregister_version() {
         let registry = VersionedToolRegistry::new();
-        
+
         let v1 = Version::new(1, 0, 0);
         let v2 = Version::new(2, 0, 0);
-        
-        registry.register("test_tool", &v1, create_test_tool("test_tool", "1.0.0")).unwrap();
-        registry.register("test_tool", &v2, create_test_tool("test_tool", "2.0.0")).unwrap();
-        
+
+        registry
+            .register("test_tool", &v1, create_test_tool("test_tool", "1.0.0"))
+            .unwrap();
+        registry
+            .register("test_tool", &v2, create_test_tool("test_tool", "2.0.0"))
+            .unwrap();
+
         let removed = registry.unregister("test_tool", &v1);
         assert!(removed.is_some());
-        
+
         let versions = registry.list_versions("test_tool");
         assert_eq!(versions.len(), 1);
     }
@@ -480,13 +501,13 @@ mod tests {
     fn test_builder() {
         let v1 = Version::new(1, 0, 0);
         let v2 = Version::new(2, 0, 0);
-        
+
         let registry = VersionedToolRegistryBuilder::new()
             .with_strategy(VersionSelectionStrategy::Latest)
             .register("tool1", &v1, create_test_tool("tool1", "1.0.0"))
             .register("tool1", &v2, create_test_tool("tool1", "2.0.0"))
             .build();
-        
+
         assert_eq!(registry.tool_count(), 1);
         assert_eq!(registry.list_versions("tool1").len(), 2);
     }

@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock, Semaphore};
 use tokio::process::{Child, Command};
+use tokio::sync::{Mutex, RwLock, Semaphore};
 use tracing::{debug, error, info, warn};
 
 /// 进程池配置
@@ -146,7 +146,7 @@ impl ManagedProcess {
     fn is_expired(&self, config: &ProcessPoolConfig) -> bool {
         let age = self.info.created_at.elapsed();
         let idle_time = self.info.last_activity.elapsed();
-        
+
         age > config.max_lifetime
             || (self.info.state == ProcessState::Idle && idle_time > config.idle_timeout)
             || self.info.tasks_executed >= config.max_tasks_per_process
@@ -155,7 +155,10 @@ impl ManagedProcess {
     fn should_restart(&self, config: &ProcessPoolConfig) -> bool {
         config.auto_restart
             && self.info.restart_count < config.max_restart_attempts
-            && matches!(self.info.state, ProcessState::Error { .. } | ProcessState::Stopped)
+            && matches!(
+                self.info.state,
+                ProcessState::Error { .. } | ProcessState::Stopped
+            )
     }
 }
 
@@ -229,15 +232,16 @@ impl PluginProcessPool {
     /// 启动进程池（预创建空闲进程）
     pub async fn start(&self) -> Result<()> {
         info!("启动插件进程池，最小空闲进程数: {}", self.config.min_idle);
-        
+
         for i in 0..self.config.min_idle {
             let process_name = format!("worker-{}", i);
-            self.spawn_process(&process_name, vec!["placeholder".to_string()]).await?;
+            self.spawn_process(&process_name, vec!["placeholder".to_string()])
+                .await?;
         }
-        
+
         self.start_health_check_task().await;
         self.start_cleanup_task().await;
-        
+
         info!("插件进程池启动完成");
         Ok(())
     }
@@ -249,32 +253,35 @@ impl PluginProcessPool {
         }
 
         info!("衍生新进程: {}", name);
-        
+
         let mut process = ManagedProcess::new(name.to_string(), command.clone());
-        
+
         if !command.is_empty() && command[0] != "placeholder" {
             let mut cmd = Command::new(&command[0]);
             if command.len() > 1 {
                 cmd.args(&command[1..]);
             }
-            
-            let child = cmd.spawn().map_err(|e| {
-                WorkflowError::execution(format!("启动进程失败: {}", e))
-            })?;
-            
+
+            let child = cmd
+                .spawn()
+                .map_err(|e| WorkflowError::execution(format!("启动进程失败: {}", e)))?;
+
             process.info.pid = child.id();
             process.child = Some(child);
         }
-        
+
         process.info.state = ProcessState::Idle;
         process.info.created_at = Instant::now();
         process.info.last_activity = Instant::now();
-        
+
         let process_arc = Arc::new(Mutex::new(process));
-        
-        self.processes.write().await.insert(name.to_string(), process_arc);
+
+        self.processes
+            .write()
+            .await
+            .insert(name.to_string(), process_arc);
         self.idle_queue.lock().await.push(name.to_string());
-        
+
         debug!("进程 {} 衍生完成", name);
         Ok(())
     }
@@ -285,22 +292,27 @@ impl PluginProcessPool {
             return Err(WorkflowError::execution("进程池正在关闭"));
         }
 
-        let _permit = self.semaphore.acquire().await
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
             .map_err(|_| WorkflowError::ResourceExhausted)?;
-        
+
         let process_name = self.get_idle_process().await?;
-        
+
         {
             let processes = self.processes.read().await;
             if let Some(process) = processes.get(&process_name) {
                 let mut p = process.lock().await;
-                p.info.state = ProcessState::Busy { task_id: uuid::Uuid::new_v4().to_string() };
+                p.info.state = ProcessState::Busy {
+                    task_id: uuid::Uuid::new_v4().to_string(),
+                };
                 p.info.last_activity = Instant::now();
             }
         }
-        
+
         self.stats.total_tasks.fetch_add(1, Ordering::Relaxed);
-        
+
         Ok(ProcessGuard {
             pool: self,
             process_name,
@@ -311,7 +323,7 @@ impl PluginProcessPool {
     /// 获取空闲进程
     async fn get_idle_process(&self) -> Result<String> {
         let mut idle_queue = self.idle_queue.lock().await;
-        
+
         while let Some(name) = idle_queue.pop() {
             let processes = self.processes.read().await;
             if let Some(process) = processes.get(&name) {
@@ -321,19 +333,20 @@ impl PluginProcessPool {
                 }
             }
         }
-        
+
         drop(idle_queue);
-        
+
         let processes = self.processes.read().await;
         let current_count = processes.len();
         drop(processes);
-        
+
         if current_count < self.config.max_processes {
             let name = format!("worker-{}", uuid::Uuid::new_v4());
-            self.spawn_process(&name, vec!["placeholder".to_string()]).await?;
+            self.spawn_process(&name, vec!["placeholder".to_string()])
+                .await?;
             return Ok(name);
         }
-        
+
         Err(WorkflowError::ResourceExhausted)
     }
 
@@ -345,7 +358,7 @@ impl PluginProcessPool {
             p.info.state = ProcessState::Idle;
             p.info.last_activity = Instant::now();
             p.info.tasks_executed += 1;
-            
+
             if !p.is_expired(&self.config) {
                 drop(p);
                 self.idle_queue.lock().await.push(name.to_string());
@@ -356,37 +369,37 @@ impl PluginProcessPool {
     /// 停止进程
     async fn stop_process(&self, name: &str) -> Result<()> {
         info!("停止进程: {}", name);
-        
+
         let process_arc = {
             let mut processes = self.processes.write().await;
             processes.remove(name)
         };
-        
+
         if let Some(process) = process_arc {
             let mut p = process.lock().await;
             p.info.state = ProcessState::Stopping;
-            
+
             if let Some(mut child) = p.child.take() {
                 if let Err(e) = child.kill().await {
                     warn!("终止进程 {} 失败: {}", name, e);
                 }
             }
-            
+
             p.info.state = ProcessState::Stopped;
             debug!("进程 {} 已停止", name);
         }
-        
+
         Ok(())
     }
 
     /// 重启进程
     async fn restart_process(&self, name: &str) -> Result<()> {
         info!("重启进程: {}", name);
-        
+
         self.stop_process(name).await?;
-        
+
         tokio::time::sleep(self.config.restart_delay).await;
-        
+
         let processes = self.processes.read().await;
         if let Some(process) = processes.get(name) {
             let mut p = process.lock().await;
@@ -395,9 +408,9 @@ impl PluginProcessPool {
             p.info.created_at = Instant::now();
             p.info.last_activity = Instant::now();
         }
-        
+
         self.stats.total_restarts.fetch_add(1, Ordering::Relaxed);
-        
+
         Ok(())
     }
 
@@ -408,26 +421,29 @@ impl PluginProcessPool {
         let memory_limit = self.config.memory_limit;
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_clone = shutdown.clone();
-        
+
         tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(interval);
-            
+
             while !shutdown_clone.load(Ordering::Relaxed) {
                 interval_timer.tick().await;
-                
+
                 let procs = processes.read().await;
                 for (name, process) in procs.iter() {
                     let p = process.lock().await;
-                    
+
                     if let ProcessState::Busy { task_id: _ } = &p.info.state {
                         let elapsed = p.info.last_activity.elapsed();
                         if elapsed > Duration::from_secs(600) {
                             warn!("进程 {} 执行超时: {:?}", name, elapsed);
                         }
                     }
-                    
+
                     if p.info.resource_usage.memory_bytes > memory_limit.unwrap_or(u64::MAX) {
-                        warn!("进程 {} 内存超限: {} bytes", name, p.info.resource_usage.memory_bytes);
+                        warn!(
+                            "进程 {} 内存超限: {} bytes",
+                            name, p.info.resource_usage.memory_bytes
+                        );
                     }
                 }
             }
@@ -442,16 +458,16 @@ impl PluginProcessPool {
         let max_lifetime = self.config.max_lifetime;
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_clone = shutdown.clone();
-        
+
         tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(Duration::from_secs(30));
-            
+
             while !shutdown_clone.load(Ordering::Relaxed) {
                 interval_timer.tick().await;
-                
+
                 let procs = processes.read().await;
                 let mut to_remove = Vec::new();
-                
+
                 for (name, process) in procs.iter() {
                     let p = process.lock().await;
                     let is_expired = p.info.created_at.elapsed() > max_lifetime
@@ -461,14 +477,14 @@ impl PluginProcessPool {
                         to_remove.push(name.clone());
                     }
                 }
-                
+
                 drop(procs);
-                
+
                 for name in to_remove {
                     let mut queue = idle_queue.lock().await;
                     queue.retain(|n| n != &name);
                     drop(queue);
-                    
+
                     let mut procs = processes.write().await;
                     procs.remove(&name);
                     debug!("清理过期进程: {}", name);
@@ -481,20 +497,20 @@ impl PluginProcessPool {
     pub async fn shutdown(&self) -> Result<()> {
         info!("关闭插件进程池");
         self.shutdown.store(true, Ordering::Relaxed);
-        
+
         let processes = self.processes.read().await;
         let names: Vec<String> = processes.keys().cloned().collect();
         drop(processes);
-        
+
         for name in names {
             if let Err(e) = self.stop_process(&name).await {
                 error!("停止进程 {} 失败: {}", name, e);
             }
         }
-        
+
         self.processes.write().await.clear();
         self.idle_queue.lock().await.clear();
-        
+
         info!("插件进程池已关闭");
         Ok(())
     }
@@ -502,11 +518,11 @@ impl PluginProcessPool {
     /// 获取统计信息
     pub async fn stats(&self) -> PoolStats {
         let processes = self.processes.read().await;
-        
+
         let mut idle = 0;
         let mut busy = 0;
         let mut error = 0;
-        
+
         for process in processes.values() {
             let p = process.lock().await;
             match &p.info.state {
@@ -516,7 +532,7 @@ impl PluginProcessPool {
                 _ => {}
             }
         }
-        
+
         PoolStats {
             total_processes: processes.len(),
             idle_processes: idle,
@@ -589,10 +605,10 @@ mod tests {
     async fn test_pool_stats() {
         let pool = PluginProcessPool::with_defaults();
         pool.start().await.unwrap();
-        
+
         let stats = pool.stats().await;
         assert!(stats.total_processes > 0);
-        
+
         pool.shutdown().await.unwrap();
     }
 
@@ -600,8 +616,10 @@ mod tests {
     fn test_process_state() {
         let state = ProcessState::Idle;
         assert_eq!(state, ProcessState::Idle);
-        
-        let busy = ProcessState::Busy { task_id: "test".to_string() };
+
+        let busy = ProcessState::Busy {
+            task_id: "test".to_string(),
+        };
         assert!(matches!(busy, ProcessState::Busy { .. }));
     }
 

@@ -5,13 +5,13 @@ pub mod model;
 pub mod port;
 pub mod service;
 
-pub use port::*;
 pub use event::{
-    DomainEvent, DomainEventBus, DomainEventTrait, EventBusConfig, EventBusStats,
-    EventId, EventMetadata, EventStore, EventSubscriber, InMemoryEventStore, SubscriptionId,
+    DomainEvent, DomainEventBus, DomainEventTrait, EventBusConfig, EventBusStats, EventId,
+    EventMetadata, EventStore, EventSubscriber, InMemoryEventStore, SubscriptionId,
 };
+pub use port::*;
 pub use service::{
-    DomainWorkflowValidator, DomainValidationResult, ExecutionStateCalculator, ExecutionStateResult,
-    NodeStateStats, ProgressDetails, ValidationError, ValidationRule,
+    DomainValidationResult, DomainWorkflowValidator, ExecutionStateCalculator,
+    ExecutionStateResult, NodeStateStats, ProgressDetails, ValidationError, ValidationRule,
     ValidationWarning,
 };

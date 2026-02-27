@@ -22,7 +22,10 @@ pub enum RuntimeState {
     /// Runtime is ready and idle
     Ready,
     /// Runtime is currently executing a task
-    Running { task_id: String, started_at: Instant },
+    Running {
+        task_id: String,
+        started_at: Instant,
+    },
     /// Runtime encountered an error
     Error { message: String, recoverable: bool },
     /// Runtime is being shut down
@@ -147,29 +150,22 @@ impl RuntimeManager {
     /// - For Python: Creates virtual environment if needed
     /// - For Node.js: Installs dependencies if needed
     /// - For Docker: Pulls image and creates container
-    pub async fn create_runtime(
-        &self,
-        plugin_name: &str,
-        plugin_type: PluginType,
-    ) -> Result<()> {
+    pub async fn create_runtime(&self, plugin_name: &str, plugin_type: PluginType) -> Result<()> {
         // For now, just delegate to sync version
         // In the future, this will do actual async setup (venv creation, docker pull, etc.)
         self.create_runtime_sync(plugin_name, plugin_type)
     }
 
     /// Create a runtime environment for a plugin (sync version for backward compatibility)
-    pub fn create_runtime_sync(
-        &self,
-        plugin_name: &str,
-        _plugin_type: PluginType,
-    ) -> Result<()> {
+    pub fn create_runtime_sync(&self, plugin_name: &str, _plugin_type: PluginType) -> Result<()> {
         info!("Creating runtime pool for plugin '{}'", plugin_name);
 
-        let mut pools = self.pools.lock().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let mut pools = self
+            .pools
+            .lock()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to lock runtime pools".to_string(),
-            }
-        })?;
+            })?;
 
         // Check if pool already exists
         if pools.contains_key(plugin_name) {
@@ -190,9 +186,9 @@ impl RuntimeManager {
 
         // Start health check task if not already running
         drop(pools); // Release lock before async operation
-        // Note: We can't .await in a sync function or spawn tasks that borrow self
-        // The health check task should be started by the async version (create_runtime)
-        // This sync version just creates the pool infrastructure
+                     // Note: We can't .await in a sync function or spawn tasks that borrow self
+                     // The health check task should be started by the async version (create_runtime)
+                     // This sync version just creates the pool infrastructure
 
         Ok(())
     }
@@ -206,12 +202,17 @@ impl RuntimeManager {
     }
 
     /// Internal method with retry limit to avoid infinite recursion
-    async fn acquire_runtime_internal(&self, plugin_name: &str, retry_count: usize) -> Result<RuntimeHandle> {
-        let pools = self.pools.lock().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+    async fn acquire_runtime_internal(
+        &self,
+        plugin_name: &str,
+        retry_count: usize,
+    ) -> Result<RuntimeHandle> {
+        let pools = self
+            .pools
+            .lock()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to lock runtime pools".to_string(),
-            }
-        })?;
+            })?;
 
         let pool = pools.get(plugin_name).ok_or_else(|| {
             WorkflowError::ValidationError(format!(
@@ -236,7 +237,7 @@ impl RuntimeManager {
             // Create new runtime
             drop(pools); // Release lock
             self.spawn_runtime(plugin_name).await?;
-            
+
             // Try again with incremented retry count (avoiding recursion)
             Box::pin(self.acquire_runtime_internal(plugin_name, retry_count + 1)).await
         } else {
@@ -246,11 +247,12 @@ impl RuntimeManager {
 
     /// Spawn a new runtime for a plugin
     async fn spawn_runtime(&self, plugin_name: &str) -> Result<()> {
-        let mut pools = self.pools.lock().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let mut pools = self
+            .pools
+            .lock()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to lock runtime pools".to_string(),
-            }
-        })?;
+            })?;
 
         let pool = pools.get_mut(plugin_name).ok_or_else(|| {
             WorkflowError::ValidationError(format!(
@@ -286,11 +288,12 @@ impl RuntimeManager {
     pub async fn cleanup_runtime(&self, plugin_name: &str) -> Result<()> {
         info!("Cleaning up runtime for plugin '{}'", plugin_name);
 
-        let mut pools = self.pools.lock().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let mut pools = self
+            .pools
+            .lock()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to lock runtime pools".to_string(),
-            }
-        })?;
+            })?;
 
         if let Some(pool) = pools.remove(plugin_name) {
             // Shutdown all runtimes in the pool
@@ -340,10 +343,10 @@ impl RuntimeManager {
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::perform_health_checks(&pools).await {
                     error!("Health check error: {}", e);
                 }
@@ -357,13 +360,9 @@ impl RuntimeManager {
 
     /// Perform health checks on all runtimes (reserved for future use)
     #[allow(dead_code)]
-    async fn perform_health_checks(
-        pools: &Arc<Mutex<HashMap<String, RuntimePool>>>,
-    ) -> Result<()> {
-        let mut pools = pools.lock().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
-                message: "Failed to lock runtime pools".to_string(),
-            }
+    async fn perform_health_checks(pools: &Arc<Mutex<HashMap<String, RuntimePool>>>) -> Result<()> {
+        let mut pools = pools.lock().map_err(|_| WorkflowError::ConcurrentAccess {
+            message: "Failed to lock runtime pools".to_string(),
         })?;
 
         for (plugin_name, pool) in pools.iter_mut() {
@@ -374,8 +373,7 @@ impl RuntimeManager {
                     if elapsed > Duration::from_secs(300) {
                         warn!(
                             "Runtime for plugin '{}' has been running for {:?}, may be stuck",
-                            plugin_name,
-                            elapsed
+                            plugin_name, elapsed
                         );
                     }
                 }
@@ -384,8 +382,7 @@ impl RuntimeManager {
                 if runtime.stats.memory_bytes > pool.config.max_memory_per_runtime {
                     warn!(
                         "Runtime for plugin '{}' exceeded memory limit: {} bytes",
-                        plugin_name,
-                        runtime.stats.memory_bytes
+                        plugin_name, runtime.stats.memory_bytes
                     );
                 }
             }
@@ -396,11 +393,12 @@ impl RuntimeManager {
 
     /// Get runtime statistics for a plugin
     pub fn get_runtime_stats(&self, plugin_name: &str) -> Result<Option<RuntimeStats>> {
-        let pools = self.pools.lock().map_err(|_| {
-            WorkflowError::ConcurrentAccess {
+        let pools = self
+            .pools
+            .lock()
+            .map_err(|_| WorkflowError::ConcurrentAccess {
                 message: "Failed to lock runtime pools".to_string(),
-            }
-        })?;
+            })?;
 
         Ok(pools.get(plugin_name).map(|pool| RuntimeStats {
             total_runtimes: pool.runtimes.len(),

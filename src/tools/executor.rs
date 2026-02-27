@@ -5,9 +5,8 @@
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
 use crate::tools::{
-    ExecutionResult, ExecutorFactory, ExecutorType, ExternalExecutor,
-    Middleware, MiddlewareStack, MiddlewareStackBuilder,
-    Tool, ToolInput, ToolOutput, ToolRegistry,
+    ExecutionResult, ExecutorFactory, ExecutorType, ExternalExecutor, Middleware, MiddlewareStack,
+    MiddlewareStackBuilder, Tool, ToolInput, ToolOutput, ToolRegistry,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -88,40 +87,40 @@ impl ToolExecutor {
 
     /// 添加中间件
     pub fn with_middleware<M: Middleware + 'static>(mut self, middleware: M) -> Self {
-        self.middleware_stack = MiddlewareStackBuilder::new()
-            .with_boxed(middleware)
-            .build();
+        self.middleware_stack = MiddlewareStackBuilder::new().with_boxed(middleware).build();
         self
     }
 
     /// 构建中间件栈
     pub fn build_middleware_stack(mut self) -> Self {
         let mut builder = MiddlewareStackBuilder::new();
-        
+
         if self.config.enable_metrics {
             builder = builder.with_boxed(crate::tools::MetricsMiddleware::new());
         }
-        
+
         if self.config.enable_circuit_breaker {
             builder = builder.with_boxed(crate::tools::CircuitBreakerMiddleware::new(
                 self.config.circuit_breaker_threshold,
                 Duration::from_secs(60),
             ));
         }
-        
+
         builder = builder
-            .with_boxed(crate::tools::TimeoutMiddleware::new(self.config.default_timeout))
-            .with_boxed(crate::tools::RetryMiddleware::new(self.config.max_retries)
-                .with_delay(self.config.retry_delay));
-        
+            .with_boxed(crate::tools::TimeoutMiddleware::new(
+                self.config.default_timeout,
+            ))
+            .with_boxed(
+                crate::tools::RetryMiddleware::new(self.config.max_retries)
+                    .with_delay(self.config.retry_delay),
+            );
+
         if self.config.enable_cache {
-            builder = builder.with_boxed(crate::tools::CacheMiddleware::new(
-                self.config.cache_ttl,
-            ));
+            builder = builder.with_boxed(crate::tools::CacheMiddleware::new(self.config.cache_ttl));
         }
-        
+
         builder = builder.with_boxed(crate::tools::LoggingMiddleware::new());
-        
+
         self.middleware_stack = builder.build();
         self
     }
@@ -133,10 +132,11 @@ impl ToolExecutor {
         input: ToolInput,
         ctx: ExecutionContext,
     ) -> Result<ToolOutput> {
-        let tool = self.registry
+        let tool = self
+            .registry
             .get(tool_name)
             .ok_or_else(|| WorkflowError::tool_not_found(tool_name))?;
-        
+
         self.execute_tool(tool, input, ctx).await
     }
 
@@ -147,11 +147,8 @@ impl ToolExecutor {
         input: ToolInput,
         ctx: ExecutionContext,
     ) -> Result<ToolOutput> {
-        let metadata = crate::tools::ExecutionMetadata::new(
-            &tool.name(),
-            "1.0.0",
-        );
-        
+        let metadata = crate::tools::ExecutionMetadata::new(&tool.name(), "1.0.0");
+
         self.middleware_stack.execute(input, metadata, &tool).await
     }
 
@@ -169,14 +166,17 @@ impl ToolExecutor {
     }
 
     /// 获取或创建外部执行器
-    fn get_or_create_executor(&self, executor_type: ExecutorType) -> Result<Arc<dyn ExternalExecutor>> {
+    fn get_or_create_executor(
+        &self,
+        executor_type: ExecutorType,
+    ) -> Result<Arc<dyn ExternalExecutor>> {
         {
             let executors = self.external_executors.read().unwrap();
             if let Some(executor) = executors.get(&executor_type) {
                 return Ok(Arc::clone(executor));
             }
         }
-        
+
         let executor: Arc<dyn ExternalExecutor> = match executor_type {
             ExecutorType::Python => Arc::new(crate::tools::PythonExecutor::new(
                 crate::tools::ExternalExecutorConfig::default(),
@@ -188,12 +188,12 @@ impl ToolExecutor {
                 crate::tools::ExternalExecutorConfig::default(),
             )),
         };
-        
+
         {
             let mut executors = self.external_executors.write().unwrap();
             executors.insert(executor_type, Arc::clone(&executor));
         }
-        
+
         Ok(executor)
     }
 
@@ -206,7 +206,7 @@ impl ToolExecutor {
             .into_iter()
             .map(|(name, input, ctx)| self.execute(name, input, ctx))
             .collect();
-        
+
         futures::future::join_all(futures).await
     }
 
@@ -220,22 +220,19 @@ impl ToolExecutor {
             .map(|(name, input, _ctx)| {
                 let registry = self.registry.clone();
                 let middleware = self.middleware_stack.clone();
-                
+
                 async move {
                     let tool = registry
                         .get(name)
                         .ok_or_else(|| WorkflowError::tool_not_found(name))?;
-                    
-                    let metadata = crate::tools::ExecutionMetadata::new(
-                        &tool.name(),
-                        "1.0.0",
-                    );
-                    
+
+                    let metadata = crate::tools::ExecutionMetadata::new(&tool.name(), "1.0.0");
+
                     middleware.execute(input, metadata, &tool).await
                 }
             })
             .collect();
-        
+
         futures::future::join_all(futures).await
     }
 
@@ -287,11 +284,11 @@ impl ToolExecutorBuilder {
     /// 构建执行器
     pub fn build(self) -> ToolExecutor {
         let mut builder = MiddlewareStackBuilder::new();
-        
+
         for middleware in self.middlewares {
             builder = builder.with(middleware);
         }
-        
+
         ToolExecutor {
             registry: self.registry,
             middleware_stack: builder.build(),
@@ -318,7 +315,7 @@ mod tests {
     fn test_executor_creation() {
         let registry = Arc::new(ToolRegistry::new());
         let executor = ToolExecutor::new(registry);
-        
+
         assert!(executor.list_tools().is_empty());
     }
 
@@ -328,7 +325,7 @@ mod tests {
         let executor = ToolExecutorBuilder::new(registry)
             .with_config(ToolExecutorConfig::default())
             .build();
-        
+
         assert!(executor.list_tools().is_empty());
     }
 }

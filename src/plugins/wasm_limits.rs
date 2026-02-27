@@ -3,7 +3,7 @@
 //! 提供内存、CPU、执行时间等资源限制机制
 
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, warn};
@@ -74,9 +74,9 @@ impl WasmResourceLimits {
     /// 创建严格限制配置
     pub fn strict() -> Self {
         Self {
-            max_memory: 16 * 1024 * 1024,      // 16MB
-            max_heap_memory: 8 * 1024 * 1024,  // 8MB
-            max_stack_size: 256 * 1024,        // 256KB
+            max_memory: 16 * 1024 * 1024,     // 16MB
+            max_heap_memory: 8 * 1024 * 1024, // 8MB
+            max_stack_size: 256 * 1024,       // 256KB
             max_table_size: 1000,
             max_execution_time: Duration::from_secs(10),
             max_fuel: Some(100_000_000),
@@ -91,9 +91,9 @@ impl WasmResourceLimits {
     /// 创建高性能配置
     pub fn high_performance() -> Self {
         Self {
-            max_memory: 256 * 1024 * 1024,     // 256MB
+            max_memory: 256 * 1024 * 1024,      // 256MB
             max_heap_memory: 128 * 1024 * 1024, // 128MB
-            max_stack_size: 4 * 1024 * 1024,   // 4MB
+            max_stack_size: 4 * 1024 * 1024,    // 4MB
             max_table_size: 100000,
             max_execution_time: Duration::from_secs(300),
             max_fuel: Some(10_000_000_000),
@@ -168,19 +168,19 @@ pub struct ResourceUsageSnapshot {
 pub enum ResourceLimitError {
     #[error("内存使用超出限制: 已使用 {used} 字节，限制 {limit} 字节")]
     MemoryExceeded { used: u64, limit: u64 },
-    
+
     #[error("执行时间超出限制: 已执行 {used} 毫秒，限制 {limit} 毫秒")]
     ExecutionTimeExceeded { used: u64, limit: u64 },
-    
+
     #[error("燃料耗尽: 已使用 {used}，限制 {limit}")]
     FuelExhausted { used: u64, limit: u64 },
-    
+
     #[error("打开文件数超出限制: 已打开 {used}，限制 {limit}")]
     OpenFilesExceeded { used: u32, limit: u32 },
-    
+
     #[error("网络连接数超出限制: 已建立 {used}，限制 {limit}")]
     NetworkConnectionsExceeded { used: u32, limit: u32 },
-    
+
     #[error("输出大小超出限制: 已输出 {used} 字节，限制 {limit} 字节")]
     OutputSizeExceeded { used: u64, limit: u64 },
 }
@@ -223,7 +223,9 @@ impl ResourceLimiter {
     pub fn end_execution(&mut self) {
         if let Some(start) = self.start_time {
             let elapsed = start.elapsed().as_millis() as u64;
-            self.usage.execution_time_ms.store(elapsed, Ordering::SeqCst);
+            self.usage
+                .execution_time_ms
+                .store(elapsed, Ordering::SeqCst);
             debug!("WASM 执行结束，耗时: {}ms", elapsed);
         }
         self.start_time = None;
@@ -233,7 +235,7 @@ impl ResourceLimiter {
     pub fn check_memory(&self, requested: u64) -> Result<(), ResourceLimitError> {
         let current = self.usage.memory_used.load(Ordering::SeqCst);
         let new_total = current.saturating_add(requested);
-        
+
         if new_total > self.limits.max_memory {
             warn!("内存限制超出: {} > {}", new_total, self.limits.max_memory);
             return Err(ResourceLimitError::MemoryExceeded {
@@ -241,7 +243,7 @@ impl ResourceLimiter {
                 limit: self.limits.max_memory,
             });
         }
-        
+
         self.usage.memory_used.store(new_total, Ordering::SeqCst);
         Ok(())
     }
@@ -250,7 +252,7 @@ impl ResourceLimiter {
     pub fn check_execution_time(&self) -> Result<(), ResourceLimitError> {
         if let Some(start) = self.start_time {
             let elapsed_ms = start.elapsed().as_millis() as u64;
-            
+
             if elapsed_ms > self.limits.max_execution_time.as_millis() as u64 {
                 warn!("执行时间超出限制: {}ms", elapsed_ms);
                 return Err(ResourceLimitError::ExecutionTimeExceeded {
@@ -267,7 +269,7 @@ impl ResourceLimiter {
         if let Some(max_fuel) = self.limits.max_fuel {
             let current = self.usage.fuel_used.load(Ordering::SeqCst);
             let new_total = current.saturating_add(consumed);
-            
+
             if new_total > max_fuel {
                 warn!("燃料耗尽: {} > {}", new_total, max_fuel);
                 return Err(ResourceLimitError::FuelExhausted {
@@ -275,7 +277,7 @@ impl ResourceLimiter {
                     limit: max_fuel,
                 });
             }
-            
+
             self.usage.fuel_used.store(new_total, Ordering::SeqCst);
         }
         Ok(())
@@ -284,7 +286,7 @@ impl ResourceLimiter {
     /// 检查文件打开
     pub fn check_open_file(&self) -> Result<(), ResourceLimitError> {
         let current = self.usage.open_files.load(Ordering::SeqCst);
-        
+
         if current >= self.limits.max_open_files {
             warn!("打开文件数超出限制: {}", current);
             return Err(ResourceLimitError::OpenFilesExceeded {
@@ -292,7 +294,7 @@ impl ResourceLimiter {
                 limit: self.limits.max_open_files,
             });
         }
-        
+
         self.usage.open_files.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -305,7 +307,7 @@ impl ResourceLimiter {
     /// 检查网络连接
     pub fn check_network_connection(&self) -> Result<(), ResourceLimitError> {
         let current = self.usage.network_connections.load(Ordering::SeqCst);
-        
+
         if current >= self.limits.max_network_connections {
             warn!("网络连接数超出限制: {}", current);
             return Err(ResourceLimitError::NetworkConnectionsExceeded {
@@ -313,20 +315,27 @@ impl ResourceLimiter {
                 limit: self.limits.max_network_connections,
             });
         }
-        
-        self.usage.network_connections.fetch_add(1, Ordering::SeqCst);
+
+        self.usage
+            .network_connections
+            .fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 
     /// 释放网络连接
     pub fn release_network_connection(&self) {
-        self.usage.network_connections.fetch_sub(1, Ordering::SeqCst);
+        self.usage
+            .network_connections
+            .fetch_sub(1, Ordering::SeqCst);
     }
 
     /// 检查输出大小
     pub fn check_output_size(&self, size: u64) -> Result<(), ResourceLimitError> {
         if size > self.limits.max_output_size {
-            warn!("输出大小超出限制: {} > {}", size, self.limits.max_output_size);
+            warn!(
+                "输出大小超出限制: {} > {}",
+                size, self.limits.max_output_size
+            );
             return Err(ResourceLimitError::OutputSizeExceeded {
                 used: size,
                 limit: self.limits.max_output_size,
@@ -344,7 +353,8 @@ impl ResourceLimiter {
             usage: snapshot,
             utilization: ResourceUtilization {
                 memory_percent: if self.limits.max_memory > 0 {
-                    (snapshot_for_utilization.memory_used as f64 / self.limits.max_memory as f64) * 100.0
+                    (snapshot_for_utilization.memory_used as f64 / self.limits.max_memory as f64)
+                        * 100.0
                 } else {
                     0.0
                 },
@@ -358,7 +368,9 @@ impl ResourceLimiter {
                     0.0
                 },
                 time_percent: if self.limits.max_execution_time.as_millis() > 0 {
-                    (snapshot_for_utilization.execution_time_ms as f64 / self.limits.max_execution_time.as_millis() as f64) * 100.0
+                    (snapshot_for_utilization.execution_time_ms as f64
+                        / self.limits.max_execution_time.as_millis() as f64)
+                        * 100.0
                 } else {
                     0.0
                 },
@@ -492,7 +504,7 @@ mod tests {
     #[test]
     fn test_resource_limiter_fuel() {
         let limiter = ResourceLimiter::new(WasmResourceLimits::strict());
-        
+
         assert!(limiter.check_fuel(50_000_000).is_ok());
         assert!(limiter.check_fuel(100_000_000).is_err());
     }
@@ -513,7 +525,7 @@ mod tests {
         let mut limiter = ResourceLimiter::new(WasmResourceLimits::default());
         limiter.start_execution();
         limiter.check_memory(1024 * 1024).unwrap();
-        
+
         let report = limiter.report();
         assert!(report.usage.memory_used > 0);
         assert!(report.utilization.memory_percent > 0.0);

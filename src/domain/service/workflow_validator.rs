@@ -2,8 +2,8 @@
 //!
 //! 提供工作流定义的业务规则验证
 
-use crate::workflow::definition::WorkflowDefinition;
 use crate::error::Result;
+use crate::workflow::definition::WorkflowDefinition;
 use std::collections::{HashMap, HashSet};
 
 /// 验证规则
@@ -201,7 +201,11 @@ impl DomainWorkflowValidator {
     }
 
     /// 验证基本结构
-    fn validate_basic_structure(&self, workflow: &WorkflowDefinition, result: &mut DomainValidationResult) {
+    fn validate_basic_structure(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut DomainValidationResult,
+    ) {
         if workflow.name.is_empty() {
             result.add_error(ValidationError::new("EMPTY_NAME", "工作流名称不能为空"));
         }
@@ -228,7 +232,11 @@ impl DomainWorkflowValidator {
     }
 
     /// 验证节点
-    fn validate_nodes(&self, workflow: &WorkflowDefinition, result: &mut DomainValidationResult) -> Result<()> {
+    fn validate_nodes(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut DomainValidationResult,
+    ) -> Result<()> {
         let mut node_ids = HashSet::new();
 
         for node in &workflow.nodes {
@@ -252,11 +260,17 @@ impl DomainWorkflowValidator {
     }
 
     /// 验证节点类型
-    fn validate_node_type(&self, node: &crate::workflow::definition::WorkflowNode, result: &mut DomainValidationResult) -> Result<()> {
+    fn validate_node_type(
+        &self,
+        node: &crate::workflow::definition::WorkflowNode,
+        result: &mut DomainValidationResult,
+    ) -> Result<()> {
         match node.node_type {
             crate::workflow::NodeType::Tool => {
                 if self.is_rule_enabled(&ValidationRule::ToolNodeHasToolName) {
-                    if node.tool_name.is_none() || node.tool_name.as_ref().map_or(true, |s| s.is_empty()) {
+                    if node.tool_name.is_none()
+                        || node.tool_name.as_ref().map_or(true, |s| s.is_empty())
+                    {
                         result.add_error(
                             ValidationError::new("MISSING_TOOL_NAME", "工具节点缺少工具名称")
                                 .with_node(&node.id)
@@ -310,7 +324,11 @@ impl DomainWorkflowValidator {
     }
 
     /// 验证边
-    fn validate_edges(&self, workflow: &WorkflowDefinition, result: &mut DomainValidationResult) -> Result<()> {
+    fn validate_edges(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut DomainValidationResult,
+    ) -> Result<()> {
         let node_ids: HashSet<_> = workflow.nodes.iter().map(|n| n.id.clone()).collect();
 
         if self.is_rule_enabled(&ValidationRule::EdgesReferenceValidNodes) {
@@ -341,7 +359,11 @@ impl DomainWorkflowValidator {
     }
 
     /// 验证 DAG 结构
-    fn validate_dag(&self, workflow: &WorkflowDefinition, result: &mut DomainValidationResult) -> Result<()> {
+    fn validate_dag(
+        &self,
+        workflow: &WorkflowDefinition,
+        result: &mut DomainValidationResult,
+    ) -> Result<()> {
         if self.is_rule_enabled(&ValidationRule::NoCyclicDependencies) {
             if self.has_cycle(workflow) {
                 result.add_error(ValidationError::new(
@@ -433,19 +455,13 @@ impl DomainWorkflowValidator {
     /// 检查是否有起始节点
     fn has_start_node(&self, workflow: &WorkflowDefinition) -> bool {
         let target_nodes: HashSet<_> = workflow.edges.iter().map(|e| e.to.clone()).collect();
-        workflow
-            .nodes
-            .iter()
-            .any(|n| !target_nodes.contains(&n.id))
+        workflow.nodes.iter().any(|n| !target_nodes.contains(&n.id))
     }
 
     /// 检查是否有终止节点
     fn has_end_node(&self, workflow: &WorkflowDefinition) -> bool {
         let source_nodes: HashSet<_> = workflow.edges.iter().map(|e| e.from.clone()).collect();
-        workflow
-            .nodes
-            .iter()
-            .any(|n| !source_nodes.contains(&n.id))
+        workflow.nodes.iter().any(|n| !source_nodes.contains(&n.id))
     }
 }
 

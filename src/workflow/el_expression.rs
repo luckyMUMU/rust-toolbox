@@ -229,9 +229,11 @@ impl ExpressionEngine {
 
         // Try to parse as conditional expression (but avoid recursion on simple expressions)
         // Check if it looks like a comparison or logical expression
-        let is_comparison = ["==", "!=", "<", ">", "<=", ">="].iter().any(|op| trimmed.contains(op));
+        let is_comparison = ["==", "!=", "<", ">", "<=", ">="]
+            .iter()
+            .any(|op| trimmed.contains(op));
         let is_logical = trimmed.contains("&&") || trimmed.contains("||");
-        
+
         if (is_comparison || is_logical) && trimmed.len() > 3 {
             // Use a simple check to avoid infinite recursion
             // Only try condition evaluation if we haven't already
@@ -280,14 +282,21 @@ impl ExpressionEngine {
         None
     }
 
-    fn parse_and_evaluate_arithmetic(&self, expr: &str, context: &ExpressionContext) -> Result<Value> {
+    fn parse_and_evaluate_arithmetic(
+        &self,
+        expr: &str,
+        context: &ExpressionContext,
+    ) -> Result<Value> {
         // Simple arithmetic parser for expressions like "a + b", "a - b", "a * b", "a / b"
         let tokens = self.tokenize(expr)?;
         self.evaluate_arithmetic_tokens(&tokens, context)
     }
 
-
-    fn parse_and_evaluate_condition_bool(&self, expr: &str, context: &ExpressionContext) -> Result<bool> {
+    fn parse_and_evaluate_condition_bool(
+        &self,
+        expr: &str,
+        context: &ExpressionContext,
+    ) -> Result<bool> {
         // Handle logical operators: &&, ||
         if let Some(pos) = self.find_logical_operator(expr, "&&") {
             let left = &expr[..pos];
@@ -464,7 +473,11 @@ impl ExpressionEngine {
         Ok(tokens)
     }
 
-    fn evaluate_arithmetic_tokens(&self, tokens: &[Token], context: &ExpressionContext) -> Result<Value> {
+    fn evaluate_arithmetic_tokens(
+        &self,
+        tokens: &[Token],
+        context: &ExpressionContext,
+    ) -> Result<Value> {
         // Simple recursive descent parser for arithmetic expressions
         // This is a basic implementation - could be enhanced with proper precedence
         if tokens.is_empty() {
@@ -498,7 +511,11 @@ impl ExpressionEngine {
         self.evaluate_binary_expression(tokens, context)
     }
 
-    fn evaluate_binary_expression(&self, tokens: &[Token], context: &ExpressionContext) -> Result<Value> {
+    fn evaluate_binary_expression(
+        &self,
+        tokens: &[Token],
+        context: &ExpressionContext,
+    ) -> Result<Value> {
         // Look for + or - first (lower precedence)
         for (i, token) in tokens.iter().enumerate() {
             if matches!(token, Token::Plus | Token::Minus) {
@@ -624,7 +641,10 @@ mod tests {
         context.set("name", "Alice");
         context.set("age", 30);
 
-        assert_eq!(context.get("name"), Some(&Value::String("Alice".to_string())));
+        assert_eq!(
+            context.get("name"),
+            Some(&Value::String("Alice".to_string()))
+        );
         assert_eq!(context.get("age"), Some(&Value::Number(30.into())));
     }
 
@@ -634,7 +654,10 @@ mod tests {
         context.set("user.name", "Alice");
         context.set("user.age", 30);
 
-        assert_eq!(context.get("user.name"), Some(&Value::String("Alice".to_string())));
+        assert_eq!(
+            context.get("user.name"),
+            Some(&Value::String("Alice".to_string()))
+        );
         assert_eq!(context.get("user.age"), Some(&Value::Number(30.into())));
     }
 
@@ -663,9 +686,18 @@ mod tests {
         let engine = ExpressionEngine::new();
         let context = ExpressionContext::new();
 
-        assert_eq!(engine.evaluate("42", &context).unwrap(), Value::Number(42.into()));
-        assert_eq!(engine.evaluate("true", &context).unwrap(), Value::Bool(true));
-        assert_eq!(engine.evaluate("\"hello\"", &context).unwrap(), Value::String("hello".to_string()));
+        assert_eq!(
+            engine.evaluate("42", &context).unwrap(),
+            Value::Number(42.into())
+        );
+        assert_eq!(
+            engine.evaluate("true", &context).unwrap(),
+            Value::Bool(true)
+        );
+        assert_eq!(
+            engine.evaluate("\"hello\"", &context).unwrap(),
+            Value::String("hello".to_string())
+        );
     }
 
     #[test]
@@ -688,9 +720,15 @@ mod tests {
         context.set("age", 30);
         context.set("name", "Alice");
 
-        assert!(engine.evaluate_condition("${age} > 18 && ${age} < 65", &context).unwrap());
-        assert!(engine.evaluate_condition("${age} > 100 || ${age} < 65", &context).unwrap());
-        assert!(!engine.evaluate_condition("${age} > 100 || ${age} < 18", &context).unwrap());
+        assert!(engine
+            .evaluate_condition("${age} > 18 && ${age} < 65", &context)
+            .unwrap());
+        assert!(engine
+            .evaluate_condition("${age} > 100 || ${age} < 65", &context)
+            .unwrap());
+        assert!(!engine
+            .evaluate_condition("${age} > 100 || ${age} < 18", &context)
+            .unwrap());
     }
 
     #[test]
@@ -700,7 +738,9 @@ mod tests {
         context.set("name", "Alice");
         context.set("age", 30);
 
-        let result = engine.interpolate("Hello, ${name}! You are ${age} years old.", &context).unwrap();
+        let result = engine
+            .interpolate("Hello, ${name}! You are ${age} years old.", &context)
+            .unwrap();
         assert_eq!(result, "Hello, Alice! You are 30 years old.");
     }
 }

@@ -312,9 +312,9 @@ impl BasicTuiInterface {
         if let Some(ref mut app) = self.app {
             app.run().await
         } else {
-            Err(
-                crate::error::WorkflowError::ValidationError("TUI app not initialized".to_string()),
-            )
+            Err(crate::error::WorkflowError::ValidationError(
+                "TUI app not initialized".to_string(),
+            ))
         }
     }
 }

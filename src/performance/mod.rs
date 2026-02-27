@@ -16,14 +16,13 @@ pub use concurrency::*;
 pub use memory::*;
 pub use metrics::*;
 pub use metrics_registry::{
-    Counter, Gauge, Histogram, HistogramBucket, Labels, MetricType,
-    MetricsRegistry, global_registry,
+    global_registry, Counter, Gauge, Histogram, HistogramBucket, Labels, MetricType,
+    MetricsRegistry,
 };
 pub use profiler::*;
 pub use tracing::{
-    AttributeValue, ExportError, InMemoryExporter, SpanEvent, SpanExporter, SpanGuard,
-    SpanId, SpanKind, SpanLink, SpanStatus, TraceId, Tracer, TracingConfig, TracingContext,
-    TracingSpan,
+    AttributeValue, ExportError, InMemoryExporter, SpanEvent, SpanExporter, SpanGuard, SpanId,
+    SpanKind, SpanLink, SpanStatus, TraceId, Tracer, TracingConfig, TracingContext, TracingSpan,
 };
 
 use dashmap::DashMap;
@@ -50,7 +49,6 @@ pub struct PerformanceConfig {
     /// Profiling configuration
     pub profiling: ProfilingConfig,
 }
-
 
 /// Performance manager for coordinating optimizations
 pub struct PerformanceManager {

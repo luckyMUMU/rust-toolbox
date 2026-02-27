@@ -49,7 +49,6 @@ pub enum OutputFormat {
     Text,
 }
 
-
 /// Top-level commands
 #[derive(Subcommand)]
 pub enum Commands {

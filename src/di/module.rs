@@ -19,7 +19,10 @@ pub trait AppModule: Send + Sync {
     /// 模块初始化
     ///
     /// 在所有模块配置完成后调用，用于执行初始化逻辑
-    fn initialize(&self, _container: &DiContainer) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn initialize(
+        &self,
+        _container: &DiContainer,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 
@@ -70,7 +73,7 @@ impl ModuleRegistrar {
 
         // 按拓扑顺序配置模块
         let ordered = self.topological_sort()?;
-        
+
         for module_name in ordered {
             if let Some(module) = self.modules.iter().find(|m| m.name() == module_name) {
                 module.configure(&self.container);
@@ -83,7 +86,8 @@ impl ModuleRegistrar {
     /// 初始化所有模块
     pub fn initialize_all(&self) -> Result<(), ModuleError> {
         for module in &self.modules {
-            module.initialize(&self.container)
+            module
+                .initialize(&self.container)
                 .map_err(|e| ModuleError::InitializationFailed {
                     module_name: module.name().to_string(),
                     source: e,
@@ -104,7 +108,7 @@ impl ModuleRegistrar {
 
     /// 验证模块依赖
     fn validate_dependencies(&self) -> Result<(), ModuleError> {
-        let module_names: std::collections::HashSet<&str> = 
+        let module_names: std::collections::HashSet<&str> =
             self.modules.iter().map(|m| m.name()).collect();
 
         for module in &self.modules {
@@ -124,7 +128,7 @@ impl ModuleRegistrar {
     /// 拓扑排序模块
     fn topological_sort(&self) -> Result<Vec<&str>, ModuleError> {
         use std::collections::{HashMap, VecDeque};
-        
+
         let mut in_degree: HashMap<&str, usize> = HashMap::new();
         let mut graph: HashMap<&str, Vec<&str>> = HashMap::new();
         let mut module_map: HashMap<&str, &dyn AppModule> = HashMap::new();
@@ -187,23 +191,35 @@ impl Default for ModuleRegistrar {
 #[derive(Debug)]
 pub enum ModuleError {
     /// 缺少依赖
-    MissingDependency { module_name: String, dependency: String },
+    MissingDependency {
+        module_name: String,
+        dependency: String,
+    },
     /// 循环依赖
     CircularDependency,
     /// 初始化失败
-    InitializationFailed { module_name: String, source: Box<dyn std::error::Error + Send + Sync> },
+    InitializationFailed {
+        module_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 impl std::fmt::Display for ModuleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ModuleError::MissingDependency { module_name, dependency } => {
+            ModuleError::MissingDependency {
+                module_name,
+                dependency,
+            } => {
                 write!(f, "模块 {} 缺少依赖 {}", module_name, dependency)
             }
             ModuleError::CircularDependency => {
                 write!(f, "检测到循环依赖")
             }
-            ModuleError::InitializationFailed { module_name, source } => {
+            ModuleError::InitializationFailed {
+                module_name,
+                source,
+            } => {
                 write!(f, "模块 {} 初始化失败: {}", module_name, source)
             }
         }
@@ -244,7 +260,10 @@ mod tests {
 
     impl TestModule {
         fn new(name: &str, value: i32) -> Self {
-            Self { name: name.to_string(), value }
+            Self {
+                name: name.to_string(),
+                value,
+            }
         }
     }
 
@@ -265,7 +284,7 @@ mod tests {
     fn test_module_registration() {
         let mut registrar = ModuleRegistrar::new();
         registrar.register(TestModule::new("test", 42));
-        
+
         assert_eq!(registrar.modules.len(), 1);
     }
 
@@ -273,9 +292,9 @@ mod tests {
     fn test_configure_all() {
         let mut registrar = ModuleRegistrar::new();
         registrar.register(TestModule::new("test", 42));
-        
+
         registrar.configure_all().unwrap();
-        
+
         let service = registrar.container().resolve::<dyn TestService>();
         assert!(service.is_some());
         assert_eq!(service.unwrap().value(), 42);
@@ -284,16 +303,20 @@ mod tests {
     #[test]
     fn test_missing_dependency() {
         struct DependentModule;
-        
+
         impl AppModule for DependentModule {
-            fn name(&self) -> &str { "dependent" }
+            fn name(&self) -> &str {
+                "dependent"
+            }
             fn configure(&self, _container: &DiContainer) {}
-            fn dependencies(&self) -> Vec<&str> { vec!["missing"] }
+            fn dependencies(&self) -> Vec<&str> {
+                vec!["missing"]
+            }
         }
 
         let mut registrar = ModuleRegistrar::new();
         registrar.register(DependentModule);
-        
+
         let result = registrar.configure_all();
         assert!(matches!(result, Err(ModuleError::MissingDependency { .. })));
     }
@@ -302,21 +325,27 @@ mod tests {
     fn test_dependency_order() {
         struct CoreModule;
         impl AppModule for CoreModule {
-            fn name(&self) -> &str { "core" }
+            fn name(&self) -> &str {
+                "core"
+            }
             fn configure(&self, _container: &DiContainer) {}
         }
 
         struct AppModule;
         impl AppModule for AppModule {
-            fn name(&self) -> &str { "app" }
+            fn name(&self) -> &str {
+                "app"
+            }
             fn configure(&self, _container: &DiContainer) {}
-            fn dependencies(&self) -> Vec<&str> { vec!["core"] }
+            fn dependencies(&self) -> Vec<&str> {
+                vec!["core"]
+            }
         }
 
         let mut registrar = ModuleRegistrar::new();
         registrar.register(AppModule);
         registrar.register(CoreModule);
-        
+
         let result = registrar.configure_all();
         assert!(result.is_ok());
     }

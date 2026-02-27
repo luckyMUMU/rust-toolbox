@@ -15,9 +15,9 @@
 //! - `utils`: Utilities, monitoring, performance, and registry
 
 // Core modules
-pub mod core;
-pub mod classification;
 pub mod batch;
+pub mod classification;
+pub mod core;
 pub mod text;
 pub mod ui;
 pub mod utils;
@@ -27,21 +27,19 @@ pub mod plugin;
 
 // Re-export core types for backward compatibility
 pub use core::{
-    ErrorContext, ErrorSeverity,
-    FileManagementError, FileManagementResult, RecoverySuggestion,
     error_recovery::{
-        ErrorRecoveryManager, RecoveryAttempt, RecoveryConfig, RecoverySession,
-        RecoveryStats, RecoveryStrategy,
+        ErrorRecoveryManager, RecoveryAttempt, RecoveryConfig, RecoverySession, RecoveryStats,
+        RecoveryStrategy,
     },
+    ErrorContext, ErrorSeverity, FileManagementError, FileManagementResult, RecoverySuggestion,
 };
 
 // Re-export classification types for backward compatibility
 pub use classification::{
-    AmbiguityDetectorTool, AutomatonBuilderTool, ClassificationCandidate,
-    ClassificationEngine, ClassificationOutputFormat, ClassificationParams,
-    ClassificationResult, ClassificationRule, ClassificationRules, ClassificationStatus,
-    ClassificationTool, DirectoryScannerTool, ExperimentalCheckTool,
-    FolderNamePreprocessorTool, ParallelMatcherTool, ReportGeneratorTool,
+    AmbiguityDetectorTool, AutomatonBuilderTool, ClassificationCandidate, ClassificationEngine,
+    ClassificationOutputFormat, ClassificationParams, ClassificationResult, ClassificationRule,
+    ClassificationRules, ClassificationStatus, ClassificationTool, DirectoryScannerTool,
+    ExperimentalCheckTool, FolderNamePreprocessorTool, ParallelMatcherTool, ReportGeneratorTool,
     ResultMergerTool, RuleLoaderTool, RulePreprocessorTool, ScoreCalculatorTool,
 };
 
@@ -49,9 +47,9 @@ pub use classification::{
 pub use batch::{
     AggregatedStats, BatchItem, BatchItemParams, BatchItemResult, BatchItemStatus,
     BatchPerformanceMetrics, BatchProcessingMode, BatchProcessor, BatchProcessorConfig,
-    BatchProcessorParams, BatchProcessorResult, BatchProcessorTool, BatchProgress,
-    BatchResult, BatchStatus, PerformanceTrend, ProgressEvent, ProgressTracker,
-    ProgressTrackerConfig, ToolUsageStats,
+    BatchProcessorParams, BatchProcessorResult, BatchProcessorTool, BatchProgress, BatchResult,
+    BatchStatus, PerformanceTrend, ProgressEvent, ProgressTracker, ProgressTrackerConfig,
+    ToolUsageStats,
 };
 
 // Re-export text types for backward compatibility
@@ -62,19 +60,6 @@ pub use text::{
 
 // Re-export UI types for backward compatibility
 pub use ui::{
-    BatchConfirmationConfig, BatchConfirmationParams, BatchConfirmationResult,
-    BatchConfirmationTool, BatchDecision, BatchDecisionType, BatchOptions, BatchSummary,
-    ConfirmationDecision, ConfirmationDetail, ConfirmationMethod, ConfirmationMode,
-    ConfirmationOptions, ConfirmationPhase, ConfirmationStrategy, DecisionContext,
-    DecisionOption, DefaultAction, ExecutionSummary, ExperimentalResult, HumanDecisionExecutor,
-    HumanDecisionParams, HumanDecisionResult, ModificationType, OperationBatch,
-    OperationImpact, OperationModification, OverallSummary, PhaseOutput, PhaseType,
-    ProcessedBatch, RecommendedAction, ResourceRequirements, ResultConfirmationConfig,
-    ResultConfirmationParams, ResultConfirmationResult, ResultConfirmationTool,
-    ResultReviewConfig, ResultReviewParams, ResultReviewResult, ResultReviewTool,
-    ReviewMode, ReviewOptions, ReviewSummary, RiskAssessment, RiskDistribution, RiskLevel,
-    RollbackOperation, RollbackOptions, RollbackPlan, RollbackType, ReversibilitySummary,
-    UserPreferences,
     batch_confirmation_tool::{
         create_batch_confirmation_tool, create_batch_confirmation_tool_with_config,
     },
@@ -82,9 +67,19 @@ pub use ui::{
     result_confirmation_tool::{
         create_result_confirmation_tool, create_result_confirmation_tool_with_config,
     },
-    result_review_tool::{
-        create_result_review_tool, create_result_review_tool_with_config,
-    },
+    result_review_tool::{create_result_review_tool, create_result_review_tool_with_config},
+    BatchConfirmationConfig, BatchConfirmationParams, BatchConfirmationResult,
+    BatchConfirmationTool, BatchDecision, BatchDecisionType, BatchOptions, BatchSummary,
+    ConfirmationDecision, ConfirmationDetail, ConfirmationMethod, ConfirmationMode,
+    ConfirmationOptions, ConfirmationPhase, ConfirmationStrategy, DecisionContext, DecisionOption,
+    DefaultAction, ExecutionSummary, ExperimentalResult, HumanDecisionExecutor,
+    HumanDecisionParams, HumanDecisionResult, ModificationType, OperationBatch, OperationImpact,
+    OperationModification, OverallSummary, PhaseOutput, PhaseType, ProcessedBatch,
+    RecommendedAction, ResourceRequirements, ResultConfirmationConfig, ResultConfirmationParams,
+    ResultConfirmationResult, ResultConfirmationTool, ResultReviewConfig, ResultReviewParams,
+    ResultReviewResult, ResultReviewTool, ReversibilitySummary, ReviewMode, ReviewOptions,
+    ReviewSummary, RiskAssessment, RiskDistribution, RiskLevel, RollbackOperation, RollbackOptions,
+    RollbackPlan, RollbackType, UserPreferences,
 };
 
 // Re-export utility types for backward compatibility
@@ -93,11 +88,11 @@ pub use utils::{
     ChineseTextType, CommonFolderInfo, CompressionUtils, DuplicateHandling, ErrorTracker,
     ExperimentalMode, FileManagementMonitor, FileManagementToolRegistry, FileOperationManager,
     FolderComparisonResult, FolderLocationInfo, FolderMergeError, FolderMergeResult, FolderMerger,
-    FolderMergerConfig, HumanDecisionContext, MemoryPoolStats, MergeDirection,
-    MergeOperationStats, MergeRecommendation, MergeStrategy, MixedTextResult, MonitoringConfig,
-    MonitoringStats, OperationMetrics, OptimizedFileOperationManager, PathUtils, PerformanceStats,
-    PinyinResult, PinyinStyle, ResourceUsage, SingleFolderMergeResult, StreamingUtils,
-    TextNormalizationConfig, TextProcessor, UniqueFolderInfo, ValidationUtils,
+    FolderMergerConfig, HumanDecisionContext, MemoryPoolStats, MergeDirection, MergeOperationStats,
+    MergeRecommendation, MergeStrategy, MixedTextResult, MonitoringConfig, MonitoringStats,
+    OperationMetrics, OptimizedFileOperationManager, PathUtils, PerformanceStats, PinyinResult,
+    PinyinStyle, ResourceUsage, SingleFolderMergeResult, StreamingUtils, TextNormalizationConfig,
+    TextProcessor, UniqueFolderInfo, ValidationUtils,
 };
 
 // Re-export plugin types

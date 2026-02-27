@@ -25,10 +25,10 @@
 
 pub mod container;
 pub mod module;
-pub mod provider;
 pub mod modules;
+pub mod provider;
 
 pub use container::{DiContainer, DiContainerError};
 pub use module::{AppModule, ModuleError, ModuleRegistrar};
+pub use modules::{PluginModule, StorageModule, WorkflowModule};
 pub use provider::{FnProvider, Provider, SingletonProvider};
-pub use modules::{WorkflowModule, PluginModule, StorageModule};

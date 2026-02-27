@@ -25,10 +25,10 @@ impl std::fmt::Display for SubscriptionId {
 pub trait EventSubscriber: Send + Sync {
     /// 处理事件
     async fn handle(&self, event: &DomainEvent) -> Result<()>;
-    
+
     /// 获取订阅者名称
     fn name(&self) -> &str;
-    
+
     /// 感兴趣的事件类型（空表示订阅所有事件）
     fn event_types(&self) -> Vec<&'static str> {
         Vec::new()
@@ -92,7 +92,7 @@ impl DomainEventBus {
     /// 创建新的事件总线
     pub fn new(config: EventBusConfig) -> Self {
         let (broadcaster, _) = broadcast::channel(config.channel_capacity);
-        
+
         Self {
             config,
             broadcaster,
@@ -112,33 +112,33 @@ impl DomainEventBus {
     pub async fn publish(&self, event: DomainEvent) -> Result<()> {
         let event_type = event.event_type_name();
         let event_id = event.metadata().event_id;
-        
+
         info!(
             event_id = %event_id,
             event_type = %event_type,
             "发布领域事件"
         );
-        
+
         if self.config.persist_events {
             self.persist_event(&event).await;
         }
-        
+
         {
             let mut stats = self.stats.write().await;
             stats.total_published += 1;
         }
-        
+
         let receiver_count = self.broadcaster.receiver_count();
-        
+
         if receiver_count == 0 {
             debug!("没有订阅者，事件将被丢弃");
             return Ok(());
         }
-        
+
         self.broadcaster
             .send(event)
             .map_err(|e| WorkflowError::execution(format!("发布事件失败: {}", e)))?;
-        
+
         Ok(())
     }
 
@@ -155,17 +155,17 @@ impl DomainEventBus {
         let mut counter = self.subscription_counter.lock().await;
         let subscription_id = SubscriptionId(*counter);
         *counter += 1;
-        
+
         self.subscribers
             .write()
             .await
             .insert(subscription_id, subscriber.clone());
-        
+
         let mut receiver = self.broadcaster.subscribe();
         let stats = Arc::clone(&self.stats);
         let subscriber_name = subscriber.name().to_string();
         let subscriber_clone = Arc::clone(&subscriber);
-        
+
         tokio::spawn(async move {
             loop {
                 match receiver.recv().await {
@@ -173,7 +173,7 @@ impl DomainEventBus {
                         let event_types = subscriber_clone.event_types();
                         let should_handle = event_types.is_empty()
                             || event_types.iter().any(|t| *t == event.event_type_name());
-                        
+
                         if should_handle {
                             if let Err(e) = subscriber_clone.handle(&event).await {
                                 error!(
@@ -181,7 +181,7 @@ impl DomainEventBus {
                                     error = %e,
                                     "事件处理失败"
                                 );
-                                
+
                                 let mut s = stats.write().await;
                                 s.total_failed += 1;
                             } else {
@@ -204,31 +204,31 @@ impl DomainEventBus {
                 }
             }
         });
-        
+
         {
             let mut stats = self.stats.write().await;
             stats.subscriber_count = self.subscribers.read().await.len();
         }
-        
+
         info!(
             subscription_id = %subscription_id,
             subscriber = %subscriber.name(),
             "订阅者注册成功"
         );
-        
+
         subscription_id
     }
 
     /// 取消订阅
     pub async fn unsubscribe(&self, subscription_id: SubscriptionId) -> Result<()> {
         let removed = self.subscribers.write().await.remove(&subscription_id);
-        
+
         if removed.is_some() {
             info!(subscription_id = %subscription_id, "取消订阅成功");
-            
+
             let mut stats = self.stats.write().await;
             stats.subscriber_count = self.subscribers.read().await.len();
-            
+
             Ok(())
         } else {
             Err(WorkflowError::not_found(format!(
@@ -241,12 +241,12 @@ impl DomainEventBus {
     /// 持久化事件
     async fn persist_event(&self, event: &DomainEvent) {
         let mut store = self.event_store.write().await;
-        
+
         if store.len() >= self.config.max_persisted_events {
             let remove_count = store.len() - self.config.max_persisted_events + 1;
             store.drain(0..remove_count);
         }
-        
+
         store.push(event.clone());
     }
 
@@ -299,13 +299,13 @@ impl DomainEventBus {
 pub trait EventStore: Send + Sync {
     /// 保存事件
     async fn save(&self, event: &DomainEvent) -> Result<()>;
-    
+
     /// 获取事件
     async fn get(&self, event_id: EventId) -> Result<Option<DomainEvent>>;
-    
+
     /// 获取聚合的事件流
     async fn get_stream(&self, aggregate_id: &str) -> Result<Vec<DomainEvent>>;
-    
+
     /// 获取所有事件
     async fn get_all(&self) -> Result<Vec<DomainEvent>>;
 }
@@ -362,7 +362,7 @@ impl EventStore for InMemoryEventStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::event::events::{WorkflowCreatedEvent, EventMetadata};
+    use crate::domain::event::events::{EventMetadata, WorkflowCreatedEvent};
 
     fn create_test_event() -> DomainEvent {
         DomainEvent::WorkflowCreated(WorkflowCreatedEvent {
@@ -384,9 +384,9 @@ mod tests {
     async fn test_publish_event() {
         let bus = DomainEventBus::with_defaults();
         let event = create_test_event();
-        
+
         bus.publish(event).await.unwrap();
-        
+
         let stats = bus.stats().await;
         assert_eq!(stats.total_published, 1);
     }
@@ -394,23 +394,23 @@ mod tests {
     #[tokio::test]
     async fn test_subscribe() {
         let bus = DomainEventBus::with_defaults();
-        
+
         struct TestSubscriber;
-        
+
         #[async_trait]
         impl EventSubscriber for TestSubscriber {
             async fn handle(&self, _event: &DomainEvent) -> Result<()> {
                 Ok(())
             }
-            
+
             fn name(&self) -> &str {
                 "TestSubscriber"
             }
         }
-        
+
         let subscriber = Arc::new(TestSubscriber);
         let subscription_id = bus.subscribe(subscriber).await;
-        
+
         assert!(bus.subscriber_count().await >= 1);
     }
 
@@ -419,9 +419,9 @@ mod tests {
         let store = InMemoryEventStore::new();
         let event = create_test_event();
         let event_id = event.metadata().event_id;
-        
+
         store.save(&event).await.unwrap();
-        
+
         let retrieved = store.get(event_id).await.unwrap();
         assert!(retrieved.is_some());
     }

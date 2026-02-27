@@ -31,8 +31,6 @@ fn create_tool_info(name: &str, description: &str) -> ToolInfo {
 
 pub struct RuleLoaderTool;
 
-
-
 // --- 2. Rule Preprocessing ---
 
 pub struct RulePreprocessorTool {
@@ -50,19 +48,13 @@ impl RulePreprocessorTool {
     }
 }
 
-
-
 // --- 3. AC Automaton Construction ---
 
 pub struct AutomatonBuilderTool;
 
-
-
 // --- 4. Source Directory Scanning ---
 
 pub struct DirectoryScannerTool;
-
-
 
 // --- 5. Folder Name Preprocessing ---
 
@@ -81,40 +73,26 @@ impl FolderNamePreprocessorTool {
     }
 }
 
-
-
 // --- 6. Parallel Matching Execution ---
 
 pub struct ParallelMatcherTool;
-
-
 
 // --- 7. Score Calculation ---
 
 pub struct ScoreCalculatorTool;
 
-
-
 // --- 8. Ambiguity Detection ---
 
 pub struct AmbiguityDetectorTool;
-
-
 
 // --- 9. Result Merging ---
 
 pub struct ResultMergerTool;
 
-
-
 // --- 10. Experimental Mode Check ---
 
 pub struct ExperimentalCheckTool;
 
-
-
 // --- 13. Report Generation ---
 
 pub struct ReportGeneratorTool;
-
-

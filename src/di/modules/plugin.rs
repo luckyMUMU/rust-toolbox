@@ -42,12 +42,12 @@ impl AppModule for PluginModule {
 
     fn configure(&self, container: &DiContainer) {
         let auto_load = self.auto_load_plugins;
-        
+
         container.register_factory::<PluginManagerServiceImpl, _>(move || {
             let manager = PluginManager::new();
             Arc::new(PluginManagerServiceImpl::new(manager, auto_load))
         });
-        
+
         container.register_factory::<RuntimeManagerServiceImpl, _>(|| {
             Arc::new(RuntimeManagerServiceImpl::new())
         });
@@ -62,10 +62,10 @@ impl AppModule for PluginModule {
 pub trait PluginManagerService: Send + Sync {
     /// 获取插件数量
     fn plugin_count(&self) -> usize;
-    
+
     /// 是否自动加载
     fn is_auto_load(&self) -> bool;
-    
+
     /// 转换为 Any 类型用于向下转型
     fn as_any(&self) -> &dyn std::any::Any;
 }
@@ -86,11 +86,11 @@ impl PluginManagerService for PluginManagerServiceImpl {
     fn plugin_count(&self) -> usize {
         self.manager.plugin_count()
     }
-    
+
     fn is_auto_load(&self) -> bool {
         self.auto_load
     }
-    
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

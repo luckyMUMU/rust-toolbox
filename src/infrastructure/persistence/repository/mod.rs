@@ -1,11 +1,11 @@
 //! 仓储实现 - 实现领域层定义的仓储端口
 
+use super::storage::StorageBackend;
+use crate::domain::port::repository::{ExecutionRepository, PluginRepository, WorkflowRepository};
+use crate::error::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
-use crate::domain::port::repository::{WorkflowRepository, ExecutionRepository, PluginRepository};
-use crate::error::Result;
-use super::storage::StorageBackend;
 
 /// 工作流仓储实现
 pub struct WorkflowRepositoryImpl {
@@ -76,7 +76,11 @@ impl ExecutionRepository for ExecutionRepositoryImpl {
     }
 
     async fn save_history(&self, workflow_id: &str, record: Value) -> Result<()> {
-        let key = format!("workflow:history:{}:{}", workflow_id, chrono::Utc::now().timestamp());
+        let key = format!(
+            "workflow:history:{}:{}",
+            workflow_id,
+            chrono::Utc::now().timestamp()
+        );
         let value = serde_json::to_vec(&record)?;
         self.storage.save(&key, &value).await
     }
@@ -85,7 +89,7 @@ impl ExecutionRepository for ExecutionRepositoryImpl {
         let prefix = format!("workflow:history:{}", workflow_id);
         let keys = self.storage.list_keys(&prefix).await?;
         let mut records = Vec::new();
-        
+
         for key in keys {
             if let Some(value) = self.storage.load(&key).await? {
                 if let Ok(record) = serde_json::from_slice(&value) {
@@ -93,7 +97,7 @@ impl ExecutionRepository for ExecutionRepositoryImpl {
                 }
             }
         }
-        
+
         Ok(records)
     }
 }
@@ -130,7 +134,7 @@ impl PluginRepository for PluginRepositoryImpl {
     async fn list_metadata(&self) -> Result<Vec<Value>> {
         let keys = self.storage.list_keys("plugin:meta:").await?;
         let mut metadata_list = Vec::new();
-        
+
         for key in keys {
             if let Some(value) = self.storage.load(&key).await? {
                 if let Ok(metadata) = serde_json::from_slice(&value) {
@@ -138,7 +142,7 @@ impl PluginRepository for PluginRepositoryImpl {
                 }
             }
         }
-        
+
         Ok(metadata_list)
     }
 }

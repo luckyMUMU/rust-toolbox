@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
     }
 
     // Add a simple echo tool for testing
-    use workflow_toolkit::tools::{NativeToolBuilder, ToolInput, ToolOutput, Tool};
+    use workflow_toolkit::tools::{NativeToolBuilder, Tool, ToolInput, ToolOutput};
     let echo_tool = NativeToolBuilder::new()
         .name("echo")
         .version("1.0.0")
@@ -113,8 +113,7 @@ async fn main() -> Result<()> {
             ))
         })?;
 
-    tool_registry
-        .register("echo", Tool::Native(Arc::new(echo_tool)));
+    tool_registry.register("echo", Tool::Native(Arc::new(echo_tool)));
 
     let tool_registry = Arc::new(tool_registry);
 

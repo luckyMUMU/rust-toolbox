@@ -318,14 +318,15 @@ impl LogViewerWidget {
                 }
 
                 // Check source in general search if no specific filters
-                if source_filter.is_none() && execution_filter.is_none()
+                if source_filter.is_none()
+                    && execution_filter.is_none()
                     && log
                         .source
                         .as_ref()
                         .is_some_and(|s| s.to_lowercase().contains(&query))
-                    {
-                        matches = true;
-                    }
+                {
+                    matches = true;
+                }
 
                 if matches {
                     self.search_results.push(result_index);
@@ -892,9 +893,11 @@ impl LogViewerWidget {
 
         // Create source spans with search highlighting
         let source_spans = if !search_query.is_empty()
-            && log.source.as_ref().is_some_and(|s| {
-                s.to_lowercase().contains(&search_query.to_lowercase())
-            }) {
+            && log
+                .source
+                .as_ref()
+                .is_some_and(|s| s.to_lowercase().contains(&search_query.to_lowercase()))
+        {
             Self::highlight_search_terms(source, search_query, theme)
         } else {
             vec![Span::styled(

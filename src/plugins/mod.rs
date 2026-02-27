@@ -32,8 +32,8 @@ pub mod process_pool;
 pub mod python;
 pub mod runtime;
 pub mod types;
-pub mod wasm_sandbox;
 pub mod wasm_limits;
+pub mod wasm_sandbox;
 // pub mod wasm;  // 需要添加 wasmtime/extism 依赖后启用
 
 pub use docker::{
@@ -41,22 +41,24 @@ pub use docker::{
     DockerPlugin as DockerPluginImpl, DockerPluginBuilder, DockerResourceLimits,
     DockerRuntimeConfig, DockerToolConfig,
 };
+pub use error::{IntoPluginError, PluginError, Result as PluginResult};
 pub use file_management::{
     FileManagementConfig, FileManagementPlugin, FileManagementPluginBuilder,
 };
 pub use integration::{IntegratedPluginSystem, IntegratedPluginSystemBuilder};
-pub use error::{PluginError, Result as PluginResult, IntoPluginError};
 pub use manager::PluginManager;
-pub use process_pool::{PluginProcessPool, ProcessPoolConfig, ProcessState, ProcessInfo, PoolStats};
-pub use runtime::{RuntimeManager, RuntimePoolConfig, RuntimeStats, ResourceStats};
 pub use native::{NativePlugin as NativePluginImpl, NativePluginBuilder};
 pub use nodejs::{
     NodeJsEnvironment, NodeJsPlugin as NodeJsPluginImpl, NodeJsPluginBuilder, NodeJsRuntimeConfig,
     PackageJson,
 };
+pub use process_pool::{
+    PluginProcessPool, PoolStats, ProcessInfo, ProcessPoolConfig, ProcessState,
+};
 pub use python::{
     PythonEnvironment, PythonPlugin as PythonPluginImpl, PythonPluginBuilder, PythonRuntimeConfig,
 };
+pub use runtime::{ResourceStats, RuntimeManager, RuntimePoolConfig, RuntimeStats};
 pub use types::{
     DockerPlugin, // WasmPlugin,  // 需要添加 wasmtime/extism 依赖后启用
     NativePlugin,
@@ -69,13 +71,13 @@ pub use types::{
     ResourceLimits,
     SecurityPolicy,
 };
-pub use wasm_sandbox::{
-    AuditEntry, AuditEventType, FileSystemPermissions, NetworkPermissions,
-    SandboxLevel, SyscallPermissions, WasmSandbox, WasmSandboxBuilder, WasmSandboxConfig,
-};
 pub use wasm_limits::{
-    ResourceLimiter, ResourceLimiterBuilder, ResourceLimitError, ResourceReport,
-    ResourceUsage, ResourceUsageSnapshot, ResourceUtilization, WasmResourceLimits,
+    ResourceLimitError, ResourceLimiter, ResourceLimiterBuilder, ResourceReport, ResourceUsage,
+    ResourceUsageSnapshot, ResourceUtilization, WasmResourceLimits,
+};
+pub use wasm_sandbox::{
+    AuditEntry, AuditEventType, FileSystemPermissions, NetworkPermissions, SandboxLevel,
+    SyscallPermissions, WasmSandbox, WasmSandboxBuilder, WasmSandboxConfig,
 };
 // pub use wasm::{  // 需要添加 wasmtime/extism 依赖后启用
 //     WasmPlugin as WasmPluginImpl, WasmPluginBuilder, WasmRuntimeConfig,

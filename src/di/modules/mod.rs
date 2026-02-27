@@ -2,10 +2,10 @@
 //!
 //! 提供各业务领域的服务注册模块
 
-pub mod workflow;
 pub mod plugin;
 pub mod storage;
+pub mod workflow;
 
-pub use workflow::WorkflowModule;
 pub use plugin::PluginModule;
 pub use storage::StorageModule;
+pub use workflow::WorkflowModule;

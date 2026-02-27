@@ -551,10 +551,7 @@ impl HelpSystem {
                 self.global_shortcuts.push(shortcut);
             }
             ShortcutScope::View(view) => {
-                self.view_shortcuts
-                    .entry(view)
-                    .or_default()
-                    .push(shortcut);
+                self.view_shortcuts.entry(view).or_default().push(shortcut);
             }
             ShortcutScope::Widget(widget_id) => {
                 self.widget_shortcuts

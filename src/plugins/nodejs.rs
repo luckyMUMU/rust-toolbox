@@ -697,7 +697,9 @@ impl NodeJsPlugin {
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, NodeJsTool};
+        use crate::tools::types::{
+            NodeJsTool, ResourceRequirements, ToolId, ToolKind, ToolMetadata,
+        };
 
         let environment = self.environment.lock().await;
         let node_path = environment.node_executable().to_path_buf();
@@ -731,7 +733,9 @@ impl NodeJsPlugin {
         script_path: PathBuf,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        use crate::tools::types::{ToolId, ToolMetadata, ToolKind, ResourceRequirements, NodeJsTool};
+        use crate::tools::types::{
+            NodeJsTool, ResourceRequirements, ToolId, ToolKind, ToolMetadata,
+        };
 
         let environment = self.environment.lock().await;
         let node_path = environment.node_executable().to_path_buf();
