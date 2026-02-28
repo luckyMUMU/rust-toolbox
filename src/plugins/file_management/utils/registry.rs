@@ -2,7 +2,6 @@
 
 use crate::core::{ExecutionContext, PluginInfo};
 use crate::error::{Result, WorkflowError};
-use crate::plugins::file_management::batch::batch_processor_tool;
 use crate::plugins::file_management::classification::classification_flow::{
     FolderNamePreprocessorTool, RulePreprocessorTool,
 };

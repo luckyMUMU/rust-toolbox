@@ -166,7 +166,7 @@ impl ExecutionStateCalculator {
     /// 确定工作流状态
     fn determine_workflow_status(
         &self,
-        node_states: &HashMap<String, NodeExecutionState>,
+        _node_states: &HashMap<String, NodeExecutionState>,
         stats: &NodeStateStats,
     ) -> ExecutionStatus {
         if stats.failed > 0 {

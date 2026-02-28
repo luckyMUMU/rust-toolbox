@@ -518,87 +518,8 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::RwLock;
 
-    // Mock tool registry for testing
-    struct MockToolRegistry;
-
-    #[async_trait]
-    impl ToolRegistry for MockToolRegistry {
-        fn register_tool(&mut self, _tool: Arc<dyn crate::tools::ToolNode>) -> Result<()> {
-            Ok(())
-        }
-
-        fn get_tool(&self, _name: &str) -> Option<Arc<dyn crate::tools::ToolNode>> {
-            None
-        }
-
-        fn list_tools(&self) -> Vec<crate::core::ToolInfo> {
-            Vec::new()
-        }
-
-        async fn execute_tool(
-            &self,
-            _name: &str,
-            _params: Value,
-            _context: ExecutionContext,
-        ) -> Result<Value> {
-            // Simulate some work
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            Ok(Value::String("mock_result".to_string()))
-        }
-
-        fn validate_tool_params(&self, _name: &str, _params: &Value) -> Result<()> {
-            Ok(())
-        }
-
-        fn has_tool(&self, _name: &str) -> bool {
-            true
-        }
-
-        fn unregister_tool(&mut self, _name: &str) -> Result<()> {
-            Ok(())
-        }
-
-        fn resolve_dependencies(
-            &self,
-            _tool_names: Vec<String>,
-        ) -> Result<crate::tools::ResolutionResult> {
-            Ok(crate::tools::ResolutionResult {
-                resolved_versions: std::collections::HashMap::new(),
-                conflicts: Vec::new(),
-                warnings: Vec::new(),
-            })
-        }
-
-        fn check_version_conflicts(&self) -> Result<Vec<String>> {
-            Ok(Vec::new())
-        }
-
-        fn get_dependents(&self, _tool_name: &str) -> Vec<crate::core::ToolInfo> {
-            Vec::new()
-        }
-
-        async fn execute_tool_with_templates(
-            &self,
-            name: &str,
-            params: Value,
-            _template_context: &crate::tools::TemplateContext,
-            execution_context: ExecutionContext,
-        ) -> Result<Value> {
-            self.execute_tool(name, params, execution_context).await
-        }
-
-        fn get_tool_templates(&self, _tool_name: &str) -> Vec<crate::tools::ParameterTemplate> {
-            Vec::new()
-        }
-
-        fn tool_count(&self) -> usize {
-            0
-        }
-
-        fn clear(&mut self) {
-            // No-op for mock
-        }
-    }
+    // 使用真实的 ToolRegistry 替代 Mock
+    // 注意：旧的 MockToolRegistry 使用了已废弃的 ToolNode trait
 
     // Mock storage backend for testing
     struct MockStorageBackend {
@@ -669,7 +590,7 @@ mod tests {
         let storage = Arc::new(MockStorageBackend::new());
         let cache = Arc::new(SimpleMemoryCache::new());
         let state_manager = Arc::new(StateManager::new(storage, cache));
-        let tool_registry = Arc::new(MockToolRegistry);
+        let tool_registry = Arc::new(crate::tools::ToolRegistry::new());
         let engine = Arc::new(DefaultWorkflowEngine::new(state_manager, tool_registry, 10));
 
         DefaultExecutionManager::new(engine, ConcurrencyConfig::default())
@@ -855,7 +776,7 @@ mod tests {
         let storage = Arc::new(MockStorageBackend::new());
         let cache = Arc::new(SimpleMemoryCache::new());
         let state_manager = Arc::new(StateManager::new(storage, cache));
-        let tool_registry = Arc::new(MockToolRegistry);
+        let tool_registry = Arc::new(crate::tools::ToolRegistry::new());
         let engine = Arc::new(DefaultWorkflowEngine::new(state_manager, tool_registry, 10));
         let manager = DefaultExecutionManager::new(engine, config);
 

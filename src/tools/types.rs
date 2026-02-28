@@ -8,6 +8,7 @@ use crate::tools::middleware::{ExecutionMetadata, MiddlewareStack};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -807,8 +808,8 @@ impl WasmTool {
 
     async fn execute_wasmtime(
         &self,
-        input: &Value,
-        timeout: Duration,
+        _input: &Value,
+        _timeout: Duration,
     ) -> crate::error::Result<ToolOutput> {
         #[cfg(feature = "wasmtime")]
         {
@@ -892,55 +893,235 @@ pub struct ComposedTool {
     pub id: ToolId,
     pub metadata: Arc<ToolMetadata>,
     pub composition_type: CompositionType,
-    pub tools: Vec<ToolId>,
-    /// Optional middleware stack for cross-cutting concerns
-    pub middleware_stack: Option<MiddlewareStack>,
+    /// 数据流映射（可选）- 用于链式执行时传递数据
+    pub data_flow: Option<DataFlowMapping>,
+    /// 错误处理策略
+    pub error_strategy: ErrorPropagationStrategy,
+    /// 最大并发数（并行模式）
+    pub max_concurrency: usize,
+}
+
+/// 数据流映射配置
+/// 
+/// 用于在链式执行中将前一个工具的输出转换为下一个工具的输入
+/// 
+/// # 路径语法
+/// 使用 JSON Pointer 风格的路径：
+/// - `/result` - 访问根对象的 `result` 字段
+/// - `/data/items/0` - 访问 `data.items` 数组的第一个元素
+/// - `/user/name` - 访问嵌套的 `user.name`
+/// 
+/// # 示例
+/// ```rust
+/// let mapping = DataFlowMapping {
+///     mappings: HashMap::from([
+///         ("/result/value".to_string(), "/params/input".to_string()),
+///         ("/result/status".to_string(), "/params.status".to_string()),
+///     ]),
+/// };
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct DataFlowMapping {
+    /// 映射规则：输出路径 → 输入路径
+    pub mappings: HashMap<String, String>,
+}
+
+impl DataFlowMapping {
+    /// 创建新的数据流映射
+    pub fn new() -> Self {
+        Self {
+            mappings: HashMap::new(),
+        }
+    }
+    
+    /// 创建带初始映射的数据流映射
+    pub fn with_mappings(mappings: HashMap<String, String>) -> Self {
+        Self { mappings }
+    }
+    
+    /// 添加单个映射规则
+    pub fn add_mapping(&mut self, from: impl Into<String>, to: impl Into<String>) {
+        self.mappings.insert(from.into(), to.into());
+    }
+    
+    /// 将上一个工具的输出转换为下一个工具的输入
+    /// 
+    /// # 参数
+    /// - `output`: 上一个工具的输出值
+    /// 
+    /// # 返回
+    /// - `Ok(Value)`: 转换后的输入值
+    /// - `Err(WorkflowError)`: 路径提取或设置失败
+    pub fn transform(&self, output: &Value) -> crate::error::Result<Value> {
+        let mut input_map = serde_json::Map::new();
+        
+        for (from_path, to_path) in &self.mappings {
+            // 1. 从输出中提取值（支持嵌套路径和数组索引）
+            let value = self.extract_path(output, from_path)
+                .map_err(|e| crate::error::WorkflowError::validation(
+                    format!("从路径 '{}' 提取值失败：{}", from_path, e)
+                ))?;
+            
+            // 2. 设置到输入路径（自动创建嵌套结构）
+            self.set_path(&mut input_map, to_path, value)
+                .map_err(|e| crate::error::WorkflowError::validation(
+                    format!("设置路径 '{}' 失败：{}", to_path, e)
+                ))?;
+        }
+        
+        Ok(Value::Object(input_map))
+    }
+    
+    /// 从 JSON 值中提取指定路径的值
+    /// 
+    /// 支持 JSON Pointer 风格路径：/result/data/0
+    fn extract_path(&self, value: &Value, path: &str) -> crate::error::Result<Value> {
+        let parts: Vec<&str> = path
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+        
+        let mut current = value;
+        
+        for part in parts {
+            current = if let Some(arr) = current.as_array() {
+                // 数组索引访问
+                let index = part.parse::<usize>()
+                    .map_err(|_| crate::error::WorkflowError::validation(
+                        format!("无效数组索引：'{}'", part)
+                    ))?;
+                
+                arr.get(index)
+                    .ok_or_else(|| crate::error::WorkflowError::validation(
+                        format!("数组索引越界：{} (数组长度：{})", index, arr.len())
+                    ))?
+            } else if let Some(obj) = current.as_object() {
+                // 对象字段访问
+                obj.get(part)
+                    .ok_or_else(|| crate::error::WorkflowError::validation(
+                        format!("缺少字段：'{}'", part)
+                    ))?
+            } else {
+                return Err(crate::error::WorkflowError::validation(
+                    format!("路径 '{}' 访问非对象/数组类型", path)
+                ));
+            };
+        }
+        
+        Ok(current.clone())
+    }
+    
+    /// 设置值到 JSON 对象的指定路径
+    /// 
+    /// 自动创建嵌套结构
+    fn set_path(
+        &self,
+        map: &mut serde_json::Map<String, Value>,
+        path: &str,
+        value: Value,
+    ) -> crate::error::Result<()> {
+        let parts: Vec<&str> = path
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+        
+        if parts.is_empty() {
+            return Err(crate::error::WorkflowError::validation("路径不能为空"));
+        }
+        
+        // 使用递归方式设置嵌套路径
+        self.set_path_recursive(map, &parts, value)
+    }
+    
+    /// 递归设置嵌套路径
+    fn set_path_recursive(
+        &self,
+        map: &mut serde_json::Map<String, Value>,
+        parts: &[&str],
+        value: Value,
+    ) -> crate::error::Result<()> {
+        if parts.is_empty() {
+            return Err(crate::error::WorkflowError::validation("路径不能为空"));
+        }
+        
+        let current_key = parts[0];
+        
+        if parts.len() == 1 {
+            // 最后一个部分，直接设置值
+            map.insert(current_key.to_string(), value);
+            return Ok(());
+        }
+        
+        // 非最后一个部分，需要创建或获取嵌套对象
+        let next_value = map.entry(current_key.to_string())
+            .or_insert(Value::Object(serde_json::Map::new()));
+        
+        // 确保当前值是对象类型
+        if let Some(obj) = next_value.as_object_mut() {
+            self.set_path_recursive(obj, &parts[1..], value)
+        } else {
+            Err(crate::error::WorkflowError::validation(
+                format!("路径冲突：'{}' 已存在但不是对象类型", current_key)
+            ))
+        }
+    }
+}
+
+/// 错误传播策略
+/// 
+/// 定义组合工具在执行过程中遇到错误时的处理行为
+#[derive(Clone, Debug, Default)]
+pub enum ErrorPropagationStrategy {
+    /// 快速失败：第一个错误发生时立即停止并返回错误
+    #[default]
+    FailFast,
+    
+    /// 继续执行：收集所有错误，最后统一返回
+    ContinueOnError,
+    
+    /// 重试策略：失败时重试指定次数
+    Retry {
+        /// 最大重试次数
+        max_retries: u32,
+        /// 重试间隔（毫秒）
+        delay_ms: u64,
+    },
+}
+
+impl ErrorPropagationStrategy {
+    /// 创建快速失败策略
+    pub fn fail_fast() -> Self {
+        Self::FailFast
+    }
+    
+    /// 创建继续执行策略
+    pub fn continue_on_error() -> Self {
+        Self::ContinueOnError
+    }
+    
+    /// 创建重试策略
+    pub fn retry(max_retries: u32, delay_ms: u64) -> Self {
+        Self::Retry { max_retries, delay_ms }
+    }
 }
 
 impl ComposedTool {
     /// Execute the composed tool
+    /// 
+    /// 注意：此方法已被废弃，应使用 ComposedToolExecutor 执行组合工具
+    /// 
+    /// # Errors
+    /// 返回错误，提示应使用 ComposedToolExecutor
     pub async fn execute(
         &self,
-        input: ToolInput,
+        _input: ToolInput,
         _ctx: ExecutionContext,
     ) -> crate::error::Result<ToolOutput> {
-        // Check if middleware stack is configured
-        if let Some(ref stack) = self.middleware_stack {
-            let metadata = ExecutionMetadata::new(&self.metadata.info.name, &self.metadata.version);
-            return stack
-                .execute(input, metadata, &Tool::Composed(Arc::new(self.clone())))
-                .await;
-        }
-
-        match &self.composition_type {
-            CompositionType::Chain(_) => {
-                // TODO: Implement chain execution
-                Ok(ToolOutput::success(serde_json::json!({
-                    "status": "chain_executed",
-                    "tools": self.tools.len()
-                })))
-            }
-            CompositionType::Conditional { condition, .. } => {
-                // TODO: Implement conditional execution
-                Ok(ToolOutput::success(serde_json::json!({
-                    "status": "conditional_executed",
-                    "condition": condition
-                })))
-            }
-            CompositionType::Parallel(_) => {
-                // TODO: Implement parallel execution
-                Ok(ToolOutput::success(serde_json::json!({
-                    "status": "parallel_executed",
-                    "tools": self.tools.len()
-                })))
-            }
-        }
-    }
-
-    /// Set the middleware stack for this tool
-    pub fn with_middleware(mut self, stack: MiddlewareStack) -> Self {
-        self.middleware_stack = Some(stack);
-        self
+        Err(crate::error::WorkflowError::execution(
+            "组合工具应使用 ComposedToolExecutor 执行，而非直接调用 execute 方法"
+        ))
     }
 }
 
@@ -950,8 +1131,9 @@ impl Clone for ComposedTool {
             id: self.id,
             metadata: Arc::clone(&self.metadata),
             composition_type: self.composition_type.clone(),
-            tools: self.tools.clone(),
-            middleware_stack: self.middleware_stack.clone(),
+            data_flow: self.data_flow.clone(),
+            error_strategy: self.error_strategy.clone(),
+            max_concurrency: self.max_concurrency,
         }
     }
 }

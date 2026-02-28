@@ -15,6 +15,10 @@ default = ["macros"]
 lancedb = ["dep:lancedb", "dep:arrow", "dep:parquet"]
 mcp = ["dep:rmcp", "dep:schemars"]
 macros = ["dep:workflow-toolkit-macros"]
+# WASM 运行时支持（已废弃，将在未来版本中移除）
+# 保留用于向后兼容，建议迁移到其他工具实现方式
+wasmtime = ["dep:wasmtime"]
+wasmer = ["dep:wasmer", "dep:wasmer-compiler", "dep:wasmer-compiler-singlepass"]
 
 [dependencies]
 # 异步运行时
@@ -89,9 +93,15 @@ tar = "0.4"
 # 压缩支持
 flate2 = "1.0"
 
-# HTTP客户端
+# HTTP 客户端
 reqwest = { version = "0.12", features = ["json"] }
 hex = "0.4.3"
+
+# WASM 运行时（可选，已废弃）
+wasmtime = { version = "15", optional = true }
+wasmer = { version = "4", optional = true }
+wasmer-compiler = { version = "4", optional = true }
+wasmer-compiler-singlepass = { version = "4", optional = true }
 
 # Proc-macros
 workflow-toolkit-macros = { path = "workflow-toolkit-macros", optional = true }

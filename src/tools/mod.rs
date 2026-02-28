@@ -12,6 +12,7 @@
 
 pub mod algo;
 pub mod composable;
+pub mod composed_executor;
 pub mod composition;
 pub mod executor;
 pub mod external;
@@ -49,10 +50,12 @@ pub use schema_validator::{
 };
 pub use template::{ParameterTemplate, TemplateContext, TemplateEngine, TemplateFn};
 pub use types::{
-    ComposedTool, CompositionType, DockerTool, InputSchema, NativeTool, NativeToolBuilder,
-    NodeJsTool, OutputSchema, PythonTool, ResourceRequirements, Tool, ToolExample, ToolId,
-    ToolInput, ToolInputConvert, ToolKind, ToolMetadata, ToolOutput, ToolOutputConvert, WasmTool,
+    ComposedTool, CompositionType, DataFlowMapping, DockerTool, ErrorPropagationStrategy,
+    InputSchema, NativeTool, NativeToolBuilder, NodeJsTool, OutputSchema, PythonTool,
+    ResourceRequirements, Tool, ToolExample, ToolId, ToolInput, ToolInputConvert, ToolKind,
+    ToolMetadata, ToolOutput, ToolOutputConvert, WasmTool,
 };
+pub use composed_executor::ComposedToolExecutor;
 pub use version::{
     DependencyResolver, ResolutionResult, ToolDependency, ToolVersion, Version, VersionConflict,
     VersionRequirement,

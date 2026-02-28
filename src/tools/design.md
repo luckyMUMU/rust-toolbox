@@ -185,39 +185,79 @@ pub struct TimingMiddleware;
 
 ### 1.6 可组合工具
 
-```rust
-/// 工具组合器
-pub struct ToolComposer;
+#### 组合工具结构
 
-/// 组合工具
+```rust
+/// 组合工具（Composed Tool）
 pub struct ComposedTool {
+    pub id: ToolId,
+    pub metadata: Arc<ToolMetadata>,
     pub composition_type: CompositionType,
     pub tools: Vec<ToolId>,
+    pub data_flow: Option<DataFlowMapping>,      // 数据流映射（可选）
+    pub error_strategy: ErrorPropagationStrategy, // 错误处理策略
+    pub max_concurrency: usize,                   // 最大并发数（并行模式）
 }
 
+/// 组合类型
 pub enum CompositionType {
-    /// 顺序执行
-    Sequence,
-    /// 并行执行
-    Parallel,
-    /// 条件执行
-    Conditional { condition: Box<dyn Fn(&Value) -> bool> },
-    /// 分支执行
-    Branch { selector: Box<dyn Fn(&Value) -> usize> },
-}
-
-/// 工具链
-pub struct ToolChain {
-    tools: Vec<ToolId>,
-    data_flow: HashMap<String, String>, // 输出到输入的映射
-}
-
-/// 并行工具
-pub struct ParallelTools {
-    tools: Vec<ToolId>,
-    merge_strategy: MergeStrategy,
+    /// 链式执行：A 的输出 → B 的输入 → C 的输入
+    Chain(Vec<ToolId>),
+    
+    /// 条件执行：根据条件选择分支
+    Conditional {
+        condition: String,  // EL 表达式
+        then_tool: ToolId,
+        else_tool: Option<ToolId>,
+    },
+    
+    /// 并行执行：同时执行多个工具
+    Parallel(Vec<ToolId>),
 }
 ```
+
+#### 数据流映射
+
+```rust
+/// 数据流映射配置
+pub struct DataFlowMapping {
+    /// 映射规则：输出路径 → 输入路径
+    /// 示例："/result/data" → "/params/input"
+    pub mappings: HashMap<String, String>,
+}
+
+impl DataFlowMapping {
+    /// 将上一个工具的输出转换为下一个工具的输入
+    pub fn transform(&self, output: &Value) -> Result<Value>;
+}
+```
+
+#### 错误传播策略
+
+```rust
+/// 错误处理策略
+pub enum ErrorPropagationStrategy {
+    /// 快速失败：第一个错误发生时立即停止
+    FailFast,
+    
+    /// 继续执行：收集所有错误，最后统一返回
+    ContinueOnError,
+    
+    /// 重试策略：失败时重试指定次数
+    Retry {
+        max_retries: u32,
+        delay_ms: u64,
+    },
+}
+```
+
+#### 设计原则
+
+1. **原子性**: 组合工具对外表现为单个工具，调用方无需关心里面的组合细节
+2. **透明性**: 中间件对组合工具同样生效（日志、缓存、重试等）
+3. **嵌套支持**: 组合工具可以包含其他组合工具，支持复杂编排
+4. **数据流可控**: 通过 `DataFlowMapping` 精确控制工具间的数据传递
+5. **错误可配置**: 通过 `ErrorPropagationStrategy` 配置错误处理行为
 
 ### 1.7 模板系统
 
@@ -430,6 +470,196 @@ pub enum ToolError {
 - **集成测试（Integration Test）**: 工具注册/执行/组合完整流程
 - **性能测试（Performance Test）**: Enum vs Trait 性能对比
 - **兼容性测试（Compatibility Test）**: 旧 trait 兼容层测试
+
+### 2.5 组合工具执行语义
+
+#### 链式执行（Chain Execution）
+
+**执行流程**:
+```
+Input → [Tool A] → Output A → [DataFlow Transform] → Input B → [Tool B] → ... → Final Output
+```
+
+**执行语义**:
+1. 按顺序依次执行每个工具
+2. 前一个工具的输出通过 `DataFlowMapping` 转换为下一个工具的输入
+3. 任一步骤失败时，根据 `ErrorPropagationStrategy` 处理：
+   - `FailFast`: 立即停止并返回错误
+   - `ContinueOnError`: 记录错误，继续执行后续工具
+   - `Retry`: 重试指定次数
+4. 返回所有工具的执行结果和最终输出
+
+**伪代码**:
+```rust
+async fn execute_chain(&self, input: ToolInput, ctx: ExecutionContext) -> Result<ToolOutput> {
+    let mut current_input = input;
+    let mut results = Vec::new();
+    
+    for (index, &tool_id) in tools.iter().enumerate() {
+        // 获取工具
+        let tool = registry.get_by_id(tool_id)?;
+        
+        // 执行工具
+        let output = tool.execute(current_input, ctx.clone()).await?;
+        
+        // 错误处理
+        if !output.success {
+            match error_strategy {
+                FailFast => return Err(...),
+                ContinueOnError => { results.push(output); continue; },
+                Retry { max_retries, delay } => { /* 重试逻辑 */ }
+            }
+        }
+        
+        // 数据流转换（为下一个工具准备输入）
+        if let Some(mapping) = &self.data_flow {
+            current_input = ToolInput::new(mapping.transform(&output.result)?);
+        }
+        
+        results.push(output);
+    }
+    
+    Ok(ToolOutput::success(final_result))
+}
+```
+
+#### 条件执行（Conditional Execution）
+
+**执行流程**:
+```
+Input → [Evaluate Condition] → (true ? Then Tool : Else Tool) → Output
+```
+
+**执行语义**:
+1. 使用 EL 表达式引擎评估条件表达式
+2. 根据条件结果选择执行 `then_tool` 或 `else_tool`
+3. 返回选中分支的执行结果
+
+**伪代码**:
+```rust
+async fn execute_conditional(&self, input: ToolInput, ctx: ExecutionContext) -> Result<ToolOutput> {
+    // 评估条件
+    let engine = ExpressionEngine::new();
+    let condition_result = engine.evaluate(&self.condition, &input.params)?;
+    
+    // 选择分支
+    let selected_tool = if condition_result.as_bool().unwrap_or(false) {
+        self.then_tool
+    } else {
+        self.else_tool.ok_or_else(|| Error::NoElseBranch)?
+    };
+    
+    // 执行选中的工具
+    let tool = registry.get_by_id(selected_tool)?;
+    let output = tool.execute(input, ctx).await?;
+    
+    Ok(ToolOutput::success(json!({
+        "condition": self.condition,
+        "result": condition_result,
+        "branch": if selected_tool == self.then_tool { "then" } else { "else" },
+        "output": output.result
+    })))
+}
+```
+
+#### 并行执行（Parallel Execution）
+
+**执行流程**:
+```
+Input → [Tool A] ─┬→ [Merge Results] → Output
+        → [Tool B] ─┤
+        → [Tool C] ─┘
+```
+
+**执行语义**:
+1. 并发执行所有工具（受 `max_concurrency` 限制）
+2. 所有工具共享相同的输入
+3. 收集所有工具的执行结果
+4. 错误处理策略：
+   - `FailFast`: 任一失败则整体失败
+   - `ContinueOnError`: 部分成功也返回成功，包含失败信息
+
+**伪代码**:
+```rust
+async fn execute_parallel(&self, input: ToolInput, ctx: ExecutionContext) -> Result<ToolOutput> {
+    let futures = tools.iter().map(|&tool_id| {
+        let tool = registry.get_by_id(tool_id)?;
+        tool.execute(input.clone(), ctx.clone())
+    });
+    
+    // 并发执行（限制并发数）
+    let results = futures::stream::iter(futures)
+        .buffer_unordered(self.max_concurrency)
+        .collect::<Vec<_>>()
+        .await;
+    
+    // 错误处理
+    let (successes, failures): (Vec<_>, Vec<_>) = results.into_iter()
+        .partition(|r| r.is_ok() && r.as_ref().unwrap().success);
+    
+    if !failures.is_empty() && matches!(error_strategy, FailFast) {
+        return Err(...);
+    }
+    
+    Ok(ToolOutput::success(json!({
+        "total": tools.len(),
+        "successful": successes.len(),
+        "failed": failures.len(),
+        "results": successes
+    })))
+}
+```
+
+### 2.6 数据流映射详解
+
+#### 路径语法
+
+数据流映射使用 **JSON Pointer** 风格的路径语法：
+
+| 路径示例 | 说明 |
+|---------|------|
+| `/result` | 访问根对象的 `result` 字段 |
+| `/data/items/0` | 访问 `data.items` 数组的第一个元素 |
+| `/user/name` | 访问嵌套的 `user.name` |
+
+#### 映射示例
+
+**示例 1: 简单映射**
+```json
+{
+  "mappings": {
+    "/result/value": "/params/input",
+    "/result/status": "/params.status"
+  }
+}
+```
+
+**示例 2: 数组访问**
+```json
+{
+  "mappings": {
+    "/data/items/0/id": "/params/user_id"
+  }
+}
+```
+
+#### 转换算法
+
+```rust
+fn transform(&self, output: &Value) -> Result<Value> {
+    let mut input_map = serde_json::Map::new();
+    
+    for (from_path, to_path) in &self.mappings {
+        // 1. 从输出中提取值（支持嵌套路径和数组索引）
+        let value = self.extract_path(output, from_path)?;
+        
+        // 2. 设置到输入路径（自动创建嵌套结构）
+        self.set_path(&mut input_map, to_path, value)?;
+    }
+    
+    Ok(Value::Object(input_map))
+}
+```
 
 ## 3. 状态记录
 

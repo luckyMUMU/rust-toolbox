@@ -5,8 +5,8 @@
 use crate::core::ExecutionContext;
 use crate::error::{Result, WorkflowError};
 use crate::tools::{
-    ExecutionResult, ExecutorFactory, ExecutorType, ExternalExecutor, Middleware, MiddlewareStack,
-    MiddlewareStackBuilder, Tool, ToolInput, ToolOutput, ToolRegistry,
+    ComposedToolExecutor, ExecutionResult, ExecutorFactory, ExecutorType, ExternalExecutor,
+    Middleware, MiddlewareStack, MiddlewareStackBuilder, Tool, ToolInput, ToolOutput, ToolRegistry,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -147,8 +147,15 @@ impl ToolExecutor {
         input: ToolInput,
         ctx: ExecutionContext,
     ) -> Result<ToolOutput> {
-        let metadata = crate::tools::ExecutionMetadata::new(&tool.name(), "1.0.0");
+        // 检测是否为组合工具
+        if let Tool::Composed(composed_tool) = &tool {
+            // 使用 ComposedToolExecutor 执行组合工具
+            let executor = ComposedToolExecutor::new(Arc::clone(&self.registry));
+            return executor.execute(composed_tool, input, ctx).await;
+        }
 
+        // 其他工具直接执行
+        let metadata = crate::tools::ExecutionMetadata::new(&tool.name(), "1.0.0");
         self.middleware_stack.execute(input, metadata, &tool).await
     }
 

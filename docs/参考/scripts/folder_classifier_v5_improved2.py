@@ -37,6 +37,18 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+# 类型定义
+from typing import TypedDict, Union
+
+class CategoryConfig(TypedDict):
+    keywords: List[Union[str, List[str], Dict[str, Any]]]
+    priority: int
+
+class Config(TypedDict):
+    categories: Dict[str, CategoryConfig]
+    exclude_keywords: Dict[str, List[Union[str, Dict[str, Any]]]]
+    output_root: str
+
 
 # ----------------------------------------------------------------------
 # 2. Data Structures (数据结构)
@@ -80,6 +92,110 @@ class MoveTask:
     category: str
 
 
+class CategorySearcher:
+    """分类名模糊搜索器"""
+    
+    def __init__(self, categories: Any):
+        """
+        初始化搜索器
+        
+        Args:
+            categories: 分类配置（支持字典或列表格式）
+        """
+        self.categories: List[str] = []
+        self.pypinyin_available = False
+        self.lazy_pinyin = None
+        self.Style = None
+        
+        # 解析分类配置，提取所有分类名
+        if isinstance(categories, dict):
+            # 字典格式：{"category_name": {"keywords": [...]}}
+            self.categories = list(categories.keys())
+        elif isinstance(categories, list):
+            # 列表格式：[{"name": "category_name", "keywords": [...]}]
+            self.categories = [cat.get('name', '') for cat in categories if isinstance(cat, dict) and cat.get('name')]
+        
+        # 初始化拼音转换功能（复用已有的 pypinyin）
+        try:
+            from pypinyin import lazy_pinyin, Style
+            self.pypinyin_available = True
+            self.lazy_pinyin = lazy_pinyin
+            self.Style = Style
+            logging.info("CategorySearcher: 已成功导入pypinyin库，将支持拼音搜索")
+        except ImportError:
+            self.pypinyin_available = False
+            logging.warning("CategorySearcher: 未找到pypinyin库，将不支持拼音搜索")
+    
+    def search(self, keyword: str, limit: int = 10) -> List[Tuple[str, float]]:
+        """
+        模糊搜索分类名
+        
+        Args:
+            keyword: 搜索关键字
+            limit: 返回结果数量限制
+            
+        Returns:
+            匹配结果列表，格式为 [(分类名, 匹配度), ...]
+            匹配度: 1.0 = 完全匹配, 0.8 = 开头匹配, 0.6 = 包含匹配, 0.4 = 拼音匹配
+        """
+        if not keyword or not self.categories:
+            return []
+        
+        results: List[Tuple[str, float]] = []
+        keyword_lower = keyword.lower()
+        keyword_pinyin = self._get_pinyin(keyword) if self.pypinyin_available else ''
+        
+        for category in self.categories:
+            score = self._calculate_match_score(category, keyword, keyword_lower, keyword_pinyin)
+            if score > 0:
+                results.append((category, score))
+        
+        # 按匹配度降序排列
+        results.sort(key=lambda x: x[1], reverse=True)
+        
+        # 返回限制数量的结果
+        return results[:limit]
+    
+    def _get_pinyin(self, text: str) -> str:
+        """获取文本的拼音（用于拼音匹配）"""
+        if not text or not self.pypinyin_available:
+            return ''
+        
+        try:
+            # 获取拼音列表并连接成字符串
+            pinyin_list = self.lazy_pinyin(text, style=self.Style.NORMAL)
+            return ''.join(pinyin_list).lower()
+        except Exception:
+            return ''
+    
+    def _calculate_match_score(self, category: str, keyword: str, keyword_lower: str, keyword_pinyin: str) -> float:
+        """计算匹配分数"""
+        if not category:
+            return 0.0
+        
+        category_lower = category.lower()
+        
+        # 1. 完全匹配 (1.0)
+        if category_lower == keyword_lower:
+            return 1.0
+        
+        # 2. 开头匹配 (0.8)
+        if category_lower.startswith(keyword_lower):
+            return 0.8
+        
+        # 3. 包含匹配 (0.6)
+        if keyword_lower in category_lower:
+            return 0.6
+        
+        # 4. 拼音匹配 (0.4)
+        if self.pypinyin_available and keyword_pinyin:
+            category_pinyin = self._get_pinyin(category)
+            if category_pinyin and keyword_pinyin in category_pinyin:
+                return 0.4
+        
+        return 0.0
+
+
 # ----------------------------------------------------------------------
 # 3. AhoCorasick (AC自动机)
 # ----------------------------------------------------------------------
@@ -92,6 +208,80 @@ class AhoCorasickNode:
         # output: (category, original_keyword, score)
         self.output: List[Tuple[str, str, float]] = [] 
         self.is_end: bool = False
+
+
+class ConfigValidator:
+    """配置验证器"""
+    
+    @staticmethod
+    def validate(config: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """验证配置格式"""
+        errors = []
+        
+        # 检查必需的顶层键
+        if 'categories' not in config:
+            errors.append("缺少必需的配置项: 'categories'")
+        elif not isinstance(config['categories'], (dict, list)):
+            errors.append("'categories' 必须是字典或列表类型")
+        
+        # 验证categories格式
+        categories = config.get('categories', {})
+        if isinstance(categories, dict):
+            for cat_name, cat_config in categories.items():
+                if not isinstance(cat_config, dict):
+                    errors.append(f"分类 '{cat_name}' 的配置必须是字典")
+                    continue
+                if 'keywords' not in cat_config:
+                    errors.append(f"分类 '{cat_name}' 缺少 'keywords' 配置")
+                elif not isinstance(cat_config['keywords'], list):
+                    errors.append(f"分类 '{cat_name}' 的 'keywords' 必须是列表")
+        elif isinstance(categories, list):
+            for i, cat_config in enumerate(categories):
+                if not isinstance(cat_config, dict):
+                    errors.append(f"第 {i} 个分类配置必须是字典")
+                    continue
+                if 'name' not in cat_config:
+                    errors.append(f"第 {i} 个分类配置缺少 'name' 字段")
+                if 'keywords' not in cat_config:
+                    errors.append(f"分类 '{cat_config.get('name', i)}' 缺少 'keywords' 配置")
+        
+        # 验证exclude_keywords格式
+        exclude_keywords = config.get('exclude_keywords')
+        if exclude_keywords is not None and not isinstance(exclude_keywords, dict):
+            errors.append("'exclude_keywords' 必须是字典类型")
+        
+        # 验证output_root
+        output_root = config.get('output_root')
+        if output_root is not None and not isinstance(output_root, str):
+            errors.append("'output_root' 必须是字符串类型")
+        
+        return len(errors) == 0, errors
+
+
+class ACMatcherCache:
+    """AC自动机缓存，避免重复构建相同配置的AC自动机"""
+    _cache: Dict[str, 'AhoCorasickMatcher'] = {}
+    _config_hashes: Dict[str, str] = {}
+    
+    @classmethod
+    def get_cache_key(cls, categories: Any, exclude_keywords: Any) -> str:
+        """生成配置缓存键"""
+        import hashlib
+        config_str = json.dumps({'categories': categories, 'exclude': exclude_keywords}, sort_keys=True)
+        return hashlib.md5(config_str.encode()).hexdigest()
+    
+    @classmethod
+    def get_or_build(cls, cache_key: str, build_func) -> 'AhoCorasickMatcher':
+        """获取缓存的AC自动机或构建新的"""
+        if cache_key not in cls._cache:
+            cls._cache[cache_key] = build_func()
+        return cls._cache[cache_key]
+    
+    @classmethod
+    def clear_cache(cls):
+        """清空缓存"""
+        cls._cache.clear()
+        cls._config_hashes.clear()
 
 
 class AhoCorasickMatcher:
@@ -557,27 +747,17 @@ class ScoreCalculationHandler(Handler):
                             base_score += 1.0
                     else:
                         # 4. 不同子关键字组合的处理逻辑
-                        # 只需要各子关键字按顺序出现即可，不限制距离
-                        # 例如: ["China", "乐乐"]
+                        # 只需要各子关键字都存在即可，不要求顺序，不限制距离
+                        # 例如: ["China", "乐乐"] - 只要同时包含"China"和"乐乐"即可得分
                         
-                        # 检查是否存在按顺序出现的匹配
-                        has_ordered_match = True
-                        current_pos = -1
-                        
+                        # 检查所有子关键字是否都存在（不要求顺序）
+                        all_keywords_exist = True
                         for kw in combo_keywords_lower:
-                            # 找到当前关键词在当前位置之后的第一个匹配
-                            found = False
-                            for start_pos, end_pos in keyword_positions[kw]:
-                                if start_pos > current_pos:
-                                    current_pos = end_pos
-                                    found = True
-                                    break
-                            
-                            if not found:
-                                has_ordered_match = False
+                            if kw not in keyword_positions or not keyword_positions[kw]:
+                                all_keywords_exist = False
                                 break
                         
-                        if has_ordered_match:
+                        if all_keywords_exist:
                             base_score += 1.0
             else:
                 # 5. 普通关键词（字符串）: 匹配则得1分
@@ -838,16 +1018,26 @@ class FolderClassifierV5Refactored:
         # 4. 初始化责任链
         self.chain = self._build_chain()
         
-        # 5. 初始化线程池和队列
+        # 5. 初始化线程池和队列（延迟初始化，只在需要时启动线程）
+        self.task_queue: Optional[Queue] = None
+        self.result_queue: Optional[Queue] = None
+        self.move_queue: Optional[Queue] = None
+        self.classification_workers: List[ClassificationWorker] = []
+        self.io_workers_: List[IOWorker] = []
+        self._workers_initialized = False
+        
+    def _init_workers(self):
+        """延迟初始化工作线程 - 只在需要并行处理时启动"""
+        if self._workers_initialized or not self.enable_parallel:
+            return
+        
+        logging.debug("初始化工作线程池...")
+        
+        # 初始化队列
         self.task_queue = Queue()
         self.result_queue = Queue()
         self.move_queue = Queue()
-        self.classification_workers: List[ClassificationWorker] = []
-        self.io_workers_ = []
-        self._init_workers()
         
-    def _init_workers(self):
-        """初始化工作线程"""
         # 初始化分类工作线程
         for _ in range(self.max_workers):
             worker = ClassificationWorker(self.task_queue, self.result_queue, self.chain)
@@ -859,6 +1049,9 @@ class FolderClassifierV5Refactored:
             worker = IOWorker(self.move_queue)
             self.io_workers_.append(worker)
             worker.start()
+        
+        self._workers_initialized = True
+        logging.debug(f"工作线程池初始化完成: {self.max_workers}个分类线程, {self.io_workers}个IO线程")
             
     def _build_pinyin_combo_keywords(self, categories: Any) -> Any:
         """
@@ -923,12 +1116,21 @@ class FolderClassifierV5Refactored:
         """加载配置文件"""
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                config = json.load(f)
+            # 验证配置格式
+            is_valid, errors = ConfigValidator.validate(config)
+            if not is_valid:
+                for error in errors:
+                    logging.error(f"配置验证错误: {error}")
+                raise ValueError(f"配置文件验证失败: {errors}")
+            return config
         except FileNotFoundError:
             logging.error(f"配置文件不存在: {self.config_path}")
             raise
-        except json.JSONDecodeError:
-            logging.error(f"配置文件格式错误: {self.config_path}")
+        except json.JSONDecodeError as e:
+            logging.error(f"配置文件格式错误: {self.config_path}, 行 {e.lineno}, 列 {e.colno}: {e.msg}")
+            raise
+        except ValueError:
             raise
         
     def _parse_config(self, config: Dict[str, Any]) -> Tuple[Any, Dict[str, List[str]], Path]:
@@ -1001,6 +1203,9 @@ class FolderClassifierV5Refactored:
         
     def classify_folders(self, target_path: Path) -> List[ClassificationResult]:
         """分类目标路径下的所有文件夹"""
+        # 确保工作线程和队列已初始化
+        self._init_workers()
+        
         results = []
         
         # 遍历目标文件夹，提交分类任务
@@ -1082,6 +1287,13 @@ class FolderClassifierV5Refactored:
         # 打印AC自动机关键词数量
         logging.info(f"AC自动机关键词数量: {len(self.ac_matcher.keywords)}")
 
+
+# 设置 stdout 编码以支持中文输出
+import sys
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # 主函数入口
 if __name__ == "__main__":
@@ -1270,15 +1482,90 @@ if __name__ == "__main__":
                                 print(f"  {j+1}. {category} (分数: {result.scores_detail[category]:.2f})")
                             print(f"  0. 跳过，保持待定状态")
                             print(f"  -1. 取消所有人工判断")
+                            print(f"  n. 搜索其他分类")
                             
                             # 等待用户选择
                             while True:
-                                choice_input = input("请选择分类 (输入数字，s 待定，q 取消所有): ").strip().lower()
+                                choice_input = input("请选择分类 (输入数字，s 待定，q 取消所有，n 搜索): ").strip().lower()
                                 
                                 # 处理特殊指令
-                                if choice_input == 's':
+                                if choice_input == 'n':
+                                    # 进入搜索模式
+                                    print(f"\n--- 搜索分类 ---")
+                                    print(f"输入关键字搜索所有分类，输入 q 或 0 返回")
+                                    
+                                    while True:
+                                        search_keyword = input("搜索关键字: ").strip()
+                                        
+                                        if search_keyword.lower() in ['q', '0']:
+                                            # 返回选择界面
+                                            print(f"返回分类选择")
+                                            choice = -1000  # 特殊标记，返回选择界面
+                                            break
+                                        
+                                        if not search_keyword:
+                                            print(f"请输入搜索关键字")
+                                            continue
+                                        
+                                        # 使用 CategorySearcher 搜索
+                                        searcher = CategorySearcher(classifier.categories)
+                                        search_results = searcher.search(search_keyword)
+                                        
+                                        if not search_results:
+                                            print(f"未找到匹配 '{search_keyword}' 的分类，请重试")
+                                            continue
+                                        
+                                        # 显示搜索结果
+                                        print(f"\n搜索结果:")
+                                        for idx, (cat_name, score) in enumerate(search_results, 1):
+                                            print(f"  {idx}. {cat_name} (匹配度: {score:.1f})")
+                                        print(f"  0. 返回重新搜索")
+                                        print(f"  q. 返回分类选择")
+                                        
+                                        # 选择搜索结果
+                                        while True:
+                                            sel_input = input("选择分类 (输入序号): ").strip().lower()
+                                            
+                                            if sel_input == 'q':
+                                                # 返回分类选择界面
+                                                print(f"返回分类选择")
+                                                choice = -1000  # 特殊标记，跳出搜索并返回选择界面
+                                                break
+                                            elif sel_input == '0':
+                                                # 返回重新搜索
+                                                break
+                                            
+                                            if sel_input.isdigit():
+                                                sel_idx = int(sel_input)
+                                                if 1 <= sel_idx <= len(search_results):
+                                                    selected_category = search_results[sel_idx - 1][0]
+                                                    print(f"选择分类: {selected_category}")
+                                                    
+                                                    # 更新结果状态
+                                                    result.status = 'classified'
+                                                    result.category = selected_category
+                                                    processed_count += 1
+                                                    choice = -1000  # 特殊标记，跳出搜索
+                                                    break
+                                                else:
+                                                    print(f"无效序号: {sel_idx}。请输入 1 到 {len(search_results)} 之间的数字")
+                                            else:
+                                                print(f"无效输入: '{sel_input}'。请输入数字或 q 返回")
+                                        
+                                        # 检查是否需要跳出外层循环
+                                        if choice == -1000:
+                                            break
+                                    
+                                    # 如果是从搜索中选择了分类，跳出选择循环
+                                    if choice == -1000 and result.status == 'classified':
+                                        break
+                                    # 如果是返回分类选择，继续循环
+                                    if choice == -1000:
+                                        continue
+                                elif choice_input == 's':
                                     # 输入 's'，保持待定状态
                                     print(f"跳过文件夹 '{result.folder_name}'，保持待定状态")
+                                    choice = 0  # 设置为0表示跳过当前文件夹
                                     break
                                 elif choice_input == 'q':
                                     # 输入 'q'，取消所有人工判断

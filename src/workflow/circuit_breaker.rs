@@ -268,7 +268,7 @@ impl CircuitBreaker {
         let mut state = self.state.write().await;
 
         match *state {
-            CircuitState::HalfOpen { test_calls } => {
+            CircuitState::HalfOpen { test_calls: _ } => {
                 // 半开状态下，检查是否达到成功阈值
                 self.metrics.record_success();
                 let success_count = self.metrics.success_count();

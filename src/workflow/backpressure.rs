@@ -168,7 +168,7 @@ impl BackpressureController {
     }
 
     /// 尝试获取执行许可
-    pub async fn acquire(&self) -> Result<BackpressurePermit> {
+    pub async fn acquire(&self) -> Result<BackpressurePermit<'_>> {
         self.acquire_with_priority(RequestPriority::Normal).await
     }
 
@@ -176,7 +176,7 @@ impl BackpressureController {
     pub async fn acquire_with_priority(
         &self,
         priority: RequestPriority,
-    ) -> Result<BackpressurePermit> {
+    ) -> Result<BackpressurePermit<'_>> {
         if !self.enabled.load(Ordering::Relaxed) {
             return Ok(BackpressurePermit {
                 controller: self,
@@ -271,7 +271,7 @@ impl BackpressureController {
     }
 
     /// 尝试非阻塞获取许可
-    pub fn try_acquire(&self) -> Result<BackpressurePermit> {
+    pub fn try_acquire(&self) -> Result<BackpressurePermit<'_>> {
         if !self.enabled.load(Ordering::Relaxed) {
             return Ok(BackpressurePermit {
                 controller: self,
@@ -325,7 +325,7 @@ impl BackpressureController {
     }
 
     /// 尝试获取并丢弃最旧请求
-    async fn try_acquire_with_drop_oldest(&self) -> Result<BackpressurePermit> {
+    async fn try_acquire_with_drop_oldest(&self) -> Result<BackpressurePermit<'_>> {
         let mut queue = self.queue.lock().await;
 
         while queue.len() > self.config.max_queue_size {

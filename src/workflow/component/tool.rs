@@ -191,22 +191,39 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
 
-    fn create_test_registry() -> Arc<dyn crate::tools::ToolRegistry> {
+    fn create_test_registry() -> Arc<ToolRegistry> {
         use crate::tools::registry::ToolRegistry;
-        use crate::tools::types::{NativeToolBuilder, Tool};
+        use crate::tools::types::{NativeTool, Tool, ToolId, ToolMetadata, ToolInfo, ToolKind, Version};
+        use chrono::Utc;
 
         let registry = ToolRegistry::new();
 
         // Register a simple echo tool for testing
-        let echo_tool = NativeToolBuilder::new()
-            .name("echo")
-            .version("1.0.0")
-            .description("Echo tool for testing")
-            .executor(|input, _ctx| async move {
-                Ok(crate::tools::types::ToolOutput::success(input.params))
-            })
-            .build()
-            .unwrap();
+        let echo_tool = NativeTool::new(
+            ToolId::new(),
+            Arc::new(ToolMetadata {
+                info: ToolInfo {
+                    name: "echo".to_string(),
+                    description: "Echo tool for testing".to_string(),
+                    input_schema: json!({"type": "object"}),
+                    output_schema: json!({"type": "object"}),
+                    examples: vec![],
+                },
+                kind: ToolKind::Native,
+                version: Version::new(1, 0, 0),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                tags: vec!["test".to_string()],
+                author: "test".to_string(),
+                license: "MIT".to_string(),
+            }),
+            |input, _ctx| {
+                async move {
+                    Ok(crate::tools::ToolOutput::success(input.params))
+                }
+                .boxed()
+            },
+        );
 
         registry.register("echo", Tool::Native(Arc::new(echo_tool)));
 

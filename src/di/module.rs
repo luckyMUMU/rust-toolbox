@@ -324,15 +324,15 @@ mod tests {
     #[test]
     fn test_dependency_order() {
         struct CoreModule;
-        impl AppModule for CoreModule {
+        impl crate::di::module::AppModule for CoreModule {
             fn name(&self) -> &str {
                 "core"
             }
             fn configure(&self, _container: &DiContainer) {}
         }
 
-        struct AppModule;
-        impl AppModule for AppModule {
+        struct AppTestModule;
+        impl crate::di::module::AppModule for AppTestModule {
             fn name(&self) -> &str {
                 "app"
             }

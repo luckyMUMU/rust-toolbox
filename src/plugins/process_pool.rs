@@ -287,7 +287,7 @@ impl PluginProcessPool {
     }
 
     /// 获取可用进程
-    pub async fn acquire(&self) -> Result<ProcessGuard> {
+    pub async fn acquire(&self) -> Result<ProcessGuard<'_>> {
         if self.shutdown.load(Ordering::Relaxed) {
             return Err(WorkflowError::execution("进程池正在关闭"));
         }

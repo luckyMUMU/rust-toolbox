@@ -315,7 +315,7 @@ impl CompositionExecutor {
 
         for (idx, (tool_name, tool)) in tools.into_iter().enumerate() {
             let semaphore = Arc::clone(&semaphore);
-            let tool_results = Arc::clone(&tool_results);
+            let _tool_results = Arc::clone(&tool_results);
             let input = input.clone();
             let context = context.clone();
             let order = (idx + 1) as u32;

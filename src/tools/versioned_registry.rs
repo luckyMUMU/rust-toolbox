@@ -348,7 +348,7 @@ impl VersionedToolRegistryBuilder {
     }
 
     /// 注册工具
-    pub fn register(mut self, name: &str, version: &Version, tool: Tool) -> Self {
+    pub fn register(self, name: &str, version: &Version, tool: Tool) -> Self {
         let _ = self.registry.register(name, version, tool);
         self
     }

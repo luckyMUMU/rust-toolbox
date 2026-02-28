@@ -746,7 +746,7 @@ mod tests {
             .unwrap();
 
         tool_registry.register("echo", Tool::Native(std::sync::Arc::new(echo_tool)));
-        let tool_registry: Arc<dyn crate::tools::ToolRegistry> = Arc::new(tool_registry);
+        let tool_registry = Arc::new(tool_registry);
 
         let engine = RefactoredWorkflowEngine::new(state_manager, tool_registry, 4);
 

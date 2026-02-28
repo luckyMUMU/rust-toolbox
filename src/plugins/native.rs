@@ -226,7 +226,7 @@ impl NativePlugin {
                     .to_string()
             };
 
-            let parameters_schema: Value = if tool_descriptor.parameters_schema.is_null() {
+            let _parameters_schema: Value = if tool_descriptor.parameters_schema.is_null() {
                 Value::Null
             } else {
                 // SAFETY: We check for null before calling CStr::from_ptr.
@@ -241,7 +241,7 @@ impl NativePlugin {
                 serde_json::from_str(schema_str).unwrap_or(Value::Null)
             };
 
-            let return_schema: Value = if tool_descriptor.return_schema.is_null() {
+            let _return_schema: Value = if tool_descriptor.return_schema.is_null() {
                 Value::Null
             } else {
                 // SAFETY: We check for null before calling CStr::from_ptr.
