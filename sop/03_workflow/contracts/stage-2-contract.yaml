@@ -1,0 +1,69 @@
+# 阶段 2 契约模板
+
+stage_id: "stage-2-implement-verify"
+stage_name: "实现与验证"
+version: "1.0.0"
+
+preconditions:
+  required_inputs:
+    - name: "design_document"
+      type: file
+      path: "src/{module}/design.md"
+      validation: "设计文档必须存在且通过审查"
+    - name: "design_review_report"
+      type: json
+      path: "contracts/stage-1-review.json"
+      validation: "审查状态必须为 passed"
+    - name: "constraint_matrix"
+      type: file
+      path: "05_constraints/constraint-matrix.md"
+      validation: "约束矩阵必须存在"
+  constraints:
+    - "设计文档必须通过审查"
+    - "必须明确适用的 P0/P1 级约束"
+
+postconditions:
+  required_outputs:
+    - name: "code_changes"
+      type: git_diff
+      path: "git commit"
+      format: "符合项目代码规范的代码变更"
+    - name: "code_review_report"
+      type: json
+      path: "contracts/stage-2-code-review.json"
+      format:
+        review_status: "passed|failed"
+        coverage: 0-100
+        issues: ["问题清单"]
+        security_scan: "安全扫描结果"
+    - name: "test_report"
+      type: json
+      path: "contracts/stage-2-test-report.json"
+      format:
+        test_status: "passed|failed"
+        total_tests: 0
+        passed_tests: 0
+        coverage: 0-100
+    - name: "constraint_report"
+      type: json
+      path: "contracts/stage-2-constraint-report.json"
+      format:
+        p0_violations: 0
+        p1_warnings: 0
+        p2_warnings: 0
+
+invariants:
+  - "代码必须通过 P0 级约束验证（零违反）"
+  - "代码必须通过 P1 级约束验证（警告可接受）"
+  - "核心模块测试覆盖率必须 >= 100%"
+  - "禁止强制解包（unwrap/expect）"
+  - "禁止硬编码密钥等敏感信息"
+
+context:
+  context_id: "ctx-stage-2-{timestamp}"
+  created_at: "时间戳"
+  expires_at: "+72h"
+  data:
+    tdd_cycles: "TDD 循环记录"
+    refactoring_notes: "重构笔记"
+    constraint_violations: "约束违反记录"

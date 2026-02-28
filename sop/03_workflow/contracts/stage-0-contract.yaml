@@ -1,0 +1,48 @@
+# 阶段 0 契约模板
+
+stage_id: "stage-0-weight-selection"
+stage_name: "规范重量选择"
+version: "1.0.0"
+
+preconditions:
+  required_inputs:
+    - name: "requirement_description"
+      type: text
+      description: "需求描述文本"
+      validation: "长度 >= 10 字符，无歧义"
+  constraints:
+    - "需求描述必须清晰"
+
+postconditions:
+  required_outputs:
+    - name: "weight_decision"
+      type: json
+      path: "contracts/stage-0-decision.json"
+      format:
+        recommended_weight: "heavy|light|fast"
+        reason: "推荐原因"
+        complexity_score: 1-10
+        complexity_breakdown:
+          functional: 1-10
+          technical: 1-10
+          scope: 1-10
+        required_documents:
+          - name: "文档名称"
+            required: true|false
+            priority: "P0|P1|P2|P3"
+        estimated_effort:
+          development: "X 人天"
+          testing: "X 人天"
+          documentation: "X 人天"
+
+invariants:
+  - "复杂度分数必须在 1-10 范围内"
+  - "推荐结果必须明确"
+
+context:
+  context_id: "ctx-stage-0-{timestamp}"
+  created_at: "时间戳"
+  expires_at: "+24h"
+  data:
+    requirement_analysis: "需求分析结果"
+    complexity_factors: "复杂度因素"

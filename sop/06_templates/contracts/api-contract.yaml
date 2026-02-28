@@ -1,0 +1,79 @@
+openapi: 3.0.0
+info:
+  title: "{API 名称}"
+  description: "{API 描述}"
+  version: "1.0.0"
+
+servers:
+  - url: "https://api.example.com/v1"
+    description: "生产环境"
+  - url: "https://api-staging.example.com/v1"
+    description: "测试环境"
+
+paths:
+  /{resource}:
+    get:
+      summary: "{接口摘要}"
+      description: "{接口详细描述}"
+      operationId: "{operationId}"
+      tags:
+        - "{标签}"
+      parameters:
+        - name: "{参数名}"
+          in: query|path|header
+          required: true|false
+          schema:
+            type: string
+          description: "{参数描述}"
+      responses:
+        '200':
+          description: "成功响应"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/{SchemaName}'
+        '400':
+          description: "请求错误"
+        '500':
+          description: "服务器错误"
+
+    post:
+      summary: "{接口摘要}"
+      description: "{接口详细描述}"
+      operationId: "{operationId}"
+      tags:
+        - "{标签}"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/{SchemaName}'
+      responses:
+        '201':
+          description: "创建成功"
+        '400':
+          description: "请求错误"
+        '500':
+          description: "服务器错误"
+
+components:
+  schemas:
+    {SchemaName}:
+      type: object
+      required:
+        - "{必填字段}"
+      properties:
+        {propertyName}:
+          type: {type}
+          description: "{属性描述}"
+          example: "{示例值}"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

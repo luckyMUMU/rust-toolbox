@@ -1,0 +1,53 @@
+# 阶段 3 契约模板
+
+stage_id: "stage-3-deliver-sync"
+stage_name: "交付与同步"
+version: "1.0.0"
+
+preconditions:
+  required_inputs:
+    - name: "code_changes"
+      type: git_diff
+      path: "git commit"
+      validation: "代码变更必须存在且已提交"
+    - name: "code_review_report"
+      type: json
+      path: "contracts/stage-2-code-review.json"
+      validation: "审查状态必须为 passed"
+    - name: "test_report"
+      type: json
+      path: "contracts/stage-2-test-report.json"
+      validation: "测试状态必须为 passed"
+  constraints:
+    - "所有审查和测试必须通过"
+    - "代码必须已合并到目标分支"
+
+postconditions:
+  required_outputs:
+    - name: "delivery_notification"
+      type: json
+      path: "contracts/stage-3-delivery.json"
+      format:
+        delivery_status: "completed"
+        delivered_at: "时间戳"
+        summary: "交付摘要"
+        changes: ["变更清单"]
+    - name: "documentation_updates"
+      type: files
+      path: "docs/ 或相关文档路径"
+      format: "更新的文档列表"
+
+invariants:
+  - "交付物必须完整（代码 + 文档 + 测试）"
+  - "所有变更必须可追溯（Git Commit Hash）"
+  - "文档必须与代码同步更新"
+  - "用户可见变更必须有通知"
+
+context:
+  context_id: "ctx-stage-3-{timestamp}"
+  created_at: "时间戳"
+  expires_at: "+24h"
+  data:
+    sync_status: "同步状态"
+    updated_files: "更新的文件列表"
+    link_validation: "链接验证结果"

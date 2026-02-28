@@ -1,6 +1,6 @@
 ---
-version: v2.12.0
-updated: 2026-02-25
+version: v3.0.0
+updated: 2026-02-28
 ---
 
 # SOP 版本变更历史
@@ -15,15 +15,103 @@ v[主版本].[次版本].[修订版本]
 
 | 版本位 | 变更类型 | 示例 |
 |--------|----------|------|
-| **主版本** | 体系重大变更（Skill/Prompt Pack/SSOT 重构） | v1→v2 |
-| **次版本** | 新增/调整 Skill、工作流、文档类型 | v2.0→v2.1 |
-| **修订版本** | 文档修正、错误修复、格式统一 | v2.0.0→v2.0.1 |
+| **主版本** | 体系重大变更（架构重构、核心理念转变） | v2→v3 |
+| **次版本** | 新增/调整 Skill、工作流、文档类型 | v3.0→v3.1 |
+| **修订版本** | 文档修正、错误修复、格式统一 | v3.0.0→v3.0.1 |
 
 **版本同步检查**：版本更新时必须执行 [版本同步检查清单](05_constraints/version_sync_checklist.md)。
 
 ---
 
 ## 版本历史
+
+### v3.0.0 (2026-02-28)
+
+**架构重构** - 完全重构为 Spec-first 架构
+
+#### 核心变更
+
+- **理念转变**：Skill-first → Spec-first
+  - 规范是核心，Skill 是实现方式
+  - 规范是唯一真理源，代码是规范的实现
+  - 规范驱动整个开发流程
+
+- **规范分层**：引入 P0-P3 四层规范架构
+  - P0 级：工程宪章（不可违背，违反即熔断）
+  - P1 级：系统规范（跨模块约束）
+  - P2 级：模块规范（单模块约束）
+  - P3 级：实现规范（自动化验证）
+
+- **协作模式**：共享上下文 → 契约式协作
+  - 各环节独立上下文
+  - 通过契约传递信息
+  - 契约版本化管理
+
+- **流程阶段**：3 阶段 → 5 阶段（0-4）
+  - 阶段 0：规范重量选择
+  - 阶段 1：理解与设计
+  - 阶段 2：实现与验证
+  - 阶段 3：交付与同步
+  - 阶段 4：归档与演化
+
+- **文档体系**：引入重规范 + 轻规范双轨制
+  - 重规范：工程宪章、系统规范
+  - 轻规范：proposal.md、confirmation.md、archive.md
+  - 升级归档机制
+
+#### 目录结构变更
+
+- 新增 `01_constitution/` - 工程宪章（P0 级）
+  - project-charter.md - 项目宪章
+  - quality-redlines.md - 质量红线
+  - architecture-principles.md - 架构原则
+  - security-baseline.md - 安全基线
+- 新增 `02_specifications/` - 系统规范（P1-P2 级）
+  - index.md - 规范索引
+  - system-spec.md - 系统规范
+  - api-contracts/ - API 契约
+  - data-models/ - 数据模型
+  - domain-models/ - 领域模型
+- 重构 `03_workflow/` - 5 阶段流程
+  - index.md - 工作流入口
+  - stage-0-weight.md - 阶段 0
+  - stage-1-design.md - 阶段 1
+  - stage-2-implement.md - 阶段 2
+  - stage-3-deliver.md - 阶段 3
+  - stage-4-archive.md - 阶段 4
+  - contracts/ - 契约模板
+- 重构 `04_skills/` - 规范驱动 Skill
+  - index.md - Skill 索引
+  - specification/ - 规范类 Skill
+  - implementation/ - 实现类 Skill
+  - verification/ - 验证类 Skill
+  - orchestration/ - 编排类 Skill
+- 重构 `05_constraints/` - P0-P3 约束
+  - index.md - 约束索引
+  - p0-constraints.md - P0 级约束
+  - p1-constraints.md - P1 级约束
+  - p2-constraints.md - P2 级约束
+  - p3-constraints.md - P3 级约束
+  - state-dictionary.md - 状态字典
+  - command-dictionary.md - 命令字典
+- 新增 `06_templates/` - 模板体系
+  - documents/ - 文档模板
+  - contracts/ - 契约模板
+  - reports/ - 报告模板
+- 新增 `07_reference/` - 参考资料
+
+#### 删除内容
+
+- 删除 `01_concept_overview.md`（合并到 AGENT_SOP.md）
+- 删除 `02_skill_matrix/`（重构为 04_skills/）
+- 删除 `04_reference/`（重构为 06_templates/ + 07_reference/）
+
+#### 主要更新文件
+
+- 入口文档：`AGENT_SOP.md`（完全重写）
+- 版本历史：`CHANGELOG.md`（本文件）
+
+---
 
 ### v2.12.0 (2026-02-25)
 

@@ -1,6 +1,6 @@
 ---
-version: v2.12.0
-updated: 2026-02-25
+version: v3.0.0
+updated: 2026-03-01
 ---
 
 # 深度路径

@@ -1,0 +1,56 @@
+# 阶段 1 契约模板
+
+stage_id: "stage-1-understand-design"
+stage_name: "理解与设计"
+version: "1.0.0"
+
+preconditions:
+  required_inputs:
+    - name: "weight_decision"
+      type: json
+      path: "contracts/stage-0-decision.json"
+      validation: "必须包含 recommended_weight 字段"
+    - name: "requirement_description"
+      type: text
+      description: "需求描述文本"
+  constraints:
+    - "输入必须通过阶段 0 的质量门控"
+    - "需求描述必须清晰无歧义"
+
+postconditions:
+  required_outputs:
+    - name: "spec_document"
+      type: file
+      path: "specs/{name}-spec.md"
+      format: "Markdown，包含 Gherkin 场景"
+    - name: "architecture_document"
+      type: file
+      path: "docs/02_logical_workflow/{name}-architecture.md"
+      format: "Markdown，包含架构图、接口定义"
+    - name: "design_document"
+      type: file
+      path: "src/{module}/design.md"
+      format: "Markdown，包含实现设计"
+    - name: "design_review_report"
+      type: json
+      path: "contracts/stage-1-review.json"
+      format:
+        review_status: "passed|failed"
+        reviewers: ["审查者列表"]
+        issues: ["问题清单"]
+        approvals: ["批准者签名"]
+
+invariants:
+  - "设计必须符合 P0 级约束（质量红线）"
+  - "设计必须符合 P1 级约束（架构原则）"
+  - "设计文档必须包含可测试性设计"
+  - "所有接口必须有明确的输入输出定义"
+
+context:
+  context_id: "ctx-stage-1-{timestamp}"
+  created_at: "时间戳"
+  expires_at: "+48h"
+  data:
+    design_decisions: "设计决策记录"
+    alternatives_considered: "考虑的替代方案"
+    bdd_scenarios: "BDD 场景列表"

@@ -1,0 +1,49 @@
+# 阶段 4 契约模板
+
+stage_id: "stage-4-archive-evolve"
+stage_name: "归档与演化"
+version: "1.0.0"
+
+preconditions:
+  required_inputs:
+    - name: "delivery_notification"
+      type: json
+      path: "contracts/stage-3-delivery.json"
+      validation: "交付状态必须为 completed"
+    - name: "all_stage_contracts"
+      type: files
+      path: "contracts/stage-*.json"
+      validation: "所有阶段的契约文件必须存在"
+  constraints:
+    - "所有阶段必须已完成"
+    - "所有契约文件必须完整"
+
+postconditions:
+  required_outputs:
+    - name: "archive_record"
+      type: file
+      path: "archives/{name}-archive.md"
+      format: "归档记录（Markdown）"
+    - name: "constitution_updates"
+      type: files
+      path: "01_constitution/ 或 02_specifications/"
+      format: "更新的重规范文档（如需要）"
+    - name: "changelog_entry"
+      type: file
+      path: "CHANGELOG.md"
+      format: "变更日志条目"
+
+invariants:
+  - "归档记录必须包含完整决策链"
+  - "必须明确是否需要更新重规范"
+  - "变更日志必须更新"
+  - "经验教训必须记录"
+
+context:
+  context_id: "ctx-stage-4-{timestamp}"
+  created_at: "时间戳"
+  expires_at: "永久保留"
+  data:
+    upgrade_evaluation: "升级评估结果"
+    lessons_learned: "经验教训"
+    changelog_entry: "变更日志条目"
