@@ -59,13 +59,13 @@ impl AppModule for StorageModule {
             let state_manager = Arc::new(StateManager::new(storage, cache));
 
             Arc::new(StateManagerServiceImpl::new(state_manager))
-        });
+        }).expect("注册 StateManagerService 失败");
 
         container.register_factory::<CacheServiceImpl, _>(move || {
             Arc::new(CacheServiceImpl::new(cache_capacity))
-        });
+        }).expect("注册 CacheService 失败");
 
-        container.register_factory::<BackupServiceImpl, _>(|| Arc::new(BackupServiceImpl::new()));
+        container.register_factory::<BackupServiceImpl, _>(|| Arc::new(BackupServiceImpl::new())).expect("注册 BackupService 失败");
     }
 }
 

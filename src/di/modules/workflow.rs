@@ -115,7 +115,7 @@ impl AppModule for WorkflowModule {
             let engine = RefactoredWorkflowEngine::new(state_manager, tool_registry, max_parallel);
 
             Arc::new(WorkflowEngineServiceImpl::new(engine))
-        });
+        }).expect("注册 WorkflowEngineService 失败");
 
         container.register_factory::<AuditLogServiceImpl, _>(|| {
             let storage = Arc::new(InMemoryStorage::new());
@@ -123,7 +123,7 @@ impl AppModule for WorkflowModule {
             let state_manager = Arc::new(StateManager::new(storage, cache));
             let logger = AuditLogger::new(state_manager, false, 30);
             Arc::new(AuditLogServiceImpl::new(logger))
-        });
+        }).expect("注册 AuditLogService 失败");
     }
 
     fn dependencies(&self) -> Vec<&str> {

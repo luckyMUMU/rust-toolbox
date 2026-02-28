@@ -40,21 +40,24 @@ impl DiContainer {
     /// 注册单例服务
     ///
     /// 单例服务在注册时即创建实例，后续所有解析返回同一实例
-    pub fn register_singleton<T>(&self, instance: Arc<T>)
+    pub fn register_singleton<T>(&self, instance: Arc<T>) -> Result<(), DiContainerError>
     where
         T: 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
         self.singletons
             .write()
-            .expect("获取单例写入锁失败，锁可能已被污染")
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "注册单例服务".to_string(),
+            })?
             .insert(type_id, instance);
+        Ok(())
     }
 
     /// 注册工厂方法
     ///
     /// 工厂方法在每次解析时创建新实例
-    pub fn register_factory<T, F>(&self, factory: F)
+    pub fn register_factory<T, F>(&self, factory: F) -> Result<(), DiContainerError>
     where
         T: 'static + Send + Sync,
         F: Fn() -> Arc<T> + 'static + Send + Sync,
@@ -62,18 +65,21 @@ impl DiContainer {
         let type_id = TypeId::of::<T>();
         self.factories
             .write()
-            .expect("获取工厂写入锁失败，锁可能已被污染")
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "注册工厂方法".to_string(),
+            })?
             .insert(
                 type_id,
                 Box::new(move || factory() as Arc<dyn Any + Send + Sync>),
             );
+        Ok(())
     }
 
     /// 注册带依赖的工厂方法
     ///
     /// 工厂方法可以依赖容器中的其他服务
     /// 注意：工厂方法接收当前容器的引用，以便解析依赖
-    pub fn register_factory_with_deps<T, F>(&self, factory: F)
+    pub fn register_factory_with_deps<T, F>(&self, factory: F) -> Result<(), DiContainerError>
     where
         T: 'static + Send + Sync,
         F: Fn(&DiContainer) -> Arc<T> + 'static + Send + Sync,
@@ -81,11 +87,14 @@ impl DiContainer {
         let type_id = TypeId::of::<T>();
         self.factories_with_deps
             .write()
-            .expect("获取带依赖工厂写入锁失败，锁可能已被污染")
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "注册带依赖工厂方法".to_string(),
+            })?
             .insert(
                 type_id,
                 Box::new(move |container| factory(container) as Arc<dyn Any + Send + Sync>),
             );
+        Ok(())
     }
 
     /// 解析服务
@@ -95,7 +104,7 @@ impl DiContainer {
     /// 2. 单例服务存储
     /// 3. 带依赖的工厂方法
     /// 4. 工厂方法（无依赖）
-    pub fn resolve<T>(&self) -> Option<Arc<T>>
+    pub fn resolve<T>(&self) -> Result<Arc<T>, DiContainerError>
     where
         T: 'static + Send + Sync,
     {
@@ -105,75 +114,97 @@ impl DiContainer {
         if let Some(instance) = self
             .resolved
             .read()
-            .expect("获取已解析缓存读取锁失败，锁可能已被污染")
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "读取已解析缓存".to_string(),
+            })?
             .get(&type_id)
         {
-            return instance.clone().downcast::<T>().ok();
+            return instance.clone().downcast::<T>().map_err(|_| DiContainerError::ServiceNotFound {
+                type_name: std::any::type_name::<T>().to_string(),
+            });
         }
 
         // 2. 检查单例存储
         if let Some(instance) = self
             .singletons
             .read()
-            .expect("获取单例存储读取锁失败，锁可能已被污染")
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "读取单例存储".to_string(),
+            })?
             .get(&type_id)
         {
             // 缓存到已解析
             self.resolved
                 .write()
-                .expect("获取已解析缓存写入锁失败，锁可能已被污染")
+                .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                    operation: "写入已解析缓存".to_string(),
+                })?
                 .insert(type_id, instance.clone());
-            return instance.clone().downcast::<T>().ok();
+            return instance.clone().downcast::<T>().map_err(|_| DiContainerError::ServiceNotFound {
+                type_name: std::any::type_name::<T>().to_string(),
+            });
         }
 
         // 3. 检查带依赖的工厂方法
-        if let Ok(factories) = self.factories_with_deps.read() {
-            if let Some(factory) = factories.get(&type_id) {
-                let instance = factory(self);
-                // 缓存到已解析（工厂创建的实例也缓存）
-                if let Ok(mut resolved) = self.resolved.write() {
-                    resolved.insert(type_id, instance.clone());
-                }
-                return instance.downcast::<T>().ok();
-            }
+        let factories_with_deps = self.factories_with_deps.read().map_err(|_| DiContainerError::LockAcquisitionFailed {
+            operation: "读取带依赖工厂".to_string(),
+        })?;
+        if let Some(factory) = factories_with_deps.get(&type_id) {
+            let instance = factory(self);
+            // 缓存到已解析（工厂创建的实例也缓存）
+            self.resolved
+                .write()
+                .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                    operation: "写入已解析缓存".to_string(),
+                })?
+                .insert(type_id, instance.clone());
+            return instance.downcast::<T>().map_err(|_| DiContainerError::ServiceNotFound {
+                type_name: std::any::type_name::<T>().to_string(),
+            });
         }
+        drop(factories_with_deps);
 
         // 4. 检查工厂方法（无依赖）
-        if let Ok(factories) = self.factories.read() {
-            if let Some(factory) = factories.get(&type_id) {
-                let instance = factory();
-                // 缓存到已解析（工厂创建的实例也缓存）
-                if let Ok(mut resolved) = self.resolved.write() {
-                    resolved.insert(type_id, instance.clone());
-                }
-                return instance.downcast::<T>().ok();
-            }
+        let factories = self.factories.read().map_err(|_| DiContainerError::LockAcquisitionFailed {
+            operation: "读取工厂".to_string(),
+        })?;
+        if let Some(factory) = factories.get(&type_id) {
+            let instance = factory();
+            // 缓存到已解析（工厂创建的实例也缓存）
+            self.resolved
+                .write()
+                .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                    operation: "写入已解析缓存".to_string(),
+                })?
+                .insert(type_id, instance.clone());
+            return instance.downcast::<T>().map_err(|_| DiContainerError::ServiceNotFound {
+                type_name: std::any::type_name::<T>().to_string(),
+            });
         }
 
-        None
+        Err(DiContainerError::ServiceNotFound {
+            type_name: std::any::type_name::<T>().to_string(),
+        })
     }
 
     /// 解析服务（带错误处理）
     ///
-    /// 如果服务未注册，返回错误
+    /// 如果服务未注册或锁获取失败，返回错误
     pub fn resolve_or_error<T>(&self) -> Result<Arc<T>, DiContainerError>
     where
         T: 'static + Send + Sync,
     {
         self.resolve::<T>()
-            .ok_or_else(|| DiContainerError::ServiceNotFound {
-                type_name: std::any::type_name::<T>().to_string(),
-            })
     }
 
     /// 尝试解析服务
     ///
-    /// 如果服务未注册，返回 None
+    /// 如果服务未注册或锁获取失败，返回 None
     pub fn try_resolve<T>(&self) -> Option<Arc<T>>
     where
         T: 'static + Send + Sync,
     {
-        self.resolve::<T>()
+        self.resolve::<T>().ok()
     }
 
     /// 检查服务是否已注册
@@ -303,6 +334,8 @@ pub enum DiContainerError {
         type_name: String,
         dependency_name: String,
     },
+    /// 锁获取失败（锁被污染）
+    LockAcquisitionFailed { operation: String },
 }
 
 impl std::fmt::Display for DiContainerError {
@@ -319,6 +352,9 @@ impl std::fmt::Display for DiContainerError {
                 dependency_name,
             } => {
                 write!(f, "依赖解析失败: {} 依赖 {}", type_name, dependency_name)
+            }
+            DiContainerError::LockAcquisitionFailed { operation } => {
+                write!(f, "锁获取失败: {}", operation)
             }
         }
     }
@@ -357,7 +393,7 @@ mod tests {
         let container = DiContainer::new();
         let service = Arc::new(TestServiceImpl::new("test"));
 
-        container.register_singleton::<dyn TestService>(service);
+        container.register_singleton::<dyn TestService>(service).unwrap();
 
         assert!(container.is_registered::<dyn TestService>());
     }
@@ -367,10 +403,10 @@ mod tests {
         let container = DiContainer::new();
         let service = Arc::new(TestServiceImpl::new("singleton"));
 
-        container.register_singleton::<dyn TestService>(service.clone());
+        container.register_singleton::<dyn TestService>(service.clone()).unwrap();
 
         let resolved = container.resolve::<dyn TestService>();
-        assert!(resolved.is_some());
+        assert!(resolved.is_ok());
         assert_eq!(resolved.unwrap().name(), "singleton");
     }
 
@@ -379,7 +415,7 @@ mod tests {
         let container = DiContainer::new();
         let service = Arc::new(TestServiceImpl::new("same"));
 
-        container.register_singleton::<dyn TestService>(service);
+        container.register_singleton::<dyn TestService>(service).unwrap();
 
         let first = container.resolve::<dyn TestService>().unwrap();
         let second = container.resolve::<dyn TestService>().unwrap();
@@ -393,7 +429,7 @@ mod tests {
         let container = DiContainer::new();
 
         container
-            .register_factory::<dyn TestService, _>(|| Arc::new(TestServiceImpl::new("factory")));
+            .register_factory::<dyn TestService, _>(|| Arc::new(TestServiceImpl::new("factory"))).unwrap();
 
         assert!(container.is_registered::<dyn TestService>());
     }
@@ -403,7 +439,7 @@ mod tests {
         let container = DiContainer::new();
 
         container
-            .register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("factory")));
+            .register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("factory"))).unwrap();
 
         let first = container.resolve::<TestServiceImpl>().unwrap();
         let second = container.resolve::<TestServiceImpl>().unwrap();
@@ -414,11 +450,11 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_unregistered_returns_none() {
+    fn test_resolve_unregistered_returns_error() {
         let container = DiContainer::new();
 
         let result = container.resolve::<dyn TestService>();
-        assert!(result.is_none());
+        assert!(result.is_err());
     }
 
     #[test]
@@ -434,7 +470,7 @@ mod tests {
         let container = DiContainer::new();
         let service = Arc::new(TestServiceImpl::new("test"));
 
-        container.register_singleton::<dyn TestService>(service);
+        container.register_singleton::<dyn TestService>(service).unwrap();
         assert!(container.is_registered::<dyn TestService>());
 
         let removed = container.unregister::<dyn TestService>();
@@ -446,7 +482,7 @@ mod tests {
     fn test_clear() {
         let container = DiContainer::new();
 
-        container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test")));
+        container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test"))).unwrap();
 
         assert!(container.service_count() > 0);
 
@@ -461,13 +497,13 @@ mod tests {
 
         assert_eq!(container.service_count(), 0);
 
-        container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test")));
+        container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test"))).unwrap();
 
         assert_eq!(container.service_count(), 1);
 
         // 注册同一个类型的单例会覆盖工厂
         container
-            .register_singleton::<TestServiceImpl>(Arc::new(TestServiceImpl::new("singleton")));
+            .register_singleton::<TestServiceImpl>(Arc::new(TestServiceImpl::new("singleton"))).unwrap();
 
         // 应该仍然是 1，因为是同一个类型
         assert_eq!(container.service_count(), 1);
@@ -487,7 +523,7 @@ mod tests {
                 counter.fetch_add(1, Ordering::SeqCst);
                 Arc::new(TestServiceImpl::new("factory"))
             }
-        });
+        }).unwrap();
 
         let handles: Vec<_> = (0..10)
             .map(|_| {

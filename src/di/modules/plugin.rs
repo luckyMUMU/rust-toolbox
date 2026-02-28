@@ -46,11 +46,11 @@ impl AppModule for PluginModule {
         container.register_factory::<PluginManagerServiceImpl, _>(move || {
             let manager = PluginManager::new();
             Arc::new(PluginManagerServiceImpl::new(manager, auto_load))
-        });
+        }).expect("注册 PluginManagerService 失败");
 
         container.register_factory::<RuntimeManagerServiceImpl, _>(|| {
             Arc::new(RuntimeManagerServiceImpl::new())
-        });
+        }).expect("注册 RuntimeManagerService 失败");
     }
 
     fn dependencies(&self) -> Vec<&str> {
