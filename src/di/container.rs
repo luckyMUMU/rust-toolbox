@@ -208,103 +208,180 @@ impl DiContainer {
     }
 
     /// 检查服务是否已注册
-    pub fn is_registered<T>(&self) -> bool
+    ///
+    /// 如果锁获取失败，返回错误
+    pub fn is_registered<T>(&self) -> Result<bool, DiContainerError>
     where
         T: 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
 
-        if let Ok(singletons) = self.singletons.read() {
-            if singletons.contains_key(&type_id) {
-                return true;
-            }
+        if self
+            .singletons
+            .read()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "检查单例注册状态".to_string(),
+            })?
+            .contains_key(&type_id)
+        {
+            return Ok(true);
         }
 
-        if let Ok(factories) = self.factories.read() {
-            if factories.contains_key(&type_id) {
-                return true;
-            }
+        if self
+            .factories
+            .read()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "检查工厂注册状态".to_string(),
+            })?
+            .contains_key(&type_id)
+        {
+            return Ok(true);
         }
 
-        if let Ok(factories) = self.factories_with_deps.read() {
-            if factories.contains_key(&type_id) {
-                return true;
-            }
+        if self
+            .factories_with_deps
+            .read()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "检查带依赖工厂注册状态".to_string(),
+            })?
+            .contains_key(&type_id)
+        {
+            return Ok(true);
         }
 
-        false
+        Ok(false)
     }
 
     /// 注销服务
-    pub fn unregister<T>(&self) -> bool
+    ///
+    /// 如果锁获取失败，返回错误
+    pub fn unregister<T>(&self) -> Result<bool, DiContainerError>
     where
         T: 'static + Send + Sync,
     {
         let type_id = TypeId::of::<T>();
         let mut removed = false;
 
-        if let Ok(mut singletons) = self.singletons.write() {
-            if singletons.remove(&type_id).is_some() {
-                removed = true;
-            }
+        if self
+            .singletons
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "注销单例服务".to_string(),
+            })?
+            .remove(&type_id)
+            .is_some()
+        {
+            removed = true;
         }
 
-        if let Ok(mut factories) = self.factories.write() {
-            if factories.remove(&type_id).is_some() {
-                removed = true;
-            }
+        if self
+            .factories
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "注销工厂方法".to_string(),
+            })?
+            .remove(&type_id)
+            .is_some()
+        {
+            removed = true;
         }
 
-        if let Ok(mut factories) = self.factories_with_deps.write() {
-            if factories.remove(&type_id).is_some() {
-                removed = true;
-            }
+        if self
+            .factories_with_deps
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "注销带依赖工厂".to_string(),
+            })?
+            .remove(&type_id)
+            .is_some()
+        {
+            removed = true;
         }
 
-        if let Ok(mut resolved) = self.resolved.write() {
-            resolved.remove(&type_id);
-        }
+        self.resolved
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "清理已解析缓存".to_string(),
+            })?
+            .remove(&type_id);
 
-        removed
+        Ok(removed)
     }
 
     /// 清空所有注册
-    pub fn clear(&self) {
-        if let Ok(mut singletons) = self.singletons.write() {
-            singletons.clear();
-        }
-        if let Ok(mut factories) = self.factories.write() {
-            factories.clear();
-        }
-        if let Ok(mut factories) = self.factories_with_deps.write() {
-            factories.clear();
-        }
-        if let Ok(mut resolved) = self.resolved.write() {
-            resolved.clear();
-        }
+    ///
+    /// 如果锁获取失败，返回错误
+    pub fn clear(&self) -> Result<(), DiContainerError> {
+        self.singletons
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "清空单例存储".to_string(),
+            })?
+            .clear();
+
+        self.factories
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "清空工厂存储".to_string(),
+            })?
+            .clear();
+
+        self.factories_with_deps
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "清空带依赖工厂存储".to_string(),
+            })?
+            .clear();
+
+        self.resolved
+            .write()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "清空已解析缓存".to_string(),
+            })?
+            .clear();
+
+        Ok(())
     }
 
     /// 获取已注册服务的数量
-    pub fn service_count(&self) -> usize {
+    ///
+    /// 如果锁获取失败，返回错误
+    pub fn service_count(&self) -> Result<usize, DiContainerError> {
         let mut type_ids: std::collections::HashSet<TypeId> = std::collections::HashSet::new();
 
-        if let Ok(singletons) = self.singletons.read() {
-            for id in singletons.keys() {
-                type_ids.insert(*id);
-            }
+        let singletons = self
+            .singletons
+            .read()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "读取单例存储计数".to_string(),
+            })?;
+        for id in singletons.keys() {
+            type_ids.insert(*id);
         }
-        if let Ok(factories) = self.factories.read() {
-            for id in factories.keys() {
-                type_ids.insert(*id);
-            }
+        drop(singletons);
+
+        let factories = self
+            .factories
+            .read()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "读取工厂存储计数".to_string(),
+            })?;
+        for id in factories.keys() {
+            type_ids.insert(*id);
         }
-        if let Ok(factories) = self.factories_with_deps.read() {
-            for id in factories.keys() {
-                type_ids.insert(*id);
-            }
+        drop(factories);
+
+        let factories_with_deps = self
+            .factories_with_deps
+            .read()
+            .map_err(|_| DiContainerError::LockAcquisitionFailed {
+                operation: "读取带依赖工厂存储计数".to_string(),
+            })?;
+        for id in factories_with_deps.keys() {
+            type_ids.insert(*id);
         }
 
-        type_ids.len()
+        Ok(type_ids.len())
     }
 }
 
@@ -395,7 +472,7 @@ mod tests {
 
         container.register_singleton::<dyn TestService>(service).unwrap();
 
-        assert!(container.is_registered::<dyn TestService>());
+        assert!(container.is_registered::<dyn TestService>().unwrap());
     }
 
     #[test]
@@ -431,7 +508,7 @@ mod tests {
         container
             .register_factory::<dyn TestService, _>(|| Arc::new(TestServiceImpl::new("factory"))).unwrap();
 
-        assert!(container.is_registered::<dyn TestService>());
+        assert!(container.is_registered::<dyn TestService>().unwrap());
     }
 
     #[test]
@@ -471,11 +548,11 @@ mod tests {
         let service = Arc::new(TestServiceImpl::new("test"));
 
         container.register_singleton::<dyn TestService>(service).unwrap();
-        assert!(container.is_registered::<dyn TestService>());
+        assert!(container.is_registered::<dyn TestService>().unwrap());
 
-        let removed = container.unregister::<dyn TestService>();
+        let removed = container.unregister::<dyn TestService>().unwrap();
         assert!(removed);
-        assert!(!container.is_registered::<dyn TestService>());
+        assert!(!container.is_registered::<dyn TestService>().unwrap());
     }
 
     #[test]
@@ -484,29 +561,29 @@ mod tests {
 
         container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test"))).unwrap();
 
-        assert!(container.service_count() > 0);
+        assert!(container.service_count().unwrap() > 0);
 
-        container.clear();
+        container.clear().unwrap();
 
-        assert_eq!(container.service_count(), 0);
+        assert_eq!(container.service_count().unwrap(), 0);
     }
 
     #[test]
     fn test_service_count() {
         let container = DiContainer::new();
 
-        assert_eq!(container.service_count(), 0);
+        assert_eq!(container.service_count().unwrap(), 0);
 
         container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test"))).unwrap();
 
-        assert_eq!(container.service_count(), 1);
+        assert_eq!(container.service_count().unwrap(), 1);
 
         // 注册同一个类型的单例会覆盖工厂
         container
             .register_singleton::<TestServiceImpl>(Arc::new(TestServiceImpl::new("singleton"))).unwrap();
 
         // 应该仍然是 1，因为是同一个类型
-        assert_eq!(container.service_count(), 1);
+        assert_eq!(container.service_count().unwrap(), 1);
     }
 
     #[test]
