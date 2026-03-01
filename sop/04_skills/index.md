@@ -1,6 +1,6 @@
 ---
 version: v3.0.0
-updated: 2026-02-28
+updated: 2026-03-01
 ---
 
 # Skill 索引
@@ -13,6 +13,43 @@ updated: 2026-02-28
 
 本目录定义所有 Skill，每个 Skill 都是规范的"翻译器"，将规范转换为代码、测试、文档。
 
+**符合 Trae Skill 标准**：每个 Skill 使用独立的 `SKILL.md` 文件定义，支持按需加载。
+
+---
+
+## 目录结构
+
+```
+04_skills/
+├── index.md                          # 本文件
+├── specification/                    # 规范类 Skill
+│   ├── requirement-analyst/
+│   │   └── SKILL.md                 # 需求分析
+│   ├── architecture-design/
+│   │   └── SKILL.md                 # 架构设计
+│   └── implementation-designer/
+│       └── SKILL.md                 # 实现设计
+├── implementation/                   # 实现类 Skill
+│   ├── code-explorer/
+│   │   └── SKILL.md                 # 代码探索
+│   ├── code-implementation/
+│   │   └── SKILL.md                 # 代码实现
+│   └── test-implementation/
+│       └── SKILL.md                 # 测试实现
+├── verification/                     # 验证类 Skill
+│   ├── architecture-reviewer/
+│   │   └── SKILL.md                 # 架构审查
+│   └── code-review/
+│       └── SKILL.md                 # 代码审查
+└── orchestration/                    # 编排类 Skill
+    ├── workflow-orchestrator/
+    │   └── SKILL.md                 # 工作流编排
+    ├── document-sync/
+    │   └── SKILL.md                 # 文档同步
+    └── progress-supervisor/
+        └── SKILL.md                 # 进度监管
+```
+
 ---
 
 ## Skill 分类
@@ -21,48 +58,40 @@ updated: 2026-02-28
 
 **职责**: 生成规范文档
 
-| Skill | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| `sop-requirement-analyst` | 需求分析 | 需求描述 | P1/P2 级规范 |
-| `sop-architecture-design` | 架构设计 | 系统需求 | P1 级规范 |
-| `sop-implementation-designer` | 实现设计 | 架构设计 | P2/P3 级规范 |
-
-**目录**: [specification/](specification/)
+| Skill | 描述 | 文件 |
+|-------|------|------|
+| `sop-requirement-analyst` | 分析需求并生成 P1/P2 级规范文档 | [SKILL.md](specification/requirement-analyst/SKILL.md) |
+| `sop-architecture-design` | 进行系统架构设计，生成 P1 级架构文档 | [SKILL.md](specification/architecture-design/SKILL.md) |
+| `sop-implementation-designer` | 进行实现设计，生成 P2/P3 级设计文档 | [SKILL.md](specification/implementation-designer/SKILL.md) |
 
 ### 实现类 Skill
 
 **职责**: 将规范翻译为代码
 
-| Skill | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| `sop-code-explorer` | 探索代码 | 规范文档 | 代码分析报告 |
-| `sop-code-implementation` | 代码实现 | P2/P3 级规范 | 代码变更 |
-| `sop-test-implementation` | 测试实现 | BDD 场景 | 测试代码 |
-
-**目录**: [implementation/](implementation/)
+| Skill | 描述 | 文件 |
+|-------|------|------|
+| `sop-code-explorer` | 探索代码库并生成分析报告 | [SKILL.md](implementation/code-explorer/SKILL.md) |
+| `sop-code-implementation` | 根据规范和设计文档实现代码 | [SKILL.md](implementation/code-implementation/SKILL.md) |
+| `sop-test-implementation` | 根据 BDD 场景编写测试代码 | [SKILL.md](implementation/test-implementation/SKILL.md) |
 
 ### 验证类 Skill
 
 **职责**: 验证规范是否被满足
 
-| Skill | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| `sop-architecture-reviewer` | 架构审查 | 代码变更 | P1 级验证报告 |
-| `sop-code-review` | 代码审查 | 代码变更 | P2/P3 级验证报告 |
-
-**目录**: [verification/](verification/)
+| Skill | 描述 | 文件 |
+|-------|------|------|
+| `sop-architecture-reviewer` | 审查架构设计，验证是否符合 P1 级规范 | [SKILL.md](verification/architecture-reviewer/SKILL.md) |
+| `sop-code-review` | 审查代码实现，验证是否符合 P2/P3 级规范 | [SKILL.md](verification/code-review/SKILL.md) |
 
 ### 编排类 Skill
 
 **职责**: 管理规范版本和流程编排
 
-| Skill | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| `sop-workflow-orchestrator` | 流程编排 | 规范文档 | 工作流状态 |
-| `sop-document-sync` | 文档同步 | 代码变更 | 文档更新 |
-| `sop-progress-supervisor` | 进度监管 | 工作流状态 | 进度报告 |
-
-**目录**: [orchestration/](orchestration/)
+| Skill | 描述 | 文件 |
+|-------|------|------|
+| `sop-workflow-orchestrator` | 编排工作流程，管理规范版本和工作流状态 | [SKILL.md](orchestration/workflow-orchestrator/SKILL.md) |
+| `sop-document-sync` | 同步文档与代码，确保规范文档与实现保持一致 | [SKILL.md](orchestration/document-sync/SKILL.md) |
+| `sop-progress-supervisor` | 监管工作流进度，生成进度报告 | [SKILL.md](orchestration/progress-supervisor/SKILL.md) |
 
 ---
 
@@ -128,62 +157,41 @@ updated: 2026-02-28
 
 | 规范层级 | 相关 Skill | 验证 Skill |
 |----------|-----------|------------|
-| P0 级（工程宪章） | `sop-architecture-design` | `sop-architecture-reviewer` |
-| P1 级（系统规范） | `sop-requirement-analyst` | `sop-architecture-reviewer` |
-| P2 级（模块规范） | `sop-implementation-designer` | `sop-code-review` |
-| P3 级（实现规范） | `sop-code-implementation` | `sop-code-review` |
+| P0 级（工程宪章） | [sop-architecture-design](specification/architecture-design/SKILL.md) | [sop-architecture-reviewer](verification/architecture-reviewer/SKILL.md) |
+| P1 级（系统规范） | [sop-requirement-analyst](specification/requirement-analyst/SKILL.md) | [sop-architecture-reviewer](verification/architecture-reviewer/SKILL.md) |
+| P2 级（模块规范） | [sop-implementation-designer](specification/implementation-designer/SKILL.md) | [sop-code-review](verification/code-review/SKILL.md) |
+| P3 级（实现规范） | [sop-code-implementation](implementation/code-implementation/SKILL.md) | [sop-code-review](verification/code-review/SKILL.md) |
 
 ---
 
-## Skill 合约规范
+## SKILL.md 文件格式
 
-### 合约模板
+每个 SKILL.md 文件遵循 Trae 标准格式：
 
 ```yaml
-skill_id: "skill-name"
-skill_type: "specification|implementation|verification|orchestration"
-version: "1.0.0"
-
-input_contract:
-  required_inputs:
-    - name: "input_name"
-      type: "file|data"
-      validation: "验证规则"
-  constraints:
-    - "输入约束"
-
-output_contract:
-  required_outputs:
-    - name: "output_name"
-      type: "file|data"
-      format: "格式定义"
-  guarantees:
-    - "输出保证"
-
-behavior_contract:
-  preconditions:
-    - "前置条件"
-  postconditions:
-    - "后置条件"
-  invariants:
-    - "不变式"
-```
-
+---
+name: skill-id
+description: 简要描述这个技能的功能和使用场景（一句话）
+version: v3.0.0
+skill_type: specification|implementation|verification|orchestration
 ---
 
-## 目录结构
+# skill-id
 
-```
-04_skills/
-├── index.md               # 本文件
-├── specification/         # 规范类 Skill
-│   └── README.md
-├── implementation/        # 实现类 Skill
-│   └── README.md
-├── verification/          # 验证类 Skill
-│   └── README.md
-└── orchestration/         # 编排类 Skill
-    └── README.md
+## 描述
+详细说明 Skill 的作用。
+
+## 使用场景
+触发这个 Skill 的条件。
+
+## 指令
+清晰的分步说明，告诉智能体具体怎么做。
+
+## 契约
+输入/输出契约定义。
+
+## 示例
+输入/输出示例。
 ```
 
 ---
@@ -198,5 +206,5 @@ behavior_contract:
 ---
 
 **文档所有者**: Skill 团队  
-**最后审核**: 2026-02-28  
+**最后审核**: 2026-03-01  
 **下次审核**: 2026-06-30
