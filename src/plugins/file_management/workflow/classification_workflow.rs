@@ -8,7 +8,7 @@
 
 use crate::error::{Result, WorkflowError};
 use crate::plugins::file_management::classification::{
-    ClassificationRuleStorage, ClassificationRules, RuleStorageConfig,
+    ClassificationEngine, ClassificationRuleStorage, ClassificationRules, RuleStorageConfig,
 };
 use crate::plugins::file_management::merge::FolderMergeTool;
 use serde::{Deserialize, Serialize};
@@ -296,12 +296,78 @@ impl ClassificationWorkflow {
             return result.skip("没有找到需要分类的文件夹");
         }
 
+        // 创建分类引擎
+        let engine = ClassificationEngine::new(true);
+
+        // 构建 AC 自动机
+        let automaton = match engine.build_automaton(&rules) {
+            Ok(a) => a,
+            Err(e) => return result.fail(format!("构建分类自动机失败: {}", e)),
+        };
+
+        // 执行分类
+        let mut classified_count = 0;
+        let mut unclassified_count = 0;
+        let mut ambiguous_count = 0;
+        let mut classification_results = Vec::new();
+
+        for folder_path in &folders {
+            let path = std::path::Path::new(folder_path);
+            let folder_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+
+            match engine.classify_folder(folder_name, &automaton, &rules) {
+                Ok(classify_result) => {
+                    let status = classify_result.status;
+                    match status {
+                        crate::plugins::file_management::classification::ClassificationStatus::Classified => {
+                            classified_count += 1;
+                        }
+                        crate::plugins::file_management::classification::ClassificationStatus::Ambiguous => {
+                            ambiguous_count += 1;
+                        }
+                        _ => {
+                            unclassified_count += 1;
+                        }
+                    }
+
+                    classification_results.push(json!({
+                        "folder": folder_path,
+                        "folder_name": folder_name,
+                        "category": classify_result.category,
+                        "status": status,
+                        "score": classify_result.score,
+                        "confidence": classify_result.candidates.first()
+                            .map(|c| c.confidence).unwrap_or(0.0),
+                        "matched_keywords": classify_result.candidates.first()
+                            .map(|c| c.matched_keywords.clone()).unwrap_or_default()
+                    }));
+                }
+                Err(e) => {
+                    unclassified_count += 1;
+                    classification_results.push(json!({
+                        "folder": folder_path,
+                        "folder_name": folder_name,
+                        "category": null,
+                        "status": "error",
+                        "error": e.to_string()
+                    }));
+                }
+            }
+        }
+
         // 分类结果
         let output = json!({
             "total_folders": folders.len(),
+            "classified_count": classified_count,
+            "unclassified_count": unclassified_count,
+            "ambiguous_count": ambiguous_count,
             "rules_applied": rules.rules.len(),
             "output_directory": self.config.output_directory.to_string_lossy(),
-            "experimental_mode": self.config.experimental_mode
+            "experimental_mode": self.config.experimental_mode,
+            "results": classification_results
         });
 
         result.complete(Some(output))

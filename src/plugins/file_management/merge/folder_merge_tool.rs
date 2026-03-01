@@ -97,25 +97,40 @@ impl SetFolderInfo {
         let mut subfolder_count = 0;
         let mut total_size = 0;
 
-        let entries = std::fs::read_dir(path).map_err(|e| {
-            FileManagementError::io(format!("读取目录失败: {}", path.display()), e)
-        })?;
+        let mut dir_stack = vec![path.to_path_buf()];
+        const MAX_DEPTH: usize = 256;
 
-        for entry in entries {
-            let entry = entry.map_err(|e| {
-                FileManagementError::io(format!("读取目录条目失败: {}", path.display()), e)
-            })?;
+        while let Some(current_path) = dir_stack.pop() {
+            if dir_stack.len() > MAX_DEPTH {
+                warn!("目录层级过深，跳过: {}", current_path.display());
+                continue;
+            }
 
-            let entry_path = entry.path();
-            if entry_path.is_dir() {
-                subfolder_count += 1;
-                let (sub_files, sub_folders, sub_size) = Self::count_contents(&entry_path)?;
-                file_count += sub_files;
-                subfolder_count += sub_folders;
-                total_size += sub_size;
-            } else {
-                file_count += 1;
-                total_size += entry.metadata().map(|m| m.len()).unwrap_or(0);
+            let entries = match std::fs::read_dir(&current_path) {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("读取目录失败: {} - {}", current_path.display(), e);
+                    continue;
+                }
+            };
+
+            for entry in entries {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("读取目录条目失败: {} - {}", current_path.display(), e);
+                        continue;
+                    }
+                };
+
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    subfolder_count += 1;
+                    dir_stack.push(entry_path);
+                } else {
+                    file_count += 1;
+                    total_size += entry.metadata().map(|m| m.len()).unwrap_or(0);
+                }
             }
         }
 
