@@ -1,136 +1,90 @@
 ---
-version: v3.0.0
-updated: 2026-02-28
+version: v3.0.2
 ---
 
 # 约束索引
 
-> **核心理念**: 分层约束，P0 不可违背
+core_principle: 分层约束，P0不可违背
 
----
+## 约束层级
 
-## 概述
+```yaml
+P0:
+  name: 工程宪章约束
+  strength: 不可违背，违反即熔断
+  content: [安全红线, 质量红线, 架构红线]
+  approval: 技术委员会
+  doc: p0-constraints.md
 
-本目录定义所有约束，按 P0-P3 四层分级，确保系统质量和安全。
+P1:
+  name: 系统约束
+  strength: 跨模块约束
+  content: 系统级质量要求
+  approval: 技术负责人
+  doc: p1-constraints.md
 
----
+P2:
+  name: 模块约束
+  strength: 单模块约束
+  content: 模块级质量要求
+  approval: 模块负责人
+  doc: p2-constraints.md
 
-## 约束层级说明
-
-### P0 级：工程宪章约束
-
-**特征**:
-- 不可违背，违反即熔断
-- 定义安全红线、质量红线、架构红线
-- 变更需技术委员会审批
-
-**文档**:
-- [P0 级约束](p0-constraints.md)
-
-### P1 级：系统约束
-
-**特征**:
-- 跨模块约束
-- 定义系统级质量要求
-- 变更需技术负责人审批
-
-**文档**:
-- [P1 级约束](p1-constraints.md)
-
-### P2 级：模块约束
-
-**特征**:
-- 单模块约束
-- 定义模块级质量要求
-- 变更需模块负责人审批
-
-**文档**:
-- [P2 级约束](p2-constraints.md)
-
-### P3 级：实现约束
-
-**特征**:
-- 实现细节
-- 编码规范、测试规范
-- 自动化工具验证
-
-**文档**:
-- [P3 级约束](p3-constraints.md)
-
----
-
-## 约束验证方法
-
-| 约束层级 | 验证时机 | 验证方法 | 违反处理 |
-|----------|----------|----------|----------|
-| P0 级 | 每次提交 | 静态分析 + CI/CD | 构建失败，必须修复 |
-| P1 级 | 每次合并 | 自动化测试 | 构建失败，必须修复 |
-| P2 级 | 每次构建 | 代码审查 | 警告，建议修复 |
-| P3 级 | 实时 | IDE 插件 | 提示，可选修复 |
-
----
-
-## 约束违反处理
-
-### P0 级违反
-
-```
-检测到 P0 级违反
-       ↓
-   构建失败
-       ↓
-  记录违规详情
-       ↓
-  通知责任人
-       ↓
-   修复违规
-       ↓
-   重新验证
-       ↓
-   构建通过
+P3:
+  name: 实现约束
+  strength: 实现细节
+  content: [编码规范, 测试规范]
+  approval: 自动化工具
+  doc: p3-constraints.md
 ```
 
-### P1-P3 级违反
+## 约束验证
 
-```
-检测到违反
-       ↓
-  记录违规详情
-       ↓
-  生成违规报告
-       ↓
-  通知责任人
-       ↓
-  评估影响
-       ↓
-  决定处理方式
+```yaml
+verification:
+  P0:
+    timing: 每次提交
+    method: 静态分析 + CI/CD
+    handle: 构建失败，必须修复
+  P1:
+    timing: 每次合并
+    method: 自动化测试
+    handle: 构建失败，必须修复
+  P2:
+    timing: 每次构建
+    method: 代码审查
+    handle: 警告，建议修复
+  P3:
+    timing: 实时
+    method: IDE插件
+    handle: 提示，可选修复
 ```
 
----
+## 违反处理流程
+
+```yaml
+P0_violation:
+  steps: [检测违反, 构建失败, 记录详情, 通知责任人, 修复违规, 重新验证, 构建通过]
+
+P1_P3_violation:
+  steps: [检测违反, 记录详情, 生成报告, 通知责任人, 评估影响, 决定处理]
+```
 
 ## 目录结构
 
+```yaml
+files:
+  - index.md: 本文件
+  - p0-constraints.md: P0级约束
+  - p1-constraints.md: P1级约束
+  - p2-constraints.md: P2级约束
+  - p3-constraints.md: P3级约束
+  - state-dictionary.md: 状态字典
+  - command-dictionary.md: 命令字典
 ```
-05_constraints/
-├── index.md               # 本文件
-├── p0-constraints.md      # P0 级约束
-├── p1-constraints.md      # P1 级约束
-├── p2-constraints.md      # P2 级约束
-├── p3-constraints.md      # P3 级约束
-├── state-dictionary.md    # 状态字典
-└── command-dictionary.md  # 命令字典
-```
-
----
 
 ## 相关文档
 
-- [工程宪章](../01_constitution/) - P0 级规范
-- [工作流程](../03_workflow/) - 5 阶段流程
-- [Skill 定义](../04_skills/) - 规范驱动 Skill
-
----
-
-**文档所有者**: 质量团队  
-**最后审核**: 2026-02-28  
-**下次审核**: 2026-06-30
+- ../01_constitution/: P0级规范
+- ../03_workflow/: 5阶段流程
+- ../04_skills/: 规范驱动Skill

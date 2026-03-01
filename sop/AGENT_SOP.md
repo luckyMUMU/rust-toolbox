@@ -1,275 +1,202 @@
 ---
-version: v3.0.0
-updated: 2026-02-28
+version: v3.0.2
 sop_path: sop/
+docs_output_path: docs/
+protected_directories: {sop: true, docs/参考: true}
+allow_modify_protected: false
 ---
 
-# SOP（Spec-first 架构）
+# SOP (Spec-first)
 
-> **核心理念**: 规范是核心，Skill 是实现方式
->
-> **SOP 文件夹路径**：`sop/` - 所有 SOP 相关文件的根目录，所有引用路径均基于此目录计算。
->
-> **唯一入口**：本文档是 SOP 的唯一入口，包含快速分诊、核心约束、工作流和导航。
+core_principle: 规范是核心，Skill是实现方式
+sop_path: sop/
 
----
+## 目录保护
 
-## 第一性原理
+protected:
+  - path: sop/
+    protected: true
+    reason: SOP规范文件
+  - path: docs/参考/
+    protected: true
+    reason: 参考文档
 
-### 规范是第一性产物
+allow_modify_protected: false
+change_requires_user_auth: true
 
-- **规范是系统的"宪法"**：定义系统应该做什么、不应该做什么
-- **规范是唯一真理源**：代码、测试、文档都是规范的实现
-- **规范驱动整个开发流程**：规范 → 计划 → 任务 → 实现 → 验证
+## 文档创建位置
 
-### Skill 是规范的执行工具
+output_paths:
+  spec: docs/specs/{name}-spec.md
+  clarification: docs/specs/{name}-clarification.md
+  design: docs/design/{name}-design.md
+  archive: docs/archive/{name}-archive.md
+  contract: docs/contracts/{stage}-contract.yaml
 
-- **Skill 是规范的"翻译器"**：将规范转换为代码、测试、文档
-- **Skill 的能力边界由规范定义**：规范定义"做什么"，Skill 执行"怎么做"
-- **Skill 验证规范是否被满足**：验证实现是否符合规范
+## 规范分层
 
----
+layers:
+  P0:
+    name: 工程宪章
+    docs: [project-charter, quality-redlines, architecture-principles, security-baseline]
+    path: 01_constitution/
+    constraint: 不可违背，违反即熔断
+  P1:
+    name: 系统规范
+    docs: [system-spec]
+    path: 02_specifications/
+    constraint: 跨模块约束，技术负责人审批
+  P2:
+    name: 模块规范
+    docs: [api-contract, data-model, domain-model]
+    path: 02_specifications/
+    constraint: 单模块约束，模块负责人审批
+  P3:
+    name: 实现规范
+    docs: [coding-standards, testing-standards]
+    path: 05_constraints/p3-constraints.md
+    constraint: 自动化工具验证
 
-## 规范分层架构
+## 5阶段工作流
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  P0 级：工程宪章（宪法级规范）                                                │
-│  - 项目宪章、质量红线、架构原则、安全基线                                     │
-│  特征：不可违背，违反即熔断                                                  │
-│  文档：[01_constitution/](01_constitution/)                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  P1 级：系统规范（系统级规范）                                                │
-│  - 系统功能边界、核心业务流程                                                │
-│  特征：跨模块约束，需要技术负责人审批                                        │
-│  文档：[02_specifications/](02_specifications/)                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  P2 级：模块规范（模块级规范）                                                │
-│  - API 契约、数据模型、领域模型                                              │
-│  特征：单模块约束，模块负责人审批                                            │
-│  文档：[02_specifications/](02_specifications/)                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  P3 级：实现规范（实现级规范）                                                │
-│  - 编码规范、测试规范、文档规范                                              │
-│  特征：实现细节，自动化工具验证                                              │
-│  文档：[05_constraints/p3-constraints.md](05_constraints/p3-constraints.md)  │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 5 阶段工作流
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  阶段 0: 规范重量选择                                                        │
-│  • 评估需求复杂度                                                            │
-│  • 推荐规范重量（重规范/轻规范/快速路径）                                    │
-│  文档：[stage-0-weight.md](03_workflow/stage-0-weight.md)                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  阶段 1: 理解与设计                                                          │
-│  • 需求分析（BDD 场景描述）                                                  │
-│  • 架构设计（DDD 战术映射）                                                  │
-│  • 实现设计（design.md）                                                     │
-│  文档：[stage-1-design.md](03_workflow/stage-1-design.md)                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  阶段 2: 实现与验证                                                          │
-│  • TDD 循环执行（红-绿-重构）                                                │
-│  • 约束验证（P0-P3）                                                         │
-│  • 代码审查                                                                  │
-│  文档：[stage-2-implement.md](03_workflow/stage-2-implement.md)              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  阶段 3: 交付与同步                                                          │
-│  • 文档同步                                                                  │
-│  • 索引更新                                                                  │
-│  文档：[stage-3-deliver.md](03_workflow/stage-3-deliver.md)                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  阶段 4: 归档与演化                                                          │
-│  • 创建归档记录                                                              │
-│  • 升级评估（是否升级为重规范）                                              │
-│  • 更新 CHANGELOG                                                            │
-│  文档：[stage-4-archive.md](03_workflow/stage-4-archive.md)                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 快速导航
-
-| 需求 | 目标文档 |
-|------|----------|
-| 工程宪章（P0 级） | [01_constitution/](01_constitution/) |
-| 系统规范（P1-P2 级） | [02_specifications/](02_specifications/) |
-| 工作流程（5 阶段） | [03_workflow/](03_workflow/) |
-| Skill 定义（规范驱动） | [04_skills/](04_skills/) |
-| 约束规范（P0-P3） | [05_constraints/](05_constraints/) |
-| 模板参考 | [06_templates/](06_templates/) |
-| 参考资料 | [07_reference/](07_reference/) |
-| 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
-
----
+workflow:
+  stage_0:
+    name: 规范重量选择
+    actions: [评估需求复杂度, 推荐规范重量]
+    output: 规范重量决策JSON
+    doc: 03_workflow/stage-0-weight.md
+  stage_1:
+    name: 理解与设计
+    actions: [多轮次多维度提问, 需求分析BDD, 架构设计DDD, 实现设计]
+    output: [clarification.md, spec.md, architecture-design.md, design.md]
+    doc: 03_workflow/stage-1-design.md
+  stage_2:
+    name: 实现与验证
+    actions: [TDD循环, 约束验证P0-P3, 代码审查]
+    output: [代码变更, 审查报告, 测试报告]
+    doc: 03_workflow/stage-2-implement.md
+  stage_3:
+    name: 交付与同步
+    actions: [文档同步, 索引更新]
+    output: [完成通知, 变更摘要]
+    doc: 03_workflow/stage-3-deliver.md
+  stage_4:
+    name: 归档与演化
+    actions: [创建归档记录, 升级评估, 更新CHANGELOG]
+    output: [归档记录, CHANGELOG]
+    doc: 03_workflow/stage-4-archive.md
 
 ## 核心约束
 
-### 规范先行
+constraints:
+  spec_first:
+    - 先写规范后写代码
+    - 规范是唯一真理源
+    - P0级需技术委员会审批，P1级需技术负责人审批
+  contract:
+    - 各环节独立上下文
+    - 契约显式声明
+    - 契约版本化
+  layer:
+    - P0级不可违背
+    - P1级警告可接受
+    - P2-P3级自动化验证
+  verification:
+    - 验证规范是否被满足
+    - 审查须用户确认
+    - 无出处不决断
+  directory_protection:
+    - 保护目录禁止修改
+    - 文档创建在docs/目录
+    - 变更需用户授权
 
-1. **先写规范，后写代码**：规范定义"做什么"，代码实现"怎么做"
-2. **规范是唯一真理源**：代码、测试、文档必须与规范一致
-3. **规范变更需审批**：P0 级需技术委员会，P1 级需技术负责人
+## 质量门控
 
-### 契约协作
+quality_gates:
+  stage_0:
+    checks: [需求描述清晰, 复杂度评估合理]
+    pass: 全部通过
+    fail: 返回需求澄清
+  stage_1:
+    checks: [需求澄清完成, 长期短期区分, 用户意图确认, 设计文档完整, 符合P0约束, 通过审查]
+    pass: 全部通过
+    fail: 返回需求澄清或设计修正
+  stage_2:
+    checks: [代码规范, 测试通过, 约束验证通过]
+    pass: 全部通过
+    fail: 返回实现修正
+  stage_3:
+    checks: [文档同步完成, 索引更新正确]
+    pass: 全部通过
+    fail: 返回同步修正
+  stage_4:
+    checks: [归档记录完整, CHANGELOG更新]
+    pass: 全部通过
+    fail: 返回归档修正
 
-4. **各环节独立上下文**：不共用状态，只通过契约传递
-5. **契约显式声明**：所有依赖必须在契约中明确
-6. **契约版本化**：每个契约都有唯一 ID 和版本号
-
-### 分层约束
-
-7. **P0 级不可违背**：违反即熔断，必须修复
-8. **P1 级警告可接受**：需要评估影响并记录
-9. **P2-P3 级自动化验证**：通过工具自动检查
-
-### 验证独立
-
-10. **验证规范是否被满足**：而非验证代码
-11. **审查须确认**：审查结论须通过用户明确确认
-12. **无出处不决断**：无法追溯到规范的决策须询问用户
-
----
-
-## 质量门控机制
-
-| 阶段 | 门控检查项 | 通过条件 | 失败处理 |
-|------|-----------|----------|----------|
-| 阶段 0 | 需求描述清晰、复杂度评估合理 | 全部通过 | 返回需求澄清 |
-| 阶段 1 | 设计文档完整、符合 P0 级约束、通过审查 | 全部通过 | 返回设计修正 |
-| 阶段 2 | 代码规范、测试通过、约束验证通过 | 全部通过 | 返回实现修正 |
-| 阶段 3 | 文档同步完成、索引更新正确 | 全部通过 | 返回同步修正 |
-| 阶段 4 | 归档记录完整、CHANGELOG 更新 | 全部通过 | 返回归档修正 |
-
-**门控失败约束**：
-- 每次失败都需要用户决策
-- 用户可选择：修复后重试、回滚、终止
-
----
+gate_failure:
+  - 每次失败需用户决策
+  - 可选: 修复后重试/回滚/终止
 
 ## 路径选择
 
-### 重规范路径
+paths:
+  heavy:
+    scenarios: [从0到1核心系统, 跨团队大型功能, 安全金融高风险模块]
+    flow: stage_0 -> stage_1(完整设计) -> stage_2 -> stage_3 -> stage_4
+  light:
+    scenarios: [小功能增量需求, UI接口配置改动, Bug修复]
+    flow: stage_0 -> stage_1(简化设计) -> stage_2 -> stage_3 -> stage_4
+  fast:
+    scenarios: [单文件, <30行, 无逻辑变更]
+    flow: stage_2(跳过设计) -> stage_3
 
-**适用场景**：
-- 从 0 到 1 的核心系统开发
-- 跨团队协作的大型功能
-- 安全/金融等高风险模块
+## Skill分类
 
-**流程**：阶段 0 → 阶段 1（完整设计）→ 阶段 2 → 阶段 3 → 阶段 4
-
-### 轻规范路径
-
-**适用场景**：
-- 小功能 / 增量需求
-- UI、接口、配置类改动
-- Bug 修复
-
-**流程**：阶段 0 → 阶段 1（简化设计）→ 阶段 2 → 阶段 3 → 阶段 4
-
-### 快速路径
-
-**适用场景**：
-- 单文件 + <30 行 + 无逻辑变更
-
-**流程**：阶段 2（跳过设计）→ 阶段 3
-
----
-
-## Skill 分类
-
-| 类型 | 职责 | Skill 示例 |
-|------|------|-----------|
-| 规范类 | 生成规范文档 | `sop-requirement-analyst`、`sop-architecture-design` |
-| 实现类 | 将规范翻译为代码 | `sop-code-implementation`、`sop-test-implementation` |
-| 验证类 | 验证规范是否被满足 | `sop-architecture-reviewer`、`sop-code-review` |
-| 编排类 | 管理规范版本和流程 | `sop-workflow-orchestrator`、`sop-document-sync` |
-
-👉 [Skill 详情](04_skills/index.md)
-
----
+skills:
+  specification:
+    duty: 生成规范文档
+    examples: [sop-requirement-analyst, sop-architecture-design]
+  implementation:
+    duty: 将规范翻译为代码
+    examples: [sop-code-implementation, sop-test-implementation]
+  verification:
+    duty: 验证规范是否被满足
+    examples: [sop-architecture-reviewer, sop-code-review]
+  orchestration:
+    duty: 管理规范版本和流程
+    examples: [sop-workflow-orchestrator, sop-document-sync]
 
 ## 命令速查
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `/start` | 启动工作流 | `/start` |
-| `/spec-weight` | 评估规范重量 | `/spec-weight 实现用户登录功能` |
-| `/propose` | 创建需求提案 | `/propose 实现用户登录功能` |
-| `/design` | 生成设计文档 | `/design user-auth` |
-| `/implement` | 开始实现 | `/implement user-auth` |
-| `/review` | 请求代码审查 | `/review` |
-| `/approve` | 批准变更 | `/approve` |
-| `/archive` | 创建归档记录 | `/archive` |
-
-👉 [命令字典](05_constraints/command-dictionary.md)
-
----
+commands:
+  /start: 启动工作流
+  /spec-weight: 评估规范重量
+  /propose: 创建需求提案
+  /design: 生成设计文档
+  /implement: 开始实现
+  /review: 请求代码审查
+  /approve: 批准变更
+  /archive: 创建归档记录
 
 ## 状态速查
 
-| 状态 | 含义 |
-|------|------|
-| `[WORKFLOW_STARTED]` | 工作流启动 |
-| `[STAGE_N_PASSED]` | 阶段 N 通过 |
-| `[STAGE_N_FAILED]` | 阶段 N 失败 |
-| `[CONSTRAINT_P0_VIOLATED]` | P0 级约束违反 |
-| `[SPEC_APPROVED]` | 规范已批准 |
-
-👉 [状态字典](05_constraints/state-dictionary.md)
-
----
+states:
+  WORKFLOW_STARTED: 工作流启动
+  STAGE_N_PASSED: 阶段N通过
+  STAGE_N_FAILED: 阶段N失败
+  CONSTRAINT_P0_VIOLATED: P0级约束违反
+  SPEC_APPROVED: 规范已批准
 
 ## 目录结构
 
-```
-sop/
-├── AGENT_SOP.md          # 唯一入口（本文件）
-├── 01_constitution/       # P0 级：工程宪章
-├── 02_specifications/     # P1-P2 级：系统/模块规范
-├── 03_workflow/           # 工作流（5 阶段）
-├── 04_skills/             # Skill 定义（规范驱动）
-├── 05_constraints/        # 约束定义（P0-P3）
-├── 06_templates/          # 模板与格式
-├── 07_reference/          # 参考资料
-├── CHANGELOG.md           # 版本历史
-└── README.md              # SOP 说明
-```
-
----
-
-## 版本历史
-
-| 版本 | 日期 | 变更说明 |
-|------|------|----------|
-| v3.0.0 | 2026-02-28 | 架构重构：Spec-first 架构 |
-| v2.12.0 | 2026-02-25 | Skill-first 架构最终版本 |
-
-👉 [完整版本历史](CHANGELOG.md)
+structure:
+  AGENT_SOP.md: 唯一入口
+  01_constitution/: P0级工程宪章
+  02_specifications/: P1-P2级系统模块规范
+  03_workflow/: 工作流5阶段
+  04_skills/: Skill定义
+  05_constraints/: 约束定义P0-P3
+  06_templates/: 模板与格式
+  07_reference/: 参考资料
+  CHANGELOG.md: 版本历史
