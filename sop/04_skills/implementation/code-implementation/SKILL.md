@@ -1,8 +1,28 @@
 ---
 name: sop-code-implementation
-description: 根据规范和设计文档实现代码，生成符合项目规范的代码变更
-version: v3.0.0
-skill_type: implementation
+description: |
+  Use when:
+    - 设计文档已通过审查，可以开始实现
+    - 需要实现新的功能模块
+    - 需要修复代码缺陷
+    - 需要改进现有代码结构
+  Don't use when:
+    - 设计文档尚未完成 → 使用 sop-implementation-designer
+    - 需要编写测试而非实现 → 使用 sop-test-implementation
+    - 需要审查代码而非实现 → 使用 sop-code-review
+    - 需要探索现有代码 → 使用 sop-code-explorer
+    - 需要同步文档而非实现 → 使用 sop-document-sync
+  Inputs:
+    - design_document: 设计文档（src/{module}/design.md）
+    - spec_document: 规范文档（specs/{name}-spec.md）
+    - existing_code: 现有代码（可选）
+  Outputs:
+    - code_changes: 符合项目代码规范的代码变更（git commit）
+  Success criteria:
+    - 代码符合 P2/P3 级规范
+    - 代码通过 lint 检查
+    - 代码通过类型检查
+    - 单元测试通过
 ---
 
 # sop-code-implementation
@@ -128,6 +148,26 @@ invariants:
   - "禁止循环依赖"
   - "公共 API 必须注释"
 ```
+
+## 常见坑
+
+### 坑 1: 使用强制解包（unwrap/expect）
+
+- **现象**: 代码中使用 `.unwrap()` 或 `.expect()` 处理 Option/Result 类型，运行时出现 panic。
+- **原因**: 为了快速实现功能，未进行安全的错误处理。
+- **解决**: 使用模式匹配或 `?` 运算符进行安全解包，或返回 Result 类型让调用方处理错误。
+
+### 坑 2: 硬编码敏感信息
+
+- **现象**: 代码中直接写入数据库密码、API 密钥等敏感信息。
+- **原因**: 开发时为了方便测试，将配置信息直接写在代码中。
+- **解决**: 使用环境变量或配置文件管理敏感信息，禁止在代码中硬编码任何密钥或密码。
+
+### 坑 3: 跳过单元测试
+
+- **现象**: 代码实现完成后未编写单元测试，或测试覆盖率不足。
+- **原因**: 认为时间紧迫，先实现功能后再补测试，但最终未补充。
+- **解决**: 遵循 TDD 流程，先编写失败的测试再实现功能，确保每个方法都有对应的测试用例。
 
 ## 示例
 

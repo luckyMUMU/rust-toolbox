@@ -1,8 +1,8 @@
 ---
-version: v3.0.2
+version: v3.1.0
 sop_path: sop/
 docs_output_path: docs/
-protected_directories: {sop: true, docs/参考: true}
+protected_directories: {sop: true, docs/参考：true}
 allow_modify_protected: false
 ---
 
@@ -166,6 +166,56 @@ skills:
   orchestration:
     duty: 管理规范版本和流程
     examples: [sop-workflow-orchestrator, sop-document-sync]
+
+## Skill 调用规范
+
+### 确定性调用（生产链路）
+
+当工作流处于确定性路径时，使用显式调用语法：
+
+```yaml
+USE_SKILL: <skill-name>
+INPUTS:
+  <input-key>: <input-value>
+EXPECTED_OUTPUTS:
+  <output-key>: <expected-format>
+```
+
+**使用场景**：
+- 工作流阶段内的固定 Skill 调用
+- 已明确下一步操作的确定性场景
+- 需要精确控制执行顺序的生产链路
+
+### 智能路由（探索性任务）
+
+当任务需要 Agent 自主决策时，使用路由语法：
+
+```yaml
+ROUTE_TO: <skill-name>
+CONTEXT: <task-description>
+CONFIDENCE: <confidence-score>
+```
+
+**使用场景**：
+- 用户需求不明确，需要分析后选择 Skill
+- 探索性任务，需要 Agent 自主判断
+- 多个 Skill 可能适用的复杂场景
+
+### 调用示例
+
+```yaml
+# 确定性调用示例
+USE_SKILL: sop-requirement-analyst
+INPUTS:
+  requirement_description: "用户需要一个订单管理系统"
+EXPECTED_OUTPUTS:
+  spec_document: "specs/order-spec.md"
+
+# 智能路由示例
+ROUTE_TO: sop-code-implementation
+CONTEXT: "根据已确认的设计文档实现订单管理模块"
+CONFIDENCE: 0.95
+```
 
 ## 命令速查
 

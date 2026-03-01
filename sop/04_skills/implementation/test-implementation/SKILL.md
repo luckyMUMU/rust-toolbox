@@ -1,8 +1,26 @@
 ---
 name: sop-test-implementation
-description: 根据 BDD 场景编写测试代码，确保测试覆盖所有业务场景
-version: v3.0.0
-skill_type: implementation
+description: |
+  Use when:
+    - 在实现前编写失败的测试（TDD 红阶段）
+    - 需要验证实现是否符合 BDD 场景
+    - 需要增加测试覆盖率
+    - 需要编写回归测试用例
+  Don't use when:
+    - BDD 场景尚未定义 → 使用 sop-requirement-analyst 先定义场景
+    - 需要实现代码而非测试 → 使用 sop-code-implementation
+    - 需要审查测试质量 → 使用 sop-code-review
+    - 需要探索现有代码 → 使用 sop-code-explorer
+  Inputs:
+    - spec_document: 规范文档，包含 BDD 场景
+    - bdd_scenarios: BDD 场景定义
+    - implementation_code: 实现代码（可选）
+  Outputs:
+    - tests/{module}/{name}-test.{ext}: 测试代码
+  Success criteria:
+    - 测试覆盖所有 BDD 场景
+    - 测试代码符合 P3 级测试规范
+    - 测试可重复执行
 ---
 
 # sop-test-implementation
@@ -118,6 +136,26 @@ invariants:
   - "测试必须隔离"
   - "测试必须快速"
 ```
+
+## 常见坑
+
+### 坑 1: 测试相互依赖
+
+- **现象**: 测试用例之间存在执行顺序依赖，单独运行某个测试会失败。
+- **原因**: 测试共享了可变状态，前一个测试修改的状态影响了后一个测试。
+- **解决**: 每个测试用例独立准备测试数据，测试完成后清理状态，确保测试隔离性。
+
+### 坑 2: 测试断言不充分
+
+- **现象**: 测试执行通过，但未真正验证业务逻辑的正确性。
+- **原因**: 断言仅检查返回值不为空，未验证具体值的正确性。
+- **解决**: 断言必须验证具体的业务规则，如"总价应等于单价乘以数量"，而非仅检查"总价不为空"。
+
+### 坑 3: Mock 滥用
+
+- **现象**: 过度使用 Mock 导致测试与实现细节耦合，重构时测试大量失败。
+- **原因**: 对所有依赖都进行 Mock，包括稳定的值对象和工具类。
+- **解决**: 仅对外部依赖（数据库、网络服务）使用 Mock，对于稳定的内部类使用真实实现。
 
 ## 示例
 

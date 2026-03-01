@@ -1,8 +1,27 @@
 ---
 name: sop-architecture-reviewer
-description: 审查架构设计，验证实现是否符合 P1 级规范和工程宪章
-version: v3.0.0
-skill_type: verification
+description: |
+  Use when:
+    - 架构文档已完成，需要审查
+    - 重大代码变更可能影响架构
+    - 定期检查系统架构健康度
+    - 验证架构重构是否符合预期
+  Don't use when:
+    - 架构设计尚未完成 → 使用 sop-architecture-design
+    - 需要审查代码实现而非架构 → 使用 sop-code-review
+    - 需要探索现有代码结构 → 使用 sop-code-explorer
+    - 需要修改架构而非审查 → 使用 sop-architecture-design
+  Inputs:
+    - architecture_document: 架构设计文档
+    - code_changes: 代码变更记录（git diff）
+    - p0_constraints: P0 级架构约束
+    - previous_review: 上次审查报告（可选）
+  Outputs:
+    - contracts/architecture-review.json: 架构审查报告
+  Success criteria:
+    - 审查报告包含完整的约束验证结果
+    - P0 级违反必须报告
+    - 审查报告保存在 contracts/
 ---
 
 # sop-architecture-reviewer
@@ -133,6 +152,26 @@ invariants:
   - "审查必须客观准确"
   - "审查必须覆盖所有约束"
 ```
+
+## 常见坑
+
+### 坑 1: 审查覆盖不完整
+
+- **现象**: 审查报告遗漏部分模块或约束项，导致问题未被发现。
+- **原因**: 审查范围界定不清，未建立完整的审查清单。
+- **解决**: 使用标准化的审查清单模板，逐项检查所有 P0/P1 级约束，确保无遗漏。
+
+### 坑 2: 循环依赖检测遗漏
+
+- **现象**: 模块间存在间接循环依赖，但审查报告未发现。
+- **原因**: 仅检查直接依赖关系，未进行传递依赖分析。
+- **解决**: 使用依赖分析工具生成完整的依赖图，检查所有直接和间接的循环依赖路径。
+
+### 坑 3: P0 违反处理不当
+
+- **现象**: 发现 P0 级违反后，仅记录建议而非阻断后续流程。
+- **原因**: 未严格执行 P0 级约束的阻断机制。
+- **解决**: P0 级违反必须标记为"failed"状态，阻断后续阶段执行，直到问题修复并重新审查通过。
 
 ## 示例
 

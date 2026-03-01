@@ -1,8 +1,26 @@
 ---
 name: sop-architecture-design
-description: 进行系统架构设计，生成 P1 级架构文档，定义系统分层、模块边界和接口规范
-version: v3.0.0
-skill_type: specification
+description: |
+  Use when:
+    - 需要为新系统设计整体架构
+    - 现有系统需要架构层面的重构
+    - 需要定义新的模块边界和职责
+    - 需要定义跨模块的接口规范
+  Don't use when:
+    - 需求规范尚未确认 → 使用 sop-requirement-analyst 先完成需求分析
+    - 架构设计已完成，需要审查 → 使用 sop-architecture-reviewer
+    - 架构已确定，需要设计实现细节 → 使用 sop-implementation-designer
+    - 需要修改代码而非设计架构 → 使用 sop-code-implementation
+  Inputs:
+    - system_requirements: 系统需求规范文档（specs/{name}-spec.md）
+    - constitution_docs: 工程宪章文档（01_constitution/）
+    - existing_architecture: 现有架构文档（可选）
+  Outputs:
+    - docs/02_logical_workflow/{name}-architecture.md: 架构设计文档
+  Success criteria:
+    - 架构文档符合 P0 级约束
+    - 架构文档包含分层设计
+    - 架构文档包含领域模型定义
 ---
 
 # sop-architecture-design
@@ -120,6 +138,26 @@ invariants:
   - "架构必须分层清晰"
   - "依赖方向必须正确（外层依赖内层）"
 ```
+
+## 常见坑
+
+### 坑 1: 分层依赖方向错误
+
+- **现象**: 领域层直接依赖基础设施层，导致业务逻辑与具体实现耦合。
+- **原因**: 未遵循依赖倒置原则，领域层直接引用具体的技术实现类。
+- **解决**: 使用仓储接口（Repository Interface）在领域层定义抽象，由基础设施层实现具体类，确保依赖方向由外向内。
+
+### 坑 2: 聚合边界划分过大
+
+- **现象**: 单个聚合包含过多实体，导致性能问题和并发冲突频繁。
+- **原因**: 将业务关联的所有实体都放入同一聚合，未考虑聚合的一致性边界。
+- **解决**: 遵循"小聚合"原则，仅将必须保持强一致性的实体划入同一聚合，其他实体通过领域事件实现最终一致性。
+
+### 坑 3: 忽视非功能性需求
+
+- **现象**: 架构设计仅关注功能实现，上线后出现性能、安全等问题。
+- **原因**: 架构设计阶段未充分分析非功能性需求（性能、安全、可扩展性）。
+- **解决**: 在步骤 1 中明确列出非功能性需求，并在架构文档中单独章节说明应对方案。
 
 ## 示例
 

@@ -1,5 +1,5 @@
 ---
-version: v3.0.2
+version: v3.1.0
 level: P0
 ---
 
@@ -30,6 +30,85 @@ P0-SEC-003:
   verify: 代码审查 + 安全扫描
   handle: 构建失败，必须修复
   exception: 无例外
+
+P0-SEC-004:
+  name: 网络访问白名单
+  desc: Agent 网络访问必须受 allowlist 限制，禁止访问未授权的外部资源
+  verify: 网络代理审计
+  handle: 阻止访问，记录违规详情（URL、时间、上下文），触发安全告警
+  exception: 无例外
+  allowlist:
+    - pattern: "*.github.com"
+      purpose: "代码仓库访问"
+    - pattern: "*.npmjs.com"
+      purpose: "NPM 包管理"
+    - pattern: "pypi.org"
+      purpose: "Python 包管理"
+    - pattern: "*.crates.io"
+      purpose: "Rust 包管理"
+  runtime_verification:
+    tool: network-proxy-auditor
+    config:
+      log_path: logs/network-audit.log
+      alert_threshold: 3  # 连续 3 次违规触发告警
+      block_mode: true    # 阻止非白名单访问
+    detection_flow:
+      - 拦截请求
+      - 检查 allowlist
+      - 记录违规日志
+      - 触发告警（超过阈值）
+    audit_log_format:
+      timestamp: ISO8601
+      source_skill: string
+      target_url: string
+      action: blocked | allowed
+      reason: string
+
+P0-SEC-005:
+  name: 密钥安全注入
+  desc: 密钥必须通过安全注入机制传递，模型不得接触明文密钥
+  verify: 密钥审计日志
+  handle: 阻止操作，记录违规详情（操作、时间、上下文），触发安全告警
+  exception: 无例外
+  injection:
+    method: environment_variable
+    pattern: "SECRET_${DOMAIN}_${KEY_NAME}"
+  restrictions:
+    - 禁止在日志中输出密钥
+    - 禁止在代码中硬编码密钥
+    - 禁止将密钥传递给未授权的 Skill
+  implementation_guide:
+    environment_variable_setup:
+      example: |
+        # .env 文件（不提交到版本控制）
+        SECRET_ORDER_DB_PASSWORD=xxx
+        SECRET_GITHUB_TOKEN=xxx
+        
+        # Docker Compose 配置
+        services:
+          app:
+            environment:
+              - SECRET_${DOMAIN}_${KEY_NAME}
+    
+    key_management_best_practices:
+      - 使用密钥管理服务（如 AWS Secrets Manager、HashiCorp Vault）
+      - 定期轮换密钥（建议 90 天）
+      - 最小权限原则：仅授予必要的权限
+      - 密钥访问审计日志
+      - 密钥分级管理（开发/测试/生产环境隔离）
+    
+    skill_authorization:
+      example: |
+        # 密钥授权配置（skill-secrets.yaml）
+        skill_secrets:
+          sop-code-implementation:
+            - SECRET_GITHUB_TOKEN
+            - SECRET_NPM_TOKEN
+          sop-test-implementation:
+            - SECRET_GITHUB_TOKEN
+          sop-code-explorer: []  # 不需要密钥
+          sop-requirement-analyst: []
+          sop-architecture-design: []
 ```
 
 ## 质量约束
@@ -113,4 +192,12 @@ tools:
   - type: 架构约束
     names: [ArchUnit, dependency-cruiser]
     integration: CI/CD
+  - type: 网络审计
+    names: [网络代理审计]
+    integration: 实时监控
+    purpose: P0-SEC-004 网络访问白名单验证
+  - type: 密钥审计
+    names: [密钥审计日志]
+    integration: 实时监控
+    purpose: P0-SEC-005 密钥安全注入验证
 ```

@@ -1,6 +1,26 @@
 ---
 name: sop-workflow-orchestrator
-description: 编排工作流程，管理规范版本和工作流状态转换
+description: |
+  Use when:
+    - 用户提交新需求，启动工作流
+    - 一个阶段完成，需要转换到下一阶段
+    - 需要查询当前工作流状态
+    - 工作流执行出现异常，需要处理
+  Don't use when:
+    - 需要分析需求 → 使用 sop-requirement-analyst
+    - 需要监控进度 → 使用 sop-progress-supervisor
+    - 需要执行具体任务 → 调用对应的 Skill
+    - 需要同步文档 → 使用 sop-document-sync
+  Inputs:
+    - weight_decision: 权重决策结果（contracts/stage-0-decision.json）
+    - constitution_docs: 工程宪章文档
+    - workflow_state: 当前工作流状态（可选）
+  Outputs:
+    - contracts/workflow-state.json: 工作流状态文件
+  Success criteria:
+    - 工作流状态已更新
+    - 阶段按顺序执行
+    - 工作流状态文件已保存
 ---
 
 # sop-workflow-orchestrator
@@ -98,6 +118,62 @@ required_outputs:
     guarantees:
       - "工作流状态已更新"
       - "阶段按顺序执行"
+
+  - name: "workflow_summary"
+    type: json
+    path: contracts/workflow-summary.json
+    format: "阶段摘要，用于 Compaction 后的上下文恢复"
+    guarantees:
+      - "包含各阶段的摘要信息"
+      - "包含关键决策和产物引用"
+
+  - name: "artifact_index"
+    type: yaml
+    path: contracts/artifact-index.yaml
+    format: "产物统一索引"
+    guarantees:
+      - "所有产物已注册"
+      - "索引可追溯"
+
+  - name: "rollback_point"
+    type: json
+    path: contracts/rollback-point.json
+    format: "阶段回滚点"
+    guarantees:
+      - "阶段完成时创建"
+      - "包含完整状态快照"
+```
+
+## Compaction 机制
+
+### 触发条件
+
+```yaml
+compaction:
+  trigger:
+    type: token_threshold
+    threshold: 100000
+  strategy:
+    current_stage: full_context
+    completed_stages: summary_only
+    preserve:
+      - key_decisions
+      - artifact_references
+      - constraint_violations
+```
+
+### 输出格式
+
+```yaml
+output:
+  path: contracts/workflow-summary.json
+  format:
+    stages:
+      - name: string
+        status: completed | in_progress | pending
+        summary: string
+        artifacts: string[]
+        decisions: string[]
 ```
 
 ### 行为契约
@@ -117,6 +193,26 @@ invariants:
   - "每个阶段必须通过质量门控"
   - "三击熔断机制必须生效"
 ```
+
+## 常见坑
+
+### 坑 1: 阶段跳过执行
+
+- **现象**: 某些阶段未执行就直接进入下一阶段，导致前置条件不满足。
+- **原因**: 未严格执行阶段依赖关系，错误判断某阶段可以跳过。
+- **解决**: 每个阶段必须验证前置条件，只有当前置阶段全部完成且通过质量门控后才能进入下一阶段。
+
+### 坑 2: 状态文件损坏
+
+- **现象**: 工作流状态文件内容不完整或格式错误，无法恢复工作流状态。
+- **原因**: 状态更新过程中发生异常，导致部分写入或格式错误。
+- **解决**: 使用原子写入方式更新状态文件，写入前备份旧状态，写入失败时回滚。
+
+### 坑 3: 熔断机制失效
+
+- **现象**: 连续多次失败后工作流仍继续执行，未触发熔断。
+- **原因**: 失败计数器未正确累加，或熔断阈值配置错误。
+- **解决**: 确保"三击熔断"机制正确实现，连续三次失败后必须停止工作流并通知相关人员。
 
 ## 示例
 

@@ -1,8 +1,26 @@
 ---
 name: sop-progress-supervisor
-description: 监管工作流进度，生成进度报告并处理阻塞问题
-version: v3.0.0
-skill_type: orchestration
+description: |
+  Use when:
+    - 用户需要了解当前工作流进度
+    - 需要检测和处理阻塞问题
+    - 定期生成进度报告
+    - 需要协调多个并行任务
+  Don't use when:
+    - 需要启动工作流 → 使用 sop-workflow-orchestrator
+    - 需要执行具体任务 → 调用对应的 Skill
+    - 需要修改代码 → 使用 sop-code-implementation
+    - 需要同步文档 → 使用 sop-document-sync
+  Inputs:
+    - workflow_state: 工作流状态文件（contracts/workflow-state.json）
+    - active_tasks: 活动任务列表
+    - previous_report: 上次进度报告（可选）
+  Outputs:
+    - contracts/progress-report.json: 进度报告
+  Success criteria:
+    - 进度报告已生成
+    - 进度报告准确
+    - 阻塞问题已记录
 ---
 
 # sop-progress-supervisor
@@ -122,6 +140,26 @@ invariants:
   - "阻塞问题必须及时报告"
   - "进度报告必须实时更新"
 ```
+
+## 常见坑
+
+### 坑 1: 进度计算不准确
+
+- **现象**: 报告显示进度 80%，但实际剩余工作量远超预期。
+- **原因**: 进度计算仅基于任务数量，未考虑任务的复杂度和实际工作量。
+- **解决**: 进度计算应综合考虑任务数量、任务权重和已完成工作量，而非简单计数。
+
+### 坑 2: 阻塞问题上报延迟
+
+- **现象**: 任务阻塞多时才被发现，导致整体进度严重延误。
+- **原因**: 未实时监控任务状态，仅在生成报告时才检查阻塞情况。
+- **解决**: 设置阻塞检测阈值，任务阻塞超过指定时间后立即上报并通知相关人员。
+
+### 坑 3: 并行任务资源冲突
+
+- **现象**: 多个并行任务争夺同一资源，导致任务失败或数据损坏。
+- **原因**: 协调并行任务时未检查资源依赖和冲突情况。
+- **解决**: 在启动并行任务前，检查资源依赖关系，对共享资源进行锁定或排队处理。
 
 ## 示例
 

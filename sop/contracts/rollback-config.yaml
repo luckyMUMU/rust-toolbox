@@ -1,0 +1,70 @@
+# 回滚流程配置
+# 定义回滚点创建和回滚执行规则
+
+version: "1.0.0"
+description: "SOP 工作流回滚配置"
+
+# 回滚点配置
+checkpoint:
+  # 触发条件：阶段完成时创建回滚点
+  trigger: stage_completed
+  
+  # 回滚点文件路径
+  output: contracts/rollback-point.json
+  
+  # 回滚点内容
+  content:
+    - stage_name        # 阶段名称
+    - timestamp         # 创建时间
+    - artifacts         # 当前阶段产物列表
+    - decisions         # 关键决策列表
+    - workflow_state    # 工作流状态快照
+
+# 回滚执行配置
+execution:
+  # 触发条件
+  triggers:
+    - user_reject       # 用户拒绝
+    - review_fail       # 审查失败
+    - constraint_violation # P0 约束违反
+    - manual_request    # 手动请求
+  
+  # 回滚动作
+  actions:
+    - name: save_current_state
+      description: "保存当前状态到回滚日志"
+      output: contracts/rollback-log.json
+    - name: restore_checkpoint
+      description: "恢复到上一个稳定状态"
+      source: contracts/rollback-point.json
+    - name: notify_stakeholders
+      description: "通知相关人员"
+  
+  # 回滚日志格式
+  log_format:
+    - rollback_id       # 回滚唯一标识
+    - timestamp         # 回滚时间
+    - reason            # 回滚原因
+    - from_stage        # 回滚前阶段
+    - to_stage          # 回滚后阶段
+    - artifacts_affected # 受影响的产物
+
+# 回滚点保留策略
+retention:
+  max_checkpoints: 5    # 最大保留回滚点数
+  expire_after: "7d"    # 过期时间
+
+# 示例回滚点
+example_checkpoint:
+  checkpoint_id: "CP-20260301-001"
+  stage_name: "stage-1"
+  timestamp: "2026-03-01T10:00:00Z"
+  artifacts:
+    - "specs/order-spec.md"
+    - "specs/order-clarification.md"
+  decisions:
+    - "选择微服务架构"
+    - "使用 PostgreSQL 数据库"
+  workflow_state:
+    current_stage: "stage-1"
+    completed_stages: ["stage-0"]

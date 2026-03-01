@@ -1,8 +1,27 @@
 ---
 name: sop-requirement-analyst
-description: 分析需求并生成 P1/P2 级规范文档，将业务需求转换为可执行的规范定义
-version: v3.0.1
-skill_type: specification
+description: |
+  Use when:
+    - 用户提出新功能需求或业务规则
+    - 需要将模糊的业务描述转换为清晰的规范定义
+    - 需要创建新的 P1/P2 级规范文档
+    - 需要定义功能验收的 BDD 场景
+  Don't use when:
+    - 规范文档已存在且无需修改 → 使用 sop-code-explorer 验证现有实现
+    - 需要修改代码而非创建规范 → 使用 sop-code-implementation
+    - 需求已明确，需要设计架构方案 → 使用 sop-architecture-design
+    - 需求已明确，需要设计实现细节 → 使用 sop-implementation-designer
+    - 需求描述少于 10 字符 → 要求用户补充需求详情
+  Inputs:
+    - requirement_description: 用户提供的原始需求描述（>=10字符）
+    - existing_specs: 现有规范文档（可选，用于参考和对齐）
+  Outputs:
+    - specs/{name}-clarification.md: 需求澄清记录
+    - specs/{name}-spec.md: 规范文档（含 BDD 场景）
+  Success criteria:
+    - 澄清记录包含 4 个维度的完整信息
+    - 规范文档包含完整的 BDD 场景
+    - 规范文档通过 P0 级约束验证
 ---
 
 # sop-requirement-analyst
@@ -169,6 +188,26 @@ invariants:
   - "规范必须符合 P0 级约束"
   - "澄清记录必须区分长期目标与短期实现"
 ```
+
+## 常见坑
+
+### 坑 1: 需求理解偏差
+
+- **现象**: 生成的规范文档与用户真实意图不符，导致后续实现返工。
+- **原因**: 仅根据用户初始描述直接编写规范，未进行多轮次多维度澄清提问。
+- **解决**: 严格执行四轮提问流程（业务背景、长期目标、边界约束、风险假设），每轮提问后记录并请用户确认。
+
+### 坑 2: BDD 场景不可测试
+
+- **现象**: BDD 场景描述模糊，无法转化为具体的测试用例。
+- **原因**: 场景描述使用了"快速"、"友好"等主观词汇，缺乏可量化的验收标准。
+- **解决**: 使用 SMART 原则编写 BDD 场景，确保 Given-When-Then 中的条件可量化、可验证。
+
+### 坑 3: 长期目标与短期实现混淆
+
+- **现象**: 规范文档中混合了 MVP 功能和长期愿景，导致实现范围不清。
+- **原因**: 未在澄清阶段明确区分"第一期交付"与"最终目标"。
+- **解决**: 在澄清记录中明确标注"短期目标（MVP）"和"长期愿景"，规范文档仅包含 MVP 范围。
 
 ## 示例
 

@@ -1,0 +1,49 @@
+# 产物索引配置
+# 所有 Skill 产物必须注册到此索引
+
+version: "1.0.0"
+description: "SOP Skill 产物统一索引"
+
+# 索引结构定义
+schema:
+  artifact:
+    id: string          # 产物唯一标识，格式：ART-{timestamp}-{seq}
+    type: enum          # 产物类型：spec | design | code | test | review | report
+    path: string        # 产物文件路径
+    generated_by: string # 生成该产物的 Skill 名称
+    timestamp: datetime # 生成时间，ISO 8601 格式
+    related_requirement: string # 关联需求 ID（可选）
+    stage: string       # 生成阶段：stage-0 | stage-1 | stage-2 | stage-3 | stage-4
+    dependencies: list  # 依赖的其他产物 ID（可选）
+
+# 产物类型定义
+types:
+  - name: spec
+    description: "规范文档"
+    path_pattern: "specs/{name}-spec.md"
+  - name: design
+    description: "设计文档"
+    path_pattern: "src/{module}/design.md"
+  - name: code
+    description: "代码实现"
+    path_pattern: "src/{module}/**/*.{ts,js,py,rs}"
+  - name: test
+    description: "测试代码"
+    path_pattern: "tests/{module}/**/*-test.{ts,js,py,rs}"
+  - name: review
+    description: "审查报告"
+    path_pattern: "contracts/*-review.json"
+  - name: report
+    description: "进度报告"
+    path_pattern: "contracts/*-report.json"
+
+# 示例条目
+examples:
+  - id: "ART-20260301-001"
+    type: spec
+    path: "specs/order-spec.md"
+    generated_by: "sop-requirement-analyst"
+    timestamp: "2026-03-01T10:00:00Z"
+    related_requirement: "REQ-001"
+    stage: "stage-1"
+    dependencies: []

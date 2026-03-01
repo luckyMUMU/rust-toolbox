@@ -1,113 +1,184 @@
 # Workflow Toolkit 文档中心
 
+> **版本**: v1.0.0  
+> **最后更新**: 2026-03-01  
+> **状态**: Active
+
+---
+
 ## 项目概述
 
-Workflow Toolkit 是一个 Rust 实现的工作流工具包，提供插件化架构、工具执行引擎和工作流编排能力。
+Workflow Toolkit 是一个**工具能力编排与复用平台**，通过对工具的工作流编排实现固定流程的复用，支持 AGENT 动态扩展能力构建复杂功能，同时提供 CLI/TUI 接口让人类用户便捷调用并监测运行状况。
 
-## 文档目录结构
+---
+
+## 文档架构
+
+本文档体系遵循 AGENT_SOP.md 规范，采用分层结构组织：
 
 ```
 docs/
-├── index.md                    # 文档入口（本文件）
-├── 01_concept_overview.md      # 概念概述
-├── 01_requirements/            # 需求文档
-├── 02_logical_workflow/        # 逻辑工作流伪代码
-├── 03_technical_spec/          # 技术规范
-├── 04_context_reference/       # 上下文参考
-├── archive/                    # 归档文档
-└── 参考/                       # 参考资料
+├── INDEX.md                        # 本文档（唯一入口）
+├── specs/                          # P1/P2 级规范文档
+│   ├── system-spec.md              # 系统规范
+│   └── api-contract.md             # API 契约
+├── design/                         # 设计文档
+│   ├── concept-overview.md         # 核心概念
+│   ├── logical-workflow/           # 逻辑工作流
+│   ├── architecture/               # 架构设计
+│   ├── adr/                        # 架构决策记录
+│   └── modules/                    # 模块设计
+├── 01_constitution/                # P0 级工程宪章
+│   ├── project-charter.md          # 项目章程
+│   ├── quality-redlines.md         # 质量红线
+│   ├── architecture-principles.md  # 架构原则
+│   └── security-baseline.md        # 安全基线
+├── 05_constraints/                 # P3 级约束
+│   └── p3-constraints.md           # 编码规范
+├── contracts/                      # 契约文件
+└── 参考/                           # SOP 规范（保护目录）
 ```
 
 ---
 
-## 章节导航
+## 快速导航
 
-### 1. 概念概述
+### 按角色查找
 
-- [01_concept_overview.md](./01_concept_overview.md) - 项目核心概念与架构概述
+#### 新加入开发者
+1. [核心概念](./design/concept-overview.md) - 了解项目价值
+2. [项目章程](./01_constitution/project-charter.md) - 了解项目目标
+3. [架构原则](./01_constitution/architecture-principles.md) - 理解架构设计
+4. [系统规范](./specs/system-spec.md) - 详细功能需求
 
-### 2. 需求文档
+#### 架构师
+1. [架构决策](./design/architecture/architecture-decision.md) - 技术决策记录
+2. [架构原则](./01_constitution/architecture-principles.md) - 设计原则
+3. [模块设计](./design/modules/) - 各模块详细设计
+4. [ADR 目录](./design/adr/) - 具体架构决策
 
-| 文档 | 说明 |
-|------|------|
-| [workflow_toolkit_prd.md](./01_requirements/workflow_toolkit_prd.md) | 产品需求文档 |
+#### 开发人员
+1. [质量红线](./01_constitution/quality-redlines.md) - 不可违背的约束
+2. [P3 约束](./05_constraints/p3-constraints.md) - 编码规范
+3. [API 契约](./specs/api-contract.md) - 接口定义
+4. [模块设计](./design/modules/) - 实现细节
 
-### 3. 逻辑工作流
+#### 测试人员
+1. [系统规范](./specs/system-spec.md) - 功能需求
+2. [质量红线](./01_constitution/quality-redlines.md) - 质量要求
+3. [API 契约](./specs/api-contract.md) - 接口测试依据
 
-工作流伪代码描述核心业务逻辑：
-
-| 文档 | 说明 |
-|------|------|
-| [error_handling.pseudo](./02_logical_workflow/error_handling.pseudo) | 错误处理逻辑 |
-| [plugin_loading.pseudo](./02_logical_workflow/plugin_loading.pseudo) | 插件加载逻辑 |
-| [tool_execution.pseudo](./02_logical_workflow/tool_execution.pseudo) | 工具执行逻辑 |
-| [workflow_execution.pseudo](./02_logical_workflow/workflow_execution.pseudo) | 工作流执行逻辑 |
-
-### 4. 技术规范
-
-#### 接口定义
-
-| 文档 | 说明 |
-|------|------|
-| [interfaces.md](./03_technical_spec/interfaces.md) | 核心接口规范 |
-
-#### API 参考
-
-| 文档 | 说明 |
-|------|------|
-| [CLI_REFERENCE.md](./03_technical_spec/api/CLI_REFERENCE.md) | 命令行接口参考 |
-| [RUST_SDK_REFERENCE.md](./03_technical_spec/api/RUST_SDK_REFERENCE.md) | Rust SDK 参考 |
-
-### 5. 上下文参考
-
-#### 架构决策记录 (ADR)
-
-| 文档 | 说明 |
-|------|------|
-| [architecture_decision.md](./04_context_reference/architecture_decision.md) | 架构决策总览 |
-| [adr_di_001_自建DI容器选择.md](./04_context_reference/adr/adr_di_001_自建DI容器选择.md) | DI 容器选择决策 |
-| [adr_workflow_002_采用JoinSet并行执行.md](./04_context_reference/adr/adr_workflow_002_采用JoinSet并行执行.md) | JoinSet 并行执行决策 |
-| [adr_plugin_003_WASM沙箱隔离策略.md](./04_context_reference/adr/adr_plugin_003_WASM沙箱隔离策略.md) | WASM 沙箱隔离策略 |
-| [adr_tools_004_Schema验证策略.md](./04_context_reference/adr/adr_tools_004_Schema验证策略.md) | Schema 验证策略 |
-| [template.md](./04_context_reference/adr/template.md) | ADR 模板 |
-
-### 6. 归档文档
-
-历史版本文档和迁移指南，详见 [archive/DOCS_README.md](./archive/DOCS_README.md)。
-
-### 7. 参考资料
-
-| 文档 | 说明 |
-|------|------|
-| [SPEC.md](./参考/SPEC.md) | 规格说明 |
+#### 产品经理
+1. [项目章程](./01_constitution/project-charter.md) - 项目愿景
+2. [系统规范](./specs/system-spec.md) - 功能详情
+3. [核心概念](./design/concept-overview.md) - 产品定位
 
 ---
 
-## 快速开始指南
+## 文档分层说明
 
-### 新读者
+### P0 级：工程宪章 (01_constitution/)
 
-1. 从 [概念概述](./01_concept_overview.md) 了解项目核心概念
-2. 阅读 [产品需求文档](./01_requirements/workflow_toolkit_prd.md) 理解项目目标
-3. 查看 [接口规范](./03_technical_spec/interfaces.md) 了解技术细节
+**不可违背**的顶层规范，违反即熔断：
 
-### 开发者
+- [项目章程](./01_constitution/project-charter.md) - 项目愿景、目标、范围
+- [质量红线](./01_constitution/quality-redlines.md) - 质量底线要求
+- [架构原则](./01_constitution/architecture-principles.md) - 架构设计原则
+- [安全基线](./01_constitution/security-baseline.md) - 安全最低标准
 
-1. 阅读 [架构决策记录](./04_context_reference/architecture_decision.md) 了解设计背景
-2. 参考 [逻辑工作流](./02_logical_workflow/) 理解业务逻辑
-3. 使用 [API 参考](./03_technical_spec/api/) 进行开发集成
+### P1/P2 级：规范文档 (specs/)
 
-### 维护者
+跨模块/单模块的规范要求：
 
-1. 参考 [ADR 模板](./04_context_reference/adr/template.md) 记录架构决策
-2. 遵循文档结构规范更新相关章节
-3. 将过时文档移至 [archive](./archive/) 目录
+- [系统规范](./specs/system-spec.md) - 完整功能需求（原 PRD）
+- [API 契约](./specs/api-contract.md) - 接口定义与数据模型
+
+### 设计文档 (design/)
+
+实现层面的设计说明：
+
+- [核心概念](./design/concept-overview.md) - 项目概述与术语
+- [逻辑工作流](./design/logical-workflow/) - 业务流程伪代码
+- [架构设计](./design/architecture/) - 整体架构设计
+- [架构决策记录](./design/adr/) - 具体技术决策
+- [模块设计](./design/modules/) - 各模块详细设计
+
+### P3 级：约束定义 (05_constraints/)
+
+自动化工具验证的实现规范：
+
+- [P3 约束](./05_constraints/p3-constraints.md) - 编码、测试、文档规范
 
 ---
 
-## 文档约定
+## 核心文档索引
 
-- 文件命名使用小写字母和下划线
-- 目录使用数字前缀排序
-- ADR 文档遵循 `adr_领域_编号_标题.md` 格式
-- 伪代码文件使用 `.pseudo` 扩展名
+### 需求与设计
+- [系统规范](./specs/system-spec.md) - 完整功能需求
+- [核心概念](./design/concept-overview.md) - 项目概述
+- [逻辑工作流](./design/logical-workflow/) - 业务流程
+- [架构决策](./design/architecture/architecture-decision.md) - 技术决策
+
+### 接口与实现
+- [API 契约](./specs/api-contract.md) - 接口定义
+- [模块设计](./design/modules/) - 实现细节
+  - [应用层](./design/modules/application-design.md)
+  - [领域层](./design/modules/domain-design.md)
+  - [基础设施层](./design/modules/infrastructure-design.md)
+  - [接口层](./design/modules/interfaces-design.md)
+  - [工作流引擎](./design/modules/workflow-design.md)
+  - [插件系统](./design/modules/plugins-design.md)
+  - [工具系统](./design/modules/tools-design.md)
+  - [存储系统](./design/modules/storage-design.md)
+  - [性能优化](./design/modules/performance-design.md)
+
+### 规范与约束
+- [项目章程](./01_constitution/project-charter.md)
+- [质量红线](./01_constitution/quality-redlines.md)
+- [架构原则](./01_constitution/architecture-principles.md)
+- [安全基线](./01_constitution/security-baseline.md)
+- [P3 约束](./05_constraints/p3-constraints.md)
+
+---
+
+## 文档维护
+
+### 文档更新流程
+
+1. 修改文档前确认文档层级（P0-P3）
+2. P0/P1 级文档修改需技术负责人审批
+3. 更新后验证链接有效性
+4. 更新本文档索引（如需要）
+
+### 文档版本控制
+
+- 所有文档包含版本号和最后更新日期
+- 重大变更需更新版本号
+- 废弃文档移至归档目录
+
+### 文档质量保证
+
+- 定期审查文档准确性
+- 文档与代码保持一致
+- 链接无死链
+
+---
+
+## 相关资源
+
+- [SOP 规范](../sop/AGENT_SOP.md) - 工作流规范
+- [参考目录](./参考/) - SOP 相关资料
+- [设计文档](./design/root-design.md) - 根设计文档（原 design.md）
+
+---
+
+## 帮助与支持
+
+如有问题，请：
+1. 首先查阅相关文档
+2. 查看架构决策记录了解背景
+3. 联系技术团队
+
+---
+
+*最后更新：2026-03-01*
