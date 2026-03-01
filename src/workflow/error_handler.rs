@@ -354,17 +354,15 @@ mod tests {
                 || async {
                     let count = counter_clone.fetch_add(1, Ordering::SeqCst);
                     if count < 2 {
-                        Err::<i32, String>("temporary error".to_string())
+                        Err::<i32, std::io::Error>(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "temporary error",
+                        ))
                     } else {
                         Ok(42)
                     }
                 },
-                |e| {
-                    WorkflowErrorClassifier::classify(&std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        e,
-                    ))
-                },
+                |e| WorkflowErrorClassifier::classify(e),
             )
             .await;
 
@@ -382,13 +380,11 @@ mod tests {
 
         let result = handler
             .execute(
-                || async { Err::<i32, String>("persistent error".to_string()) },
-                |e| {
-                    WorkflowErrorClassifier::classify(&std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        e,
-                    ))
-                },
+                || async { Err::<i32, std::io::Error>(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "persistent error",
+                )) },
+                |e| WorkflowErrorClassifier::classify(e),
             )
             .await;
 
@@ -414,17 +410,15 @@ mod tests {
                 || async {
                     let count = counter_clone.fetch_add(1, Ordering::SeqCst);
                     if count < 2 {
-                        Err::<i32, String>("temporary error".to_string())
+                        Err::<i32, std::io::Error>(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "temporary error",
+                        ))
                     } else {
                         Ok(42)
                     }
                 },
-                |e| {
-                    WorkflowErrorClassifier::classify(&std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        e,
-                    ))
-                },
+                |e| WorkflowErrorClassifier::classify(e),
             )
             .await;
 

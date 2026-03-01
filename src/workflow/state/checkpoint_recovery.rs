@@ -102,7 +102,7 @@ pub struct EnhancedCheckpoint {
 }
 
 /// 检查点类型
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CheckpointType {
     /// 定时检查点
     Scheduled,
@@ -563,7 +563,10 @@ mod tests {
         let checkpoint =
             CheckpointBuilder::new(Uuid::new_v4(), "test".to_string(), "hash".to_string()).build();
 
-        let recovery = CheckpointRecovery::default_recovery(Arc::new(StateManager::default()));
+        let storage = Arc::new(crate::storage::backends::SimpleMemoryStorage::new());
+        let cache = Arc::new(crate::storage::backends::SimpleMemoryCache::new());
+        let state_manager = Arc::new(StateManager::new(storage, cache));
+        let recovery = CheckpointRecovery::default_recovery(state_manager);
         let validation = recovery.validate_checkpoint(&checkpoint, None);
 
         assert!(matches!(validation, CheckpointValidation::Valid));
@@ -600,7 +603,10 @@ mod tests {
                 .with_node_states(node_states)
                 .build();
 
-        let recovery = CheckpointRecovery::default_recovery(Arc::new(StateManager::default()));
+        let storage = Arc::new(crate::storage::backends::SimpleMemoryStorage::new());
+        let cache = Arc::new(crate::storage::backends::SimpleMemoryCache::new());
+        let state_manager = Arc::new(StateManager::new(storage, cache));
+        let recovery = CheckpointRecovery::default_recovery(state_manager);
         let start_nodes = recovery.determine_recovery_start(&checkpoint).unwrap();
 
         assert_eq!(start_nodes, vec!["node2"]);

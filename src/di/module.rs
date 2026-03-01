@@ -233,21 +233,15 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    trait TestService: Send + Sync {
-        fn value(&self) -> i32;
-    }
-
-    struct TestServiceImpl {
+    struct TestService {
         value: i32,
     }
 
-    impl TestServiceImpl {
+    impl TestService {
         fn new(value: i32) -> Self {
             Self { value }
         }
-    }
 
-    impl TestService for TestServiceImpl {
         fn value(&self) -> i32 {
             self.value
         }
@@ -274,8 +268,8 @@ mod tests {
 
         fn configure(&self, container: &DiContainer) {
             let value = self.value;
-            container.register_factory::<dyn TestService, _>(move || {
-                Arc::new(TestServiceImpl::new(value))
+            container.register_factory::<TestService, _>(move || {
+                Arc::new(TestService::new(value))
             });
         }
     }
@@ -295,8 +289,8 @@ mod tests {
 
         registrar.configure_all().unwrap();
 
-        let service = registrar.container().resolve::<dyn TestService>();
-        assert!(service.is_some());
+        let service = registrar.container().resolve::<TestService>();
+        assert!(service.is_ok());
         assert_eq!(service.unwrap().value(), 42);
     }
 
@@ -343,7 +337,7 @@ mod tests {
         }
 
         let mut registrar = ModuleRegistrar::new();
-        registrar.register(AppModule);
+        registrar.register(AppTestModule);
         registrar.register(CoreModule);
 
         let result = registrar.configure_all();

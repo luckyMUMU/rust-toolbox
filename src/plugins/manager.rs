@@ -352,18 +352,19 @@ impl Drop for PluginManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plugins::types::{PluginType, ResourceLimits, SecurityPolicy};
+    use crate::plugins::types::{ResourceLimits, SecurityPolicy};
     use std::sync::atomic::{AtomicU32, Ordering};
 
     fn create_test_config(name: &str) -> PluginConfig {
         PluginConfig {
             name: name.to_string(),
-            plugin_type: PluginType::Native,
-            path: std::path::PathBuf::from("./test"),
+            plugin_type: crate::core::PluginType::Native,
+            enabled: true,
+            config: serde_json::Value::Null,
             security_policy: SecurityPolicy::default(),
             resource_limits: ResourceLimits::default(),
-            environment: std::collections::HashMap::new(),
-            auto_start: true,
+            dependencies: vec![],
+            metadata: std::collections::HashMap::new(),
         }
     }
 

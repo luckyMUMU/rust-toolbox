@@ -13,14 +13,18 @@
 //! - `text`: Text processing tools
 //! - `ui`: Human decision and confirmation tools
 //! - `utils`: Utilities, monitoring, performance, and registry
+//! - `merge`: Folder merge tools (based on Python reference implementation)
+//! - `workflow`: Classification workflow definitions
 
 // Core modules
 pub mod batch;
 pub mod classification;
 pub mod core;
+pub mod merge;
 pub mod text;
 pub mod ui;
 pub mod utils;
+pub mod workflow;
 
 // Plugin definition stays at root level
 pub mod plugin;
@@ -93,6 +97,19 @@ pub use utils::{
     OperationMetrics, OptimizedFileOperationManager, PathUtils, PerformanceStats, PinyinResult,
     PinyinStyle, ResourceUsage, SingleFolderMergeResult, StreamingUtils, TextNormalizationConfig,
     TextProcessor, UniqueFolderInfo, ValidationUtils,
+};
+
+// Re-export merge types
+pub use merge::{
+    ConflictResolution, FolderMergeParams, FolderMergeTool,
+    MergeConflict, MergeConflictType, MergeExecutionResult, MergeOperationResult,
+    MergeOperationType, MergePlan, MergePlanStatus, SetFolderInfo,
+};
+
+// Re-export workflow types
+pub use workflow::{
+    ClassificationWorkflow, ClassificationWorkflowBuilder, ClassificationWorkflowConfig,
+    OutputMode, StepResult, StepStatus, WorkflowExecutionResult,
 };
 
 // Re-export plugin types

@@ -343,7 +343,8 @@ mod tests {
             max_attempts: 0,
             base_delay: Duration::from_secs(1),
             max_delay: Some(Duration::from_secs(10)),
-            retryable_errors: vec![],
+            backoff_multiplier: 2.0,
+            strategy: crate::core::RetryStrategy::ExponentialBackoff,
         });
 
         let report = ConfigValidator::validate(&config);
@@ -357,8 +358,7 @@ mod tests {
     #[test]
     fn test_validate_checkpoint() {
         let mut config = WorkflowConfig::default();
-        config.enable_checkpoint = true;
-        config.checkpoint_interval = Duration::from_secs(0);
+        config.checkpoint_interval = Some(Duration::from_secs(0));
 
         let report = ConfigValidator::validate(&config);
         assert!(!report.is_valid);

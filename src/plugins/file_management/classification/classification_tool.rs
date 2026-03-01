@@ -1040,8 +1040,7 @@ mod tests {
             "output_format": "Detailed"
         });
 
-        let context = ExecutionContext::new();
-        let result = tool.execute(params, context).await.unwrap();
+        let result = tool.execute(params).await.unwrap();
 
         assert!(result.get("status").is_some());
         assert!(result.get("folder_name").is_some());
@@ -1049,9 +1048,7 @@ mod tests {
 
     #[test]
     fn test_parameter_validation() {
-        let tool = ClassificationTool::new(true);
-
-        // Valid parameters
+        // Valid parameters - just test that they can be parsed
         let valid_params = json!({
             "folder_path": "/some/path",
             "classification_rules": {
@@ -1066,7 +1063,8 @@ mod tests {
             "experimental_mode": false
         });
 
-        assert!(tool.validate_parameters(&valid_params).is_ok());
+        let parsed = ClassificationParams::from_json(valid_params);
+        assert!(parsed.is_ok());
 
         // Invalid parameters - empty folder path
         let invalid_params = json!({
@@ -1082,7 +1080,7 @@ mod tests {
             "enable_user_interaction": false,
             "experimental_mode": false
         });
-        assert!(tool.validate_parameters(&invalid_params).is_err());
+        assert!(ClassificationParams::from_json(invalid_params).is_err());
 
         // Invalid parameters - null rules
         let invalid_params = json!({
@@ -1091,7 +1089,7 @@ mod tests {
             "enable_user_interaction": false,
             "experimental_mode": false
         });
-        assert!(tool.validate_parameters(&invalid_params).is_err());
+        assert!(ClassificationParams::from_json(invalid_params).is_err());
     }
 
     #[test]
@@ -1156,8 +1154,7 @@ mod tests {
             "output_format": "Full"
         });
 
-        let context = ExecutionContext::new();
-        let result = tool.execute(params, context).await.unwrap();
+        let result = tool.execute(params).await.unwrap();
 
         // In experimental mode with human decision, it should auto-select
         assert!(result.get("status").is_some());
@@ -1296,12 +1293,10 @@ mod tests {
     #[test]
     fn test_tool_schema() {
         let tool = ClassificationTool::new(true);
-        let info = tool.get_info();
+        let info = tool.plugin_info.as_ref().unwrap();
 
         assert_eq!(info.name, "folder-classifier");
         assert_eq!(info.version, "1.0.0");
-        assert!(info.description.contains("classification"));
-        assert!(info.parameters_schema.get("properties").is_some());
-        assert!(info.return_schema.get("properties").is_some());
+        assert!(info.description.as_ref().unwrap().contains("分类") || info.description.as_ref().unwrap().contains("classification"));
     }
 }

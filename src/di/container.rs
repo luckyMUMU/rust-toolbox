@@ -443,23 +443,17 @@ impl std::error::Error for DiContainerError {}
 mod tests {
     use super::*;
 
-    trait TestService: Send + Sync {
-        fn name(&self) -> &str;
-    }
-
-    struct TestServiceImpl {
+    struct TestService {
         name: String,
     }
 
-    impl TestServiceImpl {
+    impl TestService {
         fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
             }
         }
-    }
 
-    impl TestService for TestServiceImpl {
         fn name(&self) -> &str {
             &self.name
         }
@@ -468,21 +462,21 @@ mod tests {
     #[test]
     fn test_register_singleton() {
         let container = DiContainer::new();
-        let service = Arc::new(TestServiceImpl::new("test"));
+        let service = Arc::new(TestService::new("test"));
 
-        container.register_singleton::<dyn TestService>(service).unwrap();
+        container.register_singleton::<TestService>(service).unwrap();
 
-        assert!(container.is_registered::<dyn TestService>().unwrap());
+        assert!(container.is_registered::<TestService>().unwrap());
     }
 
     #[test]
     fn test_resolve_singleton() {
         let container = DiContainer::new();
-        let service = Arc::new(TestServiceImpl::new("singleton"));
+        let service = Arc::new(TestService::new("singleton"));
 
-        container.register_singleton::<dyn TestService>(service.clone()).unwrap();
+        container.register_singleton::<TestService>(service.clone()).unwrap();
 
-        let resolved = container.resolve::<dyn TestService>();
+        let resolved = container.resolve::<TestService>();
         assert!(resolved.is_ok());
         assert_eq!(resolved.unwrap().name(), "singleton");
     }
@@ -490,12 +484,12 @@ mod tests {
     #[test]
     fn test_singleton_returns_same_instance() {
         let container = DiContainer::new();
-        let service = Arc::new(TestServiceImpl::new("same"));
+        let service = Arc::new(TestService::new("same"));
 
-        container.register_singleton::<dyn TestService>(service).unwrap();
+        container.register_singleton::<TestService>(service).unwrap();
 
-        let first = container.resolve::<dyn TestService>().unwrap();
-        let second = container.resolve::<dyn TestService>().unwrap();
+        let first = container.resolve::<TestService>().unwrap();
+        let second = container.resolve::<TestService>().unwrap();
 
         // 验证是同一个实例
         assert!(Arc::ptr_eq(&first, &second));
@@ -506,9 +500,9 @@ mod tests {
         let container = DiContainer::new();
 
         container
-            .register_factory::<dyn TestService, _>(|| Arc::new(TestServiceImpl::new("factory"))).unwrap();
+            .register_factory::<TestService, _>(|| Arc::new(TestService::new("factory"))).unwrap();
 
-        assert!(container.is_registered::<dyn TestService>().unwrap());
+        assert!(container.is_registered::<TestService>().unwrap());
     }
 
     #[test]
@@ -516,10 +510,10 @@ mod tests {
         let container = DiContainer::new();
 
         container
-            .register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("factory"))).unwrap();
+            .register_factory::<TestService, _>(|| Arc::new(TestService::new("factory"))).unwrap();
 
-        let first = container.resolve::<TestServiceImpl>().unwrap();
-        let second = container.resolve::<TestServiceImpl>().unwrap();
+        let first = container.resolve::<TestService>().unwrap();
+        let second = container.resolve::<TestService>().unwrap();
 
         // 注意：当前实现会缓存工厂创建的实例
         // 如果需要每次创建新实例，需要修改实现
@@ -530,7 +524,7 @@ mod tests {
     fn test_resolve_unregistered_returns_error() {
         let container = DiContainer::new();
 
-        let result = container.resolve::<dyn TestService>();
+        let result = container.resolve::<TestService>();
         assert!(result.is_err());
     }
 
@@ -538,28 +532,28 @@ mod tests {
     fn test_resolve_or_error_returns_error() {
         let container = DiContainer::new();
 
-        let result = container.resolve_or_error::<dyn TestService>();
+        let result = container.resolve_or_error::<TestService>();
         assert!(result.is_err());
     }
 
     #[test]
     fn test_unregister() {
         let container = DiContainer::new();
-        let service = Arc::new(TestServiceImpl::new("test"));
+        let service = Arc::new(TestService::new("test"));
 
-        container.register_singleton::<dyn TestService>(service).unwrap();
-        assert!(container.is_registered::<dyn TestService>().unwrap());
+        container.register_singleton::<TestService>(service).unwrap();
+        assert!(container.is_registered::<TestService>().unwrap());
 
-        let removed = container.unregister::<dyn TestService>().unwrap();
+        let removed = container.unregister::<TestService>().unwrap();
         assert!(removed);
-        assert!(!container.is_registered::<dyn TestService>().unwrap());
+        assert!(!container.is_registered::<TestService>().unwrap());
     }
 
     #[test]
     fn test_clear() {
         let container = DiContainer::new();
 
-        container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test"))).unwrap();
+        container.register_factory::<TestService, _>(|| Arc::new(TestService::new("test"))).unwrap();
 
         assert!(container.service_count().unwrap() > 0);
 
@@ -574,13 +568,13 @@ mod tests {
 
         assert_eq!(container.service_count().unwrap(), 0);
 
-        container.register_factory::<TestServiceImpl, _>(|| Arc::new(TestServiceImpl::new("test"))).unwrap();
+        container.register_factory::<TestService, _>(|| Arc::new(TestService::new("test"))).unwrap();
 
         assert_eq!(container.service_count().unwrap(), 1);
 
         // 注册同一个类型的单例会覆盖工厂
         container
-            .register_singleton::<TestServiceImpl>(Arc::new(TestServiceImpl::new("singleton"))).unwrap();
+            .register_singleton::<TestService>(Arc::new(TestService::new("singleton"))).unwrap();
 
         // 应该仍然是 1，因为是同一个类型
         assert_eq!(container.service_count().unwrap(), 1);
@@ -594,18 +588,18 @@ mod tests {
         let container = Arc::new(DiContainer::new());
         let counter = Arc::new(AtomicU32::new(0));
 
-        container.register_factory::<TestServiceImpl, _>({
+        container.register_factory::<TestService, _>({
             let counter = counter.clone();
             move || {
                 counter.fetch_add(1, Ordering::SeqCst);
-                Arc::new(TestServiceImpl::new("factory"))
+                Arc::new(TestService::new("factory"))
             }
         }).unwrap();
 
         let handles: Vec<_> = (0..10)
             .map(|_| {
                 let container = container.clone();
-                thread::spawn(move || container.resolve::<TestServiceImpl>())
+                thread::spawn(move || container.resolve::<TestService>())
             })
             .collect();
 

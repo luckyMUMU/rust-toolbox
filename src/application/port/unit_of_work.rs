@@ -257,7 +257,7 @@ mod tests {
     #[tokio::test]
     async fn test_unit_of_work_creation() {
         let event_bus = Arc::new(DomainEventBus::with_defaults());
-        let mut uow = UnitOfWorkContext::new(event_bus);
+        let uow = UnitOfWorkContext::new(event_bus);
 
         assert!(!uow.has_changes());
         assert!(uow.get_events().is_empty());
@@ -304,10 +304,8 @@ mod tests {
 
         let result = manager
             .execute(|uow| {
-                Box::pin(async move {
-                    uow.add_event(create_test_event());
-                    Ok(42)
-                })
+                uow.add_event(create_test_event());
+                Box::pin(async move { Ok(42) })
             })
             .await;
 

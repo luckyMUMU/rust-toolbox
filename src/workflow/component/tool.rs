@@ -188,13 +188,14 @@ impl Component for ToolComponent {
 mod tests {
     use super::*;
     use crate::tools::ToolRegistry;
+    use futures::FutureExt;
     use serde_json::json;
     use std::sync::Arc;
 
     fn create_test_registry() -> Arc<ToolRegistry> {
         use crate::tools::registry::ToolRegistry;
-        use crate::tools::types::{NativeTool, Tool, ToolId, ToolMetadata, ToolInfo, ToolKind, Version};
-        use chrono::Utc;
+        use crate::tools::types::{NativeTool, Tool, ToolId, ToolMetadata, ToolKind};
+        use crate::core::ToolInfo;
 
         let registry = ToolRegistry::new();
 
@@ -205,17 +206,23 @@ mod tests {
                 info: ToolInfo {
                     name: "echo".to_string(),
                     description: "Echo tool for testing".to_string(),
-                    input_schema: json!({"type": "object"}),
-                    output_schema: json!({"type": "object"}),
-                    examples: vec![],
+                    parameters_schema: json!({"type": "object"}),
+                    return_schema: json!({"type": "object"}),
+                    version: "1.0.0".to_string(),
+                    category: None,
+                    tags: vec![],
+                    dependencies: vec![],
+                    plugin_name: None,
+                    version_requirements: std::collections::HashMap::new(),
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
                 },
                 kind: ToolKind::Native,
-                version: Version::new(1, 0, 0),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                tags: vec!["test".to_string()],
-                author: "test".to_string(),
-                license: "MIT".to_string(),
+                input_schema: None,
+                output_schema: None,
+                examples: vec![],
+                resource_requirements: crate::tools::types::ResourceRequirements::default(),
+                version: "1.0.0".to_string(),
             }),
             |input, _ctx| {
                 async move {

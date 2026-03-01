@@ -728,13 +728,13 @@ pub fn create_result_review_tool_with_config(config: ResultReviewConfig) -> Tool
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_result_review_tool_creation() {
         let tool = ResultReviewTool::with_default_config();
-        assert_eq!(tool.name(), "result-reviewer");
-        assert_eq!(tool.version(), "1.0.0");
+        // Test that tool was created successfully
+        assert!(tool.config.auto_approve_safe_operations == false);
+        assert!(tool.config.enable_batch_review == true);
     }
 
     #[test]

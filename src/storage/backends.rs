@@ -125,6 +125,83 @@ impl CacheBackend for SimpleMemoryCache {
     }
 }
 
+/// Simple in-memory storage implementation
+pub struct SimpleMemoryStorage {
+    data: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+}
+
+impl SimpleMemoryStorage {
+    pub fn new() -> Self {
+        Self {
+            data: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
+
+impl Default for SimpleMemoryStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl StorageBackend for SimpleMemoryStorage {
+    async fn save(&self, key: &str, value: &[u8]) -> Result<()> {
+        if let Ok(mut data) = self.data.write() {
+            data.insert(key.to_string(), value.to_vec());
+        }
+        Ok(())
+    }
+
+    async fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let data = self.data.read().map_err(|e| {
+            crate::error::WorkflowError::storage(format!("获取读锁失败: {}", e))
+        })?;
+        Ok(data.get(key).cloned())
+    }
+
+    async fn delete(&self, key: &str) -> Result<()> {
+        if let Ok(mut data) = self.data.write() {
+            data.remove(key);
+        }
+        Ok(())
+    }
+
+    async fn exists(&self, key: &str) -> Result<bool> {
+        let data = self.data.read().map_err(|e| {
+            crate::error::WorkflowError::storage(format!("获取读锁失败: {}", e))
+        })?;
+        Ok(data.contains_key(key))
+    }
+
+    async fn list_keys(&self, prefix: &str) -> Result<Vec<String>> {
+        let data = self.data.read().map_err(|e| {
+            crate::error::WorkflowError::storage(format!("获取读锁失败: {}", e))
+        })?;
+        Ok(data
+            .keys()
+            .filter(|k| k.starts_with(prefix))
+            .cloned()
+            .collect())
+    }
+
+    async fn batch_save(&self, items: Vec<(String, Vec<u8>)>) -> Result<()> {
+        if let Ok(mut data) = self.data.write() {
+            for (key, value) in items {
+                data.insert(key, value);
+            }
+        }
+        Ok(())
+    }
+
+    async fn batch_load(&self, keys: Vec<String>) -> Result<Vec<Option<Vec<u8>>>> {
+        let data = self.data.read().map_err(|e| {
+            crate::error::WorkflowError::storage(format!("获取读锁失败: {}", e))
+        })?;
+        Ok(keys.into_iter().map(|key| data.get(&key).cloned()).collect())
+    }
+}
+
 /// Simple file-based storage implementation
 pub struct FileStorage {
     base_path: std::path::PathBuf,

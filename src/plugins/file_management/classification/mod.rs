@@ -4,7 +4,9 @@
 
 pub mod classification_flow;
 pub mod classification_tool;
+pub mod enhanced_classification_tool;
 pub mod rule_config;
+pub mod rule_storage;
 
 // Re-export classification components
 pub use classification_flow::{
@@ -16,4 +18,11 @@ pub use classification_tool::{
     ClassificationCandidate, ClassificationEngine, ClassificationOutputFormat,
     ClassificationParams, ClassificationResult, ClassificationRule, ClassificationRules,
     ClassificationStatus, ClassificationTool,
+};
+pub use enhanced_classification_tool::{
+    BatchClassificationResult, ClassificationCache, ClassificationProgress,
+    EnhancedClassificationTool, HierarchicalCategory, MergeSuggestion,
+};
+pub use rule_storage::{
+    ClassfyCategory, ClassfyJsonConfig, ClassificationRuleStorage, RuleStorageConfig, RuleVersion,
 };
